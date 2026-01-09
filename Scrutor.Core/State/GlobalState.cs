@@ -8,6 +8,7 @@ namespace Scrutor.Core.State;
 public sealed class GlobalState : IGlobalState
 {
     private readonly ConcurrentDictionary<Address, Account> _accounts = new();
+    private readonly ReaderWriterLockSlim _consistencyLock = new();
 
     public ValueTask<BigInteger> GetBalanceAsync(Address address, CancellationToken ct = default)
     {
@@ -20,10 +21,18 @@ public sealed class GlobalState : IGlobalState
 
     public void SetBalance(Address address, BigInteger amount)
     {
-        var account = GetOrCreateAccount(address);
-        lock (account)
+        _consistencyLock.EnterReadLock();
+        try
         {
-            account.Balance = amount;
+            var account = GetOrCreateAccount(address);
+            lock (account)
+            {
+                account.Balance = amount;
+            }
+        }
+        finally
+        {
+            _consistencyLock.ExitReadLock();
         }
     }
 
@@ -34,10 +43,18 @@ public sealed class GlobalState : IGlobalState
 
     public void SetNonce(Address address, ulong nonce)
     {
-        var account = GetOrCreateAccount(address);
-        lock (account)
+        _consistencyLock.EnterReadLock();
+        try
         {
-            account.Nonce = nonce;
+            var account = GetOrCreateAccount(address);
+            lock (account)
+            {
+                account.Nonce = nonce;
+            }
+        }
+        finally
+        {
+            _consistencyLock.ExitReadLock();
         }
     }
 
@@ -50,10 +67,18 @@ public sealed class GlobalState : IGlobalState
 
     public void SetCode(Address address, byte[] code)
     {
-        var account = GetOrCreateAccount(address);
-        lock (account)
+        _consistencyLock.EnterReadLock();
+        try
         {
-            account.Code = code;
+            var account = GetOrCreateAccount(address);
+            lock (account)
+            {
+                account.Code = code;
+            }
+        }
+        finally
+        {
+            _consistencyLock.ExitReadLock();
         }
     }
 
@@ -71,16 +96,32 @@ public sealed class GlobalState : IGlobalState
 
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
     {
-        var account = GetOrCreateAccount(address);
-        lock (account)
+        _consistencyLock.EnterReadLock();
+        try
         {
-            account.Storage[key] = value;
+            var account = GetOrCreateAccount(address);
+            lock (account)
+            {
+                account.Storage[key] = value;
+            }
+        }
+        finally
+        {
+            _consistencyLock.ExitReadLock();
         }
     }
 
     public void Reset()
     {
-        _accounts.Clear();
+        _consistencyLock.EnterWriteLock();
+        try
+        {
+            _accounts.Clear();
+        }
+        finally
+        {
+            _consistencyLock.ExitWriteLock();
+        }
     }
 
     public ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default)
@@ -90,15 +131,34 @@ public sealed class GlobalState : IGlobalState
 
     public IDictionary<Address, Account> Snapshot()
     {
-        var snapshot = new Dictionary<Address, Account>();
-        foreach (var kvp in _accounts)
+        _consistencyLock.EnterWriteLock();
+        try
         {
-            lock (kvp.Value)
+            var snapshot = new Dictionary<Address, Account>();
+            foreach (var kvp in _accounts)
             {
-                snapshot[kvp.Key] = kvp.Value.Clone();
+                // We assume _accounts structure doesn't change during iteration because we hold WriteLock?
+                // Wait, GetOrCreateAccount adds to _accounts. SetBalance calls GetOrCreateAccount.
+                // SetBalance holds ReadLock. Snapshot holds WriteLock.
+                // So no GetOrCreateAccount can happen during Snapshot.
+                // So _accounts keys are stable.
+                
+                // We still lock account for internal consistency, although strictly 
+                // if all setters take consistencyLock, and Snapshot takes WriteLock, 
+                // no one can be holding the per-account lock either (because they'd need ReadLock first).
+                // But let's keep the inner lock for safety/correctness if accessed elsewhere.
+                
+                lock (kvp.Value)
+                {
+                    snapshot[kvp.Key] = kvp.Value.Clone();
+                }
             }
+            return snapshot;
         }
-        return snapshot;
+        finally
+        {
+            _consistencyLock.ExitWriteLock();
+        }
     }
 
     private Account GetOrCreateAccount(Address address)
