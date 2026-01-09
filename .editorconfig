@@ -1,0 +1,7 @@
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+
+[*.cs]
+dotnet_diagnostic.CS1002.severity = error

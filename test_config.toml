@@ -1,0 +1,11 @@
+host = "0.0.0.0"
+port = 8546
+chain_id = 1234
+hardfork = "shanghai"
+
+accounts = 5
+balance = 1000.0
+mnemonic = "test test test test test test test test test test test junk"
+
+block_time = 12
+automine = true

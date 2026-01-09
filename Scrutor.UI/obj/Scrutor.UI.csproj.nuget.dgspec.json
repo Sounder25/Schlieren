@@ -1,0 +1,349 @@
+{
+  "format": 1,
+  "restore": {
+    "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj": {}
+  },
+  "projects": {
+    "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
+        "projectName": "Scrutor.Core",
+        "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
+        "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
+        "outputPath": "c:\\projects\\Scrutor\\Scrutor.Core\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "configFilePaths": [
+          "C:\\Users\\Erick\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "BouncyCastle.Cryptography": {
+              "target": "Package",
+              "version": "[2.6.2, )",
+              "versionCentrallyManaged": true
+            },
+            "Microsoft.Extensions.DependencyInjection": {
+              "target": "Package",
+              "version": "[9.0.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Microsoft.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[9.0.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Microsoft.Extensions.Http.Polly": {
+              "target": "Package",
+              "version": "[9.0.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Nethereum.HdWallet": {
+              "target": "Package",
+              "version": "[5.8.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Nethereum.Signer": {
+              "target": "Package",
+              "version": "[5.8.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Nethereum.Util": {
+              "target": "Package",
+              "version": "[5.8.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Scrutor": {
+              "target": "Package",
+              "version": "[7.0.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Tomlyn": {
+              "target": "Package",
+              "version": "[0.17.0, )",
+              "versionCentrallyManaged": true
+            }
+          },
+          "centralPackageVersions": {
+            "BouncyCastle.Cryptography": "2.6.2",
+            "CommunityToolkit.Mvvm": "8.4.0",
+            "coverlet.collector": "6.0.2",
+            "Microsoft.AspNetCore.OpenApi": "8.0.12",
+            "Microsoft.Extensions.DependencyInjection": "9.0.0",
+            "Microsoft.Extensions.Hosting": "9.0.0",
+            "Microsoft.Extensions.Http.Polly": "9.0.0",
+            "Microsoft.Extensions.Logging.Abstractions": "9.0.0",
+            "Microsoft.NET.Test.Sdk": "17.11.1",
+            "Moq": "4.20.72",
+            "Nethereum.HdWallet": "5.8.0",
+            "Nethereum.Signer": "5.8.0",
+            "Nethereum.Util": "5.8.0",
+            "RichardSzalay.MockHttp": "7.0.0",
+            "Scrutor": "7.0.0",
+            "Swashbuckle.AspNetCore": "6.6.2",
+            "System.CommandLine": "2.0.0-beta4.22272.1",
+            "Tomlyn": "0.17.0",
+            "xunit": "2.9.2",
+            "xunit.runner.visualstudio": "2.8.2"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj",
+        "projectName": "Scrutor.RPC",
+        "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj",
+        "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
+        "outputPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "configFilePaths": [
+          "C:\\Users\\Erick\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+                "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.AspNetCore.OpenApi": {
+              "target": "Package",
+              "version": "[8.0.12, )",
+              "versionCentrallyManaged": true
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Swashbuckle.AspNetCore": {
+              "target": "Package",
+              "version": "[6.6.2, )",
+              "versionCentrallyManaged": true
+            }
+          },
+          "centralPackageVersions": {
+            "BouncyCastle.Cryptography": "2.6.2",
+            "CommunityToolkit.Mvvm": "8.4.0",
+            "coverlet.collector": "6.0.2",
+            "Microsoft.AspNetCore.OpenApi": "8.0.12",
+            "Microsoft.Extensions.DependencyInjection": "9.0.0",
+            "Microsoft.Extensions.Hosting": "9.0.0",
+            "Microsoft.Extensions.Http.Polly": "9.0.0",
+            "Microsoft.Extensions.Logging.Abstractions": "9.0.0",
+            "Microsoft.NET.Test.Sdk": "17.11.1",
+            "Moq": "4.20.72",
+            "Nethereum.HdWallet": "5.8.0",
+            "Nethereum.Signer": "5.8.0",
+            "Nethereum.Util": "5.8.0",
+            "RichardSzalay.MockHttp": "7.0.0",
+            "Scrutor": "7.0.0",
+            "Swashbuckle.AspNetCore": "6.6.2",
+            "System.CommandLine": "2.0.0-beta4.22272.1",
+            "Tomlyn": "0.17.0",
+            "xunit": "2.9.2",
+            "xunit.runner.visualstudio": "2.8.2"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+        "projectName": "Scrutor.UI",
+        "projectPath": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+        "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
+        "outputPath": "c:\\projects\\Scrutor\\Scrutor.UI\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "configFilePaths": [
+          "C:\\Users\\Erick\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0-windows"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0-windows7.0": {
+            "targetAlias": "net8.0-windows",
+            "projectReferences": {
+              "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+                "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
+              },
+              "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
+                "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0-windows7.0": {
+          "targetAlias": "net8.0-windows",
+          "dependencies": {
+            "CommunityToolkit.Mvvm": {
+              "target": "Package",
+              "version": "[8.4.0, )",
+              "versionCentrallyManaged": true
+            },
+            "Microsoft.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[9.0.0, )",
+              "versionCentrallyManaged": true
+            }
+          },
+          "centralPackageVersions": {
+            "BouncyCastle.Cryptography": "2.6.2",
+            "CommunityToolkit.Mvvm": "8.4.0",
+            "coverlet.collector": "6.0.2",
+            "Microsoft.AspNetCore.OpenApi": "8.0.12",
+            "Microsoft.Extensions.DependencyInjection": "9.0.0",
+            "Microsoft.Extensions.Hosting": "9.0.0",
+            "Microsoft.Extensions.Http.Polly": "9.0.0",
+            "Microsoft.Extensions.Logging.Abstractions": "9.0.0",
+            "Microsoft.NET.Test.Sdk": "17.11.1",
+            "Moq": "4.20.72",
+            "Nethereum.HdWallet": "5.8.0",
+            "Nethereum.Signer": "5.8.0",
+            "Nethereum.Util": "5.8.0",
+            "RichardSzalay.MockHttp": "7.0.0",
+            "Scrutor": "7.0.0",
+            "Swashbuckle.AspNetCore": "6.6.2",
+            "System.CommandLine": "2.0.0-beta4.22272.1",
+            "Tomlyn": "0.17.0",
+            "xunit": "2.9.2",
+            "xunit.runner.visualstudio": "2.8.2"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            },
+            "Microsoft.WindowsDesktop.App.WPF": {
+              "privateAssets": "none"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
