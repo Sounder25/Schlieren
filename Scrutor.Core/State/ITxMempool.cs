@@ -9,6 +9,7 @@ public interface ITxMempool
     Transaction? PopBest();
     ulong GetNextNonce(Address address, ulong currentNonce);
     ValueTask<ulong> ReserveNonceAsync(Address from, ulong currentChainNonce);
+    void ResetReservation(Address from);
     void Clear();
     int Count { get; }
 }

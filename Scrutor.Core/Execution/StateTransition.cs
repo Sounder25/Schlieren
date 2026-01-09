@@ -34,11 +34,14 @@ public sealed class StateTransition : IStateTransition
         }
 
         // Delegate to internal execution with origin = tx.From (root)
-        return ExecuteInternalAsync(tx, state, block, tx.From, null, commit, ct);
+        return ExecuteInternalAsync(tx, state, block, tx.From, null, commit, ct, 0);
     }
 
-    private async Task<ExecutionResult> ExecuteInternalAsync(Transaction tx, IGlobalState state, BlockContext block, Address origin, Address? creationAddress, bool commit, CancellationToken ct)
+    private async Task<ExecutionResult> ExecuteInternalAsync(Transaction tx, IGlobalState state, BlockContext block, Address origin, Address? creationAddress, bool commit, CancellationToken ct, int depth = 0)
     {
+        if (depth > 1024)
+             return ExecutionResult.Failure(EvmError.InternalError, 0, null); // Call stack depth limit reached
+
         // Use a state overlay to ensure snapshot isolation
         var overlay = new StateOverlay(state);
 
@@ -100,7 +103,7 @@ public sealed class StateTransition : IStateTransition
 
         // Wire up recursion
         context.SubCall = (subTx, isStatic, subCreateAddr) => 
-            ExecuteInternalAsync(subTx, overlay, block, origin, subCreateAddr, true, ct);
+            ExecuteInternalAsync(subTx, overlay, block, origin, subCreateAddr, true, ct, depth + 1);
 
         // 4. Execute
         var result = await _evm.ExecuteAsync(context, ct);

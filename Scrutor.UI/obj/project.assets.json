@@ -3574,11 +3574,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+      "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
       "projectName": "Scrutor.UI",
-      "projectPath": "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+      "projectPath": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
       "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-      "outputPath": "C:\\projects\\Scrutor\\Scrutor.UI\\obj\\",
+      "outputPath": "c:\\projects\\Scrutor\\Scrutor.UI\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "configFilePaths": [
@@ -3597,8 +3597,8 @@
             "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
               "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
             },
-            "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
-              "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
+            "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
+              "projectPath": "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
             }
           }
         }

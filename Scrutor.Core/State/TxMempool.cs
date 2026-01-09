@@ -108,6 +108,11 @@ public sealed class TxMempool : ITxMempool
         return new ValueTask<ulong>((ulong)next);
     }
 
+    public void ResetReservation(Address from)
+    {
+        _reservedNonces.TryRemove(from, out _);
+    }
+
     public void Clear()
     {
         lock (_lock)

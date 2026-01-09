@@ -521,9 +521,11 @@ public sealed class EthHandlers
         var state = _snapshots[id];
         _stateManager.RestoreState(state);
         
-        // Clear snapshots created after this one? 
-        // Anvil behavior: "Reverting to a snapshot deletes all snapshots taken after the snapshot that is being reverted to."
-        // We can implement that or keep it simple. Let's keep it simple for now (no auto-delete).
+        // Reset mempool nonce reservations for all accounts involved in the revert
+        foreach (var addrStr in state.Accounts.Keys)
+        {
+            _mempool.ResetReservation(Address.FromHex(addrStr));
+        }
         
         return true;
     }
