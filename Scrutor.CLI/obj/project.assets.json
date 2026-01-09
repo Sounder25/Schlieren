@@ -3614,11 +3614,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
+      "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
       "projectName": "Scrutor.CLI",
-      "projectPath": "c:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
+      "projectPath": "C:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
       "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-      "outputPath": "c:\\projects\\Scrutor\\Scrutor.CLI\\obj\\",
+      "outputPath": "C:\\projects\\Scrutor\\Scrutor.CLI\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "configFilePaths": [
@@ -3637,8 +3637,8 @@
             "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
               "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
             },
-            "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
-              "projectPath": "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
+            "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
+              "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
             }
           }
         }

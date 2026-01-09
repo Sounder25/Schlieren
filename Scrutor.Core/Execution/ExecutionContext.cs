@@ -48,6 +48,12 @@ namespace Scrutor.Core.Execution
             if (GasUsed > GasLimit)
                 throw new EvmOutOfGasException($"Out of gas: used {GasUsed}, limit {GasLimit}");
         }
+
+        public void RefundGas(ulong amount)
+        {
+            if (amount > GasUsed) GasUsed = 0; // Should ideally not happen if logic is correct
+            else GasUsed -= amount;
+        }
     }
 
     /// <summary>
