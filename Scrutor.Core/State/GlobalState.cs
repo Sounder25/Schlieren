@@ -90,7 +90,15 @@ public sealed class GlobalState : IGlobalState
 
     public IDictionary<Address, Account> Snapshot()
     {
-        return new Dictionary<Address, Account>(_accounts);
+        var snapshot = new Dictionary<Address, Account>();
+        foreach (var kvp in _accounts)
+        {
+            lock (kvp.Value)
+            {
+                snapshot[kvp.Key] = kvp.Value.Clone();
+            }
+        }
+        return snapshot;
     }
 
     private Account GetOrCreateAccount(Address address)

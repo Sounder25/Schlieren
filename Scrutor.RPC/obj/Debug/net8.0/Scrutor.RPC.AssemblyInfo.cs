@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Scrutor.RPC")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2ea5ce7449412554a2d48a415fc6943525a02375")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bb2c050393f8aab3108d0f3df53d56ad0f8ad623")]
 [assembly: System.Reflection.AssemblyProductAttribute("Scrutor.RPC")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Scrutor.RPC")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
