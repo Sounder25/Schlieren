@@ -8,7 +8,7 @@ namespace Scrutor.Core.State;
 public sealed class GlobalState : IGlobalState
 {
     private readonly ConcurrentDictionary<Address, Account> _accounts = new();
-    private readonly ReaderWriterLockSlim _consistencyLock = new();
+    private readonly ReaderWriterLockSlim _snapshotGate = new();
 
     public ValueTask<BigInteger> GetBalanceAsync(Address address, CancellationToken ct = default)
     {
@@ -21,7 +21,7 @@ public sealed class GlobalState : IGlobalState
 
     public void SetBalance(Address address, BigInteger amount)
     {
-        _consistencyLock.EnterReadLock();
+        _snapshotGate.EnterReadLock();
         try
         {
             var account = GetOrCreateAccount(address);
@@ -32,7 +32,7 @@ public sealed class GlobalState : IGlobalState
         }
         finally
         {
-            _consistencyLock.ExitReadLock();
+            _snapshotGate.ExitReadLock();
         }
     }
 
@@ -43,7 +43,7 @@ public sealed class GlobalState : IGlobalState
 
     public void SetNonce(Address address, ulong nonce)
     {
-        _consistencyLock.EnterReadLock();
+        _snapshotGate.EnterReadLock();
         try
         {
             var account = GetOrCreateAccount(address);
@@ -54,7 +54,7 @@ public sealed class GlobalState : IGlobalState
         }
         finally
         {
-            _consistencyLock.ExitReadLock();
+            _snapshotGate.ExitReadLock();
         }
     }
 
@@ -67,7 +67,7 @@ public sealed class GlobalState : IGlobalState
 
     public void SetCode(Address address, byte[] code)
     {
-        _consistencyLock.EnterReadLock();
+        _snapshotGate.EnterReadLock();
         try
         {
             var account = GetOrCreateAccount(address);
@@ -78,7 +78,7 @@ public sealed class GlobalState : IGlobalState
         }
         finally
         {
-            _consistencyLock.ExitReadLock();
+            _snapshotGate.ExitReadLock();
         }
     }
 
@@ -96,7 +96,7 @@ public sealed class GlobalState : IGlobalState
 
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
     {
-        _consistencyLock.EnterReadLock();
+        _snapshotGate.EnterReadLock();
         try
         {
             var account = GetOrCreateAccount(address);
@@ -107,20 +107,20 @@ public sealed class GlobalState : IGlobalState
         }
         finally
         {
-            _consistencyLock.ExitReadLock();
+            _snapshotGate.ExitReadLock();
         }
     }
 
     public void Reset()
     {
-        _consistencyLock.EnterWriteLock();
+        _snapshotGate.EnterWriteLock();
         try
         {
             _accounts.Clear();
         }
         finally
         {
-            _consistencyLock.ExitWriteLock();
+            _snapshotGate.ExitWriteLock();
         }
     }
 
@@ -131,7 +131,7 @@ public sealed class GlobalState : IGlobalState
 
     public IDictionary<Address, Account> Snapshot()
     {
-        _consistencyLock.EnterWriteLock();
+        _snapshotGate.EnterWriteLock();
         try
         {
             var snapshot = new Dictionary<Address, Account>();
@@ -157,7 +157,7 @@ public sealed class GlobalState : IGlobalState
         }
         finally
         {
-            _consistencyLock.ExitWriteLock();
+            _snapshotGate.ExitWriteLock();
         }
     }
 

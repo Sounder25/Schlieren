@@ -63,6 +63,7 @@ public class ImpersonationTests
         Assert.NotNull(hash);
         Assert.Equal(1, _mempool.Count);
         var tx = _mempool.PopBest();
+        Assert.NotNull(tx);
         Assert.Equal(TransactionAuthorization.Impersonated, tx.Authorization);
         Assert.Equal(address, tx.From);
     }

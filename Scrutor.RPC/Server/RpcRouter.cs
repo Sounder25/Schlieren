@@ -110,7 +110,7 @@ public sealed class RpcRouter : IJsonRpcRouter
     /// <summary>
     /// Routes method calls to appropriate handlers
     /// </summary>
-    private async Task<object> RouteToHandler(string method, object[] parameters, CancellationToken ct)
+    private async Task<object?> RouteToHandler(string method, object[] parameters, CancellationToken ct)
     {
         return method switch
         {
@@ -150,7 +150,7 @@ public sealed class RpcRouter : IJsonRpcRouter
         };
     }
 
-    private string CreateSuccessResponse(object? id, object result)
+    private string CreateSuccessResponse(object? id, object? result)
     {
         var response = new JsonRpcResponse
         {

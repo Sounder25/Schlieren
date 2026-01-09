@@ -83,7 +83,7 @@ public class CompatibilityTests
     }
 
     [Fact]
-    public async Task GetLogsCompatibility_MatchesStandardBehavior()
+    public void GetLogsCompatibility_MatchesStandardBehavior()
     {
         // Setup
         var mempool = new TxMempool();
