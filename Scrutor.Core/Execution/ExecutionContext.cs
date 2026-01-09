@@ -35,6 +35,12 @@ namespace Scrutor.Core.Execution
         public ulong GasLimit { get; init; } = 30_000_000;
         public byte[] Code { get; init; } = Array.Empty<byte>();
         public int ProgramCounter { get; set; }
+        
+        /// <summary>
+        /// Callback to execute a sub-call (internal transaction).
+        /// Args: Transaction, isStatic, creationAddress (if CREATE)
+        /// </summary>
+        public Func<Transaction, bool, Address?, Task<ExecutionResult>>? SubCall { get; set; }
 
         public void ConsumeGas(ulong amount)
         {

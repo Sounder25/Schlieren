@@ -18,9 +18,9 @@ public sealed class StateTransition : IStateTransition
         _evm = evm;
     }
 
-    public async Task<ExecutionResult> ApplyTransactionAsync(Transaction tx, IGlobalState state, BlockContext block, bool commit = true, CancellationToken ct = default)
+    public Task<ExecutionResult> ApplyTransactionAsync(Transaction tx, IGlobalState state, BlockContext block, bool commit = true, CancellationToken ct = default)
     {
-        // 0. Signature Recovery (bypass for impersonated or internal transactions)
+        // 0. Signature Recovery
         if (tx.Authorization == TransactionAuthorization.Signed)
         {
             try
@@ -33,40 +33,74 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
+        // Delegate to internal execution with origin = tx.From (root)
+        return ExecuteInternalAsync(tx, state, block, tx.From, null, commit, ct);
+    }
+
+    private async Task<ExecutionResult> ExecuteInternalAsync(Transaction tx, IGlobalState state, BlockContext block, Address origin, Address? creationAddress, bool commit, CancellationToken ct)
+    {
         // Use a state overlay to ensure snapshot isolation
         var overlay = new StateOverlay(state);
 
         // 1. Basic validation (nonce, balance for gas)
         var senderNonce = await overlay.GetNonceAsync(tx.From, ct);
-        if (tx.Nonce < senderNonce)
-            return ExecutionResult.Failure(EvmError.NonceTooLow);
-        if (tx.Nonce > senderNonce)
-            return ExecutionResult.Failure(EvmError.NonceTooHigh);
+        if (tx.Authorization != TransactionAuthorization.Internal) // Skip nonce check for internal calls? Or enforce?
+        {
+            if (tx.Nonce < senderNonce) return ExecutionResult.Failure(EvmError.NonceTooLow);
+            if (tx.Nonce > senderNonce) return ExecutionResult.Failure(EvmError.NonceTooHigh);
+        }
 
         var senderBalance = await overlay.GetBalanceAsync(tx.From, ct);
         var upFrontCost = tx.GasLimit * tx.GasPrice + tx.Value;
+        
+        // For internal calls, we might skip balance check if we trust the opcode?
+        // But strictly, we should check.
         if (senderBalance < upFrontCost)
              return ExecutionResult.Failure(EvmError.InsufficientFunds);
 
         // 2. Deduct upfront gas cost
         overlay.SetBalance(tx.From, senderBalance - (tx.GasLimit * tx.GasPrice));
-        overlay.SetNonce(tx.From, senderNonce + 1);
+        if (tx.Authorization != TransactionAuthorization.Internal)
+        {
+            overlay.SetNonce(tx.From, senderNonce + 1);
+        }
+
+        // Determine Code and Contract Address
+        byte[] code;
+        Address contractAddress;
+
+        if (creationAddress.HasValue)
+        {
+            // CREATE: Use data as init code, address is the new address
+            code = tx.Data;
+            contractAddress = creationAddress.Value;
+        }
+        else
+        {
+            // CALL: Use code at To address
+            code = tx.To.HasValue ? await overlay.GetCodeAsync(tx.To.Value, ct) : Array.Empty<byte>();
+            contractAddress = tx.To ?? Address.Zero;
+        }
 
         // 3. Create execution context
         var context = new ExecutionContext
         {
-            Code = tx.To.HasValue ? await overlay.GetCodeAsync(tx.To.Value, ct) : tx.Data, 
-            ContractAddress = tx.To ?? Address.Zero,
+            Code = code,
+            ContractAddress = contractAddress,
             Caller = tx.From,
-            Origin = tx.From, 
+            Origin = origin, 
             GasPrice = tx.GasPrice,
             CallValue = tx.Value,
-            CallData = tx.To.HasValue ? tx.Data : Array.Empty<byte>(), 
+            CallData = (creationAddress.HasValue || !tx.To.HasValue) ? Array.Empty<byte>() : tx.Data, 
             GasLimit = tx.GasLimit,
             Block = block,
             GlobalState = overlay,
-            Storage = new OverlayStorage(overlay, tx.To ?? Address.Zero, ct)
+            Storage = new OverlayStorage(overlay, contractAddress, ct)
         };
+
+        // Wire up recursion
+        context.SubCall = (subTx, isStatic, subCreateAddr) => 
+            ExecuteInternalAsync(subTx, overlay, block, origin, subCreateAddr, true, ct);
 
         // 4. Execute
         var result = await _evm.ExecuteAsync(context, ct);
@@ -75,10 +109,11 @@ public sealed class StateTransition : IStateTransition
         if (result.IsSuccess)
         {
             // Value transfer
-            if (tx.Value > 0 && tx.To.HasValue)
+            var recipient = creationAddress ?? tx.To;
+            if (tx.Value > 0 && recipient.HasValue)
             {
-                var recipientBalance = await overlay.GetBalanceAsync(tx.To.Value, ct);
-                overlay.SetBalance(tx.To.Value, recipientBalance + tx.Value);
+                var recipientBalance = await overlay.GetBalanceAsync(recipient.Value, ct);
+                overlay.SetBalance(recipient.Value, recipientBalance + tx.Value);
             }
 
             // Gas refund

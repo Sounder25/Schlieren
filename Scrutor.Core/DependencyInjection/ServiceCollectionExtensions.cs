@@ -132,6 +132,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IOpcode, OpcodeOrigin>();
         services.AddSingleton<IOpcode, OpcodeGasPrice>();
 
+        // System / Calls
+        services.AddSingleton<IOpcode, OpcodeCreate>();
+        services.AddSingleton<IOpcode, OpcodeCall>();
+
         // Stack
         services.AddSingleton<IOpcode, OpcodePush1>();
         services.AddSingleton<IOpcode, OpcodePush2>();
