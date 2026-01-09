@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "M7I8DgFe4E8=",
+  "dgSpecHash": "k1qr3agssY4=",
   "success": true,
-  "projectFilePath": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+  "projectFilePath": "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Erick\\.nuget\\packages\\adraffy.ensnormalize\\0.3.1\\adraffy.ensnormalize.0.3.1.nupkg.sha512",
     "C:\\Users\\Erick\\.nuget\\packages\\bouncycastle.cryptography\\2.6.2\\bouncycastle.cryptography.2.6.2.nupkg.sha512",

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj": {}
+    "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj": {}
   },
   "projects": {
-    "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+    "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
+        "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
         "projectName": "Scrutor.Core",
-        "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
+        "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
         "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-        "outputPath": "c:\\projects\\Scrutor\\Scrutor.Core\\obj\\",
+        "outputPath": "C:\\projects\\Scrutor\\Scrutor.Core\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "configFilePaths": [
@@ -160,8 +160,8 @@
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
-                "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
+              "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+                "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
               }
             }
           }
@@ -242,14 +242,14 @@
         }
       }
     },
-    "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj": {
+    "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+        "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
         "projectName": "Scrutor.UI",
-        "projectPath": "c:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
+        "projectPath": "C:\\projects\\Scrutor\\Scrutor.UI\\Scrutor.UI.csproj",
         "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-        "outputPath": "c:\\projects\\Scrutor\\Scrutor.UI\\obj\\",
+        "outputPath": "C:\\projects\\Scrutor\\Scrutor.UI\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "configFilePaths": [
@@ -265,8 +265,8 @@
           "net8.0-windows7.0": {
             "targetAlias": "net8.0-windows",
             "projectReferences": {
-              "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
-                "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
+              "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+                "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
               },
               "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
                 "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"

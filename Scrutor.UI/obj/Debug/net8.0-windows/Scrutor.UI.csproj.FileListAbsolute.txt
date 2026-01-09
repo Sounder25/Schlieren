@@ -1,6 +1,6 @@
 c:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.exe
-c:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.deps.json
-c:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.runtimeconfig.json
+C:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.deps.json
+C:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.runtimeconfig.json
 c:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.dll
 c:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\Scrutor.UI.pdb
 c:\projects\Scrutor\Scrutor.UI\bin\Debug\net8.0-windows\ADRaffy.ENSNormalize.dll
@@ -90,9 +90,9 @@ c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.GeneratedMSBu
 c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.AssemblyInfoInputs.cache
 c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.AssemblyInfo.cs
 c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.csproj.CoreCompileInputs.cache
-c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.csproj.Up2Date
+C:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.csproj.Up2Date
 c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.dll
 c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\refint\Scrutor.UI.dll
 c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.pdb
-c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.genruntimeconfig.cache
-c:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\ref\Scrutor.UI.dll
+C:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\Scrutor.UI.genruntimeconfig.cache
+C:\projects\Scrutor\Scrutor.UI\obj\Debug\net8.0-windows\ref\Scrutor.UI.dll

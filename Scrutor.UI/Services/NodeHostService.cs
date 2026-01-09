@@ -70,6 +70,7 @@ public class NodeHostService
 
         builder.Services.AddSingleton(config);
         builder.Services.AddScrutorCore();
+        builder.Services.AddSingleton<IStateManager, StateManager>(); // Ensure StateManager is registered if AddScrutorCore doesn't cover it or if we need explicit
         builder.Services.AddSingleton<EthHandlers>();
         builder.Services.AddSingleton<RpcRouter>();
         builder.Services.AddSingleton(sp => 

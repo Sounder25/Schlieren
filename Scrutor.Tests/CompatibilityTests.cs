@@ -32,8 +32,9 @@ public class CompatibilityTests
         var accountManager = new AccountManager();
         var impersonation = new ImpersonationService();
         var miningService = new MiningService(mempool, globalState, chainState, stateTransition, logger.Object);
+        var stateManager = new Mock<IStateManager>();
 
-        var handlers = new EthHandlers(globalState, mempool, chainState, stateTransition, miningService, impersonation, accountManager, new NodeConfiguration { Accounts = 0 });
+        var handlers = new EthHandlers(globalState, mempool, chainState, stateTransition, miningService, impersonation, accountManager, new NodeConfiguration { Accounts = 0 }, stateManager.Object);
 
         var sender = Address.FromHex("0x1234567890123456789012345678901234567890");
         globalState.SetBalance(sender, 10000000);
@@ -93,7 +94,8 @@ public class CompatibilityTests
         var miningServiceMock = new Mock<IMiningService>();
         var impersonationService = new ImpersonationService();
         var accountManager = new AccountManager();
-        var ethHandlers = new EthHandlers(globalState, mempool, chainState, stateTransition, miningServiceMock.Object, impersonationService, accountManager, new NodeConfiguration { Accounts = 0 });
+        var stateManager = new Mock<IStateManager>();
+        var ethHandlers = new EthHandlers(globalState, mempool, chainState, stateTransition, miningServiceMock.Object, impersonationService, accountManager, new NodeConfiguration { Accounts = 0 }, stateManager.Object);
 
         var log1 = new TransactionLog 
         {

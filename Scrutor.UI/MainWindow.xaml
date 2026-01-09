@@ -282,7 +282,226 @@
                 </Grid>
             </TabItem>
 
-            <!-- TAB: DEBUGGER -->
+
+            <!-- TAB: TRANSACTIONS -->
+            <TabItem Header="TRANSACTIONS" Style="{StaticResource TabHeaderStyle}">
+                <Grid Margin="24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="RECENT ACTIVITY" FontSize="11" FontWeight="Bold" Opacity="0.5" Margin="0,0,0,16"/>
+
+                    <ListView Grid.Row="1" ItemsSource="{Binding RecentTransactions}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Background" Value="#1E1E1E"/>
+                                <Setter Property="Margin" Value="0,0,0,8"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <Border Background="{TemplateBinding Background}" CornerRadius="6" BorderBrush="#333333" BorderThickness="1">
+                                                <ContentPresenter />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <Grid Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Status Icon -->
+                                        <Border Width="32" Height="32" CornerRadius="16" Margin="0,0,16,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#331A1A"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSuccess}" Value="True">
+                                                            <Setter Property="Background" Value="#1A331A"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="✓" VerticalAlignment="Center" HorizontalAlignment="Center" FontWeight="Bold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="✕"/>
+                                                        <Setter Property="Foreground" Value="#FF6666"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSuccess}" Value="True">
+                                                                <Setter Property="Text" Value="✓"/>
+                                                                <Setter Property="Foreground" Value="#76EF76"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+
+                                        <!-- Tx Info -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Hash}" FontFamily="Consolas" FontSize="13" Foreground="#007ACC"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <TextBlock Text="From: " FontSize="10" Opacity="0.4"/>
+                                                <TextBlock Text="{Binding From}" FontSize="10" Opacity="0.6" Margin="0,0,12,0" FontFamily="Consolas"/>
+                                                <TextBlock Text="To: " FontSize="10" Opacity="0.4"/>
+                                                <TextBlock Text="{Binding To}" FontSize="10" Opacity="0.6" FontFamily="Consolas"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Metrics -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="24,0">
+                                            <TextBlock Text="GAS USED" FontSize="9" FontWeight="Bold" Opacity="0.4" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding GasUsed}" FontSize="12" HorizontalAlignment="Right"/>
+                                        </StackPanel>
+
+                                        <!-- Actions -->
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal">
+                                            <Border Background="#333333" CornerRadius="4" Padding="8,4" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding BlockNumber, StringFormat='BLOCK \{0\}'}" FontSize="10" FontWeight="Bold"/>
+                                            </Border>
+                                            <ToggleButton IsChecked="{Binding IsExpanded}" Background="Transparent" BorderThickness="0">
+                                                <TextBlock Text="DETAILS" FontSize="9" FontWeight="Bold" Foreground="#007ACC"/>
+                                            </ToggleButton>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Expanded Details -->
+                                    <Border Background="#161616" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="16" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
+                                            <TextBlock Text="LOGS / EVENTS" FontSize="10" FontWeight="Bold" Opacity="0.5" Margin="0,0,0,8"/>
+                                            <ItemsControl ItemsSource="{Binding Logs}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="#1E1E1E" Margin="0,0,0,4" Padding="8" CornerRadius="4">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Address, StringFormat='Emitter: \{0\}'}" FontSize="11" Foreground="#007ACC" FontFamily="Consolas"/>
+                                                                <ItemsControl ItemsSource="{Binding Topics}" Margin="8,4,0,4">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <TextBlock Text="{Binding}" FontSize="10" Opacity="0.7" FontFamily="Consolas"/>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <TextBlock Text="{Binding Data, StringFormat='Data: \{0\}'}" FontSize="10" Opacity="0.5" TextWrapping="Wrap" FontFamily="Consolas"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB: STATE -->
+            <TabItem Header="STATE" Style="{StaticResource TabHeaderStyle}">
+                <Grid Margin="24" DataContext="{Binding StateInspector}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Search Bar -->
+                    <Border Grid.Row="0" Background="#1E1E1E" Padding="16" CornerRadius="8" Margin="0,0,0,24" BorderBrush="#333333" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding SearchAddress, UpdateSourceTrigger=PropertyChanged}" Background="#2D2D30" Foreground="White" BorderThickness="0" Padding="12" FontSize="14" FontFamily="Consolas">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding InspectAddressCommand}"/>
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <Button Grid.Column="1" Content="INSPECT" Command="{Binding InspectAddressCommand}" Background="#007ACC" Width="120" Height="40" Margin="12,0,0,0" Style="{StaticResource DashboardButton}"/>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1.5*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Account Details -->
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Opacity="0.5" Margin="4,0,0,16"/>
+                            
+                            <Border Background="#1E1E1E" Padding="20" CornerRadius="8" BorderBrush="#333333" BorderThickness="1" Visibility="{Binding IsAccountFound, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="ACCOUNT OVERVIEW" FontSize="11" FontWeight="Bold" Opacity="0.6" Margin="0,0,0,16"/>
+                                    
+                                    <TextBlock Text="BALANCE" FontSize="9" Opacity="0.4"/>
+                                    <TextBlock Text="{Binding Balance}" FontSize="16" FontWeight="Bold" Margin="0,0,0,16"/>
+
+                                    <TextBlock Text="NONCE" FontSize="9" Opacity="0.4"/>
+                                    <TextBlock Text="{Binding Nonce}" FontSize="16" FontWeight="Bold" Margin="0,0,0,16"/>
+
+                                    <TextBlock Text="BYTECODE" FontSize="9" Opacity="0.4" Margin="0,0,0,4"/>
+                                    <Border Background="#0A0A0A" Padding="8" CornerRadius="4" MaxHeight="200">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <TextBlock Text="{Binding Bytecode}" FontSize="11" FontFamily="Consolas" TextWrapping="Wrap" Opacity="0.8"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Storage Slots -->
+                        <Border Grid.Column="1" Background="#1E1E1E" Padding="20" CornerRadius="8" Margin="12,0,0,0" BorderBrush="#333333" BorderThickness="1" Visibility="{Binding IsAccountFound, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                
+                                <TextBlock Grid.Row="0" Text="STORAGE SLOTS" FontSize="11" FontWeight="Bold" Opacity="0.6" Margin="0,0,0,16"/>
+                                
+                                <ListView Grid.Row="1" ItemsSource="{Binding StorageSlots}" Background="Transparent" BorderThickness="0">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="SLOT (KEY)" Width="280">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Key}" FontFamily="Consolas" FontSize="11" Foreground="#007ACC"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="VALUE (HEX)" Width="280">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Value}" FontFamily="Consolas" FontSize="11" Foreground="#CBCB41"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+                                <TextBlock Grid.Row="1" Text="No storage slots modified." Opacity="0.3" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Visibility="{Binding StorageSlots.Count, Converter={StaticResource InverseBoolToVis}, TargetNullValue=Visible}"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="DEBUGGER" Style="{StaticResource TabHeaderStyle}">
                 <Grid Margin="24">
                     <Grid.RowDefinitions>

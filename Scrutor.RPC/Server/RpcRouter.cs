@@ -45,7 +45,10 @@ public sealed class RpcRouter : IJsonRpcRouter
             "eth_getTransactionReceipt",
             "eth_getLogs",
             "evm_increaseTime",
-            "anvil_setNextBlockTimestamp"
+            "anvil_setNextBlockTimestamp",
+            "evm_setNextBlockTimestamp",
+            "evm_snapshot",
+            "evm_revert"
         }.AsReadOnly();
     }
 
@@ -138,6 +141,9 @@ public sealed class RpcRouter : IJsonRpcRouter
             "evm_stopImpersonatingAccount" => _ethHandlers.HandleAnvilStopImpersonatingAccount(parameters),
             "evm_increaseTime" => _ethHandlers.HandleEvmIncreaseTime(parameters),
             "evm_mine" => await _ethHandlers.HandleAnvilMine(parameters),
+            "evm_snapshot" => _ethHandlers.HandleEvmSnapshot(parameters),
+            "evm_revert" => _ethHandlers.HandleEvmRevert(parameters),
+            "evm_setNextBlockTimestamp" => _ethHandlers.HandleAnvilSetNextBlockTimestamp(parameters),
             
             // Method not found
             _ => throw new RpcException(JsonRpcErrorCodes.MethodNotFound, $"Method not found: {method}")

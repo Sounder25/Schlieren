@@ -29,7 +29,8 @@ public class ImpersonationTests
         var miningService = new Mock<IMiningService>();
         _impersonation = new ImpersonationService();
         _accountManager = new AccountManager();
-        _handlers = new EthHandlers(_globalState, _mempool, _chainState, stateTransition, miningService.Object, _impersonation, _accountManager, new NodeConfiguration { Accounts = 0 });
+        var stateManager = new Mock<IStateManager>();
+        _handlers = new EthHandlers(_globalState, _mempool, _chainState, stateTransition, miningService.Object, _impersonation, _accountManager, new NodeConfiguration { Accounts = 0 }, stateManager.Object);
     }
 
     [Fact]

@@ -23,6 +23,9 @@ public sealed class EthHandlers
     private readonly IImpersonationService _impersonation;
     private readonly IAccountManager _accountManager;
     private readonly NodeConfiguration _config;
+    private readonly IStateManager _stateManager;
+    private readonly Dictionary<string, StateDumpDto> _snapshots = new();
+    private int _snapshotIdCounter = 0;
 
     public EthHandlers(
         IGlobalState globalState, 
@@ -32,7 +35,8 @@ public sealed class EthHandlers
         IMiningService miningService, 
         IImpersonationService impersonation,
         IAccountManager accountManager,
-        NodeConfiguration config)
+        NodeConfiguration config,
+        IStateManager stateManager)
     {
         _globalState = globalState;
         _mempool = mempool;
@@ -42,6 +46,7 @@ public sealed class EthHandlers
         _impersonation = impersonation;
         _accountManager = accountManager;
         _config = config;
+        _stateManager = stateManager;
     }
 
     public async Task<string> HandleEthCall(object[] parameters, CancellationToken ct = default)
@@ -498,6 +503,30 @@ public sealed class EthHandlers
     }
 
     public string? HandleAnvilShowMnemonic() => _accountManager.Mnemonic;
+
+    public string HandleEvmSnapshot(object[] parameters)
+    {
+        var id = "0x" + (++_snapshotIdCounter).ToString("x");
+        var state = _stateManager.CaptureState();
+        _snapshots[id] = state;
+        return id;
+    }
+
+    public bool HandleEvmRevert(object[] parameters)
+    {
+        if (parameters.Length < 1) return false;
+        var id = parameters[0]?.ToString();
+        if (id == null || !_snapshots.ContainsKey(id)) return false;
+
+        var state = _snapshots[id];
+        _stateManager.RestoreState(state);
+        
+        // Clear snapshots created after this one? 
+        // Anvil behavior: "Reverting to a snapshot deletes all snapshots taken after the snapshot that is being reverted to."
+        // We can implement that or keep it simple. Let's keep it simple for now (no auto-delete).
+        
+        return true;
+    }
 
     private void ValidateParams(object[] parameters)
     {

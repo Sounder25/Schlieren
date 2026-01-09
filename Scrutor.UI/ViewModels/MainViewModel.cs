@@ -9,6 +9,7 @@ using Scrutor.Core.Configuration;
 using Scrutor.Core.State;
 using Scrutor.Core.Primitives;
 using System.Linq;
+using Scrutor.Core.Models;
 
 namespace Scrutor.UI.ViewModels;
 
@@ -74,18 +75,22 @@ public partial class MainViewModel : ObservableObject
     private bool _isLogsPaused;
 
     [ObservableProperty]
-    private bool _autoScroll = true;
+    private string _logLevelFilter = "ALL";
 
     [ObservableProperty]
-    private string _logLevelFilter = "ALL";
+    private bool _autoScroll = true;
 
     public ObservableCollection<string> Logs { get; } = new();
     public ObservableCollection<AccountViewModel> ManagedAccounts { get; } = new();
+    public ObservableCollection<TransactionViewModel> RecentTransactions { get; } = new();
+    public StateInspectorViewModel StateInspector { get; }
+    private readonly HashSet<string> _knownTransactionHashes = new();
     private readonly List<string> _fullLogHistory = new();
 
     public MainViewModel()
     {
         _nodeHost = new NodeHostService(msg => AddLog(msg));
+        StateInspector = new StateInspectorViewModel(_nodeHost);
         
         // Subscribe to Agent 2's global logger
         ObservableLogger.LogEmitted += (s, e) => 
@@ -109,6 +114,7 @@ public partial class MainViewModel : ObservableObject
 
                 var state = _nodeHost.GetService<IGlobalState>();
                 var impersonation = _nodeHost.GetService<IImpersonationService>();
+                var chainState = _nodeHost.GetService<IChainState>();
 
                 if (state != null && ManagedAccounts.Count > 0)
                 {
@@ -123,11 +129,55 @@ public partial class MainViewModel : ObservableObject
                         }
                     }
                 }
+
+                // Sync Transactions
+                if (chainState?.BlockStore != null)
+                {
+                    var allReceipts = chainState.BlockStore.GetAllReceipts()
+                        .OrderByDescending(r => r.BlockNumber)
+                        .ThenByDescending(r => r.TransactionIndex)
+                        .Take(50);
+
+                    foreach (var receipt in allReceipts)
+                    {
+                        if (!_knownTransactionHashes.Contains(receipt.TransactionHash))
+                        {
+                            _knownTransactionHashes.Add(receipt.TransactionHash);
+                            Application.Current?.Dispatcher?.Invoke(() => {
+                                var txVm = new TransactionViewModel
+                                {
+                                    Hash = receipt.TransactionHash,
+                                    From = receipt.From,
+                                    To = receipt.To ?? receipt.ContractAddress,
+                                    BlockNumber = receipt.BlockNumber,
+                                    GasUsed = receipt.GasUsed,
+                                    IsSuccess = receipt.Status == 1
+                                };
+                                
+                                foreach (var log in receipt.Logs)
+                                {
+                                    txVm.Logs.Add(new TransactionLogViewModel {
+                                        Address = log.Address,
+                                        Topics = new List<string>(log.Topics),
+                                        Data = log.Data
+                                    });
+                                }
+
+                                RecentTransactions.Insert(0, txVm);
+                                if (RecentTransactions.Count > 50) RecentTransactions.RemoveAt(49);
+                            });
+                        }
+                    }
+                }
             }
             else if (Status == NodeStatus.Inactive)
             {
                 BlockHeight = 0;
                 MempoolCount = 0;
+                Application.Current?.Dispatcher?.Invoke(() => {
+                    RecentTransactions.Clear();
+                    _knownTransactionHashes.Clear();
+                });
             }
             await Task.Delay(1000);
         }
