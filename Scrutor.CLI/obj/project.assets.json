@@ -3614,11 +3614,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
+      "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
       "projectName": "Scrutor.CLI",
-      "projectPath": "c:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
+      "projectPath": "C:\\projects\\Scrutor\\Scrutor.CLI\\Scrutor.CLI.csproj",
       "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-      "outputPath": "c:\\projects\\Scrutor\\Scrutor.CLI\\obj\\",
+      "outputPath": "C:\\projects\\Scrutor\\Scrutor.CLI\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "configFilePaths": [
@@ -3707,7 +3707,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.417/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

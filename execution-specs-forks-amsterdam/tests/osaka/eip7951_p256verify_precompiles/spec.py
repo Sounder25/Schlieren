@@ -1,0 +1,120 @@
+"""Defines EIP-7951 specification constants and functions."""
+
+from dataclasses import dataclass
+
+from execution_testing import Address, Bytes, BytesConcatenation
+
+
+@dataclass(frozen=True)
+class ReferenceSpec:
+    """Defines the reference spec version and git path."""
+
+    git_path: str
+    version: str
+
+
+ref_spec_7951 = ReferenceSpec(
+    "EIPS/eip-7951.md", "06aadd458ee04ede80498db55927b052eb5bef38"
+)
+
+
+@dataclass(frozen=True)
+class FieldElement(BytesConcatenation):
+    """Dataclass that defines a single field element."""
+
+    value: int = 0
+
+    def __bytes__(self) -> bytes:
+        """Convert field element to bytes."""
+        return self.value.to_bytes(32, byteorder="big")
+
+
+# Specific field element classes
+@dataclass(frozen=True)
+class R(FieldElement):
+    """Dataclass that defines a R component of the signature."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class S(FieldElement):
+    """Dataclass that defines a S component of the signature."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class X(FieldElement):
+    """Dataclass that defines a X coordinate value."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class Y(FieldElement):
+    """Dataclass that defines a Y coordinate value."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class H(FieldElement):
+    """Dataclass that defines a Message Hash value."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class Spec:
+    """
+    Parameters from the EIP-7951 specifications as defined at
+    https://eips.ethereum.org/EIPS/eip-7951.
+    """
+
+    # Address
+    P256VERIFY = 0x100
+
+    # Gas constants
+    P256VERIFY_GAS = 6900
+
+    # Curve Parameters
+    ## Base field modulus
+    P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
+    ## Curve Coefficient
+    A = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC
+    ## Curve Coefficient
+    B = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
+    ## Subgroup Order
+    N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+    ## Generator Point X
+    Gx = 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296
+    ## Generator Point Y
+    Gy = 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5
+
+    # Other constants
+    SUCCESS_RETURN_VALUE = b"\x01".rjust(32, b"\x00")
+    INVALID_RETURN_VALUE = b""
+    DELEGATION_DESIGNATION = Bytes("ef0100")
+
+    # Test constants, from:
+    # https://github.com/C2SP/wycheproof/blob/4a6c2bf5dc4c0b67c770233ad33961ee653996a0/testvectors/ecdsa_secp256r1_sha256_test.json#L35
+    H0 = H(0xBB5A52F42F9C9261ED4361F59422A1E30036E7C32B270C8807A419FECA605023)
+    R0 = R(0x2BA3A8BE6B94D5EC80A6D9D1190A436EFFE50D85A1EEE859B8CC6AF9BD5C2E18)
+    S0 = S(0x4CD60B855D442F5B3C7B11EB6C4E0AE7525FE710FAB9AA7C77A67F79E6FADD76)
+    X0 = X(0x2927B10512BAE3EDDCFE467828128BAD2903269919F7086069C8C4DF6C732838)
+    Y0 = Y(0xC7787964EAAC00E5921FB1498A60F4606766B3D9685001558D1A974E7341513E)
+
+    # Test constants from:
+    # https://github.com/C2SP/wycheproof/blob/4a6c2bf5dc4c0b67c770233ad33961ee653996a0/testvectors/ecdsa_webcrypto_test.json#L1064
+    # k*G has a large x-coordinate which also gives very small r.
+    H1 = H(0x532EAABD9574880DBF76B9B8CC00832C20A6EC113D682299550D7A6E0F345E25)
+    R1 = R(0x000000000000000000000000000000004319055358E8617B0C46353D039CDAAB)
+    S1 = S(0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC63254E)
+    X1 = X(0xD705D16F80987E2D9B1A6957D29CE22FEBF7D10FA515153182415C8361BAACA4)
+    Y1 = Y(0xB1FC105EE5CE80D514EC1238BEAE2037A6F83625593620D460819E8682160926)
+
+    @staticmethod
+    def delegation_designation(address: Address) -> Bytes:
+        """Return delegation designation for the given address."""
+        return Bytes(Spec.DELEGATION_DESIGNATION + bytes(address))

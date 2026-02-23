@@ -1,0 +1,150 @@
+[build-system]
+requires = [
+    "setuptools==78.0.2",
+    "wheel==0.45.1",
+] # the setuptools version here should match that of setuptools below in docs in optional-dependencies
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ethereum-execution-testing"
+version = "1.0.0"
+description = "Ethereum execution layer client test generation and runner framework"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = [ "LICENSE" ]
+keywords = ["ethereum", "testing", "blockchain"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "click>=8.1.0,<9",
+    "ethereum-hive>=0.1.0a1,<1.0.0",
+    "ethereum-execution",
+    "gitpython>=3.1.31,<4",
+    "PyJWT>=2.3.0,<3",
+    "requests>=2.31.0,<3",
+    "requests_unixsocket2>=0.4.0",
+    "colorlog>=6.7.0,<7",
+    "platformdirs>=4.2,<5",
+    "pytest>=8,<9",
+    "pytest-custom-report>=1.0.1,<2",
+    "pytest-html>=4.1.0,<5",
+    "pytest-metadata>=3,<4",
+    "pytest-xdist>=3.3.1,<4",
+    "coincurve>=20.0.0,<21",
+    "trie>=3.1.0,<4",
+    "semver>=3.0.1,<4",
+    "pydantic>=2.12.3,<3",
+    "rich>=13.7.0,<14",
+    "filelock>=3.15.1,<4",
+    "ethereum-types>=0.2.1,<0.3",
+    "pyyaml>=6.0.2,<7",
+    "types-pyyaml>=6.0.12.20240917,<7",
+    "pytest-json-report>=1.5.0,<2",
+    "typing-extensions>=4.12.2,<5",
+    "questionary>=2.1.0,<3",
+    "ethereum-rlp>=0.1.3,<0.2",
+    "pytest-regex>=0.2.0,<0.3",
+    "eth-abi>=5.2.0",
+    "joblib>=1.4.2",
+    "ckzg>=2.1.3,<3",
+    "tenacity>=9.0.0,<10",
+    "Jinja2>=3,<4",
+]
+
+[project.urls]
+Homepage = "https://github.com/ethereum/execution-specs"
+Documentation = "https://eest.ethereum.org"
+Repository = "https://github.com/ethereum/execution-specs"
+Issues = "https://github.com/ethereum/execution-specs/issues"
+Changelog = "https://eest.ethereum.org/main/CHANGELOG/"
+
+[dependency-groups]
+test = [
+    "pytest-cov>=4.1.0,<5",
+]
+lint = [
+    "ruff==0.13.2",
+    "mypy==1.17.0",
+    "types-requests>=2.31,<2.33",
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "lint"},
+]
+
+[project.scripts]
+fill = "execution_testing.cli.pytest_commands.fill:fill"
+phil = "execution_testing.cli.pytest_commands.fill:phil"
+execute = "execution_testing.cli.pytest_commands.execute:execute"
+attac = "execution_testing.cli.pytest_commands.execute:execute"
+checkfixtures = "execution_testing.cli.check_fixtures:check_fixtures"
+check_eip_versions = "execution_testing.cli.pytest_commands.check_eip_versions:check_eip_versions"
+consume = "execution_testing.cli.pytest_commands.consume:consume"
+protec = "execution_testing.cli.pytest_commands.consume:consume"
+checklist = "execution_testing.cli.pytest_commands.checklist:checklist"
+generate_checklist_stubs = "execution_testing.cli.generate_checklist_stubs:generate_checklist_stubs"
+genindex = "execution_testing.cli.gen_index:generate_fixtures_index_cli"
+gentest = "execution_testing.cli.gentest:generate"
+pyspelling_soft_fail = "execution_testing.cli.tox_helpers:pyspelling"
+markdownlintcli2_soft_fail = "execution_testing.cli.tox_helpers:markdownlint"
+order_fixtures = "execution_testing.cli.order_fixtures:order_fixtures"
+evm_bytes = "execution_testing.cli.evm_bytes:evm_bytes"
+hasher = "execution_testing.cli.hasher:main"
+eest = "execution_testing.cli.eest.cli:eest"
+fillerconvert = "execution_testing.cli.fillerconvert.fillerconvert:main"
+groupstats = "execution_testing.cli.show_pre_alloc_group_stats:main"
+extract_config = "execution_testing.cli.extract_config:extract_config"
+compare_fixtures = "execution_testing.cli.compare_fixtures:main"
+modify_static_test_gas_limits = "execution_testing.cli.modify_static_test_gas_limits:main"
+validate_changelog = "execution_testing.cli.tox_helpers:validate_changelog"
+benchmark_parser = "execution_testing.cli.benchmark_parser:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["*tests*"]
+
+[tool.setuptools.package-data]
+"execution_testing.forks" = ["forks/contracts/*.bin"]
+"execution_testing.cli.pytest_commands.plugins.execute" = ["eth_config/networks.yml"]
+"execution_testing.cli.eest.make" = ["templates/*.j2"]
+"execution_testing.cli.pytest_commands" = ["pytest_ini_files/*.ini"]
+"execution_testing.test_types" = ["kzg_trusted_setup.txt"]
+
+[tool.ruff]
+extend = "../../pyproject.toml"
+
+[tool.codespell]
+skip = ".venv,__pycache__,.git,build,dist,*.pyc,*.lock"
+check-filenames = true
+ignore-words-list = "ingenuous"
+
+[tool.pytest.ini_options]
+console_output_style = "count"
+minversion = "7.0"
+python_files = [
+    "test_*.py"
+]
+testpaths = [
+    "src"
+]
+addopts = [
+    "-p", "pytester",
+    "--ignore=src/execution_testing/cli/pytest_commands/plugins/consume/test_cache.py",
+    "--ignore=src/execution_testing/cli/pytest_commands/plugins/consume/direct/",
+    "--ignore=src/execution_testing/cli/pytest_commands/plugins/consume/simulators/",
+]
+markers = [
+    "pre_alloc_group: Custom marker for pre-allocation grouping",
+    "some_mark: Test marker for parametrizer tests",
+    "eip_checklist: Custom marker for EIP checklist tests",
+    "slow: Marks tests as slow running",
+]
+
+[tool.uv]
+required-version = ">=0.7.0"
+
+[tool.uv.sources]
+ethereum-execution = { workspace = true }

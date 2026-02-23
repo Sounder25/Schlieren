@@ -3494,11 +3494,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj",
+      "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj",
       "projectName": "Scrutor.RPC",
-      "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj",
+      "projectPath": "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj",
       "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-      "outputPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\obj\\",
+      "outputPath": "C:\\projects\\Scrutor\\Scrutor.RPC\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "configFilePaths": [
@@ -3592,7 +3592,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.417/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
