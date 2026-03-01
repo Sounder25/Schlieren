@@ -4,6 +4,7 @@ using Scrutor.Core.Execution;
 using Scrutor.Core.Models;
 using Scrutor.Core.Primitives;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Scrutor.Core.State;
 
@@ -32,15 +33,50 @@ public sealed class MiningService : BackgroundService, IMiningService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Mining service started (Automine mode)");
+        var miningClock = Stopwatch.StartNew();
+        long? nextIntervalMineAtMs = null;
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (_mempool.Count > 0)
+            if (!_chainState.Automine)
             {
-                await MineAsync(stoppingToken);
+                nextIntervalMineAtMs = null;
+                await Task.Delay(100, stoppingToken);
+                continue;
             }
 
-            await Task.Delay(100, stoppingToken);
+            if (_mempool.Count == 0)
+            {
+                // [AI-EDIT 2026-01-10] No pending transactions: reset interval schedule.
+                nextIntervalMineAtMs = null;
+                await Task.Delay(100, stoppingToken);
+                continue;
+            }
+
+            var intervalSeconds = _chainState.BlockTimeSeconds;
+            if (intervalSeconds.HasValue && intervalSeconds.Value > 0)
+            {
+                // [AI-EDIT 2026-01-10] Interval mining mode: enforce cadence before producing next block.
+                var intervalMs = intervalSeconds.Value * 1000L;
+                var nowMs = miningClock.ElapsedMilliseconds;
+                nextIntervalMineAtMs ??= nowMs + intervalMs;
+
+                if (nowMs < nextIntervalMineAtMs.Value)
+                {
+                    var waitMs = (int)Math.Min(100L, nextIntervalMineAtMs.Value - nowMs);
+                    await Task.Delay(waitMs, stoppingToken);
+                    continue;
+                }
+
+                await MineAsync(stoppingToken);
+                nextIntervalMineAtMs = miningClock.ElapsedMilliseconds + intervalMs;
+                continue;
+            }
+
+            // [AI-EDIT 2026-01-10] Instant automine mode: mine immediately when mempool has txs.
+            nextIntervalMineAtMs = null;
+            await MineAsync(stoppingToken);
+            await Task.Delay(25, stoppingToken);
         }
     }
 

@@ -1,10 +1,10 @@
-﻿using System.Numerics;
-using ELR.Core.Execution;
-using ELR.Core.Primitives;
-using ELR.Core.State;
-using ExecutionContext = ELR.Core.Execution.ExecutionContext;
+using System.Numerics;
+using Scrutor.Core.Execution;
+using Scrutor.Core.Primitives;
+using Scrutor.Core.State;
+using ExecutionContext = Scrutor.Core.Execution.ExecutionContext;
 
-namespace ELR.Core.Opcodes;
+namespace Scrutor.Core.Opcodes;
 
 public sealed class OpcodeCreate : IOpcode
 {
@@ -54,10 +54,12 @@ public sealed class OpcodeCreate : IOpcode
             GasLimit = gasAvailable, // Pass all
             GasPrice = context.GasPrice,
             Nonce = nonce,
-            Authorization = TransactionAuthorization.Internal
+            Authorization = TransactionAuthorization.Internal,
+            EnableTracing = context.CaptureTrace
         };
 
         var result = await context.SubCall(tx, false, newAddress, null); // isStatic=false, creationAddress, codeAddress=null
+        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         // Refund unused
         var unused = gasAvailable - result.GasUsed;
@@ -130,10 +132,12 @@ public sealed class OpcodeCall : IOpcode
             Data = input,
             GasLimit = gasLimit,
             GasPrice = context.GasPrice,
-            Authorization = TransactionAuthorization.Internal
+            Authorization = TransactionAuthorization.Internal,
+            EnableTracing = context.CaptureTrace
         };
 
         var result = await context.SubCall(tx, context.IsStatic, null, null);
+        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         // Refund unused gas
         var unused = gasLimit - result.GasUsed;
@@ -207,10 +211,12 @@ public sealed class OpcodeCreate2 : IOpcode
             GasLimit = gasAvailable,
             GasPrice = context.GasPrice,
             Nonce = nonce,
-            Authorization = TransactionAuthorization.Internal
+            Authorization = TransactionAuthorization.Internal,
+            EnableTracing = context.CaptureTrace
         };
 
         var result = await context.SubCall(tx, false, newAddress, null);
+        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         var unused = gasAvailable - result.GasUsed;
         context.RefundGas(unused);
@@ -274,10 +280,12 @@ public sealed class OpcodeStaticCall : IOpcode
             Data = input,
             GasLimit = gasLimit,
             GasPrice = context.GasPrice,
-            Authorization = TransactionAuthorization.Internal
+            Authorization = TransactionAuthorization.Internal,
+            EnableTracing = context.CaptureTrace
         };
 
         var result = await context.SubCall(tx, true, null, null);
+        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         var unused = gasLimit - result.GasUsed;
         context.RefundGas(unused);
@@ -346,10 +354,12 @@ public sealed class OpcodeCallCode : IOpcode
             Data = input,
             GasLimit = gasLimit,
             GasPrice = context.GasPrice,
-            Authorization = TransactionAuthorization.Internal
+            Authorization = TransactionAuthorization.Internal,
+            EnableTracing = context.CaptureTrace
         };
 
         var result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         var unused = gasLimit - result.GasUsed;
         context.RefundGas(unused);
@@ -415,10 +425,12 @@ public sealed class OpcodeDelegateCall : IOpcode
             Data = input,
             GasLimit = gasLimit,
             GasPrice = context.GasPrice,
-            Authorization = TransactionAuthorization.Internal
+            Authorization = TransactionAuthorization.Internal,
+            EnableTracing = context.CaptureTrace
         };
 
         var result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         var unused = gasLimit - result.GasUsed;
         context.RefundGas(unused);

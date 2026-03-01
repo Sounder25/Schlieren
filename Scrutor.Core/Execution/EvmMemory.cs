@@ -47,4 +47,21 @@ public sealed class EvmMemory
         var newSize = ((requiredSize + 31) / 32) * 32; // Round up to 32-byte boundary
         Array.Resize(ref _data, newSize);
     }
+
+    public List<string> SnapshotWordsHex(int maxWords = 64)
+    {
+        if (_data.Length == 0) return new List<string>();
+
+        var words = Math.Min((_data.Length + 31) / 32, maxWords);
+        var result = new List<string>(words);
+        for (var i = 0; i < words; i++)
+        {
+            var buf = new byte[32];
+            var offset = i * 32;
+            var len = Math.Min(32, _data.Length - offset);
+            if (len > 0) Array.Copy(_data, offset, buf, 0, len);
+            result.Add("0x" + Convert.ToHexString(buf).ToLowerInvariant());
+        }
+        return result;
+    }
 }

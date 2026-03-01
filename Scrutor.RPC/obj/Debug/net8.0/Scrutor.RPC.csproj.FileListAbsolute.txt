@@ -13,3 +13,4 @@ c:\projects\Scrutor\Scrutor.RPC\obj\Debug\net8.0\Scrutor.RPC.dll
 c:\projects\Scrutor\Scrutor.RPC\obj\Debug\net8.0\refint\Scrutor.RPC.dll
 c:\projects\Scrutor\Scrutor.RPC\obj\Debug\net8.0\Scrutor.RPC.pdb
 c:\projects\Scrutor\Scrutor.RPC\obj\Debug\net8.0\ref\Scrutor.RPC.dll
+C:\projects\Scrutor\Scrutor.RPC\obj\Debug\net8.0\Scrutor.RPC.sourcelink.json

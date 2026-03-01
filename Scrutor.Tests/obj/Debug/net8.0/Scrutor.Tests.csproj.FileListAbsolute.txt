@@ -174,3 +174,4 @@ C:\projects\Scrutor\Scrutor.Tests\obj\Debug\net8.0\Scrutor.Tests.genruntimeconfi
 C:\projects\Scrutor\Scrutor.Tests\obj\Debug\net8.0\ref\Scrutor.Tests.dll
 c:\projects\Scrutor\Scrutor.Tests\bin\Debug\net8.0\.msCoverageSourceRootsMapping_Scrutor.Tests
 c:\projects\Scrutor\Scrutor.Tests\bin\Debug\net8.0\xunit.runner.visualstudio.testadapter.dll
+C:\projects\Scrutor\Scrutor.Tests\obj\Debug\net8.0\Scrutor.Tests.sourcelink.json

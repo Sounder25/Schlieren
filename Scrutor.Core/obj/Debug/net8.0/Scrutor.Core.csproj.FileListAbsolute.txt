@@ -10,3 +10,4 @@ c:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.dll
 c:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\refint\Scrutor.Core.dll
 c:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.pdb
 c:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\ref\Scrutor.Core.dll
+C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.sourcelink.json

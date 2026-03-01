@@ -34,10 +34,20 @@ public sealed class StateTransition : IStateTransition
         }
 
         // Delegate to internal execution with origin = tx.From (root)
-        return ExecuteInternalAsync(tx, state, block, tx.From, null, commit, ct, 0);
+        return ExecuteInternalAsync(tx, state, block, tx.From, null, null, false, commit, ct, 0);
     }
 
-    private async Task<ExecutionResult> ExecuteInternalAsync(Transaction tx, IGlobalState state, BlockContext block, Address origin, Address? creationAddress, bool commit, CancellationToken ct, int depth = 0)
+    private async Task<ExecutionResult> ExecuteInternalAsync(
+        Transaction tx,
+        IGlobalState state,
+        BlockContext block,
+        Address origin,
+        Address? creationAddress,
+        Address? codeAddress,
+        bool isStatic,
+        bool commit,
+        CancellationToken ct,
+        int depth = 0)
     {
         if (depth > 1024)
              return ExecutionResult.Failure(EvmError.InternalError, 0, null); // Call stack depth limit reached
@@ -78,6 +88,12 @@ public sealed class StateTransition : IStateTransition
             code = tx.Data;
             contractAddress = creationAddress.Value;
         }
+        else if (codeAddress.HasValue)
+        {
+            // CALLCODE/DELEGATECALL: execute external code in current contract context.
+            code = await overlay.GetCodeAsync(codeAddress.Value, ct);
+            contractAddress = tx.To ?? Address.Zero;
+        }
         else
         {
             // CALL: Use code at To address
@@ -96,14 +112,17 @@ public sealed class StateTransition : IStateTransition
             CallValue = tx.Value,
             CallData = (creationAddress.HasValue || !tx.To.HasValue) ? Array.Empty<byte>() : tx.Data, 
             GasLimit = tx.GasLimit,
+            IsStatic = isStatic,
+            CaptureTrace = tx.EnableTracing,
+            CallDepth = depth + 1,
             Block = block,
             GlobalState = overlay,
             Storage = new OverlayStorage(overlay, contractAddress, ct)
         };
 
         // Wire up recursion
-        context.SubCall = (subTx, isStatic, subCreateAddr) => 
-            ExecuteInternalAsync(subTx, overlay, block, origin, subCreateAddr, true, ct, depth + 1);
+        context.SubCall = (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
+            ExecuteInternalAsync(subTx, overlay, block, origin, subCreateAddr, subCodeAddr, subIsStatic, true, ct, depth + 1);
 
         // 4. Execute
         var result = await _evm.ExecuteAsync(context, ct);

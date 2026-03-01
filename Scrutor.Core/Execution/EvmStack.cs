@@ -84,4 +84,6 @@ public sealed class EvmStack
             _stack.Push(array[i]);
         }
     }
+
+    public IReadOnlyList<BigInteger> SnapshotTopFirst() => _stack.ToArray();
 }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using System.Text.Json;
 using Scrutor.RPC.Models;
 using Scrutor.Core.Models;
@@ -55,31 +56,67 @@ public sealed class EthHandlers
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing transaction call object");
 
         var callObj = parameters[0] as JsonElement?;
-        if (!callObj.HasValue)
+        if (!callObj.HasValue || callObj.Value.ValueKind != JsonValueKind.Object)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid call object");
 
-        var tx = new Transaction
+        if (callObj.Value.TryGetProperty("from", out var fromProp) &&
+            fromProp.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(fromProp.GetString()) &&
+            !EthereumTypes.IsValidAddress(fromProp.GetString()!))
         {
-            From = callObj.Value.TryGetProperty("from", out var fromProp) ? Address.FromHex(fromProp.GetString()!) : Address.Zero,
-            To = callObj.Value.TryGetProperty("to", out var toProp) ? Address.FromHex(toProp.GetString()!) : null,
-            Data = callObj.Value.TryGetProperty("data", out var dataProp) ? Convert.FromHexString(dataProp.GetString()![2..]) : Array.Empty<byte>(),
-            GasLimit = 30_000_000,
-            GasPrice = 0
-        };
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid 'from' address");
+        }
 
-        var block = _chainState.CurrentBlock;
-        var blockContext = new BlockContext
-        {
-            Number = block.Number,
-            Timestamp = block.Timestamp,
-            GasLimit = block.GasLimit,
-            Difficulty = block.Difficulty,
-            Coinbase = string.IsNullOrEmpty(block.Miner) ? Address.Zero : Address.FromHex(block.Miner)
-        };
+        var defaultGasLimit = _chainState.CurrentBlock.GasLimit;
+        var tx = BuildCallTransaction(callObj.Value, defaultGasLimit);
+        var blockContext = ResolveEthCallBlockContext(parameters);
 
         var result = await _stateTransition.ApplyTransactionAsync(tx, _globalState, blockContext, commit: false, ct: ct);
         
         return EthereumTypes.ToEthHex(result.ReturnData);
+    }
+
+    public async Task<string> HandleEstimateGas(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing transaction call object");
+
+        var callObj = parameters[0] as JsonElement?;
+        if (!callObj.HasValue || callObj.Value.ValueKind != JsonValueKind.Object)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid call object");
+
+        var blockContext = ResolveEstimateGasBlockContext(parameters);
+        var tx = BuildCallTransaction(callObj.Value, blockContext.GasLimit);
+
+        // Use sender's current nonce unless explicitly provided.
+        tx.Nonce = callObj.Value.TryGetProperty("nonce", out var nonceProp)
+            ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
+            : await _globalState.GetNonceAsync(tx.From, ct);
+
+        var intrinsicGas = ComputeIntrinsicGas(tx);
+        var upper = tx.GasLimit == 0 ? blockContext.GasLimit : Math.Min(tx.GasLimit, blockContext.GasLimit);
+        if (upper < intrinsicGas)
+            throw new RpcException(JsonRpcErrorCodes.ExecutionError, $"Unable to estimate gas: provided gas cap {upper} below intrinsic gas {intrinsicGas}");
+
+        // [AI-EDIT 2026-01-10] Tight binary-search bounds: intrinsic floor to capped upper limit.
+        ulong lower = intrinsicGas;
+
+        // Must execute successfully at upper bound, otherwise estimation fails.
+        var upperTx = CloneForGas(tx, upper);
+        var upperResult = await _stateTransition.ApplyTransactionAsync(upperTx, _globalState, blockContext, commit: false, ct: ct);
+        if (!upperResult.IsSuccess)
+            throw new RpcException(JsonRpcErrorCodes.ExecutionError, $"Unable to estimate gas: execution failed ({upperResult.Error})");
+
+        while (lower < upper)
+        {
+            var mid = lower + ((upper - lower) / 2);
+            var probeTx = CloneForGas(tx, mid);
+            var probeResult = await _stateTransition.ApplyTransactionAsync(probeTx, _globalState, blockContext, commit: false, ct: ct);
+            if (probeResult.IsSuccess) upper = mid;
+            else lower = mid + 1;
+        }
+
+        return EthereumTypes.ToEthHex(lower);
     }
 
     public string HandleSendRawTransaction(object[] parameters)
@@ -87,14 +124,32 @@ public sealed class EthHandlers
         if (parameters == null || parameters.Length == 0)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing raw transaction data");
 
-        var rawHex = parameters[0]?.ToString() ?? string.Empty;
-        var rawBytes = Convert.FromHexString(rawHex.StartsWith("0x") ? rawHex[2..] : rawHex);
-
         try
         {
+            var rawHex = parameters[0]?.ToString() ?? string.Empty;
+            var clean = rawHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? rawHex[2..] : rawHex;
+            if (string.IsNullOrWhiteSpace(clean) || clean.Length % 2 != 0)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid raw transaction hex");
+
+            var rawBytes = Convert.FromHexString(clean);
             var tx = Transaction.FromRaw(rawBytes);
+            if (tx.R.Length == 0 || tx.S.Length == 0)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction signature");
+
+            try
+            {
+                tx.From = CryptoUtils.RecoverAddress(tx.Hash, tx.V, tx.R, tx.S);
+            }
+            catch
+            {
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction signature");
+            }
             _mempool.Add(tx);
             return EthereumTypes.ToEthHex(tx.Hash);
+        }
+        catch (RpcException)
+        {
+            throw;
         }
         catch (UnsupportedTransactionTypeException ex)
         {
@@ -124,6 +179,86 @@ public sealed class EthHandlers
     }
 
     public string HandleChainId() => EthereumTypes.ToEthHex(_chainState.ChainId);
+
+    public string HandleNetVersion() => _chainState.ChainId.ToString();
+
+    public bool HandleNetListening() => true;
+
+    public string HandleNetPeerCount() => "0x0";
+
+    public string HandleGasPrice()
+    {
+        // Prefer configured gas price for deterministic dev-node behavior,
+        // but never return below current base fee if it is set.
+        var floor = _chainState.CurrentBlock.BaseFeePerGas;
+        var configured = new BigInteger(_config.GasPrice);
+        var effective = configured < floor ? new BigInteger(floor) : configured;
+        return EthereumTypes.ToEthHex(effective);
+    }
+
+    public object HandleFeeHistory(object[] parameters)
+    {
+        if (parameters == null || parameters.Length < 2)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing required parameters: blockCount and newestBlock");
+
+        var blockCount = ParseQuantityParam(parameters[0], "blockCount");
+        if (blockCount == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "blockCount must be greater than zero");
+        if (blockCount > 1024)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "blockCount too large (max 1024)");
+
+        var newest = ParseFeeHistoryNewestBlock(parameters[1]);
+        var percentiles = ParseRewardPercentiles(parameters.Length > 2 ? parameters[2] : null);
+
+        var oldest = newest >= (blockCount - 1) ? newest - (blockCount - 1) : 0UL;
+        var effectiveCount = newest - oldest + 1;
+
+        var baseFees = new List<string>((int)effectiveCount + 1);
+        var gasRatios = new List<double>((int)effectiveCount);
+        var rewards = percentiles.Count > 0 ? new List<List<string>>((int)effectiveCount) : null;
+
+        Block? lastBlock = null;
+        for (ulong n = oldest; n <= newest; n++)
+        {
+            var block = _chainState.BlockStore.GetBlockByNumber(n)
+                ?? new Block { Number = n, GasLimit = _chainState.CurrentBlock.GasLimit, BaseFeePerGas = 0, GasUsed = 0 };
+
+            baseFees.Add(EthereumTypes.ToEthHex(block.BaseFeePerGas));
+            gasRatios.Add(block.GasLimit == 0 ? 0d : (double)block.GasUsed / block.GasLimit);
+
+            if (rewards != null)
+            {
+                var blockReceipts = _chainState.BlockStore.GetReceiptsByBlockNumber(n).ToList();
+                var blockRewards = new List<string>(percentiles.Count);
+                foreach (var p in percentiles)
+                {
+                    var tip = ComputeWeightedTipPercentile(blockReceipts, p, block.BaseFeePerGas);
+                    blockRewards.Add(EthereumTypes.ToEthHex(tip));
+                }
+                rewards.Add(blockRewards);
+            }
+
+            lastBlock = block;
+        }
+
+        // Per eth_feeHistory spec this array has blockCount + 1 entries.
+        var nextBaseFee = lastBlock == null ? 0UL : ComputeNextBaseFee(lastBlock);
+        baseFees.Add(EthereumTypes.ToEthHex(nextBaseFee));
+
+        return new
+        {
+            oldestBlock = EthereumTypes.ToEthHex(oldest),
+            baseFeePerGas = baseFees,
+            gasUsedRatio = gasRatios,
+            reward = rewards
+        };
+    }
+
+    public string HandleWeb3ClientVersion()
+    {
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
+        return $"Scrutor/{version}";
+    }
 
     public string HandleBlockNumber()
     {
@@ -162,23 +297,92 @@ public sealed class EthHandlers
         return EthereumTypes.ToEthHex(value);
     }
 
-    public Block? HandleGetBlockByNumber(object[] parameters)
+    public object? HandleGetBlockByNumber(object[] parameters)
     {
         if (parameters == null || parameters.Length == 0)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing block number");
 
-        var tag = parameters[0]?.ToString();
-        if (tag == "latest") return _chainState.CurrentBlock;
-        if (tag == "earliest") return _chainState.BlockStore.GetBlockByNumber(0);
-        if (tag == "pending") return _chainState.CurrentBlock;
-
-        if (tag != null && tag.StartsWith("0x"))
+        var tag = parameters[0] switch
         {
-            var number = EthereumTypes.FromEthHex(tag);
-            return _chainState.BlockStore.GetBlockByNumber(number);
+            JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString(),
+            _ => parameters[0]?.ToString()
+        };
+
+        var includeFullTransactions = false;
+        if (parameters.Length > 1)
+        {
+            includeFullTransactions = parameters[1] switch
+            {
+                bool b => b,
+                JsonElement je when je.ValueKind is JsonValueKind.True or JsonValueKind.False => je.GetBoolean(),
+                _ => false
+            };
         }
 
-        return null;
+        Block? block = null;
+        if (tag == "latest") block = _chainState.CurrentBlock;
+        else if (tag == "earliest") block = _chainState.BlockStore.GetBlockByNumber(0);
+        else if (tag == "pending") block = _chainState.CurrentBlock;
+        else if (tag != null && tag.StartsWith("0x"))
+        {
+            var number = EthereumTypes.FromEthHex(tag);
+            block = _chainState.BlockStore.GetBlockByNumber(number);
+        }
+        else
+        {
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid block number");
+        }
+
+        if (block == null)
+            return null;
+
+        return BuildBlockByNumberResponse(block, includeFullTransactions);
+    }
+
+    private object BuildBlockByNumberResponse(Block block, bool includeFullTransactions)
+    {
+        var transactions = includeFullTransactions
+            ? block.Transactions.Select((tx, index) => new
+            {
+                hash = EthereumTypes.ToEthHex(tx.Hash),
+                nonce = EthereumTypes.ToEthHex(tx.Nonce),
+                from = tx.From.ToString(),
+                to = tx.To?.ToString(),
+                value = EthereumTypes.ToEthHex(tx.Value),
+                gas = EthereumTypes.ToEthHex(tx.GasLimit),
+                gasPrice = EthereumTypes.ToEthHex(tx.GasPrice),
+                input = EthereumTypes.ToEthHex(tx.Data),
+                blockHash = block.Hash,
+                blockNumber = EthereumTypes.ToEthHex(block.Number),
+                transactionIndex = EthereumTypes.ToEthHex((ulong)index)
+            }).Cast<object>().ToList()
+            : block.Transactions
+                .Select(tx => (object)EthereumTypes.ToEthHex(tx.Hash))
+                .ToList();
+
+        return new
+        {
+            number = EthereumTypes.ToEthHex(block.Number),
+            hash = block.Hash,
+            parentHash = block.ParentHash,
+            nonce = "0x0000000000000000",
+            sha3Uncles = "0x" + new string('0', 64),
+            logsBloom = "0x" + new string('0', 512),
+            transactionsRoot = string.IsNullOrWhiteSpace(block.TransactionsRoot) ? "0x" + new string('0', 64) : block.TransactionsRoot,
+            stateRoot = string.IsNullOrWhiteSpace(block.StateRoot) ? "0x" + new string('0', 64) : block.StateRoot,
+            receiptsRoot = string.IsNullOrWhiteSpace(block.ReceiptsRoot) ? "0x" + new string('0', 64) : block.ReceiptsRoot,
+            miner = string.IsNullOrWhiteSpace(block.Miner) ? Address.Zero.ToString() : block.Miner,
+            difficulty = EthereumTypes.ToEthHex(block.Difficulty),
+            totalDifficulty = EthereumTypes.ToEthHex(block.Difficulty),
+            extraData = "0x",
+            size = EthereumTypes.ToEthHex((ulong)0),
+            gasLimit = EthereumTypes.ToEthHex(block.GasLimit),
+            gasUsed = EthereumTypes.ToEthHex(block.GasUsed),
+            timestamp = EthereumTypes.ToEthHex(block.Timestamp),
+            transactions,
+            uncles = Array.Empty<string>(),
+            baseFeePerGas = EthereumTypes.ToEthHex(block.BaseFeePerGas)
+        };
     }
 
     public Transaction? HandleGetTransactionByHash(object[] parameters)
@@ -219,12 +423,30 @@ public sealed class EthHandlers
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing filter object");
 
         var filter = parameters[0] as JsonElement?;
-        if (!filter.HasValue)
+        if (!filter.HasValue || filter.Value.ValueKind != JsonValueKind.Object)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid filter object");
 
-        // Parse filter fields
-        ulong fromBlock = ParseBlockTag(filter.Value, "fromBlock", 0);
-        ulong toBlock = ParseBlockTag(filter.Value, "toBlock", _chainState.CurrentBlock.Number);
+        ulong fromBlock;
+        ulong toBlock;
+        if (filter.Value.TryGetProperty("blockHash", out var blockHashProp))
+        {
+            if (filter.Value.TryGetProperty("fromBlock", out _) || filter.Value.TryGetProperty("toBlock", out _))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Cannot specify blockHash with fromBlock/toBlock");
+
+            var blockHash = blockHashProp.GetString();
+            if (string.IsNullOrWhiteSpace(blockHash) || !IsValidBlockHash(blockHash))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid blockHash");
+
+            var block = _chainState.BlockStore.GetBlockByHash(blockHash!);
+            if (block == null) return new List<TransactionLog>();
+            fromBlock = block.Number;
+            toBlock = block.Number;
+        }
+        else
+        {
+            fromBlock = ParseBlockTag(filter.Value, "fromBlock", 0);
+            toBlock = ParseBlockTag(filter.Value, "toBlock", _chainState.CurrentBlock.Number);
+        }
 
         if (toBlock < fromBlock)
             return new List<TransactionLog>();
@@ -232,22 +454,7 @@ public sealed class EthHandlers
         if ((toBlock - fromBlock) > (ulong)_config.MaxBlocksScanned)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Block range too large (max {_config.MaxBlocksScanned})");
 
-        HashSet<string>? addressSet = null;
-        if (filter.Value.TryGetProperty("address", out var addrProp))
-        {
-            addressSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (addrProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var a in addrProp.EnumerateArray())
-                {
-                    if (a.ValueKind == JsonValueKind.String && a.GetString() is string s) addressSet.Add(s);
-                }
-            }
-            else if (addrProp.ValueKind == JsonValueKind.String && addrProp.GetString() is string s)
-            {
-                addressSet.Add(s);
-            }
-        }
+        var addressSet = ParseAddressFilter(filter.Value);
 
         List<HashSet<string>?>? topicFilters = null;
         if (filter.Value.TryGetProperty("topics", out var topicsProp) && topicsProp.ValueKind == JsonValueKind.Array)
@@ -310,6 +517,46 @@ public sealed class EthHandlers
     {
         if (topic.Length != 66 || !topic.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid topic: {topic} (must be 32-byte hex string)");
+    }
+
+    private HashSet<string>? ParseAddressFilter(JsonElement filter)
+    {
+        if (!filter.TryGetProperty("address", out var addrProp))
+            return null;
+
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (addrProp.ValueKind == JsonValueKind.String)
+        {
+            var address = addrProp.GetString();
+            if (string.IsNullOrWhiteSpace(address) || !EthereumTypes.IsValidAddress(address))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid address filter");
+            set.Add(address);
+            return set;
+        }
+
+        if (addrProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var a in addrProp.EnumerateArray())
+            {
+                if (a.ValueKind != JsonValueKind.String)
+                    throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid address filter");
+                var address = a.GetString();
+                if (string.IsNullOrWhiteSpace(address) || !EthereumTypes.IsValidAddress(address))
+                    throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid address filter");
+                set.Add(address);
+            }
+            if (set.Count == 0) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return set;
+        }
+
+        throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid address filter");
+    }
+
+    private static bool IsValidBlockHash(string hash)
+    {
+        if (!hash.StartsWith("0x", StringComparison.OrdinalIgnoreCase) || hash.Length != 66)
+            return false;
+        return hash[2..].All(c => Uri.IsHexDigit(c));
     }
 
     private ulong ParseBlockTag(JsonElement filter, string propertyName, ulong defaultValue)
@@ -384,37 +631,53 @@ public sealed class EthHandlers
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing transaction object");
 
         var txObj = parameters[0] as JsonElement?;
-        if (!txObj.HasValue)
+        if (!txObj.HasValue || txObj.Value.ValueKind != JsonValueKind.Object)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction object");
 
-        if (!txObj.Value.TryGetProperty("from", out var fromProp) || string.IsNullOrEmpty(fromProp.GetString()))
+        if (!txObj.Value.TryGetProperty("from", out var fromProp) || string.IsNullOrWhiteSpace(fromProp.GetString()))
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Sender 'from' address is required for eth_sendTransaction");
 
-        var fromAddress = Address.FromHex(fromProp.GetString()!);
+        var fromHex = fromProp.GetString()!;
+        if (!EthereumTypes.IsValidAddress(fromHex))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid 'from' address");
+        var fromAddress = Address.FromHex(fromHex);
         
-        // 1. Check if the sender is impersonated
-        if (!_impersonation.IsImpersonated(fromAddress))
+        var isImpersonated = _impersonation.IsImpersonated(fromAddress);
+        var isManagedAccount = _accountManager.GetPrivateKey(fromAddress) != null;
+        if (!isImpersonated && !isManagedAccount)
         {
             throw new RpcException(-32000, $"Sender account {fromAddress} is not impersonated or unlocked. " +
                 "Use anvil_impersonateAccount to unlock it for unsigned transactions.");
         }
 
-        // 2. Build the transaction
+        if (txObj.Value.TryGetProperty("gasPrice", out _) &&
+            (txObj.Value.TryGetProperty("maxFeePerGas", out _) || txObj.Value.TryGetProperty("maxPriorityFeePerGas", out _)))
+        {
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Cannot specify both gasPrice and EIP-1559 fee fields");
+        }
+
+        var toAddress = ParseOptionalAddress(txObj.Value, "to");
+        var value = ParseOptionalQuantity(txObj.Value, "value", BigInteger.Zero);
+        var data = ParseOptionalData(txObj.Value, "data");
+        var gasLimit = (ulong)ParseOptionalQuantity(txObj.Value, "gas", _chainState.CurrentBlock.GasLimit);
+        var gasPrice = ResolveSendTransactionGasPrice(txObj.Value);
+
+        // Build the transaction
         var tx = new Transaction
         {
             From = fromAddress,
-            To = txObj.Value.TryGetProperty("to", out var toProp) ? Address.FromHex(toProp.GetString()!) : null,
-            Value = txObj.Value.TryGetProperty("value", out var valProp) ? EthereumTypes.FromEthHex(valProp.GetString()!) : 0,
-            Data = txObj.Value.TryGetProperty("data", out var dataProp) ? Convert.FromHexString(dataProp.GetString()![2..]) : Array.Empty<byte>(),
-            GasLimit = txObj.Value.TryGetProperty("gas", out var gasProp) ? (ulong)EthereumTypes.FromEthHex(gasProp.GetString()!) : 30_000_000,
-            GasPrice = txObj.Value.TryGetProperty("gasPrice", out var priceProp) ? EthereumTypes.FromEthHex(priceProp.GetString()!) : _config.GasPrice,
+            To = toAddress,
+            Value = value,
+            Data = data,
+            GasLimit = gasLimit,
+            GasPrice = gasPrice,
             Authorization = TransactionAuthorization.Impersonated
         };
 
-        // 3. Set Nonce (if not provided)
+        // Set nonce (if not provided)
         if (txObj.Value.TryGetProperty("nonce", out var nonceProp))
         {
-            tx.Nonce = (ulong)EthereumTypes.FromEthHex(nonceProp.GetString()!);
+            tx.Nonce = (ulong)ParseHexQuantityElement(nonceProp, "nonce");
         }
         else
         {
@@ -422,19 +685,9 @@ public sealed class EthHandlers
             tx.Nonce = await _mempool.ReserveNonceAsync(fromAddress, baseNonce);
         }
 
-        // 4. Hash (even though unsigned, we need a unique identifier)
-        // We'll use a local hash variant for unsigned txs
-        tx.Hash = tx.Nonce % 2 == 0 ? CryptoUtils.Keccak256(tx.Data) : CryptoUtils.Keccak256(BitConverter.GetBytes(tx.Nonce)); 
-        // Actually, let's just use Keccak256 of the fields for a consistent hash
-        var hashSource = new List<byte>();
-        hashSource.AddRange(tx.From.Bytes);
-        hashSource.AddRange(BitConverter.GetBytes(tx.Nonce));
-        hashSource.AddRange(tx.Data);
-        tx.Hash = CryptoUtils.Keccak256(hashSource.ToArray());
+        tx.Hash = ComputeUnsignedTransactionHash(tx);
 
-        // 5. Add to mempool
         _mempool.Add(tx);
-
         return EthereumTypes.ToEthHex(tx.Hash);
     }
 
@@ -478,6 +731,36 @@ public sealed class EthHandlers
         _chainState.TimeOffset += seconds;
         return _chainState.TimeOffset;
     }
+
+    public bool HandleAnvilSetAutomine(object[] parameters)
+    {
+        if (parameters.Length < 1)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing automine boolean parameter");
+
+        bool automine;
+        var p = parameters[0];
+        if (p is bool b)
+        {
+            automine = b;
+        }
+        else if (p is JsonElement je && (je.ValueKind == JsonValueKind.True || je.ValueKind == JsonValueKind.False))
+        {
+            automine = je.GetBoolean();
+        }
+        else if (bool.TryParse(p?.ToString(), out var parsed))
+        {
+            automine = parsed;
+        }
+        else
+        {
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid automine value (expected true/false)");
+        }
+
+        _chainState.Automine = automine;
+        return true;
+    }
+
+    public bool HandleAnvilGetAutomine() => _chainState.Automine;
 
     public ulong HandleAnvilSetNextBlockTimestamp(object[] parameters)
     {
@@ -528,6 +811,873 @@ public sealed class EthHandlers
         }
         
         return true;
+    }
+
+    public async Task<object> HandleDebugTraceTransaction(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length < 1)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing transaction hash");
+
+        var hash = parameters[0]?.ToString();
+        if (string.IsNullOrWhiteSpace(hash))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction hash");
+
+        var normalizedHash = hash.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? hash.ToLowerInvariant()
+            : "0x" + hash.ToLowerInvariant();
+
+        Transaction? tx = null;
+        foreach (var block in _chainState.BlockStore.GetAllBlocks())
+        {
+            tx = block.Transactions.FirstOrDefault(t => EthereumTypes.ToEthHex(t.Hash) == normalizedHash);
+            if (tx != null) break;
+        }
+
+        if (tx == null)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Transaction not found");
+
+        var replay = new Transaction
+        {
+            Hash = tx.Hash,
+            From = tx.From,
+            To = tx.To,
+            Value = tx.Value,
+            Nonce = tx.Nonce,
+            GasPrice = tx.GasPrice,
+            GasLimit = tx.GasLimit,
+            Data = tx.Data,
+            Authorization = TransactionAuthorization.Impersonated,
+            EnableTracing = true
+        };
+
+        var result = await _stateTransition.ApplyTransactionAsync(
+            replay,
+            _globalState,
+            BuildCurrentBlockContext(),
+            commit: false,
+            ct: ct);
+
+        var options = ParseTraceOptions(parameters.Length > 1 ? parameters[1] : null);
+        return BuildTraceResponse(result, options);
+    }
+
+    public async Task<object> HandleDebugTraceCall(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing transaction call object");
+
+        var callObj = parameters[0] as JsonElement?;
+        if (!callObj.HasValue || callObj.Value.ValueKind != JsonValueKind.Object)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid call object");
+
+        object? blockSelector = null;
+        object? optionsParam = null;
+        if (parameters.Length > 1)
+        {
+            if (parameters[1] is JsonElement p1 && p1.ValueKind == JsonValueKind.Object)
+                optionsParam = parameters[1];
+            else
+                blockSelector = parameters[1];
+        }
+        if (parameters.Length > 2)
+            optionsParam = parameters[2];
+
+        var blockContext = blockSelector == null
+            ? BuildCurrentBlockContext()
+            : ResolveEthCallBlockContext(new[] { parameters[0], blockSelector });
+
+        var tx = BuildCallTransaction(callObj.Value, blockContext.GasLimit);
+        tx.Nonce = await _globalState.GetNonceAsync(tx.From, ct);
+        tx.EnableTracing = true;
+
+        var result = await _stateTransition.ApplyTransactionAsync(
+            tx,
+            _globalState,
+            blockContext,
+            commit: false,
+            ct: ct);
+
+        var options = ParseTraceOptions(optionsParam);
+        return BuildTraceResponse(result, options);
+    }
+
+    public async Task<object> HandleDebugTraceBlockByNumber(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing block number");
+
+        var blockNumber = ParseBlockTagParam(parameters[0]);
+        var block = _chainState.BlockStore.GetBlockByNumber(blockNumber);
+        if (block == null)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Block not found");
+
+        var options = ParseTraceOptions(parameters.Length > 1 ? parameters[1] : null);
+        return await TraceBlockTransactions(block, options, ct);
+    }
+
+    public async Task<object> HandleDebugTraceBlockByHash(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing block hash");
+
+        var blockHash = parameters[0]?.ToString();
+        if (string.IsNullOrWhiteSpace(blockHash))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid block hash");
+
+        var block = _chainState.BlockStore.GetBlockByHash(blockHash!);
+        if (block == null)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Block not found");
+
+        var options = ParseTraceOptions(parameters.Length > 1 ? parameters[1] : null);
+        return await TraceBlockTransactions(block, options, ct);
+    }
+
+    public async Task<object> HandleDebugWhyNot(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing transaction call object or transaction hash");
+
+        Transaction tx;
+        BlockContext blockContext;
+        BigInteger senderBalance;
+        ulong senderNonce;
+        ulong intrinsicGas;
+        string source;
+
+        if (parameters[0] is JsonElement je && je.ValueKind == JsonValueKind.Object)
+        {
+            var blockSelector = parameters.Length > 1 ? parameters[1] : null;
+            blockContext = blockSelector == null
+                ? BuildCurrentBlockContext()
+                : ResolveEthCallBlockContext(new[] { parameters[0], blockSelector });
+
+            tx = BuildCallTransaction(je, blockContext.GasLimit);
+            tx.Nonce = je.TryGetProperty("nonce", out var nonceProp)
+                ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
+                : await _globalState.GetNonceAsync(tx.From, ct);
+            tx.EnableTracing = true;
+            source = "callObject";
+        }
+        else
+        {
+            var hash = parameters[0] switch
+            {
+                JsonElement p when p.ValueKind == JsonValueKind.String => p.GetString(),
+                _ => parameters[0]?.ToString()
+            };
+            if (string.IsNullOrWhiteSpace(hash))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction hash");
+
+            var normalizedHash = hash.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? hash.ToLowerInvariant()
+                : "0x" + hash.ToLowerInvariant();
+
+            Transaction? found = null;
+            Block? foundBlock = null;
+            foreach (var b in _chainState.BlockStore.GetAllBlocks())
+            {
+                found = b.Transactions.FirstOrDefault(t => EthereumTypes.ToEthHex(t.Hash) == normalizedHash);
+                if (found != null)
+                {
+                    foundBlock = b;
+                    break;
+                }
+            }
+
+            if (found == null || foundBlock == null)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Transaction not found");
+
+            tx = new Transaction
+            {
+                Hash = found.Hash,
+                From = found.From,
+                To = found.To,
+                Value = found.Value,
+                Nonce = found.Nonce,
+                GasPrice = found.GasPrice,
+                GasLimit = found.GasLimit,
+                Data = found.Data,
+                Authorization = TransactionAuthorization.Impersonated,
+                EnableTracing = true
+            };
+            blockContext = BuildBlockContextForTrace(foundBlock);
+            source = "transactionHash";
+        }
+
+        senderBalance = await _globalState.GetBalanceAsync(tx.From, ct);
+        senderNonce = await _globalState.GetNonceAsync(tx.From, ct);
+        intrinsicGas = ComputeIntrinsicGas(tx);
+
+        var result = await _stateTransition.ApplyTransactionAsync(
+            tx,
+            _globalState,
+            blockContext,
+            commit: false,
+            ct: ct);
+
+        var reasons = ClassifyWhyNotReasons(tx, result, senderBalance, senderNonce, intrinsicGas);
+
+        return new
+        {
+            source,
+            success = result.IsSuccess,
+            error = result.Error.ToString(),
+            gasUsed = EthereumTypes.ToEthHex(result.GasUsed),
+            intrinsicGas = EthereumTypes.ToEthHex(intrinsicGas),
+            reasons
+        };
+    }
+
+    private BlockContext BuildCurrentBlockContext()
+    {
+        var block = _chainState.CurrentBlock;
+        return new BlockContext
+        {
+            ChainId = _chainState.ChainId,
+            Number = block.Number,
+            Timestamp = block.Timestamp,
+            GasLimit = block.GasLimit,
+            Difficulty = block.Difficulty,
+            BaseFeePerGas = block.BaseFeePerGas,
+            Coinbase = string.IsNullOrEmpty(block.Miner) ? Address.Zero : Address.FromHex(block.Miner)
+        };
+    }
+
+    private BlockContext BuildBlockContextForTrace(Block block)
+    {
+        return new BlockContext
+        {
+            ChainId = _chainState.ChainId,
+            Number = block.Number,
+            Timestamp = block.Timestamp,
+            GasLimit = block.GasLimit,
+            Difficulty = block.Difficulty,
+            BaseFeePerGas = block.BaseFeePerGas,
+            Coinbase = string.IsNullOrEmpty(block.Miner) ? Address.Zero : Address.FromHex(block.Miner)
+        };
+    }
+
+    private BlockContext ResolveEthCallBlockContext(object[] parameters)
+    {
+        // Supports latest/pending/earliest and explicit hex quantity up to current head.
+        if (parameters.Length < 2)
+            return BuildCurrentBlockContext();
+
+        var tagOrNumber = parameters[1] switch
+        {
+            JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString(),
+            _ => parameters[1]?.ToString()
+        };
+
+        if (string.IsNullOrWhiteSpace(tagOrNumber) ||
+            string.Equals(tagOrNumber, "latest", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(tagOrNumber, "pending", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildCurrentBlockContext();
+        }
+
+        if (string.Equals(tagOrNumber, "earliest", StringComparison.OrdinalIgnoreCase))
+        {
+            var genesis = _chainState.BlockStore.GetBlockByNumber(0) ?? _chainState.CurrentBlock;
+            return new BlockContext
+            {
+                ChainId = _chainState.ChainId,
+                Number = genesis.Number,
+                Timestamp = genesis.Timestamp,
+                GasLimit = genesis.GasLimit,
+                Difficulty = genesis.Difficulty,
+                BaseFeePerGas = genesis.BaseFeePerGas,
+                Coinbase = string.IsNullOrEmpty(genesis.Miner) ? Address.Zero : Address.FromHex(genesis.Miner)
+            };
+        }
+
+        if (!tagOrNumber.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid block tag for eth_call");
+
+        var requestedNumber = EthereumTypes.FromEthHex(tagOrNumber);
+        var head = _chainState.CurrentBlock.Number;
+        if (requestedNumber > head)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "eth_call block number is greater than current head");
+
+        // Historical state snapshots are not yet persisted; execution uses current state with validated block context.
+        return BuildCurrentBlockContext();
+    }
+
+    private BlockContext ResolveEstimateGasBlockContext(object[] parameters)
+    {
+        // Supports optional block tag in second positional parameter.
+        if (parameters.Length > 1)
+        {
+            var p = parameters[1];
+            var isStringTag = p is string || (p is JsonElement je && je.ValueKind == JsonValueKind.String);
+            if (isStringTag)
+            {
+                return ResolveEthCallBlockContext(new object[] { new object(), p! });
+            }
+        }
+
+        return BuildCurrentBlockContext();
+    }
+
+    private static Transaction BuildCallTransaction(JsonElement callObj, ulong defaultGasLimit)
+    {
+        byte[] data = Array.Empty<byte>();
+        if (callObj.TryGetProperty("data", out var dataProp))
+        {
+            var dataHex = dataProp.GetString() ?? "0x";
+            var clean = dataHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? dataHex[2..] : dataHex;
+            data = clean.Length == 0 ? Array.Empty<byte>() : Convert.FromHexString(clean);
+        }
+
+        var tx = new Transaction
+        {
+            From = callObj.TryGetProperty("from", out var fromProp) && !string.IsNullOrWhiteSpace(fromProp.GetString())
+                ? Address.FromHex(fromProp.GetString()!)
+                : Address.Zero,
+            To = callObj.TryGetProperty("to", out var toProp) && !string.IsNullOrWhiteSpace(toProp.GetString())
+                ? Address.FromHex(toProp.GetString()!)
+                : null,
+            Data = data,
+            Value = callObj.TryGetProperty("value", out var valueProp)
+                ? EthereumTypes.FromEthHex(valueProp.GetString() ?? "0x0")
+                : BigInteger.Zero,
+            // Use call-style execution assumptions by default for estimation.
+            GasPrice = callObj.TryGetProperty("gasPrice", out var gasPriceProp)
+                ? EthereumTypes.FromEthHex(gasPriceProp.GetString() ?? "0x0")
+                : BigInteger.Zero,
+            GasLimit = callObj.TryGetProperty("gas", out var gasProp)
+                ? (ulong)EthereumTypes.FromEthHex(gasProp.GetString() ?? "0x0")
+                : defaultGasLimit,
+            Authorization = TransactionAuthorization.Impersonated
+        };
+
+        return tx;
+    }
+
+    private static Transaction CloneForGas(Transaction source, ulong gasLimit)
+    {
+        return new Transaction
+        {
+            Hash = source.Hash,
+            From = source.From,
+            To = source.To,
+            Value = source.Value,
+            Nonce = source.Nonce,
+            GasPrice = source.GasPrice,
+            GasLimit = gasLimit,
+            Data = source.Data,
+            Authorization = source.Authorization,
+            EnableTracing = source.EnableTracing
+        };
+    }
+
+    private static ulong ComputeIntrinsicGas(Transaction tx)
+    {
+        const ulong txBase = 21_000;
+        const ulong zeroByteCost = 4;
+        const ulong nonZeroByteCost = 16;
+        const ulong createCost = 32_000;
+
+        ulong gas = txBase;
+        if (tx.To == null)
+        {
+            checked { gas += createCost; }
+        }
+
+        foreach (var b in tx.Data)
+        {
+            checked { gas += b == 0 ? zeroByteCost : nonZeroByteCost; }
+        }
+
+        return gas;
+    }
+
+    private static object BuildTraceResponse(ExecutionResult result, TraceOptions options)
+    {
+        var steps = result.TraceSteps.AsEnumerable();
+        if (options.Limit.HasValue)
+        {
+            steps = steps.Take(options.Limit.Value);
+        }
+
+        return new
+        {
+            gas = EthereumTypes.ToEthHex(result.GasUsed),
+            failed = !result.IsSuccess,
+            returnValue = EthereumTypes.ToEthHex(result.ReturnData),
+            structLogs = steps.Select(s => new
+            {
+                pc = s.Pc,
+                op = s.Op,
+                gas = s.Gas,
+                gasCost = s.GasCost,
+                depth = s.Depth,
+                stack = options.DisableStack ? new List<string>() : s.Stack,
+                memory = options.DisableMemory ? new List<string>() : s.Memory,
+                storage = options.DisableStorage ? new Dictionary<string, string>() : s.Storage
+            }).ToList()
+        };
+    }
+
+    private async Task<List<object>> TraceBlockTransactions(Block block, TraceOptions options, CancellationToken ct)
+    {
+        var traces = new List<object>(block.Transactions.Count);
+        foreach (var tx in block.Transactions)
+        {
+            var replay = new Transaction
+            {
+                Hash = tx.Hash,
+                From = tx.From,
+                To = tx.To,
+                Value = tx.Value,
+                Nonce = tx.Nonce,
+                GasPrice = tx.GasPrice,
+                GasLimit = tx.GasLimit,
+                Data = tx.Data,
+                Authorization = TransactionAuthorization.Impersonated,
+                EnableTracing = true
+            };
+
+            var result = await _stateTransition.ApplyTransactionAsync(
+                replay,
+                _globalState,
+                BuildBlockContextForTrace(block),
+                commit: false,
+                ct: ct);
+
+            traces.Add(new
+            {
+                txHash = EthereumTypes.ToEthHex(tx.Hash),
+                result = BuildTraceResponse(result, options)
+            });
+        }
+        return traces;
+    }
+
+    private static TraceOptions ParseTraceOptions(object? parameter)
+    {
+        if (parameter == null) return TraceOptions.Default;
+        if (parameter is not JsonElement je) return TraceOptions.Default;
+        if (je.ValueKind == JsonValueKind.Null) return TraceOptions.Default;
+        if (je.ValueKind != JsonValueKind.Object)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Trace options must be an object");
+
+        var disableStack = GetBooleanOption(je, "disableStack");
+        var disableMemory = GetBooleanOption(je, "disableMemory");
+        var disableStorage = GetBooleanOption(je, "disableStorage");
+        var limit = GetIntegerOption(je, "limit");
+
+        return new TraceOptions(disableStack, disableMemory, disableStorage, limit);
+    }
+
+    private static List<object> ClassifyWhyNotReasons(
+        Transaction tx,
+        ExecutionResult result,
+        BigInteger senderBalance,
+        ulong senderNonce,
+        ulong intrinsicGas)
+    {
+        var reasons = new List<object>();
+        var upfrontCost = (new BigInteger(tx.GasLimit) * tx.GasPrice) + tx.Value;
+
+        if (tx.Nonce < senderNonce)
+        {
+            reasons.Add(new
+            {
+                code = "nonce_too_low",
+                message = "Transaction nonce is below sender account nonce.",
+                evidence = new
+                {
+                    txNonce = EthereumTypes.ToEthHex(tx.Nonce),
+                    stateNonce = EthereumTypes.ToEthHex(senderNonce)
+                },
+                recommendation = "Increase transaction nonce to at least current state nonce."
+            });
+        }
+        else if (tx.Nonce > senderNonce)
+        {
+            reasons.Add(new
+            {
+                code = "nonce_too_high",
+                message = "Transaction nonce is above sender account nonce.",
+                evidence = new
+                {
+                    txNonce = EthereumTypes.ToEthHex(tx.Nonce),
+                    stateNonce = EthereumTypes.ToEthHex(senderNonce)
+                },
+                recommendation = "Use the next pending nonce or submit intermediate nonces first."
+            });
+        }
+
+        if (senderBalance < upfrontCost)
+        {
+            reasons.Add(new
+            {
+                code = "insufficient_funds",
+                message = "Sender balance cannot cover value plus maximum gas cost.",
+                evidence = new
+                {
+                    senderBalance = EthereumTypes.ToEthHex(senderBalance),
+                    requiredUpfront = EthereumTypes.ToEthHex(upfrontCost),
+                    gasLimit = EthereumTypes.ToEthHex(tx.GasLimit),
+                    gasPrice = EthereumTypes.ToEthHex(tx.GasPrice),
+                    value = EthereumTypes.ToEthHex(tx.Value)
+                },
+                recommendation = "Fund sender account or reduce value/gas settings."
+            });
+        }
+
+        if (tx.GasLimit < intrinsicGas)
+        {
+            reasons.Add(new
+            {
+                code = "intrinsic_gas_too_low",
+                message = "Gas limit is below intrinsic transaction gas requirement.",
+                evidence = new
+                {
+                    gasLimit = EthereumTypes.ToEthHex(tx.GasLimit),
+                    intrinsicGas = EthereumTypes.ToEthHex(intrinsicGas)
+                },
+                recommendation = "Increase gas limit above intrinsic minimum."
+            });
+        }
+
+        if (!result.IsSuccess)
+        {
+            switch (result.Error)
+            {
+                case EvmError.OutOfGas:
+                    reasons.Add(new
+                    {
+                        code = "out_of_gas_execution",
+                        message = "Execution ran out of gas during opcode processing.",
+                        evidence = new { gasUsed = EthereumTypes.ToEthHex(result.GasUsed) },
+                        recommendation = "Increase gas limit or simplify execution path."
+                    });
+                    break;
+                case EvmError.Revert:
+                    reasons.Add(new
+                    {
+                        code = "execution_reverted",
+                        message = "Contract reverted execution.",
+                        evidence = new { returnData = EthereumTypes.ToEthHex(result.ReturnData) },
+                        recommendation = "Inspect contract preconditions and calldata."
+                    });
+                    break;
+                case EvmError.StaticModeViolation:
+                    reasons.Add(new
+                    {
+                        code = "static_mode_violation",
+                        message = "State-changing operation attempted in static context.",
+                        evidence = new { error = result.Error.ToString() },
+                        recommendation = "Remove state writes or avoid static call context."
+                    });
+                    break;
+                case EvmError.NonceTooLow:
+                case EvmError.NonceTooHigh:
+                case EvmError.InsufficientFunds:
+                    break;
+                default:
+                    reasons.Add(new
+                    {
+                        code = "execution_error",
+                        message = "Transaction failed during execution.",
+                        evidence = new { error = result.Error.ToString(), gasUsed = EthereumTypes.ToEthHex(result.GasUsed) },
+                        recommendation = "Inspect trace and state to identify failing branch."
+                    });
+                    break;
+            }
+        }
+
+        if (result.IsSuccess && reasons.Count == 0)
+        {
+            reasons.Add(new
+            {
+                code = "no_blocker_detected",
+                message = "Simulation succeeded with current parameters.",
+                evidence = new { gasUsed = EthereumTypes.ToEthHex(result.GasUsed) },
+                recommendation = "No corrective action required."
+            });
+        }
+
+        return reasons;
+    }
+
+    private static bool GetBooleanOption(JsonElement options, string name)
+    {
+        if (!options.TryGetProperty(name, out var value)) return false;
+        if (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False)
+            return value.GetBoolean();
+        throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be boolean");
+    }
+
+    private static int? GetIntegerOption(JsonElement options, string name)
+    {
+        if (!options.TryGetProperty(name, out var value)) return null;
+
+        int parsed;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out parsed))
+        {
+            if (parsed < 0)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be >= 0");
+            return parsed;
+        }
+
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            var s = value.GetString();
+            if (string.IsNullOrWhiteSpace(s))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be a non-empty quantity");
+            parsed = (int)EthereumTypes.FromEthHex(s);
+            return parsed < 0
+                ? throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be >= 0")
+                : parsed;
+        }
+
+        throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be number or hex quantity");
+    }
+
+    private readonly record struct TraceOptions(bool DisableStack, bool DisableMemory, bool DisableStorage, int? Limit)
+    {
+        public static readonly TraceOptions Default = new(false, false, false, null);
+    }
+
+    private static ulong ParseQuantityParam(object? parameter, string parameterName)
+    {
+        var hex = parameter switch
+        {
+            JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString(),
+            JsonElement je when je.ValueKind == JsonValueKind.Number => "0x" + je.GetUInt64().ToString("x"),
+            _ => parameter?.ToString()
+        };
+
+        if (string.IsNullOrWhiteSpace(hex))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid {parameterName}");
+
+        return EthereumTypes.FromEthHex(hex);
+    }
+
+    private static BigInteger ParseHexQuantityElement(JsonElement element, string fieldName)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            var hex = element.GetString();
+            if (string.IsNullOrWhiteSpace(hex))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}'");
+            return EthereumTypes.FromEthHex(hex);
+        }
+
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetUInt64(out var n))
+        {
+            return new BigInteger(n);
+        }
+
+        throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}'");
+    }
+
+    private static BigInteger ParseOptionalQuantity(JsonElement txObj, string fieldName, BigInteger defaultValue)
+    {
+        if (!txObj.TryGetProperty(fieldName, out var field))
+            return defaultValue;
+
+        return ParseHexQuantityElement(field, fieldName);
+    }
+
+    private static Address? ParseOptionalAddress(JsonElement txObj, string fieldName)
+    {
+        if (!txObj.TryGetProperty(fieldName, out var field))
+            return null;
+        if (field.ValueKind != JsonValueKind.String)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}' address");
+
+        var value = field.GetString();
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        if (!EthereumTypes.IsValidAddress(value))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}' address");
+
+        return Address.FromHex(value);
+    }
+
+    private static byte[] ParseOptionalData(JsonElement txObj, string fieldName)
+    {
+        if (!txObj.TryGetProperty(fieldName, out var field))
+            return Array.Empty<byte>();
+        if (field.ValueKind != JsonValueKind.String)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}' field");
+
+        var dataHex = field.GetString() ?? "0x";
+        var clean = dataHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? dataHex[2..] : dataHex;
+        if (clean.Length == 0) return Array.Empty<byte>();
+        if (clean.Length % 2 != 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}' hex payload");
+
+        try
+        {
+            return Convert.FromHexString(clean);
+        }
+        catch (FormatException)
+        {
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}' hex payload");
+        }
+    }
+
+    private BigInteger ResolveSendTransactionGasPrice(JsonElement txObj)
+    {
+        var hasGasPrice = txObj.TryGetProperty("gasPrice", out var gasPrice);
+        var hasMaxFee = txObj.TryGetProperty("maxFeePerGas", out var maxFee);
+        var hasMaxPriority = txObj.TryGetProperty("maxPriorityFeePerGas", out var maxPriority);
+
+        if (hasGasPrice && (hasMaxFee || hasMaxPriority))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Cannot specify both gasPrice and EIP-1559 fee fields");
+
+        if (hasMaxPriority && !hasMaxFee)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "maxPriorityFeePerGas requires maxFeePerGas");
+
+        if (hasMaxFee)
+        {
+            var maxFeeValue = ParseHexQuantityElement(maxFee, "maxFeePerGas");
+            if (hasMaxPriority)
+            {
+                var maxPriorityValue = ParseHexQuantityElement(maxPriority, "maxPriorityFeePerGas");
+                if (maxPriorityValue > maxFeeValue)
+                    throw new RpcException(JsonRpcErrorCodes.InvalidParams, "maxPriorityFeePerGas cannot exceed maxFeePerGas");
+            }
+            return maxFeeValue;
+        }
+
+        if (hasGasPrice)
+            return ParseHexQuantityElement(gasPrice, "gasPrice");
+
+        var configured = new BigInteger(_config.GasPrice);
+        var baseFee = new BigInteger(_chainState.CurrentBlock.BaseFeePerGas);
+        return configured < baseFee ? baseFee : configured;
+    }
+
+    private static byte[] ComputeUnsignedTransactionHash(Transaction tx)
+    {
+        var bytes = new List<byte>(256);
+        bytes.AddRange(tx.From.Bytes);
+        bytes.AddRange(tx.To?.Bytes ?? Array.Empty<byte>());
+        bytes.AddRange(tx.Value.ToByteArray(isUnsigned: true, isBigEndian: true));
+        bytes.AddRange(BitConverter.GetBytes(tx.Nonce));
+        bytes.AddRange(BitConverter.GetBytes(tx.GasLimit));
+        bytes.AddRange(tx.GasPrice.ToByteArray(isUnsigned: true, isBigEndian: true));
+        bytes.AddRange(tx.Data);
+        return CryptoUtils.Keccak256(bytes.ToArray());
+    }
+
+    private ulong ParseBlockTagParam(object? parameter)
+    {
+        var tag = parameter switch
+        {
+            JsonElement je when je.ValueKind == JsonValueKind.String => je.GetString(),
+            _ => parameter?.ToString()
+        };
+
+        if (string.IsNullOrWhiteSpace(tag))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid newestBlock");
+
+        return tag switch
+        {
+            "latest" => _chainState.CurrentBlock.Number,
+            "pending" => _chainState.CurrentBlock.Number,
+            "earliest" => 0UL,
+            _ when tag.StartsWith("0x", StringComparison.OrdinalIgnoreCase) => EthereumTypes.FromEthHex(tag),
+            _ => throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid newestBlock")
+        };
+    }
+
+    private ulong ParseFeeHistoryNewestBlock(object? parameter)
+    {
+        var newest = ParseBlockTagParam(parameter);
+        var head = _chainState.CurrentBlock.Number;
+        if (newest > head)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "newestBlock is greater than current head");
+        return newest;
+    }
+
+    private static List<double> ParseRewardPercentiles(object? parameter)
+    {
+        var values = new List<double>();
+        if (parameter == null) return values;
+
+        if (parameter is not JsonElement je || je.ValueKind != JsonValueKind.Array)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "rewardPercentiles must be an array");
+
+        double last = double.MinValue;
+        foreach (var item in je.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Number || !item.TryGetDouble(out var p))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "rewardPercentiles must contain numbers");
+            if (p < 0 || p > 100)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "rewardPercentiles must be in range [0, 100]");
+            if (p < last)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "rewardPercentiles must be sorted ascending");
+            last = p;
+            values.Add(p);
+        }
+
+        return values;
+    }
+
+    private static BigInteger ComputeWeightedTipPercentile(
+        IReadOnlyCollection<TransactionReceipt> receipts,
+        double percentile,
+        ulong baseFeePerGas)
+    {
+        if (receipts.Count == 0) return BigInteger.Zero;
+
+        var rows = receipts
+            .Select(r =>
+            {
+                var weight = r.GasUsed == 0 ? 1UL : r.GasUsed;
+                var tip = r.EffectiveGasPrice - baseFeePerGas;
+                if (tip < BigInteger.Zero) tip = BigInteger.Zero;
+                return (tip, weight);
+            })
+            .OrderBy(x => x.tip)
+            .ToList();
+
+        var totalWeight = rows.Aggregate(0UL, (acc, x) => acc + x.weight);
+        if (totalWeight == 0) return BigInteger.Zero;
+
+        var threshold = (ulong)Math.Ceiling((percentile / 100d) * totalWeight);
+        if (threshold == 0) threshold = 1;
+
+        ulong cumulative = 0;
+        foreach (var row in rows)
+        {
+            cumulative += row.weight;
+            if (cumulative >= threshold) return row.tip;
+        }
+
+        return rows[^1].tip;
+    }
+
+    private static ulong ComputeNextBaseFee(Block parent)
+    {
+        // EIP-1559 next base fee approximation for dev-node reporting.
+        if (parent.GasLimit == 0) return parent.BaseFeePerGas;
+        var targetGas = parent.GasLimit / 2;
+        if (targetGas == 0) return parent.BaseFeePerGas;
+        if (parent.GasUsed == targetGas) return parent.BaseFeePerGas;
+
+        var parentBase = new BigInteger(parent.BaseFeePerGas);
+        BigInteger delta;
+        if (parent.GasUsed > targetGas)
+        {
+            var gasDelta = new BigInteger(parent.GasUsed - targetGas);
+            delta = (parentBase * gasDelta) / targetGas / 8;
+            if (delta < BigInteger.One) delta = BigInteger.One;
+            return (ulong)(parentBase + delta);
+        }
+
+        var gasDeficit = new BigInteger(targetGas - parent.GasUsed);
+        delta = (parentBase * gasDeficit) / targetGas / 8;
+        var next = parentBase - delta;
+        if (next < BigInteger.Zero) next = BigInteger.Zero;
+        return (ulong)next;
     }
 
     private void ValidateParams(object[] parameters)

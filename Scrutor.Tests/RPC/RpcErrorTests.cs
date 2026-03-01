@@ -13,7 +13,7 @@ namespace Scrutor.Tests.RPC;
 public class RpcErrorTests
 {
     [Fact]
-    public void HandleSendRawTransaction_RejectsTypedTransaction_WithCorrectErrorCode()
+    public void HandleSendRawTransaction_RejectsUnknownTypedTransaction_WithCorrectErrorCode()
     {
         // Arrange
         var globalState = new GlobalState();
@@ -28,12 +28,12 @@ public class RpcErrorTests
         
         var handlers = new EthHandlers(globalState, mempool, chainState, stateTransition, miningService.Object, impersonation.Object, accountManager.Object, new NodeConfiguration { Accounts = 0 }, stateManager.Object);
 
-        // EIP-2718 Typed Transaction (0x02 || RLP(...))
-        var rawTx = "0x02f871018302a90f843b9aca00850dbe60a3d78252089470997970c51812dc3a010c7d01b50e0d17dc79c88080c080a06f2c349074b967d620c571754f9a767674257176767676767676767676767676a06f2c349074b967d620c571754f9a767674257176767676767676767676767676";
+        // EIP-2718 Typed envelope with unsupported transaction type 0x04
+        var rawTx = "0x04c0";
 
         // Act & Assert
         var ex = Assert.Throws<RpcException>(() => handlers.HandleSendRawTransaction(new object[] { rawTx }));
         Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
-        Assert.Contains("Typed transactions (type 0x02) are not yet supported", ex.Message);
+        Assert.Contains("Unsupported typed transaction type 0x04", ex.Message);
     }
 }

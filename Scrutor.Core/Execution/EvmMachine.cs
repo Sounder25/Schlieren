@@ -30,10 +30,12 @@ namespace Scrutor.Core.Execution
 
                 var pc = context.ProgramCounter;
                 var opcodeByte = context.Code[pc];
+                var gasBefore = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
 
                 if (!_opcodes.TryGetValue(opcodeByte, out var opcode))
                 {
-                    return ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasUsed);
+                    context.AddTraceStep(pc, $"0x{opcodeByte:X2}", gasBefore, 0);
+                    return ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasUsed) with { TraceSteps = context.TraceSteps };
                 }
 
                 try
@@ -42,11 +44,12 @@ namespace Scrutor.Core.Execution
                     
                     // Consume gas
                     context.ConsumeGas(execResult.GasUsed);
+                    context.AddTraceStep(pc, opcode.Name, gasBefore, execResult.GasUsed);
 
                     // If the opcode execution itself failed, propagate the failure
                     if (!execResult.IsSuccess)
                     {
-                        return execResult with { GasUsed = context.GasUsed };
+                        return execResult with { GasUsed = context.GasUsed, TraceSteps = context.TraceSteps };
                     }
                     
                     // Advance PC to the next instruction
@@ -54,7 +57,8 @@ namespace Scrutor.Core.Execution
                 }
                 catch (EvmOutOfGasException)
                 {
-                    return ExecutionResult.Failure(EvmError.OutOfGas, context.GasUsed);
+                    context.AddTraceStep(pc, opcode.Name, gasBefore, gasBefore);
+                    return ExecutionResult.Failure(EvmError.OutOfGas, context.GasUsed) with { TraceSteps = context.TraceSteps };
                 }
                 catch (OperationCanceledException)
                 {
@@ -63,12 +67,13 @@ namespace Scrutor.Core.Execution
                 catch
                 {
                     // Catch-all for other potential issues during opcode execution
-                    return ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasUsed);
+                    context.AddTraceStep(pc, opcode.Name, gasBefore, 0);
+                    return ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasUsed) with { TraceSteps = context.TraceSteps };
                 }
             }
 
             // Successfully executed to the end of the code
-            return ExecutionResult.Success(context.GasUsed, logs: context.Logs);
+            return ExecutionResult.Success(context.GasUsed, logs: context.Logs, traceSteps: context.TraceSteps);
         }
     }
 }

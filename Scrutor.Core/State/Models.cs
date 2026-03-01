@@ -30,7 +30,7 @@ public sealed class UnsupportedTransactionTypeException : Exception
 {
     public byte TransactionType { get; }
     public UnsupportedTransactionTypeException(byte type) 
-        : base($"Typed transactions (type 0x{type:X2}) are not yet supported. Only legacy transactions are supported.")
+        : base($"Unsupported typed transaction type 0x{type:X2}.")
     {
         TransactionType = type;
     }
@@ -63,6 +63,11 @@ public sealed class Transaction : IComparable<Transaction>
     /// </summary>
     public TransactionAuthorization Authorization { get; set; } = TransactionAuthorization.Signed;
 
+    /// <summary>
+    /// Enables opcode-level tracing for debug RPC endpoints.
+    /// </summary>
+    public bool EnableTracing { get; set; } = false;
+
     // Signature data
     public int V { get; set; }
     public byte[] R { get; set; } = Array.Empty<byte>();
@@ -75,7 +80,15 @@ public sealed class Transaction : IComparable<Transaction>
 
         byte firstByte = rawTx[0];
         if (firstByte > 0 && firstByte <= 0x7f)
-            throw new UnsupportedTransactionTypeException(firstByte);
+        {
+            return firstByte switch
+            {
+                0x01 => DecodeTyped(rawTx, firstByte, nonceIndex: 1, gasPriceIndex: 2, gasLimitIndex: 3, toIndex: 4, valueIndex: 5, dataIndex: 6, vIndex: 8, rIndex: 9, sIndex: 10),
+                0x02 => DecodeTyped(rawTx, firstByte, nonceIndex: 1, gasPriceIndex: 3, gasLimitIndex: 4, toIndex: 5, valueIndex: 6, dataIndex: 7, vIndex: 9, rIndex: 10, sIndex: 11),
+                0x03 => DecodeTyped(rawTx, firstByte, nonceIndex: 1, gasPriceIndex: 3, gasLimitIndex: 4, toIndex: 5, valueIndex: 6, dataIndex: 7, vIndex: 11, rIndex: 12, sIndex: 13),
+                _ => throw new UnsupportedTransactionTypeException(firstByte)
+            };
+        }
 
         if (firstByte < 0x80)
             throw new Exception($"Invalid transaction prefix: 0x{firstByte:X2}");
@@ -107,6 +120,48 @@ public sealed class Transaction : IComparable<Transaction>
         }
         
         return tx;
+    }
+
+    private static Transaction DecodeTyped(
+        byte[] rawTx,
+        byte txType,
+        int nonceIndex,
+        int gasPriceIndex,
+        int gasLimitIndex,
+        int toIndex,
+        int valueIndex,
+        int dataIndex,
+        int vIndex,
+        int rIndex,
+        int sIndex)
+    {
+        if (rawTx.Length < 2)
+            throw new Exception($"Invalid typed transaction type 0x{txType:X2}: missing payload");
+
+        var payload = new byte[rawTx.Length - 1];
+        Array.Copy(rawTx, 1, payload, 0, payload.Length);
+
+        var rlp = Scrutor.Core.Encoding.RlpDecoder.Decode(payload);
+        if (!rlp.IsList) throw new Exception($"Typed transaction payload for type 0x{txType:X2} must be an RLP list");
+
+        var items = rlp.Items;
+        if (items.Count <= sIndex)
+            throw new Exception($"Invalid typed transaction type 0x{txType:X2}: insufficient RLP items");
+
+        return new Transaction
+        {
+            Nonce = (ulong)items[nonceIndex].ToBigInteger(),
+            GasPrice = items[gasPriceIndex].ToBigInteger(),
+            GasLimit = (ulong)items[gasLimitIndex].ToBigInteger(),
+            To = items[toIndex].Data.Length > 0 ? new Address(items[toIndex].Data.ToArray()) : null,
+            Value = items[valueIndex].ToBigInteger(),
+            Data = items[dataIndex].Data.ToArray(),
+            V = (int)items[vIndex].ToBigInteger(),
+            R = items[rIndex].Data.ToArray(),
+            S = items[sIndex].Data.ToArray(),
+            Hash = CryptoUtils.Keccak256(rawTx),
+            Authorization = TransactionAuthorization.Signed
+        };
     }
 
     public int CompareTo(Transaction? other)

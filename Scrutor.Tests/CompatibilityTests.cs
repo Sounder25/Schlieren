@@ -99,13 +99,13 @@ public class CompatibilityTests
 
         var log1 = new TransactionLog 
         {
-            BlockNumber = 1, Address = "0x11", LogIndex = 0, 
+            BlockNumber = 1, Address = "0x1111111111111111111111111111111111111111", LogIndex = 0, 
             Topics = new List<string> { "0x00000000000000000000000000000000000000000000000000000000000000aa", "0x00000000000000000000000000000000000000000000000000000000000000bb" },
             TransactionHash = "0x01"
         };
         var log2 = new TransactionLog 
         {
-            BlockNumber = 1, Address = "0x22", LogIndex = 1, 
+            BlockNumber = 1, Address = "0x2222222222222222222222222222222222222222", LogIndex = 1, 
             Topics = new List<string> { "0x00000000000000000000000000000000000000000000000000000000000000cc", "0x00000000000000000000000000000000000000000000000000000000000000dd" },
             TransactionHash = "0x02"
         };
@@ -119,7 +119,7 @@ public class CompatibilityTests
 
         // 1. Filter by address (OR list)
         var logs = ethHandlers.HandleGetLogs(new object[] { 
-            JsonSerializer.Deserialize<JsonElement>("{\"address\": [\"0x11\", \"0x22\"]}") 
+            JsonSerializer.Deserialize<JsonElement>("{\"address\": [\"0x1111111111111111111111111111111111111111\", \"0x2222222222222222222222222222222222222222\"]}") 
         });
         Assert.Equal(2, logs.Count);
 

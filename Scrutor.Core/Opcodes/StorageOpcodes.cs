@@ -16,6 +16,7 @@ public sealed class OpcodeSload : IOpcode
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var value = await context.Storage.LoadAsync(key);
+        context.TraceStorageRead(key, value);
         
         if (!context.Stack.TryPush(value))
              return (ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1);
@@ -35,6 +36,7 @@ public sealed class OpcodeSstore : IOpcode
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
         context.Storage.Store(key, value);
+        context.TraceStorageWrite(key, value);
 
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(20000), context.ProgramCounter + 1));
     }
