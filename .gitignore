@@ -1,2 +1,8 @@
 **/bin/
 **/obj/
+
+# Downloaded EELS fixture archives and extracted test data (large, not source)
+fixtures_stable.tar.gz
+fixtures_develop.tar.gz
+fixtures_static.tar.gz
+fixtures/
