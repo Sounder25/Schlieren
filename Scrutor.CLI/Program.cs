@@ -1,10 +1,12 @@
+using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Scrutor.Core.DependencyInjection;
+using Scrutor.CLI.Commands;
 using Scrutor.Core.Configuration;
-using Scrutor.RPC.DependencyInjection;
+using Scrutor.Core.DependencyInjection;
 using Scrutor.Core.Forking;
-using Scrutor.RPC; // Added for IJsonRpcRouter
+using Scrutor.RPC;
+using Scrutor.RPC.DependencyInjection;
 
 namespace Scrutor.CLI;
 
@@ -12,144 +14,280 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
-        // SECTION: CLI Parsing & Configuration
-        
-        // Parse command-line arguments and load configuration
-        var (config, exitCode) = await CommandLineParser.ParseArgumentsAsync(args);
-        
-        // If parsing failed or help/version was requested (config null), exit
-        if (config == null || exitCode != 0)
+        var root = BuildRootCommand();
+        return await root.InvokeAsync(args);
+    }
+
+    // ── Root ─────────────────────────────────────────────────────────────────
+
+    static RootCommand BuildRootCommand()
+    {
+        var root = new RootCommand("Scrutor — Windows-native Ethereum development platform");
+
+        root.AddCommand(BuildNodeCommand());
+        root.AddCommand(BuildInitCommand());
+        root.AddCommand(BuildCompileCommand());
+        root.AddCommand(BuildRunCommand());
+        root.AddCommand(BuildTestCommand());
+        root.AddCommand(BuildTraceCommand());
+
+        // Default: no subcommand → show help
+        root.SetHandler(() =>
         {
-            return exitCode;
-        }
-        
-        try 
+            Console.WriteLine("Usage: scrutor <command> [options]");
+            Console.WriteLine();
+            Console.WriteLine("Commands:");
+            Console.WriteLine("  node      Start the local Ethereum node");
+            Console.WriteLine("  init      Create a new Scrutor workspace");
+            Console.WriteLine("  compile   Compile Solidity contracts in the workspace");
+            Console.WriteLine("  run       Run a .csx script against the node");
+            Console.WriteLine("  test      Run *.test.csx test files");
+            Console.WriteLine("  trace     Gas causality tree for a transaction");
+            Console.WriteLine();
+            Console.WriteLine("Run 'scrutor <command> --help' for details.");
+        });
+
+        return root;
+    }
+
+    // ── 'scrutor node' ───────────────────────────────────────────────────────
+
+    static Command BuildNodeCommand()
+    {
+        var cmd = CommandLineParser.BuildNodeCommand();
+
+        cmd.SetHandler(async (context) =>
         {
-            config.Validate();
-        }
-        catch (ArgumentException ex)
-        {
-            Console.Error.WriteLine($"Configuration Error: {ex.Message}");
-            return 1;
-        }
-        
-        // Respect --silent flag
-        if (!config.Silent)
-        {
-            PrintBanner(config);
-        }
-        
-        // SECTION: Dependency Injection Setup
-        
-        var host = Host.CreateDefaultBuilder(args)
-            .ConfigureServices((context, services) =>
+            var (config, exitCode) = await CommandLineParser.ParseNodeContextAsync(context);
+            if (config == null || exitCode != 0)
             {
-                if (!config.Silent)
-                    Console.WriteLine("📦 Registering services via Scrutor...");
-                
-                // Register the configuration as a singleton
-                services.AddSingleton(config);
-                
-                // Register Core services (EVM, opcodes, state management)
-                services.AddScrutorCore(); 
-                
-                // Register Forking Services if URL provided
+                context.ExitCode = exitCode;
+                return;
+            }
+
+            try { config.Validate(); }
+            catch (ArgumentException ex)
+            {
+                Console.Error.WriteLine($"Configuration Error: {ex.Message}");
+                context.ExitCode = 1;
+                return;
+            }
+
+            if (!config.Silent) PrintBanner(config);
+
+            var host = Host.CreateDefaultBuilder()
+                .ConfigureServices((_, services) =>
+                {
+                    if (!config.Silent)
+                        Console.WriteLine("📦 Registering services...");
+
+                    services.AddSingleton(config);
+                    services.AddScrutorCore();
+
+                    if (!string.IsNullOrEmpty(config.ForkUrl))
+                    {
+                        services.AddSingleton<IBlockCache, BlockCache>();
+                        services.AddHttpClient<IForkProvider, ForkProvider>(client =>
+                        {
+                            client.BaseAddress = new Uri(config.ForkUrl);
+                            client.Timeout = TimeSpan.FromMilliseconds(config.ForkRequestTimeout);
+                        });
+                    }
+
+                    services.AddScrutorRpc();
+                })
+                .Build();
+
+            if (!config.Silent) DisplayServiceInfo(host, config);
+
+            if (!config.Silent)
+            {
+                Console.WriteLine();
+                Console.WriteLine("🚀 Starting Scrutor Node...");
+                Console.WriteLine($"   Chain ID:  {config.ChainId}");
+                Console.WriteLine($"   Hardfork:  {config.Hardfork}");
+                Console.WriteLine($"   HTTP RPC:  http://{config.Host}:{config.Port}");
+
                 if (!string.IsNullOrEmpty(config.ForkUrl))
                 {
-                    services.AddSingleton<IBlockCache, BlockCache>();
-                    services.AddHttpClient<IForkProvider, ForkProvider>(client =>
-                    {
-                        client.BaseAddress = new Uri(config.ForkUrl);
-                        client.Timeout = TimeSpan.FromMilliseconds(config.ForkRequestTimeout);
-                    });
-                } 
-                
-                // Register RPC services (handlers, router, transports)
-                services.AddScrutorRpc();
-                
-                if (!config.Silent)
-                    Console.WriteLine("✅ Service registration complete");
-            })
-            .Build();
+                    Console.WriteLine($"   Fork URL:  {config.ForkUrl}");
+                    if (config.ForkBlockNumber.HasValue)
+                        Console.WriteLine($"   Fork Block: {config.ForkBlockNumber.Value}");
+                }
 
-        // SECTION: Service Validation
-        
-        if (!config.Silent)
-        {
-            DisplayServiceInfo(host, config);
-        }
-        
-        // SECTION: State Management
-        // Handled by BootstrapService via IHostedService lifecycle
-        
-        // SECTION: Server Startup
-        
-        if (!config.Silent)
-        {
-            Console.WriteLine();
-            Console.WriteLine("🚀 Starting Scrutor Node...");
-            Console.WriteLine($"   Chain ID: {config.ChainId}");
-            Console.WriteLine($"   Hardfork: {config.Hardfork}");
-            Console.WriteLine($"   HTTP RPC: http://{config.Host}:{config.Port}");
-            Console.WriteLine($"   WebSocket: ws://{config.Host}:{config.Port}");
-            
-            if (!string.IsNullOrEmpty(config.ForkUrl))
-            {
-                Console.WriteLine($"   Fork URL: {config.ForkUrl}");
-                if (config.ForkBlockNumber.HasValue)
-                    Console.WriteLine($"   Fork Block: {config.ForkBlockNumber.Value}");
+                Console.WriteLine();
+                Console.WriteLine("Press Ctrl+C to stop");
             }
-            
-            Console.WriteLine();
-            Console.WriteLine("Press Ctrl+C to stop");
-        }
-        
-        await host.RunAsync();
-        return 0;
+
+            await host.RunAsync();
+        });
+
+        return cmd;
     }
-    
-    /// <summary>
-    /// Prints the startup banner with configuration summary
-    /// </summary>
-    private static void PrintBanner(NodeConfiguration config)
+
+    // ── 'scrutor compile' ────────────────────────────────────────────────────
+
+    static Command BuildCompileCommand()
     {
-        Console.WriteLine("🔥 Scrutor - Windows-Native Ethereum Node");
+        var workdirOpt = new Option<string?>(
+            aliases: new[] { "--workdir" },
+            description: "Workspace directory (default: current directory)");
+
+        var cmd = new Command("compile", "Compile Solidity contracts in the workspace")
+        {
+            workdirOpt
+        };
+
+        cmd.SetHandler(async (workdir) =>
+        {
+            var exitCode = await CompileCommand.RunAsync(workdir);
+            Environment.ExitCode = exitCode;
+        }, workdirOpt);
+
+        return cmd;
+    }
+
+    // ── 'scrutor init' ───────────────────────────────────────────────────────
+
+    static Command BuildInitCommand()
+    {
+        var dirArg = new Argument<string?>(
+            name: "directory",
+            description: "Directory to initialize (default: current directory)",
+            getDefaultValue: () => null);
+
+        var cmd = new Command("init", "Create a new Scrutor workspace")
+        {
+            dirArg
+        };
+
+        cmd.SetHandler(async (dir) =>
+        {
+            var exitCode = await InitCommand.RunAsync(dir);
+            Environment.ExitCode = exitCode;
+        }, dirArg);
+
+        return cmd;
+    }
+
+    // ── 'scrutor run' ────────────────────────────────────────────────────────
+
+    static Command BuildRunCommand()
+    {
+        var scriptArg = new Argument<string>(
+            name: "script",
+            description: "Path to the .csx script to run");
+
+        var rpcOpt = new Option<string?>(
+            aliases: new[] { "--rpc" },
+            description: "RPC URL of an already-running node (starts embedded node if omitted)");
+
+        var workdirOpt = new Option<string?>(
+            aliases: new[] { "--workdir" },
+            description: "Workspace root directory (default: script directory)");
+
+        var cmd = new Command("run", "Run a C# script (.csx) against the Scrutor node")
+        {
+            scriptArg, rpcOpt, workdirOpt
+        };
+
+        cmd.SetHandler(async (script, rpc, workdir) =>
+        {
+            var exitCode = await RunCommand.RunAsync(script, rpc, workdir);
+            Environment.ExitCode = exitCode;
+        }, scriptArg, rpcOpt, workdirOpt);
+
+        return cmd;
+    }
+
+    // ── 'scrutor test' ───────────────────────────────────────────────────────
+
+    static Command BuildTestCommand()
+    {
+        var patternOpt = new Option<string?>(
+            aliases: new[] { "--pattern" },
+            description: "Glob pattern for test files (default: *.test.csx)");
+
+        var rpcOpt = new Option<string?>(
+            aliases: new[] { "--rpc" },
+            description: "RPC URL of an already-running node (starts embedded node if omitted)");
+
+        var workdirOpt = new Option<string?>(
+            aliases: new[] { "--workdir" },
+            description: "Workspace root directory (default: current directory)");
+
+        var cmd = new Command("test", "Run *.test.csx test files against the Scrutor node")
+        {
+            patternOpt, rpcOpt, workdirOpt
+        };
+
+        cmd.SetHandler(async (pattern, rpc, workdir) =>
+        {
+            var exitCode = await TestCommand.RunAsync(pattern, rpc, workdir);
+            Environment.ExitCode = exitCode;
+        }, patternOpt, rpcOpt, workdirOpt);
+
+        return cmd;
+    }
+
+    // ── 'scrutor trace' ──────────────────────────────────────────────────────
+
+    static Command BuildTraceCommand()
+    {
+        var txHashArg = new Argument<string>(
+            name: "txhash",
+            description: "Transaction hash to trace (0x-prefixed)");
+
+        var rpcOpt = new Option<string?>(
+            aliases: new[] { "--rpc" },
+            description: "RPC URL of the node (default: http://127.0.0.1:8545)");
+
+        var cmd = new Command("trace", "Print the gas causality tree for a transaction")
+        {
+            txHashArg, rpcOpt
+        };
+
+        cmd.SetHandler(async (txHash, rpc) =>
+        {
+            var exitCode = await TraceCommand.RunAsync(txHash, rpc, null);
+            Environment.ExitCode = exitCode;
+        }, txHashArg, rpcOpt);
+
+        return cmd;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    static void PrintBanner(NodeConfiguration config)
+    {
+        Console.WriteLine("🔥 Scrutor — Windows-Native Ethereum Development Platform");
         Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         Console.WriteLine();
-        
+
         if (!string.IsNullOrEmpty(config.ConfigSource))
         {
-            Console.WriteLine($"📄 Configuration loaded from: {config.ConfigSource}");
+            Console.WriteLine($"📄 Config: {config.ConfigSource}");
             Console.WriteLine();
         }
     }
-    
-    /// <summary>
-    /// Displays registered services and RPC methods
-    /// </summary>
-    private static void DisplayServiceInfo(IHost host, NodeConfiguration config)
+
+    static void DisplayServiceInfo(IHost host, NodeConfiguration config)
     {
-        // Try to get router if it exists (Service check)
         var router = host.Services.GetService<IJsonRpcRouter>();
-        if (router != null) // Removed explicit cast as IJsonRpcRouter is sufficient
+        if (router == null) return;
+
+        var methods = router.GetRegisteredMethods();
+        Console.WriteLine($"🔌 {methods.Count} RPC methods registered");
+
+        var grouped = methods
+            .GroupBy(m => m.Split('_')[0])
+            .OrderBy(g => g.Key);
+
+        foreach (var group in grouped)
         {
-            var methods = router.GetRegisteredMethods();
-            Console.WriteLine();
-            Console.WriteLine($"🔌 Registered {methods.Count} RPC methods:");
-            
-            // Group methods by namespace for better readability
-            var grouped = methods
-                .GroupBy(m => m.Split('_')[0])
-                .OrderBy(g => g.Key);
-            
-            foreach (var group in grouped)
-            {
-                Console.WriteLine($"\n   [{group.Key}]");
-                foreach (var method in group.OrderBy(m => m))
-                {
-                    Console.WriteLine($"      • {method}");
-                }
-            }
+            Console.WriteLine($"   [{group.Key}]");
+            foreach (var method in group.OrderBy(m => m))
+                Console.WriteLine($"      • {method}");
         }
     }
 }

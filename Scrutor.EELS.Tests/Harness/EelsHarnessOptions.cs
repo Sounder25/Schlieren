@@ -11,19 +11,12 @@ public sealed record EelsHarnessOptions(
         var fixturesRoot = Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT");
         if (string.IsNullOrWhiteSpace(fixturesRoot))
         {
-            // [AI-EDIT 2026-01-10] Default to in-repo published fixture location.
+            // [AI-EDIT 2026-07-24] Default to in-repo fixtures/state_tests location.
             fixturesRoot = Path.GetFullPath(Path.Combine(
                 AppContext.BaseDirectory,
                 "..", "..", "..", "..",
-                "execution-specs-forks-amsterdam",
-                "execution-specs-forks-amsterdam",
-                "packages",
-                "testing",
-                "src",
-                "execution_testing",
-                "specs",
-                "tests",
-                "fixtures"));
+                "fixtures",
+                "state_tests"));
         }
 
         var fork = Environment.GetEnvironmentVariable("EELS_REQUIRED_FORK");

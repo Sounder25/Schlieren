@@ -24,15 +24,17 @@ public readonly record struct ExecutionResult
     public bool IsSuccess { get; init; }
     public EvmError Error { get; init; }
     public ulong GasUsed { get; init; }
+    public long GasRefundCounter { get; init; }
     public byte[] ReturnData { get; init; }
     public List<TransactionLog> Logs { get; init; }
     public List<ExecutionTraceStep> TraceSteps { get; init; }
 
-    private ExecutionResult(bool success, EvmError error, ulong gasUsed, byte[] returnData, List<TransactionLog>? logs = null, List<ExecutionTraceStep>? traceSteps = null)
+    private ExecutionResult(bool success, EvmError error, ulong gasUsed, byte[] returnData, List<TransactionLog>? logs = null, List<ExecutionTraceStep>? traceSteps = null, long gasRefundCounter = 0)
     {
         IsSuccess = success;
         Error = error;
         GasUsed = gasUsed;
+        GasRefundCounter = gasRefundCounter;
         ReturnData = returnData ?? Array.Empty<byte>();
         Logs = logs ?? new List<TransactionLog>();
         TraceSteps = traceSteps ?? new List<ExecutionTraceStep>();

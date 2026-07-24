@@ -83,96 +83,14 @@ public static class ServiceCollectionExtensions
 
     private static void RegisterOpcodes(IServiceCollection services)
     {
-        // Arithmetic
-        services.AddSingleton<IOpcode, OpcodeAdd>();
-        services.AddSingleton<IOpcode, OpcodeMul>();
-        services.AddSingleton<IOpcode, OpcodeSub>();
-        services.AddSingleton<IOpcode, OpcodeDiv>();
-        services.AddSingleton<IOpcode, OpcodeMod>();
+        // Auto-register every concrete IOpcode in this assembly so Solidity bytecode
+        // (full PUSH/DUP/SWAP, SHL, BASEFEE, CREATE2, etc.) does not hit InvalidOpcode
+        // from a partial DI list.
+        var opcodeTypes = typeof(IOpcode).Assembly
+            .GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IOpcode).IsAssignableFrom(t));
 
-        // Bitwise
-        services.AddSingleton<IOpcode, OpcodeAnd>();
-        services.AddSingleton<IOpcode, OpcodeOr>();
-        services.AddSingleton<IOpcode, OpcodeXor>();
-        services.AddSingleton<IOpcode, OpcodeNot>();
-        services.AddSingleton<IOpcode, OpcodeByte>();
-
-        // Hashing
-        services.AddSingleton<IOpcode, OpcodeKeccak256>();
-
-        // Comparison
-        services.AddSingleton<IOpcode, OpcodeLt>();
-        services.AddSingleton<IOpcode, OpcodeGt>();
-        services.AddSingleton<IOpcode, OpcodeSlt>();
-        services.AddSingleton<IOpcode, OpcodeSgt>();
-        services.AddSingleton<IOpcode, OpcodeEq>();
-        services.AddSingleton<IOpcode, OpcodeIsZero>();
-
-        // Control Flow
-        services.AddSingleton<IOpcode, OpcodeStop>();
-        services.AddSingleton<IOpcode, OpcodeJump>();
-        services.AddSingleton<IOpcode, OpcodeJumpi>();
-        services.AddSingleton<IOpcode, OpcodePc>();
-        services.AddSingleton<IOpcode, OpcodeJumpDest>();
-        services.AddSingleton<IOpcode, OpcodeReturn>();
-        services.AddSingleton<IOpcode, OpcodeRevert>();
-
-        // Environment / Execution
-        services.AddSingleton<IOpcode, OpcodeChainId>();
-        services.AddSingleton<IOpcode, OpcodeSelfBalance>();
-        services.AddSingleton<IOpcode, OpcodeCaller>();
-        services.AddSingleton<IOpcode, OpcodeCallValue>();
-        services.AddSingleton<IOpcode, OpcodeCallDataLoad>();
-        services.AddSingleton<IOpcode, OpcodeCallDataSize>();
-        services.AddSingleton<IOpcode, OpcodeCallDataCopy>();
-        services.AddSingleton<IOpcode, OpcodeCodeSize>();
-        services.AddSingleton<IOpcode, OpcodeCodeCopy>();
-        services.AddSingleton<IOpcode, OpcodeReturnDataSize>();
-        services.AddSingleton<IOpcode, OpcodeReturnDataCopy>();
-        services.AddSingleton<IOpcode, OpcodeOrigin>();
-        services.AddSingleton<IOpcode, OpcodeGasPrice>();
-
-        // System / Calls
-        services.AddSingleton<IOpcode, OpcodeCreate>();
-        services.AddSingleton<IOpcode, OpcodeCall>();
-
-        // Stack
-        services.AddSingleton<IOpcode, OpcodePush1>();
-        services.AddSingleton<IOpcode, OpcodePush2>();
-        services.AddSingleton<IOpcode, OpcodePush4>();
-        services.AddSingleton<IOpcode, OpcodePush8>();
-        services.AddSingleton<IOpcode, OpcodePush20>();
-        services.AddSingleton<IOpcode, OpcodePush32>();
-        services.AddSingleton<IOpcode, OpcodeDup1>();
-        services.AddSingleton<IOpcode, OpcodeDup2>();
-        services.AddSingleton<IOpcode, OpcodeDup3>();
-        services.AddSingleton<IOpcode, OpcodeDup4>();
-        services.AddSingleton<IOpcode, OpcodeDup16>();
-        services.AddSingleton<IOpcode, OpcodeSwap1>();
-        services.AddSingleton<IOpcode, OpcodeSwap2>();
-        services.AddSingleton<IOpcode, OpcodeSwap3>();
-        services.AddSingleton<IOpcode, OpcodeSwap16>();
-
-        // Memory
-        services.AddSingleton<IOpcode, OpcodeMload>();
-        services.AddSingleton<IOpcode, OpcodeMstore>();
-        services.AddSingleton<IOpcode, OpcodeMstore8>();
-        services.AddSingleton<IOpcode, OpcodeMsize>();
-
-        // Storage
-        services.AddSingleton<IOpcode, OpcodeSload>();
-        services.AddSingleton<IOpcode, OpcodeSstore>();
-
-        // External State
-        services.AddSingleton<IOpcode, OpcodeExtCodeSize>();
-        services.AddSingleton<IOpcode, OpcodeExtCodeCopy>();
-        services.AddSingleton<IOpcode, OpcodeExtCodeHash>();
-
-        // Logging
-        services.AddSingleton<IOpcode, OpcodeLog0>();
-        services.AddSingleton<IOpcode, OpcodeLog1>();
-        services.AddSingleton<IOpcode, OpcodeLog2>();
-        services.AddSingleton<IOpcode, OpcodeLog3>();
-        services.AddSingleton<IOpcode, OpcodeLog4>();
+        foreach (var type in opcodeTypes)
+            services.AddSingleton(typeof(IOpcode), type);
     }
 }

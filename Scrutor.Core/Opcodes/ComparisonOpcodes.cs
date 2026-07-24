@@ -5,6 +5,8 @@ using ExecutionContext = Scrutor.Core.Execution.ExecutionContext;
 
 namespace Scrutor.Core.Opcodes;
 
+// [AI-EDIT 2026-01-10] Yellow Paper: all comparisons use a=µ_s[0] (first pop/top), b=µ_s[1] (second pop).
+
 public sealed class OpcodeLt : IOpcode
 {
     public byte Code => 0x10;
@@ -45,19 +47,11 @@ public sealed class OpcodeSlt : IOpcode
         if (!context.Stack.TryPop(out var a) || !context.Stack.TryPop(out var b))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
         
-        var sa = ToSigned(a);
-        var sb = ToSigned(b);
+        var sa = EvmArith.ToSigned(a);
+        var sb = EvmArith.ToSigned(b);
         
         context.Stack.TryPush(sa < sb ? 1 : 0);
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
-    }
-
-    private static BigInteger ToSigned(BigInteger val)
-    {
-        var limit = BigInteger.Pow(2, 255);
-        if (val >= limit)
-            return val - BigInteger.Pow(2, 256);
-        return val;
     }
 }
 
@@ -71,19 +65,11 @@ public sealed class OpcodeSgt : IOpcode
         if (!context.Stack.TryPop(out var a) || !context.Stack.TryPop(out var b))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
         
-        var sa = ToSigned(a);
-        var sb = ToSigned(b);
+        var sa = EvmArith.ToSigned(a);
+        var sb = EvmArith.ToSigned(b);
         
         context.Stack.TryPush(sa > sb ? 1 : 0);
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
-    }
-
-    private static BigInteger ToSigned(BigInteger val)
-    {
-        var limit = BigInteger.Pow(2, 255);
-        if (val >= limit)
-            return val - BigInteger.Pow(2, 256);
-        return val;
     }
 }
 

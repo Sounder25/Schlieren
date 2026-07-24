@@ -25,6 +25,63 @@ public sealed class OpcodeOrigin : IOpcode
 }
 
 /// <summary>
+/// ADDRESS (0x30): Get address of currently executing account
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeAddress : IOpcode
+{
+    public byte Code => 0x30;
+    public string Name => "ADDRESS";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        var address = new BigInteger(context.ContractAddress.Bytes, isUnsigned: true, isBigEndian: true);
+        if (!context.Stack.TryPush(address))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// BALANCE (0x31): Get balance of an account
+/// Gas: EIP-2929 warm = 100, cold = 2600
+/// </summary>
+public sealed class OpcodeBalance : IOpcode
+{
+    public byte Code => 0x31;
+    public string Name => "BALANCE";
+
+    private const ulong WarmCost = 100;
+    private const ulong ColdCost = 2600;
+
+    public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPop(out var addr))
+            return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
+
+        var address = ToAddress(addr);
+        var isWarm = context.Access.TouchAddress(address);
+        var gasCost = isWarm ? WarmCost : ColdCost;
+
+        var balance = await context.GlobalState.GetBalanceAsync(address, ct);
+        if (!context.Stack.TryPush(balance))
+            return (ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1);
+
+        return (ExecutionResult.Success(gasCost), context.ProgramCounter + 1);
+    }
+
+    private static Address ToAddress(BigInteger value)
+    {
+        var bytes = value.ToByteArray(isUnsigned: true, isBigEndian: true);
+        var padded = new byte[20];
+        if (bytes.Length > 20) Array.Copy(bytes, bytes.Length - 20, padded, 0, 20);
+        else Array.Copy(bytes, 0, padded, 20 - bytes.Length, bytes.Length);
+        return new Address(padded);
+    }
+}
+
+/// <summary>
 /// GASPRICE (0x3A): Get price of gas in current environment
 /// Gas: 2
 /// </summary>
@@ -39,6 +96,28 @@ public sealed class OpcodeGasPrice : IOpcode
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// GAS (0x5A): Get available gas for current frame
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeGas : IOpcode
+{
+    public byte Code => 0x5A;
+    public string Name => "GAS";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        const ulong gasCost = 2;
+        var remaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+        var visibleGas = remaining > gasCost ? remaining - gasCost : 0UL;
+
+        if (!context.Stack.TryPush(visibleGas))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(gasCost), context.ProgramCounter + 1));
     }
 }
 
@@ -245,18 +324,25 @@ public sealed class OpcodeReturnDataCopy : IOpcode
         if (!context.Stack.TryPop(out var destOffset) || !context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
+        // Gap 5: Guard against BigInteger values that silently overflow int cast (EIP-211).
+        // Any offset or length exceeding int.MaxValue is treated as out-of-bounds (OutOfGas).
+        if (offset > int.MaxValue || length > int.MaxValue || destOffset > int.MaxValue)
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1));
+
         var destInt = (int)destOffset;
         var offsetInt = (int)offset;
         var lengthInt = (int)length;
 
-        if (offsetInt + lengthInt > context.LastReturnData.Length)
+        // EIP-211: reading past the end of RETURNDATA is an InvalidMemoryAccess.
+        if ((long)offsetInt + lengthInt > context.LastReturnData.Length)
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.InvalidMemoryAccess), context.ProgramCounter + 1));
 
         var expansionGas = context.Memory.CalculateGasCost(destInt + lengthInt);
         var copyGas = (ulong)(lengthInt + 31) / 32 * 3;
 
         var responseData = new byte[lengthInt];
-        Array.Copy(context.LastReturnData, offsetInt, responseData, 0, lengthInt);
+        if (lengthInt > 0)
+            Array.Copy(context.LastReturnData, offsetInt, responseData, 0, lengthInt);
 
         context.Memory.Store(destInt, responseData);
 

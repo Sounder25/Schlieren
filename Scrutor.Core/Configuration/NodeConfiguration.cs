@@ -171,17 +171,14 @@ public sealed class NodeConfiguration
             {
                 throw new ArgumentException($"ForkUrl must be a valid HTTP/HTTPS URL, got '{ForkUrl}'");
             }
-
-            // Prevent SSRF by disallowing private IP ranges and non-standard ports
-            if (uri.IsLoopback ||
-                (uri.HostNameType == UriHostNameType.IPv4 || uri.HostNameType == UriHostNameType.IPv6) && IsPrivateIpAddress(uri.Host))
+            // Allow loopback/localhost for local fork scenarios (e.g. fork another local node).
+            // Only block RFC-1918 private IPs on non-loopback hosts to prevent accidental SSRF
+            // against internal networks from production contexts.
+            if (!uri.IsLoopback &&
+                (uri.HostNameType == UriHostNameType.IPv4 || uri.HostNameType == UriHostNameType.IPv6) &&
+                IsPrivateIpAddress(uri.Host))
             {
-                throw new ArgumentException($"ForkUrl cannot point to a private or loopback IP address: '{ForkUrl}'");
-            }
-
-            if (uri.Port != 80 && uri.Port != 443)
-            {
-                throw new ArgumentException($"ForkUrl must use standard HTTP (80) or HTTPS (443) ports, got port '{uri.Port}'");
+                throw new ArgumentException($"ForkUrl cannot point to a private network IP address: '{ForkUrl}'");
             }
         }
         

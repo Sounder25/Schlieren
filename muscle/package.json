@@ -1,0 +1,17 @@
+{
+  "name": "scrutor-muscle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hardhat Muscle against Scrutor (Anvil-for-Windows) local node",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test --network scrutor",
+    "test:local": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js --network scrutor",
+    "smoke": "hardhat run scripts/smoke.js --network scrutor"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  }
+}

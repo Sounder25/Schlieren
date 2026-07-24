@@ -109,6 +109,41 @@ public sealed class PublishedRequiredStateTests
         Assert.Fail(message);
     }
 
+    /// <summary>
+    /// Always runs (no env-var guard) and reports the mismatch taxonomy.
+    /// Intentionally fails so the output can be read directly from the test runner.
+    /// Remove after taxonomy goal is achieved (storage:0, balance:0).
+    /// </summary>
+    [Fact]
+    public async Task BENCHMARK_TaxonomySnapshot_AlwaysReportsCurrentMismatchCounts()
+    {
+        var options = EelsHarnessOptions.FromEnvironment() with { IncludeSubdirectories = true, MaxCases = int.MaxValue };
+        var loader   = new EelsStateFixtureLoader();
+        var cases    = loader.LoadCases(options);
+        if (cases.Count == 0)
+        {
+            Assert.Fail("No fixture cases loaded from EELS_FIXTURES_ROOT - cannot produce taxonomy.");
+            return;
+        }
+
+        var executor = new EelsStateFixtureExecutor();
+        var reports  = new List<EelsCaseExecutionReport>(cases.Count);
+        foreach (var testCase in cases)
+            reports.Add(await executor.ExecuteAsync(testCase));
+
+        var failed = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToArray();
+
+        var taxonomy = failed
+            .SelectMany(f => f.Mismatches)
+            .GroupBy(ClassifyMismatch, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count())
+            .Select(g => $"{g.Key}:{g.Count()}")
+            .ToArray();
+
+        var summary = $"TotalCases={reports.Count}, FailedCases={failed.Length}, Taxonomy=[{string.Join(", ", taxonomy)}]";
+        Assert.Fail(summary);
+    }
+
     private static string ClassifyMismatch(string mismatch)
     {
         if (mismatch.StartsWith("nonce mismatch", StringComparison.Ordinal))

@@ -170,6 +170,7 @@ public sealed class EelsStateFixtureLoader
         var value = ParseVariantBigInteger(txNode, "value", valueIndex);
         var data = ParseVariantBytes(txNode, "data", dataIndex);
         var to = txNode.TryGetProperty("to", out var toNode) ? ParseOptionalAddress(toNode) : null;
+        var accessList = ParseVariantAccessList(txNode, dataIndex);
 
         var blockContext = new BlockContext
         {
@@ -182,15 +183,21 @@ public sealed class EelsStateFixtureLoader
             BaseFeePerGas = EelsHex.ParseUlong(envNode.GetProperty("currentBaseFee").GetString()!)
         };
 
+        var priorityFee = ResolvePriorityFee(txNode);
+        var txType = DetectTxType(txNode, accessList);
         var tx = new Transaction
         {
             From = sender,
             To = to,
             Nonce = nonce,
             GasPrice = gasPrice,
+            MaxFeePerGas = gasPrice,
+            MaxPriorityFeePerGas = priorityFee,
+            TxType = txType,
             GasLimit = gasLimit,
             Value = value,
             Data = data,
+            AccessList = accessList,
             Authorization = TransactionAuthorization.Impersonated
         };
 
@@ -276,15 +283,22 @@ public sealed class EelsStateFixtureLoader
             foreach (var gasIndex in gasIndexes)
             foreach (var valueIndex in valueIndexes)
             {
+                var legacyPriorityFee = ResolvePriorityFee(txNode);
+                var legacyAccessList = ParseVariantAccessList(txNode, dataIndex);
+                var legacyTxType = DetectTxType(txNode, legacyAccessList);
                 var tx = new Transaction
                 {
                     From = sender,
                     To = to,
                     Nonce = nonce,
                     GasPrice = gasPrice,
+                    MaxFeePerGas = gasPrice,
+                    MaxPriorityFeePerGas = legacyPriorityFee,
+                    TxType = legacyTxType,
                     GasLimit = ParseVariantUlong(txNode, "gasLimit", gasIndex),
                     Value = ParseVariantBigInteger(txNode, "value", valueIndex),
                     Data = ParseVariantBytes(txNode, "data", dataIndex),
+                    AccessList = legacyAccessList,
                     Authorization = TransactionAuthorization.Impersonated
                 };
 
@@ -475,6 +489,55 @@ public sealed class EelsStateFixtureLoader
         return EelsHex.ParseBytes(GetJsonText(value));
     }
 
+    /// <summary>
+    /// Parses the access list for a given data variant index.
+    /// EELS fixtures use either "accessLists" (array-of-arrays, one per data variant) or
+    /// "accessList" (a single flat array). Returns an empty list if neither is present.
+    /// </summary>
+    private static IReadOnlyList<AccessListEntry> ParseVariantAccessList(JsonElement txNode, int dataIndex)
+    {
+        // "accessLists": [ [entry, entry], [entry, entry] ]  — one list per data variant
+        if (txNode.TryGetProperty("accessLists", out var listsNode) && listsNode.ValueKind == JsonValueKind.Array)
+        {
+            var listsArr = listsNode.EnumerateArray().ToArray();
+            if (listsArr.Length == 0) return Array.Empty<AccessListEntry>();
+            var safeIndex = Math.Clamp(dataIndex, 0, listsArr.Length - 1);
+            return ParseFlatAccessList(listsArr[safeIndex]);
+        }
+
+        // "accessList": [entry, entry]  — single list shared across all variants
+        if (txNode.TryGetProperty("accessList", out var listNode) && listNode.ValueKind == JsonValueKind.Array)
+        {
+            return ParseFlatAccessList(listNode);
+        }
+
+        return Array.Empty<AccessListEntry>();
+    }
+
+    private static IReadOnlyList<AccessListEntry> ParseFlatAccessList(JsonElement listNode)
+    {
+        if (listNode.ValueKind != JsonValueKind.Array) return Array.Empty<AccessListEntry>();
+        var result = new List<AccessListEntry>();
+        foreach (var entryNode in listNode.EnumerateArray())
+        {
+            if (entryNode.ValueKind != JsonValueKind.Object) continue;
+            if (!entryNode.TryGetProperty("address", out var addrNode)) continue;
+            var address = Address.FromHex(GetJsonText(addrNode));
+            var keys = new List<BigInteger>();
+            if (entryNode.TryGetProperty("storageKeys", out var keysNode) && keysNode.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var keyNode in keysNode.EnumerateArray())
+                {
+                    keys.Add(EelsHex.ParseQuantity(GetJsonText(keyNode)));
+                }
+            }
+
+            result.Add(new AccessListEntry { Address = address, StorageKeys = keys });
+        }
+
+        return result;
+    }
+
     private static Dictionary<Address, EelsFixtureAccount> ParseAccountMap(
         JsonElement accountsNode,
         IReadOnlyDictionary<Address, EelsFixtureAccount>? baseState,
@@ -615,13 +678,45 @@ public sealed class EelsStateFixtureLoader
             return EelsHex.ParseQuantity(GetJsonText(gasPriceNode));
         }
 
-        // [AI-EDIT 2026-01-10] For type-2/3 fixtures, use maxFeePerGas as
-        // effective execution gas price for baseline conformance comparison.
+        // [AI-EDIT 2026-01-10] For type-2/3 fixtures, the effective gas price is
+        // min(maxFeePerGas, baseFeePerGas + maxPriorityFeePerGas) per EIP-1559.
+        // We store maxFeePerGas here as a cap; StateTransition resolves the real
+        // effective price using block.BaseFeePerGas + MaxPriorityFeePerGas.
         if (txNode.TryGetProperty("maxFeePerGas", out var maxFeeNode))
         {
             return EelsHex.ParseQuantity(GetJsonText(maxFeeNode));
         }
 
         return BigInteger.Zero;
+    }
+
+    /// <summary>
+    /// Extracts EIP-1559 maxPriorityFeePerGas from a transaction JSON node.
+    /// Returns zero for legacy and EIP-2930 transactions.
+    /// </summary>
+    private static BigInteger ResolvePriorityFee(JsonElement txNode)
+    {
+        if (txNode.TryGetProperty("maxPriorityFeePerGas", out var pfNode))
+            return EelsHex.ParseQuantity(GetJsonText(pfNode));
+        return BigInteger.Zero;
+    }
+
+    /// <summary>
+    /// [AI-EDIT 2026-01-10] Infers the EIP-2718 transaction type from fixture JSON fields.
+    /// - type 0: legacy (has gasPrice, no maxFeePerGas)
+    /// - type 1: EIP-2930 (has gasPrice + non-empty accessList)
+    /// - type 2: EIP-1559 (has maxFeePerGas field, no gasPrice or an empty gasPrice)
+    /// - type 3: EIP-4844 (has maxFeePerGas + blobVersionedHashes)
+    /// </summary>
+    private static byte DetectTxType(JsonElement txNode, IReadOnlyList<AccessListEntry> accessList)
+    {
+        bool hasMaxFeePerGas = txNode.TryGetProperty("maxFeePerGas", out _);
+        bool hasGasPrice = txNode.TryGetProperty("gasPrice", out _);
+        bool hasBlobs = txNode.TryGetProperty("blobVersionedHashes", out _);
+
+        if (hasBlobs) return 3;
+        if (hasMaxFeePerGas && !hasGasPrice) return 2;
+        if (hasGasPrice && accessList.Count > 0) return 1;
+        return 0;
     }
 }

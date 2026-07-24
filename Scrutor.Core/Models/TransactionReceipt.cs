@@ -45,6 +45,10 @@ public sealed class TransactionReceipt
     [JsonPropertyName("status")]
     public ulong Status { get; set; } // 1 for success, 0 for failure
 
+    /// <summary>Transaction type: 0 = legacy, 1 = EIP-2930, 2 = EIP-1559, 3 = EIP-4844.</summary>
+    [JsonPropertyName("type")]
+    public byte TxType { get; set; } = 0;
+
     [JsonPropertyName("effectiveGasPrice")]
     public BigInteger EffectiveGasPrice { get; set; }
 }

@@ -58,6 +58,14 @@ public sealed class TxMempool : ITxMempool
         }
     }
 
+    public IReadOnlyList<Transaction> GetPending()
+    {
+        lock (_lock)
+        {
+            return _lookup.Values.ToList();
+        }
+    }
+
     public Transaction? PopBest()
     {
         lock (_lock)

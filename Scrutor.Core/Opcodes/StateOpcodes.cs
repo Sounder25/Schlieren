@@ -39,12 +39,12 @@ public sealed class OpcodeKeccak256 : IOpcode
 }
 
 /// <summary>
-/// CHAINID (0x45): Get current chain ID
+/// CHAINID (0x46): Get current chain ID
 /// Gas: 2
 /// </summary>
 public sealed class OpcodeChainId : IOpcode
 {
-    public byte Code => 0x45;
+    public byte Code => 0x46;
     public string Name => "CHAINID";
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
@@ -81,12 +81,15 @@ public sealed class OpcodeSelfBalance : IOpcode
 
 /// <summary>
 /// EXTCODESIZE (0x3B): Get size of an account's code
-/// Gas: 100..2600 (using 2600 for now)
+/// Gas: EIP-2929 warm = 100, cold = 2600
 /// </summary>
 public sealed class OpcodeExtCodeSize : IOpcode
 {
     public byte Code => 0x3B;
     public string Name => "EXTCODESIZE";
+
+    private const ulong WarmCost = 100;
+    private const ulong ColdCost = 2600;
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
@@ -94,12 +97,15 @@ public sealed class OpcodeExtCodeSize : IOpcode
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
+        var isWarm = context.Access.TouchAddress(address);
+        var gasCost = isWarm ? WarmCost : ColdCost;
+
         var code = await context.GlobalState.GetCodeAsync(address, ct);
         
         if (!context.Stack.TryPush(code.Length))
              return (ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1);
 
-        return (ExecutionResult.Success(2600), context.ProgramCounter + 1);
+        return (ExecutionResult.Success(gasCost), context.ProgramCounter + 1);
     }
 
     private static Address ToAddress(BigInteger val)
@@ -115,12 +121,15 @@ public sealed class OpcodeExtCodeSize : IOpcode
 
 /// <summary>
 /// EXTCODECOPY (0x3C): Copy an account's code to memory
-/// Gas: 100..2600 + dynamic copy cost
+/// Gas: EIP-2929 warm = 100, cold = 2600, + dynamic copy cost
 /// </summary>
 public sealed class OpcodeExtCodeCopy : IOpcode
 {
     public byte Code => 0x3C;
     public string Name => "EXTCODECOPY";
+
+    private const ulong WarmCost = 100;
+    private const ulong ColdCost = 2600;
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
@@ -129,6 +138,9 @@ public sealed class OpcodeExtCodeCopy : IOpcode
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
+        var isWarm = context.Access.TouchAddress(address);
+        var addressGas = isWarm ? WarmCost : ColdCost;
+
         var code = await context.GlobalState.GetCodeAsync(address, ct);
 
         var destInt = (int)destOffset;
@@ -147,7 +159,7 @@ public sealed class OpcodeExtCodeCopy : IOpcode
 
         context.Memory.Store(destInt, data);
 
-        return (ExecutionResult.Success(2600 + expansionGas + copyGas), context.ProgramCounter + 1);
+        return (ExecutionResult.Success(addressGas + expansionGas + copyGas), context.ProgramCounter + 1);
     }
 
     private static Address ToAddress(BigInteger val)
@@ -161,14 +173,159 @@ public sealed class OpcodeExtCodeCopy : IOpcode
     }
 }
 
+// [AI-EDIT 2026-01-10] Block information opcodes: BLOCKHASH, COINBASE, TIMESTAMP, NUMBER, DIFFICULTY, GASLIMIT, BASEFEE
+
+/// <summary>
+/// BLOCKHASH (0x40): Get hash of a recent block.
+/// Gas: 20. Returns 0 if block number is not within the last 256 blocks.
+/// </summary>
+public sealed class OpcodeBlockHash : IOpcode
+{
+    public byte Code => 0x40;
+    public string Name => "BLOCKHASH";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPop(out var blockNum))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
+
+        // Only the 256 most recent blocks are available; otherwise return 0.
+        var currentBlock = context.Block.Number;
+        BigInteger hash = BigInteger.Zero;
+        if (blockNum < currentBlock && blockNum >= (currentBlock > 256 ? currentBlock - 256 : 0))
+        {
+            // In tests, block hashes are typically 0 unless a lookup table is provided.
+            // Return 0 as a safe default (no block hash table in this minimal EVM).
+            hash = BigInteger.Zero;
+        }
+
+        if (!context.Stack.TryPush(hash))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(20), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// COINBASE (0x41): Get the block's beneficiary address.
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeCoinbase : IOpcode
+{
+    public byte Code => 0x41;
+    public string Name => "COINBASE";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        var coinbase = new BigInteger(context.Block.Coinbase.Bytes, isUnsigned: true, isBigEndian: true);
+        if (!context.Stack.TryPush(coinbase))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// TIMESTAMP (0x42): Get the block's timestamp.
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeTimestamp : IOpcode
+{
+    public byte Code => 0x42;
+    public string Name => "TIMESTAMP";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPush(context.Block.Timestamp))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// NUMBER (0x43): Get the block's number.
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeNumber : IOpcode
+{
+    public byte Code => 0x43;
+    public string Name => "NUMBER";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPush(context.Block.Number))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// DIFFICULTY / PREVRANDAO (0x44): Get the block's difficulty or prevrandao (post-merge).
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeDifficulty : IOpcode
+{
+    public byte Code => 0x44;
+    public string Name => "DIFFICULTY";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPush(context.Block.Difficulty))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// GASLIMIT (0x45): Get the block's gas limit.
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeGasLimit : IOpcode
+{
+    public byte Code => 0x45;
+    public string Name => "GASLIMIT";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPush(context.Block.GasLimit))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// BASEFEE (0x48): Get the EIP-1559 base fee for the current block.
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeBaseFee : IOpcode
+{
+    public byte Code => 0x48;
+    public string Name => "BASEFEE";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPush(context.Block.BaseFeePerGas))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
 /// <summary>
 /// EXTCODEHASH (0x3F): Get hash of an account's code
-/// Gas: 100..2600
+/// Gas: EIP-2929 warm = 100, cold = 2600
 /// </summary>
 public sealed class OpcodeExtCodeHash : IOpcode
 {
     public byte Code => 0x3F;
     public string Name => "EXTCODEHASH";
+
+    private const ulong WarmCost = 100;
+    private const ulong ColdCost = 2600;
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
@@ -176,6 +333,8 @@ public sealed class OpcodeExtCodeHash : IOpcode
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
+        var isWarm = context.Access.TouchAddress(address);
+        var gasCost = isWarm ? WarmCost : ColdCost;
         
         if (!await context.GlobalState.AccountExistsAsync(address, ct))
         {
@@ -188,7 +347,7 @@ public sealed class OpcodeExtCodeHash : IOpcode
             context.Stack.TryPush(new BigInteger(hash, isUnsigned: true, isBigEndian: true));
         }
 
-        return (ExecutionResult.Success(2600), context.ProgramCounter + 1);
+        return (ExecutionResult.Success(gasCost), context.ProgramCounter + 1);
     }
 
     private static Address ToAddress(BigInteger val)

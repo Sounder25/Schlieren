@@ -147,7 +147,7 @@ public class ImpersonationTests
     }
 
     [Fact]
-    public void SendRawTransaction_AlwaysRequiresSignature_EvenIfImpersonated()
+    public async Task SendRawTransaction_AlwaysRequiresSignature_EvenIfImpersonated()
     {
         // Arrange
         var address = Address.FromHex("0x71562b71999873DB5b280dFEEf2c2015d7AF40c5");
@@ -169,7 +169,7 @@ public class ImpersonationTests
         var hex = "0x" + Convert.ToHexString(rawTx);
 
         // Act & Assert
-        var ex = Assert.Throws<RpcException>(() => _handlers.HandleSendRawTransaction(new object[] { hex }));
+        var ex = await Assert.ThrowsAsync<RpcException>(() => _handlers.HandleSendRawTransaction(new object[] { hex }));
         Assert.Equal(Scrutor.RPC.Models.JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
         Assert.Contains("Invalid transaction signature", ex.Message);
     }

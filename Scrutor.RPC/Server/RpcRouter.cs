@@ -1,5 +1,6 @@
 using Scrutor.RPC.Handlers;
 using Scrutor.RPC.Models;
+using System.Linq;
 using System.Text.Json;
 using Scrutor.RPC;
 using Microsoft.Extensions.Logging;
@@ -22,11 +23,12 @@ public sealed class RpcRouter : IJsonRpcRouter
         _ethHandlers = ethHandlers;
         _logger = logger;
         
+        // Do not use WhenWritingNull globally: eth JSON-RPC requires "result": null for
+        // pending receipts / missing txs. Error field uses per-property WhenWritingNull.
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            WriteIndented = false
         };
 
         _registeredMethods = new List<string>
@@ -40,6 +42,7 @@ public sealed class RpcRouter : IJsonRpcRouter
             "eth_sendRawTransaction",
             "eth_getTransactionCount",
             "eth_gasPrice",
+            "eth_maxPriorityFeePerGas",
             "eth_feeHistory",
             "eth_estimateGas",
             "eth_call",
@@ -134,16 +137,17 @@ public sealed class RpcRouter : IJsonRpcRouter
             "eth_getCode" => await _ethHandlers.HandleGetCode(parameters, ct),
             "eth_getStorageAt" => await _ethHandlers.HandleGetStorageAt(parameters, ct),
             "eth_accounts" => _ethHandlers.HandleAccounts(),
-            "eth_sendRawTransaction" => _ethHandlers.HandleSendRawTransaction(parameters),
+            "eth_sendRawTransaction" => await _ethHandlers.HandleSendRawTransaction(parameters, ct),
             "eth_getTransactionCount" => await _ethHandlers.HandleGetTransactionCount(parameters, ct),
             "eth_gasPrice" => _ethHandlers.HandleGasPrice(),
+            "eth_maxPriorityFeePerGas" => _ethHandlers.HandleMaxPriorityFeePerGas(),
             "eth_feeHistory" => _ethHandlers.HandleFeeHistory(parameters),
             "eth_estimateGas" => await _ethHandlers.HandleEstimateGas(parameters, ct),
             "eth_call" => await _ethHandlers.HandleEthCall(parameters, ct),
             "eth_getBlockByNumber" => (object)_ethHandlers.HandleGetBlockByNumber(parameters)!,
             "eth_getTransactionByHash" => (object)_ethHandlers.HandleGetTransactionByHash(parameters)!,
             "eth_getTransactionReceipt" => (object)_ethHandlers.HandleGetTransactionReceipt(parameters)!,
-            "eth_getLogs" => (object)_ethHandlers.HandleGetLogs(parameters)!,
+            "eth_getLogs" => (object)_ethHandlers.HandleGetLogs(parameters).Select(EthHandlers.ToEthLogJson).ToList(),
             "net_version" => _ethHandlers.HandleNetVersion(),
             "net_listening" => _ethHandlers.HandleNetListening(),
             "net_peerCount" => _ethHandlers.HandleNetPeerCount(),
@@ -181,14 +185,40 @@ public sealed class RpcRouter : IJsonRpcRouter
 
     private string CreateSuccessResponse(object? id, object? result)
     {
-        var response = new JsonRpcResponse
+        // Always include "result", even when null (pending receipt / unknown tx).
+        // System.Text.Json omits nulls under WhenWritingNull; build the envelope with Utf8JsonWriter
+        // so Hardhat/ethers get a valid JSON-RPC success body.
+        using var stream = new System.IO.MemoryStream();
+        using (var writer = new System.Text.Json.Utf8JsonWriter(stream))
         {
-            Id = id,
-            Result = result,
-            Error = null
-        };
+            writer.WriteStartObject();
+            writer.WriteString("jsonrpc", "2.0");
+            writer.WritePropertyName("id");
+            if (id is null)
+                writer.WriteNullValue();
+            else if (id is System.Text.Json.JsonElement je)
+                je.WriteTo(writer);
+            else if (id is string s)
+                writer.WriteStringValue(s);
+            else if (id is long l)
+                writer.WriteNumberValue(l);
+            else if (id is int i)
+                writer.WriteNumberValue(i);
+            else if (id is System.Text.Json.Nodes.JsonNode jn)
+                jn.WriteTo(writer);
+            else
+                JsonSerializer.Serialize(writer, id, _jsonOptions);
 
-        return JsonSerializer.Serialize(response, _jsonOptions);
+            writer.WritePropertyName("result");
+            if (result is null)
+                writer.WriteNullValue();
+            else
+                JsonSerializer.Serialize(writer, result, _jsonOptions);
+
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
     private string CreateErrorResponse(object? id, int errorCode, string message)
@@ -196,7 +226,6 @@ public sealed class RpcRouter : IJsonRpcRouter
         var response = new JsonRpcResponse
         {
             Id = id,
-            Result = null,
             Error = new JsonRpcError
             {
                 Code = errorCode,

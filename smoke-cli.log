@@ -1,0 +1,49 @@
+?? Scrutor - Windows-Native Ethereum Node
+??????????????????????????????????????????????????
+
+?? Registering services via Scrutor...
+? Service registration complete
+
+?? Starting Scrutor Node...
+   Chain ID: 31337
+   Hardfork: cancun
+   HTTP RPC: http://127.0.0.1:18545
+   WebSocket: ws://127.0.0.1:18545
+
+Press Ctrl+C to stop
+info: Scrutor.Core.State.MiningService[0]
+      Mining service started (Automine mode)
+info: Scrutor.Core.Services.BootstrapService[0]
+      Bootstrapping Scrutor Node...
+info: Scrutor.Core.Services.BootstrapService[0]
+      Initialized 3 accounts from HD wallet.
+info: Scrutor.Core.Services.BootstrapService[0]
+      Bootstrap complete.
+info: Scrutor.RPC.Server.RpcServer[0]
+      [RpcServer] Starting RPC server on port 18545
+info: Scrutor.RPC.Server.RpcServer[0]
+      [IOCP Server] Listening on port 18545
+info: Scrutor.RPC.Server.RpcServer[0]
+      [IOCP Server] Max concurrent connections: 10000
+info: Scrutor.RPC.Server.RpcServer[0]
+      [IOCP Server] Optimized for Windows I/O Completion Ports
+info: Scrutor.RPC.Server.RpcRouter[0]
+      RPC error: -32601 - Method not found: eth_maxPriorityFeePerGas
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 1 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 2 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 3 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 4 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 5 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 6 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 7 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 8 with 1 transactions
+info: Scrutor.Core.State.MiningService[0]
+      Mined block 9 with 1 transactions

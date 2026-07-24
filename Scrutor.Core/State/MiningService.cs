@@ -109,6 +109,9 @@ public sealed class MiningService : BackgroundService, IMiningService
 
         _logger.LogDebug("Producing block {Number}", block.Number);
 
+        // Assign block hash before receipts so receipt.blockHash is non-zero for clients.
+        block.Hash = "0x" + Convert.ToHexString(CryptoUtils.Keccak256(BitConverter.GetBytes(block.Number))).ToLowerInvariant();
+
         ulong cumulativeGasUsed = 0;
         uint txIndex = 0;
         uint logIndex = 0;
@@ -130,54 +133,62 @@ public sealed class MiningService : BackgroundService, IMiningService
             };
 
             var result = await _stateTransition.ApplyTransactionAsync(tx, _globalState, blockContext, ct: ct);
-            
-            if (result.IsSuccess || result.Error == EvmError.Revert)
+
+            // Pre-execution validation failures: do not include in block (no receipt → clients hang if we drop after accept).
+            if (result.Error is EvmError.NonceTooHigh)
             {
-                block.Transactions.Add(tx);
-                cumulativeGasUsed += result.GasUsed;
-
-                var receipt = new TransactionReceipt
-                {
-                    TransactionHash = "0x" + Convert.ToHexString(tx.Hash).ToLowerInvariant(),
-                    TransactionIndex = txIndex++,
-                    BlockHash = block.Hash,
-                    BlockNumber = block.Number,
-                    From = tx.From.ToString(),
-                    To = tx.To?.ToString(),
-                    ContractAddress = tx.To == null ? CryptoUtils.DeriveContractAddress(tx.From, tx.Nonce).ToString() : null,
-                    GasUsed = result.GasUsed,
-                    CumulativeGasUsed = cumulativeGasUsed,
-                    Status = result.IsSuccess ? 1UL : 0UL,
-                    EffectiveGasPrice = tx.GasPrice,
-                    Logs = result.Logs
-                };
-
-                for (int i = 0; i < receipt.Logs.Count; i++)
-                {
-                    var log = receipt.Logs[i];
-                    log.BlockNumber = block.Number;
-                    log.BlockHash = block.Hash;
-                    log.TransactionHash = receipt.TransactionHash;
-                    log.TransactionIndex = receipt.TransactionIndex;
-                    log.LogIndex = logIndex++;
-                }
-
-                _chainState.BlockStore.AddReceipt(receipt);
+                _mempool.Add(tx);
+                _logger.LogDebug("Re-queued tx {Hash}: nonce too high", Convert.ToHexString(tx.Hash));
+                continue;
             }
-            else
+
+            if (result.Error is EvmError.NonceTooLow or EvmError.InsufficientFunds)
             {
-                if (result.Error == EvmError.NonceTooHigh)
-                {
-                    _mempool.Add(tx);
-                }
-                
-                _logger.LogWarning("Transaction {Hash} failed with error {Error}", 
+                _logger.LogWarning("Dropped tx {Hash}: {Error}", Convert.ToHexString(tx.Hash), result.Error);
+                continue;
+            }
+
+            // Success, revert, OOG, invalid opcode, etc. — include so eth_getTransactionReceipt resolves.
+            block.Transactions.Add(tx);
+            cumulativeGasUsed += result.GasUsed;
+
+            var receipt = new TransactionReceipt
+            {
+                TransactionHash = "0x" + Convert.ToHexString(tx.Hash).ToLowerInvariant(),
+                TransactionIndex = txIndex++,
+                BlockHash = block.Hash,
+                BlockNumber = block.Number,
+                From = tx.From.ToString(),
+                To = tx.To?.ToString(),
+                ContractAddress = tx.To == null ? CryptoUtils.DeriveContractAddress(tx.From, tx.Nonce).ToString() : null,
+                GasUsed = result.GasUsed,
+                CumulativeGasUsed = cumulativeGasUsed,
+                Status = result.IsSuccess ? 1UL : 0UL,
+                TxType = tx.TxType,
+                EffectiveGasPrice = tx.GasPrice,
+                Logs = result.IsSuccess ? result.Logs : new List<TransactionLog>()
+            };
+
+            for (int i = 0; i < receipt.Logs.Count; i++)
+            {
+                var log = receipt.Logs[i];
+                log.BlockNumber = block.Number;
+                log.BlockHash = block.Hash;
+                log.TransactionHash = receipt.TransactionHash;
+                log.TransactionIndex = receipt.TransactionIndex;
+                log.LogIndex = logIndex++;
+            }
+
+            _chainState.BlockStore.AddReceipt(receipt);
+
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("Transaction {Hash} included with status=0 error={Error}",
                     Convert.ToHexString(tx.Hash), result.Error);
             }
         }
 
         block.GasUsed = cumulativeGasUsed;
-        block.Hash = "0x" + Convert.ToHexString(CryptoUtils.Keccak256(BitConverter.GetBytes(block.Number))).ToLowerInvariant();
 
         _chainState.UpdateHead(block);
         _logger.LogInformation("Mined block {Number} with {TxCount} transactions", block.Number, block.Transactions.Count);

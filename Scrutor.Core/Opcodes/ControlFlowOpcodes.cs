@@ -31,7 +31,7 @@ public sealed class OpcodeJump : IOpcode
 
         var destInt = (int)dest;
         
-        if (destInt >= context.Code.Length || context.Code[destInt] != 0x5B)
+        if (!context.IsValidJumpDestination(destInt))
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.BadJumpDestination), context.ProgramCounter + 1));
 
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(8), destInt));
@@ -56,7 +56,7 @@ public sealed class OpcodeJumpi : IOpcode
 
         var destInt = (int)dest;
 
-        if (destInt >= context.Code.Length || context.Code[destInt] != 0x5B)
+        if (!context.IsValidJumpDestination(destInt))
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.BadJumpDestination), context.ProgramCounter + 1));
 
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(10), destInt));

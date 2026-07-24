@@ -101,3 +101,85 @@ public sealed class OpcodeByte : IOpcode
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
     }
 }
+
+// [AI-EDIT 2026-01-10] EIP-145 bitwise shift opcodes: SHL, SHR, SAR (0x1B–0x1D)
+
+/// <summary>
+/// SHL (0x1B): Logical shift left. result = value &lt;&lt; shift (mod 2^256).
+/// Gas: 3
+/// </summary>
+public sealed class OpcodeShl : IOpcode
+{
+    public byte Code => 0x1B;
+    public string Name => "SHL";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPop(out var shift) || !context.Stack.TryPop(out var value))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
+
+        var result = shift >= 256 ? BigInteger.Zero : (value << (int)shift);
+
+        if (!context.Stack.TryPush(result))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// SHR (0x1C): Logical shift right. result = value >> shift (zero-fill).
+/// Gas: 3
+/// </summary>
+public sealed class OpcodeShr : IOpcode
+{
+    public byte Code => 0x1C;
+    public string Name => "SHR";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPop(out var shift) || !context.Stack.TryPop(out var value))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
+
+        var result = shift >= 256 ? BigInteger.Zero : (value >> (int)shift);
+
+        if (!context.Stack.TryPush(result))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
+/// SAR (0x1D): Arithmetic shift right. Sign-extends on shift (treats value as signed).
+/// Gas: 3
+/// </summary>
+public sealed class OpcodeSar : IOpcode
+{
+    public byte Code => 0x1D;
+    public string Name => "SAR";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPop(out var shift) || !context.Stack.TryPop(out var value))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
+
+        BigInteger result;
+        var signed = EvmArith.ToSigned(value);
+        if (shift >= 256)
+        {
+            // All bits shift out; result is either 0 or -1 depending on sign bit
+            result = signed < 0 ? EvmArith.TwoTo256 - 1 : BigInteger.Zero;
+        }
+        else
+        {
+            // Arithmetic right shift: preserves sign bit
+            result = signed >> (int)shift;
+        }
+
+        if (!context.Stack.TryPush(result))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
+    }
+}

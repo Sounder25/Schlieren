@@ -17,11 +17,13 @@ public class DeterminismTests
     {
         // Setup shared environment
         var sender = Address.FromHex("0x1234567890123456789012345678901234567890");
+        var recipient = Address.FromHex("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
         var hash1 = new byte[32]; hash1[0] = 1;
         var hash2 = new byte[32]; hash2[0] = 2;
 
-        var tx1 = new Transaction { From = sender, GasPrice = 20, Hash = hash1, Nonce = 0, GasLimit = 21000, Authorization = TransactionAuthorization.Impersonated };
-        var tx2 = new Transaction { From = sender, GasPrice = 10, Hash = hash2, Nonce = 1, GasLimit = 21000, Authorization = TransactionAuthorization.Impersonated };
+        // Simple ETH transfers (To is required so intrinsic gas = 21000, matching GasLimit exactly)
+        var tx1 = new Transaction { From = sender, To = recipient, GasPrice = 20, Hash = hash1, Nonce = 0, GasLimit = 21000, Authorization = TransactionAuthorization.Impersonated };
+        var tx2 = new Transaction { From = sender, To = recipient, GasPrice = 10, Hash = hash2, Nonce = 1, GasLimit = 21000, Authorization = TransactionAuthorization.Impersonated };
 
         // Run 1
         var block1 = await ProduceTestBlock(tx1, tx2);

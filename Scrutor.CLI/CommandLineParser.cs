@@ -1,20 +1,20 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using Scrutor.Core.Configuration;
 
 namespace Scrutor.CLI;
 
 /// <summary>
-/// Anvil-compatible CLI parser implementing 1:1 flag mapping for ecosystem compatibility.
-/// Adheres to Coding Governance: Zero-stub policy - all handlers are fully implemented.
+/// Anvil-compatible CLI option definitions for the 'node' subcommand.
 /// </summary>
 public static class CommandLineParser
 {
     /// <summary>
-    /// Builds the complete command-line interface with all Anvil-compatible options
+    /// Builds the 'scrutor node' subcommand with all Anvil-compatible options.
     /// </summary>
-    public static RootCommand BuildRootCommand()
+    public static Command BuildNodeCommand()
     {
-        var rootCommand = new RootCommand("Scrutor - Windows-Native Ethereum Development Node")
+        var rootCommand = new Command("node", "Start the local Ethereum node")
         {
             // SECTION: Network & Server Options
             new Option<string>(
@@ -200,45 +200,46 @@ public static class CommandLineParser
                 description: "Path to configuration file (.toml or .json)")
         };
         
-        rootCommand.Description = "Scrutor - A Windows-native Ethereum development node with Anvil compatibility";
+        rootCommand.Description = "Scrutor node — Anvil-compatible local Ethereum node";
         
         return rootCommand;
     }
     
     /// <summary>
-    /// Parses command-line arguments and builds a NodeConfiguration.
-    /// Follows priority: CLI flags > Config file > Defaults
+    /// Extracts NodeConfiguration from an InvocationContext for the 'node' subcommand.
+    /// Priority: CLI flags > config file > defaults.
     /// </summary>
-    public static async Task<(NodeConfiguration? Config, int ExitCode)> ParseArgumentsAsync(string[] args)
+    public static Task<(NodeConfiguration? Config, int ExitCode)> ParseNodeContextAsync(InvocationContext context)
     {
-        var rootCommand = BuildRootCommand();
-        NodeConfiguration? config = null;
-        
-        rootCommand.SetHandler((context) =>
+        var nodeCmd = (Command)context.ParseResult.CommandResult.Command;
+
+        var configPath = context.ParseResult.GetValueForOption(
+            nodeCmd.Options.OfType<Option<string?>>()
+                .First(o => o.Aliases.Contains("--config")));
+
+        NodeConfiguration config;
+        if (!string.IsNullOrEmpty(configPath))
         {
-            // First, check if --config is specified
-            var configPath = context.ParseResult.GetValueForOption(
-                rootCommand.Options.OfType<Option<string?>>()
-                    .First(o => o.Aliases.Contains("--config")));
-            
-            // Load from file if specified
-            if (!string.IsNullOrEmpty(configPath))
+            var loader = new ConfigurationLoader();
+            config = loader.LoadFromFile(configPath);
+        }
+        else
+        {
+            // Auto-detect scrutor.config.json in the current working directory (workspace config).
+            var workspaceConfig = Path.Combine(Directory.GetCurrentDirectory(), "scrutor.config.json");
+            if (File.Exists(workspaceConfig))
             {
                 var loader = new ConfigurationLoader();
-                config = loader.LoadFromFile(configPath);
+                config = loader.LoadFromFile(workspaceConfig);
             }
             else
             {
                 config = new NodeConfiguration();
             }
-            
-            // Override with CLI arguments (CLI takes precedence)
-            OverrideWithCliArgs(config, context.ParseResult, rootCommand);
-        });
-        
-        var exitCode = await rootCommand.InvokeAsync(args);
-        
-        return (config, exitCode);
+        }
+
+        OverrideWithCliArgs(config, context.ParseResult, nodeCmd);
+        return Task.FromResult(((NodeConfiguration?)config, 0));
     }
     
     /// <summary>
@@ -247,7 +248,7 @@ public static class CommandLineParser
     private static void OverrideWithCliArgs(
         NodeConfiguration config,
         System.CommandLine.Parsing.ParseResult parseResult,
-        RootCommand rootCommand)
+        Command rootCommand)
     {
         // Helper to check if option was explicitly provided
         bool WasProvided(string alias) =>
@@ -275,7 +276,7 @@ public static class CommandLineParser
             config.Accounts = parseResult.GetValueForOption(
                 rootCommand.Options.OfType<Option<int>>().First(o => o.Aliases.Contains("--accounts")));
         
-        if (WasProvided("--balance") || WasProvided("-b"))
+        if (WasProvided("--balance"))
             config.Balance = parseResult.GetValueForOption(
                 rootCommand.Options.OfType<Option<decimal>>().First(o => o.Aliases.Contains("--balance")));
         
@@ -293,8 +294,15 @@ public static class CommandLineParser
         
         // Mining
         if (WasProvided("--block-time"))
+        {
             config.BlockTime = parseResult.GetValueForOption(
                 rootCommand.Options.OfType<Option<int?>>().First(o => o.Aliases.Contains("--block-time")));
+            if (config.BlockTime.HasValue && config.BlockTime.Value > 0)
+            {
+                // [AI-EDIT 2026-01-10] Positive block-time implies interval auto-mining.
+                config.Automine = true;
+            }
+        }
         
         if (WasProvided("--no-mining"))
         {

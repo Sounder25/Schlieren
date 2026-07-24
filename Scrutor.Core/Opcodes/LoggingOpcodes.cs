@@ -23,7 +23,10 @@ public abstract class LogOpcodeBase : IOpcode
             if (!context.Stack.TryPop(out var topic))
                 return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
             
-            topics.Add("0x" + topic.ToString("x64"));
+            // Topics are always 32-byte hex (pad left; trim if oversized).
+            var hex = topic.ToString("x");
+            if (hex.Length > 64) hex = hex[^64..];
+            topics.Add("0x" + hex.PadLeft(64, '0'));
         }
 
         var offsetInt = (int)offset;

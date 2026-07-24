@@ -24,6 +24,13 @@ namespace Scrutor.Core.Execution
         /// <returns>An ExecutionResult summarizing the outcome.</returns>
         public async Task<ExecutionResult> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
         {
+            // [AI-EDIT 2026-01-10] Track return data from RETURN/REVERT opcodes.
+            // An opcode that terminates execution (RETURN, REVERT, STOP) sets PC past
+            // the code boundary and may carry data in execResult.ReturnData.
+            // We capture it here so the final result preserves it (critical for CREATE
+            // init-code: the deployed bytecode lives in RETURN's data payload).
+            byte[]? lastReturnData = null;
+
             while (context.ProgramCounter < context.Code.Length)
             {
                 ct.ThrowIfCancellationRequested();
@@ -45,12 +52,19 @@ namespace Scrutor.Core.Execution
                     // Consume gas
                     context.ConsumeGas(execResult.GasUsed);
                     context.AddTraceStep(pc, opcode.Name, gasBefore, execResult.GasUsed);
+                    // Record into gas frame journal (for gas causality tree)
+                    if (context.GasFrame != null && execResult.GasUsed > 0)
+                        context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));
 
                     // If the opcode execution itself failed, propagate the failure
                     if (!execResult.IsSuccess)
                     {
                         return execResult with { GasUsed = context.GasUsed, TraceSteps = context.TraceSteps };
                     }
+
+                    // Capture any return data (RETURN / REVERT opcodes carry deployed code or revert reason)
+                    if (execResult.ReturnData.Length > 0)
+                        lastReturnData = execResult.ReturnData;
                     
                     // Advance PC to the next instruction
                     context.ProgramCounter = nextPc;
@@ -72,8 +86,8 @@ namespace Scrutor.Core.Execution
                 }
             }
 
-            // Successfully executed to the end of the code
-            return ExecutionResult.Success(context.GasUsed, logs: context.Logs, traceSteps: context.TraceSteps);
+            // Successfully executed to the end of the code — preserve any RETURN data and gas refund counter
+            return ExecutionResult.Success(context.GasUsed, returnData: lastReturnData, logs: context.Logs, traceSteps: context.TraceSteps) with { GasRefundCounter = context.GasRefundCounter };
         }
     }
 }

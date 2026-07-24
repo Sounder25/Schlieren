@@ -3634,6 +3634,7 @@
           "CommunityToolkit.Mvvm": "8.4.0",
           "coverlet.collector": "6.0.2",
           "Microsoft.AspNetCore.OpenApi": "8.0.12",
+          "Microsoft.CodeAnalysis.CSharp.Scripting": "4.9.2",
           "Microsoft.Extensions.DependencyInjection": "9.0.0",
           "Microsoft.Extensions.Hosting": "9.0.0",
           "Microsoft.Extensions.Http.Polly": "9.0.0",
@@ -3670,7 +3671,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.417/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

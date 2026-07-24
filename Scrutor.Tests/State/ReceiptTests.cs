@@ -35,10 +35,11 @@ public class ReceiptTests
         var sender = Address.FromHex("0x1234567890123456789012345678901234567890");
         globalState.SetBalance(sender, 1000000);
         
+        // [AI-EDIT 2026-01-10] Use a non-precompile address (0x01 is ecRecover precompile).
         var tx = new Transaction
         {
             From = sender,
-            To = Address.FromHex("0x0000000000000000000000000000000000000001"),
+            To = Address.FromHex("0x0000000000000000000000000000000000001001"),
             Data = Array.Empty<byte>(),
             GasLimit = 100000,
             GasPrice = 1,

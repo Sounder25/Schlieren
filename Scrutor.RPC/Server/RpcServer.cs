@@ -25,7 +25,10 @@ public sealed class RpcServer : IRpcServer
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("[RpcServer] Starting RPC server on port {Port}", _config.Port);
-        return _iocpServer.Start();
+        // Fire accept loop on a background task — must NOT be awaited here.
+        // IHostedService.StartAsync must return promptly; the loop runs until StopAsync.
+        _ = Task.Run(() => _iocpServer.Start(), cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

@@ -13,7 +13,7 @@ namespace Scrutor.Tests.RPC;
 public class RpcErrorTests
 {
     [Fact]
-    public void HandleSendRawTransaction_RejectsUnknownTypedTransaction_WithCorrectErrorCode()
+    public async Task HandleSendRawTransaction_RejectsUnknownTypedTransaction_WithCorrectErrorCode()
     {
         // Arrange
         var globalState = new GlobalState();
@@ -32,7 +32,7 @@ public class RpcErrorTests
         var rawTx = "0x04c0";
 
         // Act & Assert
-        var ex = Assert.Throws<RpcException>(() => handlers.HandleSendRawTransaction(new object[] { rawTx }));
+        var ex = await Assert.ThrowsAsync<RpcException>(() => handlers.HandleSendRawTransaction(new object[] { rawTx }));
         Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
         Assert.Contains("Unsupported typed transaction type 0x04", ex.Message);
     }

@@ -41,13 +41,14 @@ public class CompatibilityTests
 
         // Contract that logs twice
         var code = new byte[] { 0x60, 0x00, 0x60, 0x00, 0xA0, 0x60, 0xAA, 0x60, 0x00, 0x60, 0x00, 0xA1, 0x00 };
-        var contract = Address.FromHex("0x0000000000000000000000000000000000000001");
+        // [AI-EDIT 2026-01-10] Use a non-precompile address (0x01 is ecRecover precompile in Cancun).
+        var contract = Address.FromHex("0x0000000000000000000000000000000000001000");
         globalState.SetCode(contract, code);
 
         // TX 1: Nonce 0, GasPrice 20
-        var tx1 = new Transaction { From = sender, To = contract, GasPrice = 20, Hash = new byte[32] { 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }, Nonce = 0, GasLimit = 100000, Authorization = TransactionAuthorization.Impersonated };
+        var tx1 = new Transaction { From = sender, To = contract, GasPrice = 20, Hash = new byte[32] { 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }, Nonce = 0, GasLimit = 100000, Value = 0, Authorization = TransactionAuthorization.Impersonated };
         // TX 2: Nonce 1, GasPrice 10
-        var tx2 = new Transaction { From = sender, To = contract, GasPrice = 10, Hash = new byte[32] { 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }, Nonce = 1, GasLimit = 100000, Authorization = TransactionAuthorization.Impersonated };
+        var tx2 = new Transaction { From = sender, To = contract, GasPrice = 10, Hash = new byte[32] { 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }, Nonce = 1, GasLimit = 100000, Value = 0, Authorization = TransactionAuthorization.Impersonated };
 
         mempool.Add(tx1);
         mempool.Add(tx2);
