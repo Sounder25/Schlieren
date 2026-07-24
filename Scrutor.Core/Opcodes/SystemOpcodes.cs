@@ -164,6 +164,13 @@ public sealed class OpcodeCall : IOpcode
         var retOffsetInt = (int)retOffset;
         var retLengthInt = (int)retLength;
 
+        // Calculate memory expansion cost for both input and return data regions
+        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
+        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
+        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
+        context.ConsumeGas(memoryCost);
+
         // Load input data
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
@@ -419,6 +426,13 @@ public sealed class OpcodeStaticCall : IOpcode
         var retOffsetInt = (int)retOffset;
         var retLengthInt = (int)retLength;
 
+        // Calculate memory expansion cost for both input and return data regions
+        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
+        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
+        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
+        context.ConsumeGas(memoryCost);
+
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
         // EIP-2929: charge cold address surcharge before gas forwarding.
@@ -510,6 +524,13 @@ public sealed class OpcodeCallCode : IOpcode
         var argsLengthInt = (int)argsLength;
         var retOffsetInt = (int)retOffset;
         var retLengthInt = (int)retLength;
+
+        // Calculate memory expansion cost for both input and return data regions
+        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
+        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
+        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
+        context.ConsumeGas(memoryCost);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
@@ -614,6 +635,13 @@ public sealed class OpcodeDelegateCall : IOpcode
         var argsLengthInt = (int)argsLength;
         var retOffsetInt = (int)retOffset;
         var retLengthInt = (int)retLength;
+
+        // Calculate memory expansion cost for both input and return data regions
+        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
+        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
+        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
+        context.ConsumeGas(memoryCost);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
