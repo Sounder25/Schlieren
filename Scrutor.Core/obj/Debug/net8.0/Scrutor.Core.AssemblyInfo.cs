@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Scrutor.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0acfbe2a92f226285b274f169e6c92e7eb8c827c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f7a123b050e7652b3f486545a35c2cccc05af3cb")]
 [assembly: System.Reflection.AssemblyProductAttribute("Scrutor.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Scrutor.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

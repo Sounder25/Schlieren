@@ -76,11 +76,23 @@ public sealed class OpcodeCreate : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
+            // Debug instrumentation for code-deposit accounting
+            if (context.CaptureTrace)
+            {
+                Console.WriteLine($"[CREATE_DEPOSIT] runtimeBytes={runtimeCode.Length} depositCost={codeDepositCost} childRemaining={childRemaining}");
+            }
+
             if (childRemaining < codeDepositCost)
             {
                 // Exceptional halt: out of gas during code deposit.
-                // Consume all child gas, revert creation, return 0 address.
+                // The child's remaining gas is consumed (not refunded to parent).
+                // State reverted, address 0 returned.
+                if (context.CaptureTrace)
+                {
+                    Console.WriteLine($"[CREATE_DEPOSIT_OOG] consumedChildGas={childRemaining} NOT_REFUNDED");
+                }
                 context.Stack.TryPush(0);
+                // No RefundGas—child gas is consumed by exceptional halt.
             }
             else
             {
@@ -92,6 +104,11 @@ public sealed class OpcodeCreate : IOpcode
 
                 // Refund remaining gas to parent.
                 context.RefundGas(childRemaining);
+
+                if (context.CaptureTrace)
+                {
+                    Console.WriteLine($"[CREATE_SUCCESS] depositPaid={codeDepositCost} refundedToParent={childRemaining}");
+                }
 
                 // Push created address.
                 context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
