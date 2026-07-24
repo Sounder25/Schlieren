@@ -34,10 +34,13 @@ public sealed class EvmMemory
         
         var currentWords = (ulong)(_data.Length + 31) / 32;
         var newWords = (ulong)(newSize + 31) / 32;
-        var additionalWords = newWords - currentWords;
         
-        // Gas cost: 3 per word + quadratic memory expansion
-        return 3 * additionalWords + (newWords * newWords) / 512;
+        // EVM memory expansion cost: ΔC = memory_cost(new) - memory_cost(old)
+        // where memory_cost(w) = 3w + ⌊w²/512⌋
+        var oldCost = 3 * currentWords + (currentWords * currentWords) / 512;
+        var newCost = 3 * newWords + (newWords * newWords) / 512;
+        
+        return newCost - oldCost;
     }
 
     private void EnsureCapacity(int requiredSize)
