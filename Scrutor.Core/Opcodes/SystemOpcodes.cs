@@ -47,8 +47,13 @@ public sealed class OpcodeCreate : IOpcode
         if (context.SubCall == null)
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
-        var gasAvailable = context.GasLimit - context.GasUsed;
-        context.ConsumeGas(gasAvailable);
+        // EIP-150: forward at most 63/64 of remaining gas to child.
+        var parentGasBeforeChild = context.GasLimit - context.GasUsed;
+        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
+        var parentReserve = parentGasBeforeChild - forwardedGas;
+
+        // Charge only the gas that enters the child frame.
+        context.ConsumeGas(forwardedGas);
 
         // Construct internal tx for creation
         var tx = new Transaction
@@ -57,7 +62,7 @@ public sealed class OpcodeCreate : IOpcode
             To = null, // Contract creation
             Value = value,
             Data = initCode,
-            GasLimit = gasAvailable, // Pass all
+            GasLimit = forwardedGas, // EIP-150: 63/64 of parent's available gas
             GasPrice = context.GasPrice,
             Nonce = nonce,
             Authorization = TransactionAuthorization.Internal,
@@ -68,7 +73,7 @@ public sealed class OpcodeCreate : IOpcode
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         // Calculate unused gas from child
-        var childRemaining = gasAvailable > result.GasUsed ? gasAvailable - result.GasUsed : 0UL;
+        var childRemaining = forwardedGas > result.GasUsed ? forwardedGas - result.GasUsed : 0UL;
 
         if (result.IsSuccess)
         {
@@ -320,8 +325,13 @@ public sealed class OpcodeCreate2 : IOpcode
         if (context.SubCall == null)
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
-        var gasAvailable = context.GasLimit - context.GasUsed;
-        context.ConsumeGas(gasAvailable);
+        // EIP-150: forward at most 63/64 of remaining gas to child.
+        var parentGasBeforeChild = context.GasLimit - context.GasUsed;
+        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
+        var parentReserve = parentGasBeforeChild - forwardedGas;
+
+        // Charge only the gas that enters the child frame.
+        context.ConsumeGas(forwardedGas);
 
         var tx = new Transaction
         {
@@ -329,7 +339,7 @@ public sealed class OpcodeCreate2 : IOpcode
             To = null,
             Value = value,
             Data = initCode,
-            GasLimit = gasAvailable,
+            GasLimit = forwardedGas, // EIP-150: 63/64 of parent's available gas
             GasPrice = context.GasPrice,
             Nonce = nonce,
             Authorization = TransactionAuthorization.Internal,
@@ -340,7 +350,7 @@ public sealed class OpcodeCreate2 : IOpcode
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
 
         // Calculate unused gas from child
-        var childRemaining = gasAvailable > result.GasUsed ? gasAvailable - result.GasUsed : 0UL;
+        var childRemaining = forwardedGas > result.GasUsed ? forwardedGas - result.GasUsed : 0UL;
 
         if (result.IsSuccess)
         {
