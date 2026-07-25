@@ -225,9 +225,9 @@ public sealed class OpcodeCall : IOpcode
         var childGasLimit = forwardedGas + stipend;
 
         ExecutionResult result;
-        if (PrecompileExecutor.IsSupportedPrecompile(toAddress))
+        if (Precompiles.IsPrecompile(toAddress))
         {
-            result = PrecompileExecutor.Execute(toAddress, input, childGasLimit);
+            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit);
             if (result.IsSuccess && value > 0)
             {
                 var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
@@ -461,9 +461,9 @@ public sealed class OpcodeStaticCall : IOpcode
         context.ConsumeGas(gasLimit);
 
         ExecutionResult result;
-        if (PrecompileExecutor.IsSupportedPrecompile(toAddress))
+        if (Precompiles.IsPrecompile(toAddress))
         {
-            result = PrecompileExecutor.Execute(toAddress, input, gasLimit);
+            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit);
         }
         else
         {
@@ -586,23 +586,31 @@ public sealed class OpcodeCallCode : IOpcode
         var stipend = value.IsZero ? 0UL : 2300UL;
         var childGasLimit = forwardedGas + stipend;
 
-        if (context.SubCall == null)
-             return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-
-        var tx = new Transaction
+        ExecutionResult result;
+        if (Precompiles.IsPrecompile(codeAddress))
         {
-            From = context.ContractAddress,
-            To = context.ContractAddress,
-            Value = value,
-            Data = input,
-            GasLimit = childGasLimit,
-            GasPrice = context.GasPrice,
-            Authorization = TransactionAuthorization.Internal,
-            EnableTracing = context.CaptureTrace
-        };
+            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit);
+        }
+        else
+        {
+            if (context.SubCall == null)
+                 return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
-        var result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
-        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+            var tx = new Transaction
+            {
+                From = context.ContractAddress,
+                To = context.ContractAddress,
+                Value = value,
+                Data = input,
+                GasLimit = childGasLimit,
+                GasPrice = context.GasPrice,
+                Authorization = TransactionAuthorization.Internal,
+                EnableTracing = context.CaptureTrace
+            };
+
+            result = await context.SubCall(tx, false, null, codeAddress);
+            if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+        }
 
         // EELS refund semantics: return ALL unused child gas to parent.
         var childUsed = result.GasUsed > childGasLimit ? childGasLimit : result.GasUsed;
@@ -680,24 +688,32 @@ public sealed class OpcodeDelegateCall : IOpcode
 
         context.ConsumeGas(gasLimit);
 
-        if (context.SubCall == null)
-             return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-
-        // DELEGATECALL: From=caller, To=ContractAddress, Value=context.CallValue
-        var tx = new Transaction
+        ExecutionResult result;
+        if (Precompiles.IsPrecompile(codeAddress))
         {
-            From = context.Caller,
-            To = context.ContractAddress,
-            Value = context.CallValue,
-            Data = input,
-            GasLimit = gasLimit,
-            GasPrice = context.GasPrice,
-            Authorization = TransactionAuthorization.Internal,
-            EnableTracing = context.CaptureTrace
-        };
+            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit);
+        }
+        else
+        {
+            if (context.SubCall == null)
+                 return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
-        var result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
-        if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+            // DELEGATECALL: From=caller, To=ContractAddress, Value=context.CallValue
+            var tx = new Transaction
+            {
+                From = context.Caller,
+                To = context.ContractAddress,
+                Value = context.CallValue,
+                Data = input,
+                GasLimit = gasLimit,
+                GasPrice = context.GasPrice,
+                Authorization = TransactionAuthorization.Internal,
+                EnableTracing = context.CaptureTrace
+            };
+
+            result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+            if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+        }
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
         context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL);
