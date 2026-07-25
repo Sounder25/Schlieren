@@ -90,8 +90,26 @@ public sealed class EelsStateFixtureExecutor
             CompareStorage(expectedAddress.ToString(), expectedAccount.Storage, actualAccount.Storage, mismatches);
         }
 
+        foreach (var (actualAddress, actualAccount) in actualSnapshot)
+        {
+            if (testCase.ExpectedPostState.ContainsKey(actualAddress) ||
+                IsEmptyAccount(actualAccount))
+            {
+                continue;
+            }
+
+            mismatches.Add(
+                $"unexpected account in actual state: {actualAddress}");
+        }
+
         return mismatches.Count == 0;
     }
+
+    private static bool IsEmptyAccount(Account account) =>
+        account.Nonce == 0 &&
+        account.Balance.IsZero &&
+        account.Code.Length == 0 &&
+        account.Storage.Values.All(value => value.IsZero);
 
     private static void CompareStorage(
         string address,

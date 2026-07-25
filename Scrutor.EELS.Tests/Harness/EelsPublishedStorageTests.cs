@@ -95,4 +95,59 @@ public sealed class EelsPublishedStorageTests
                 mismatch.Contains("expected=0x0", StringComparison.Ordinal) &&
                 mismatch.Contains("actual=0x1", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task StateComparison_RejectsUnexpectedNonEmptyAccount()
+    {
+        var expectedAddress = Address.FromHex(
+            "0x0000000000000000000000000000000000001000");
+        var unexpectedAddress = Address.FromHex(
+            "0x0000000000000000000000000000000000002000");
+        var emptyAccount = new EelsFixtureAccount(
+            Nonce: 0,
+            Balance: BigInteger.Zero,
+            Code: [0x00],
+            Storage: new Dictionary<BigInteger, BigInteger>());
+        var unexpectedAccount = new EelsFixtureAccount(
+            Nonce: 0,
+            Balance: BigInteger.One,
+            Code: Array.Empty<byte>(),
+            Storage: new Dictionary<BigInteger, BigInteger>());
+        var testCase = new EelsStateCase(
+            FixturePath: "synthetic",
+            CaseId: "unexpected-account",
+            ForkName: "Cancun",
+            BlockContext: new BlockContext(),
+            Sender: Address.Zero,
+            Transaction: new Transaction
+            {
+                From = Address.Zero,
+                To = expectedAddress,
+                GasLimit = 100_000,
+                Authorization = TransactionAuthorization.Internal
+            },
+            PreState: new Dictionary<Address, EelsFixtureAccount>
+            {
+                [expectedAddress] = emptyAccount,
+                [unexpectedAddress] = unexpectedAccount
+            },
+            ExpectedPostState: new Dictionary<Address, EelsFixtureAccount>
+            {
+                [expectedAddress] = emptyAccount
+            },
+            ExpectedReceiptStatus: true);
+
+        var report = await new EelsStateFixtureExecutor().ExecuteAsync(testCase);
+
+        Assert.False(report.StateMatches);
+        Assert.Contains(
+            report.Mismatches,
+            mismatch =>
+                mismatch.Contains(
+                    "unexpected account in actual state",
+                    StringComparison.Ordinal) &&
+                mismatch.Contains(
+                    unexpectedAddress.ToString(),
+                    StringComparison.Ordinal));
+    }
 }
