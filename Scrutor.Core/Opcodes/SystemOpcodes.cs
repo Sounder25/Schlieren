@@ -39,6 +39,7 @@ public sealed class OpcodeCreate : IOpcode
         // Derive address
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
         var newAddress = CryptoUtils.DeriveContractAddress(context.ContractAddress, nonce);
+        context.Access.WarmAddress(newAddress);
         
         // Increment nonce of creator
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
@@ -331,6 +332,7 @@ public sealed class OpcodeCreate2 : IOpcode
 
         // Derive address using salt
         var newAddress = CryptoUtils.DeriveContractAddress2(context.ContractAddress, paddedSalt, initCode);
+        context.Access.WarmAddress(newAddress);
         
         // Increment nonce of creator
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
@@ -742,7 +744,7 @@ public sealed class OpcodeSelfDestruct : IOpcode
         var isWarm = context.Access.TouchAddress(beneficiary);
         // Gap 7: EIP-3529 – base SELFDESTRUCT refund removed (was 5000). Only the EIP-2929
         // cold-address surcharge remains when the beneficiary is touched for the first time.
-        ulong gasCost = isWarm ? 0UL : 2600UL;
+        ulong gasCost = 5000UL + (isWarm ? 0UL : 2600UL);
 
         var balance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         

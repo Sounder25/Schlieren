@@ -449,7 +449,7 @@ public class CallGasForwardingTests
     // ── EIP-3529: SELFDESTRUCT no gas refund ───────────────────────────────
 
     [Fact]
-    public async Task SelfDestruct_OpcodeReturnsZeroGasUsed_EIP3529()
+    public async Task SelfDestruct_ChargesBaseAndColdBeneficiaryAccess()
     {
         var state = new GlobalState();
         var contract    = Address.FromHex("0x1000000000000000000000000000000000000001");
@@ -470,9 +470,9 @@ public class CallGasForwardingTests
         var (result, _) = await new OpcodeSelfDestruct().ExecuteAsync(ctx);
 
         Assert.True(result.IsSuccess);
-        // EIP-3529: opcode-level gas must NOT include the old 5000 base refund.
-        // Only the EIP-2929 cold-address surcharge (2600) remains for a fresh beneficiary.
-        Assert.Equal(2600UL, result.GasUsed);
+        // EIP-3529 removes the old refund, not SELFDESTRUCT's 5000 static cost.
+        // A cold beneficiary adds the EIP-2929 2600 access surcharge.
+        Assert.Equal(7600UL, result.GasUsed);
         // Balance must flow to beneficiary.
         var benBal = await state.GetBalanceAsync(beneficiary, default);
         Assert.Equal(new BigInteger(500), benBal);
