@@ -122,6 +122,58 @@ public sealed class OpcodeGas : IOpcode
 }
 
 /// <summary>
+/// BLOBHASH (0x49): Return the transaction's versioned blob hash at an index.
+/// EIP-4844, Cancun. Gas: 3.
+/// </summary>
+public sealed class OpcodeBlobHash : IOpcode
+{
+    public byte Code => 0x49;
+    public string Name => "BLOBHASH";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(
+        ExecutionContext context,
+        CancellationToken ct = default)
+    {
+        if (!context.Block.BlobHashEnabled)
+        {
+            return ValueTask.FromResult(
+                (ExecutionResult.Failure(EvmError.InvalidOpcode),
+                    context.ProgramCounter + 1));
+        }
+
+        if (!context.Stack.TryPop(out var index))
+        {
+            return ValueTask.FromResult(
+                (ExecutionResult.Failure(EvmError.StackUnderflow),
+                    context.ProgramCounter + 1));
+        }
+
+        BigInteger value = BigInteger.Zero;
+        if (index <= int.MaxValue)
+        {
+            var indexInt = (int)index;
+            if (indexInt < context.BlobVersionedHashes.Count)
+            {
+                value = new BigInteger(
+                    context.BlobVersionedHashes[indexInt],
+                    isUnsigned: true,
+                    isBigEndian: true);
+            }
+        }
+
+        if (!context.Stack.TryPush(value))
+        {
+            return ValueTask.FromResult(
+                (ExecutionResult.Failure(EvmError.StackOverflow),
+                    context.ProgramCounter + 1));
+        }
+
+        return ValueTask.FromResult(
+            (ExecutionResult.Success(3), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
 /// CALLER (0x33): Get caller address
 /// Gas: 2
 /// </summary>

@@ -86,6 +86,18 @@ public sealed class Transaction : IComparable<Transaction>
     public byte TxType { get; set; } = 0;
 
     /// <summary>
+    /// EIP-4844 versioned blob hashes exposed to EVM execution by BLOBHASH.
+    /// Empty for transactions without blobs.
+    /// </summary>
+    public IReadOnlyList<byte[]> BlobVersionedHashes { get; set; } =
+        Array.Empty<byte[]>();
+
+    /// <summary>
+    /// EIP-4844 maximum fee per blob gas. Zero for non-blob transactions.
+    /// </summary>
+    public BigInteger MaxFeePerBlobGas { get; set; } = BigInteger.Zero;
+
+    /// <summary>
     /// [AI-EDIT 2026-01-10] EIP-1559 max priority fee per gas (type-2/3 txs only).
     /// Zero for legacy and EIP-2930 transactions.
     /// </summary>
@@ -221,6 +233,12 @@ public sealed class Transaction : IComparable<Transaction>
         Buffer.BlockCopy(unsignedRlp, 0, signingPayload, 1, unsignedRlp.Length);
 
         var accessList = ParseAccessList(items[accessListIndex]);
+        var blobVersionedHashes = txType == 3
+            ? ParseBlobVersionedHashes(items[10])
+            : Array.Empty<byte[]>();
+        var maxFeePerBlobGas = txType == 3
+            ? items[9].ToBigInteger()
+            : BigInteger.Zero;
 
         return new Transaction
         {
@@ -234,6 +252,8 @@ public sealed class Transaction : IComparable<Transaction>
             Value = items[valueIndex].ToBigInteger(),
             Data = items[dataIndex].Data.ToArray(),
             AccessList = accessList,
+            BlobVersionedHashes = blobVersionedHashes,
+            MaxFeePerBlobGas = maxFeePerBlobGas,
             V = (int)items[vIndex].ToBigInteger(),
             R = items[rIndex].Data.ToArray(),
             S = items[sIndex].Data.ToArray(),
@@ -241,6 +261,19 @@ public sealed class Transaction : IComparable<Transaction>
             SigningHash = CryptoUtils.Keccak256(signingPayload),
             Authorization = TransactionAuthorization.Signed
         };
+    }
+
+    private static byte[][] ParseBlobVersionedHashes(
+        Scrutor.Core.Encoding.RlpItem item)
+    {
+        if (!item.IsList)
+        {
+            return Array.Empty<byte[]>();
+        }
+
+        return item.Items
+            .Select(hash => hash.Data.ToArray())
+            .ToArray();
     }
 
     private static IReadOnlyList<AccessListEntry> ParseAccessList(Scrutor.Core.Encoding.RlpItem accessListItem)

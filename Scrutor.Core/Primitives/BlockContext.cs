@@ -15,6 +15,8 @@ public sealed class BlockContext
     public BigInteger Difficulty { get; init; }
     public ulong BaseFeePerGas { get; init; }
     public byte[] Hash { get; init; } = new byte[32];
+    public bool BlobHashEnabled { get; init; } = true;
+    public ulong ExcessBlobGas { get; init; }
 
     public static BlockContext Genesis => new()
     {

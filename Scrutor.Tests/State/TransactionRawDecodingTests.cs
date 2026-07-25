@@ -122,6 +122,11 @@ public class TransactionRawDecodingTests
 
         Assert.Equal<ulong>(2, tx.Nonce);
         Assert.Equal(new BigInteger(40_000_000_000), tx.GasPrice);
+        Assert.Equal(new BigInteger(1_000_000_000), tx.MaxFeePerBlobGas);
+        Assert.Single(tx.BlobVersionedHashes);
+        Assert.Equal(
+            Enumerable.Repeat((byte)0x99, 32),
+            tx.BlobVersionedHashes[0]);
         Assert.Equal<ulong>(100_000, tx.GasLimit);
         Assert.Equal(to, tx.To);
         Assert.Equal(new BigInteger(0), tx.Value);

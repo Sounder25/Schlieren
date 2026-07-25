@@ -38,6 +38,7 @@ public sealed class StateTransition : IStateTransition
         // regardless of whether execution succeeds or fails (EIP-161 / Yellow Paper §6).
         // When commit=false (e.g. eth_estimateGas probes), we validate only — no writes.
         BigInteger maxGasCost = BigInteger.Zero;
+        BigInteger blobFee = BigInteger.Zero;
         ulong intrinsicGas = 0;
 
         // [AI-EDIT 2026-01-10] EIP-1559 effective gas price:
@@ -73,14 +74,16 @@ public sealed class StateTransition : IStateTransition
             var senderBalance = await state.GetBalanceAsync(tx.From, ct);
             var priceForUpfront = tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice;
             maxGasCost = new BigInteger(tx.GasLimit) * priceForUpfront;
-            var upfrontCost = maxGasCost + tx.Value;
+            blobFee = CalculateBlobFee(tx, block);
+            var maxBlobCost = CalculateMaxBlobCost(tx);
+            var upfrontCost = maxGasCost + maxBlobCost + tx.Value;
             if (senderBalance < upfrontCost)
                 return ExecutionResult.Failure(EvmError.InsufficientFunds);
 
             if (commit)
             {
                 // Deduct max gas and increment nonce unconditionally (spec §6.2)
-                state.SetBalance(tx.From, senderBalance - maxGasCost);
+                state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee);
                 state.SetNonce(tx.From, senderNonce + 1);
             }
         }
@@ -281,6 +284,7 @@ public sealed class StateTransition : IStateTransition
         }
 
         BigInteger maxGasCost = BigInteger.Zero;
+        BigInteger blobFee = BigInteger.Zero;
         ulong intrinsicGas = 0;
         var baseFeePerGas = new BigInteger(block.BaseFeePerGas);
         BigInteger effectiveGasPrice;
@@ -299,8 +303,10 @@ public sealed class StateTransition : IStateTransition
             var senderBalance = await state.GetBalanceAsync(tx.From, ct);
             var priceForUpfront = tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice;
             maxGasCost = new BigInteger(tx.GasLimit) * priceForUpfront;
-            if (senderBalance < maxGasCost + tx.Value) return ExecutionResult.Failure(EvmError.InsufficientFunds);
-            if (commit) { state.SetBalance(tx.From, senderBalance - maxGasCost); state.SetNonce(tx.From, senderNonce + 1); }
+            blobFee = CalculateBlobFee(tx, block);
+            var maxBlobCost = CalculateMaxBlobCost(tx);
+            if (senderBalance < maxGasCost + maxBlobCost + tx.Value) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+            if (commit) { state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee); state.SetNonce(tx.From, senderNonce + 1); }
         }
 
         ulong executionGasLimit = tx.Authorization == TransactionAuthorization.Internal
@@ -374,6 +380,49 @@ public sealed class StateTransition : IStateTransition
         }
 
         return result;
+    }
+
+    private static BigInteger CalculateBlobFee(Transaction tx, BlockContext block)
+    {
+        if (tx.TxType != 3 || tx.BlobVersionedHashes.Count == 0)
+            return BigInteger.Zero;
+
+        const ulong gasPerBlob = 1UL << 17;
+        var blobGas = new BigInteger(gasPerBlob) * tx.BlobVersionedHashes.Count;
+        return blobGas * FakeExponential(
+            factor: BigInteger.One,
+            numerator: new BigInteger(block.ExcessBlobGas),
+            denominator: new BigInteger(3_338_477));
+    }
+
+    private static BigInteger CalculateMaxBlobCost(Transaction tx)
+    {
+        if (tx.TxType != 3 || tx.BlobVersionedHashes.Count == 0)
+            return BigInteger.Zero;
+
+        const ulong gasPerBlob = 1UL << 17;
+        return new BigInteger(gasPerBlob) *
+            tx.BlobVersionedHashes.Count *
+            tx.MaxFeePerBlobGas;
+    }
+
+    private static BigInteger FakeExponential(
+        BigInteger factor,
+        BigInteger numerator,
+        BigInteger denominator)
+    {
+        var i = BigInteger.One;
+        var output = BigInteger.Zero;
+        var numeratorAccumulator = factor * denominator;
+        while (numeratorAccumulator > BigInteger.Zero)
+        {
+            output += numeratorAccumulator;
+            numeratorAccumulator =
+                numeratorAccumulator * numerator / (denominator * i);
+            i++;
+        }
+
+        return output / denominator;
     }
 
     private async Task<ExecutionResult> ExecuteInternalAsync(
@@ -501,6 +550,7 @@ public sealed class StateTransition : IStateTransition
                 : tx.GasPrice,
             CallValue = tx.Value,
             CallData = (creationAddress.HasValue || !tx.To.HasValue) ? Array.Empty<byte>() : tx.Data, 
+            BlobVersionedHashes = tx.BlobVersionedHashes,
             GasLimit = gasForExecution,
             IsStatic = isStatic,
             CaptureTrace = tx.EnableTracing,
@@ -522,7 +572,9 @@ public sealed class StateTransition : IStateTransition
         // [AI-EDIT 2026-07-24] Share the same OriginalStorageValues snapshot across all sub-calls: EIP-2200
         // original values are captured at transaction start and shared across all frames.
         context.SubCall = (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
-            ExecuteInternalAsync(
+        {
+            subTx.BlobVersionedHashes = context.BlobVersionedHashes;
+            return ExecuteInternalAsync(
                 subTx,
                 overlay,
                 block,
@@ -538,6 +590,7 @@ public sealed class StateTransition : IStateTransition
                 accessTracker: accessTracker,
                 originalStorageSnapshot: originalStorageSnapshot,
                 parentGasFrame: thisFrame);
+        };
 
         // 4. Execute
         var result = await _evm.ExecuteAsync(context, ct);

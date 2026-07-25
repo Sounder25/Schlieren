@@ -94,6 +94,8 @@ namespace Scrutor.Core.Execution
         public BigInteger GasPrice { get; init; }
         public BigInteger CallValue { get; init; }
         public byte[] CallData { get; init; } = Array.Empty<byte>();
+        public IReadOnlyList<byte[]> BlobVersionedHashes { get; init; } =
+            Array.Empty<byte[]>();
         public byte[] LastReturnData { get; set; } = Array.Empty<byte>();
         public Address ContractAddress { get; init; }
         

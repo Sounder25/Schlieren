@@ -171,6 +171,7 @@ public sealed class EelsStateFixtureLoader
         var data = ParseVariantBytes(txNode, "data", dataIndex);
         var to = txNode.TryGetProperty("to", out var toNode) ? ParseOptionalAddress(toNode) : null;
         var accessList = ParseVariantAccessList(txNode, dataIndex);
+        var blobVersionedHashes = ParseBlobVersionedHashes(txNode);
 
         var blockContext = new BlockContext
         {
@@ -180,7 +181,11 @@ public sealed class EelsStateFixtureLoader
             GasLimit = EelsHex.ParseUlong(envNode.GetProperty("currentGasLimit").GetString()!),
             Coinbase = Address.FromHex(envNode.GetProperty("currentCoinbase").GetString()!),
             Difficulty = EelsHex.ParseQuantity(envNode.GetProperty("currentDifficulty").GetString()!),
-            BaseFeePerGas = EelsHex.ParseUlong(envNode.GetProperty("currentBaseFee").GetString()!)
+            BaseFeePerGas = EelsHex.ParseUlong(envNode.GetProperty("currentBaseFee").GetString()!),
+            BlobHashEnabled = ForkRank(forkName) >= ForkRank("Cancun"),
+            ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
+                ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
+                : 0
         };
 
         var priorityFee = ResolvePriorityFee(txNode);
@@ -198,6 +203,8 @@ public sealed class EelsStateFixtureLoader
             Value = value,
             Data = data,
             AccessList = accessList,
+            BlobVersionedHashes = blobVersionedHashes,
+            MaxFeePerBlobGas = ResolveMaxFeePerBlobGas(txNode),
             Authorization = TransactionAuthorization.Impersonated
         };
 
@@ -256,6 +263,10 @@ public sealed class EelsStateFixtureLoader
             Difficulty = EelsHex.ParseQuantity(GetPropertyText(envNode, "currentDifficulty")),
             BaseFeePerGas = envNode.TryGetProperty("currentBaseFee", out var baseFeeNode)
                 ? EelsHex.ParseUlong(GetJsonText(baseFeeNode))
+                : 0,
+            BlobHashEnabled = ForkRank(forkName) >= ForkRank("Cancun"),
+            ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
+                ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
                 : 0
         };
 
@@ -299,6 +310,8 @@ public sealed class EelsStateFixtureLoader
                     Value = ParseVariantBigInteger(txNode, "value", valueIndex),
                     Data = ParseVariantBytes(txNode, "data", dataIndex),
                     AccessList = legacyAccessList,
+                    BlobVersionedHashes = ParseBlobVersionedHashes(txNode),
+                    MaxFeePerBlobGas = ResolveMaxFeePerBlobGas(txNode),
                     Authorization = TransactionAuthorization.Impersonated
                 };
 
@@ -514,6 +527,23 @@ public sealed class EelsStateFixtureLoader
         return Array.Empty<AccessListEntry>();
     }
 
+    private static IReadOnlyList<byte[]> ParseBlobVersionedHashes(
+        JsonElement txNode)
+    {
+        if (!txNode.TryGetProperty(
+                "blobVersionedHashes",
+                out var hashesNode) ||
+            hashesNode.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<byte[]>();
+        }
+
+        return hashesNode
+            .EnumerateArray()
+            .Select(hash => EelsHex.ParseBytes(GetJsonText(hash)))
+            .ToArray();
+    }
+
     private static IReadOnlyList<AccessListEntry> ParseFlatAccessList(JsonElement listNode)
     {
         if (listNode.ValueKind != JsonValueKind.Array) return Array.Empty<AccessListEntry>();
@@ -701,6 +731,13 @@ public sealed class EelsStateFixtureLoader
     {
         if (txNode.TryGetProperty("maxPriorityFeePerGas", out var pfNode))
             return EelsHex.ParseQuantity(GetJsonText(pfNode));
+        return BigInteger.Zero;
+    }
+
+    private static BigInteger ResolveMaxFeePerBlobGas(JsonElement txNode)
+    {
+        if (txNode.TryGetProperty("maxFeePerBlobGas", out var feeNode))
+            return EelsHex.ParseQuantity(GetJsonText(feeNode));
         return BigInteger.Zero;
     }
 
