@@ -562,7 +562,10 @@ public sealed class EelsStateFixtureLoader
                 ? EelsHex.ParseBytes(GetJsonText(codeNode))
                 : (hasBaseline ? baselineAccount!.Code : Array.Empty<byte>());
             var storage = new Dictionary<BigInteger, BigInteger>();
-            if (hasBaseline)
+            var hasExplicitStorage =
+                accountNode.TryGetProperty("storage", out var storageNode) &&
+                storageNode.ValueKind == JsonValueKind.Object;
+            if (hasBaseline && !hasExplicitStorage)
             {
                 foreach (var (k, v) in baselineAccount!.Storage)
                 {
@@ -570,7 +573,7 @@ public sealed class EelsStateFixtureLoader
                 }
             }
 
-            if (accountNode.TryGetProperty("storage", out var storageNode) && storageNode.ValueKind == JsonValueKind.Object)
+            if (hasExplicitStorage)
             {
                 foreach (var slotProp in storageNode.EnumerateObject())
                 {

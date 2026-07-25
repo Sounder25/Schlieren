@@ -109,5 +109,16 @@ public sealed class EelsStateFixtureExecutor
                     $"storage mismatch for {address} slot {EelsHex.ToCanonicalHex(slot)}: expected={EelsHex.ToCanonicalHex(expectedValue)}, actual={EelsHex.ToCanonicalHex(actualValue)}");
             }
         }
+
+        foreach (var (slot, actualValue) in actualStorage)
+        {
+            if (actualValue.IsZero || expectedStorage.ContainsKey(slot))
+            {
+                continue;
+            }
+
+            mismatches.Add(
+                $"storage mismatch for {address} slot {EelsHex.ToCanonicalHex(slot)}: expected=0x0, actual={EelsHex.ToCanonicalHex(actualValue)}");
+        }
     }
 }

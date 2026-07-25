@@ -449,6 +449,11 @@ public sealed class StateTransition : IStateTransition
             // CREATE: Use data as init code, address is the new address
             code = tx.Data;
             contractAddress = creationAddress.Value;
+
+            // EIP-161: a newly created account starts at nonce 1 before its
+            // initialization code executes. Keep this mutation in the creation
+            // frame overlay so a failed creation rolls it back with the frame.
+            overlay.SetNonce(contractAddress, 1);
         }
         else if (codeAddress.HasValue)
         {
