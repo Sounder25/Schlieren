@@ -4508,11 +4508,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.Tests\\Scrutor.Tests.csproj",
+      "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.Tests\\Scrutor.Tests.csproj",
       "projectName": "Scrutor.Tests",
-      "projectPath": "C:\\projects\\Scrutor\\Scrutor.Tests\\Scrutor.Tests.csproj",
+      "projectPath": "c:\\projects\\Scrutor\\Scrutor.Tests\\Scrutor.Tests.csproj",
       "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-      "outputPath": "C:\\projects\\Scrutor\\Scrutor.Tests\\obj\\",
+      "outputPath": "c:\\projects\\Scrutor\\Scrutor.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "configFilePaths": [
@@ -4528,11 +4528,11 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
-              "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
+            "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+              "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj"
             },
-            "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
-              "projectPath": "C:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
+            "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj": {
+              "projectPath": "c:\\projects\\Scrutor\\Scrutor.RPC\\Scrutor.RPC.csproj"
             }
           }
         }

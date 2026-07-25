@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {}
+    "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {}
   },
   "projects": {
-    "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
+    "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
+        "projectUniqueName": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
         "projectName": "Scrutor.Core",
-        "projectPath": "C:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
+        "projectPath": "c:\\projects\\Scrutor\\Scrutor.Core\\Scrutor.Core.csproj",
         "packagesPath": "C:\\Users\\Erick\\.nuget\\packages\\",
-        "outputPath": "C:\\projects\\Scrutor\\Scrutor.Core\\obj\\",
+        "outputPath": "c:\\projects\\Scrutor\\Scrutor.Core\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "configFilePaths": [

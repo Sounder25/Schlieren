@@ -82,8 +82,11 @@ public sealed class StateTransition : IStateTransition
 
             if (commit)
             {
-                // Deduct max gas and increment nonce unconditionally (spec §6.2)
-                state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee);
+                // Deduct max execution gas, actual blob fee, and transaction value upfront
+                // (spec §6.2 / EIP-4844). Value is included here so the BALANCE opcode
+                // returns the post-debit amount during EVM execution. On failed execution
+                // the post-execution settlement block restores tx.Value to the sender.
+                state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee - tx.Value);
                 state.SetNonce(tx.From, senderNonce + 1);
             }
         }
@@ -192,19 +195,26 @@ public sealed class StateTransition : IStateTransition
 
             var gasRefund = tx.GasLimit > totalGasUsed ? tx.GasLimit - totalGasUsed : 0UL;
 
-            // [AI-EDIT 2026-01-10] Sender balance recovery after execution:
+            // Sender balance recovery after execution:
             // 1. Refund for UNUSED gas at the effective gas price.
             // 2. For EIP-1559 (type-2/3): also refund the "price-cap" difference.
             //    The sender paid gasLimit × maxFeePerGas upfront, but should only pay
             //    gasLimit × effectiveGasPrice. The excess (per-gas × total-limit) is returned.
             //    Combined: refund = gasRefund × effectiveGasPrice + gasLimit × (maxFee - effectiveGasPrice)
+            // 3. If execution failed (REVERT / OOG / exceptional halt), restore tx.Value to sender.
+            //    The recipient credit is inside the execution overlay and was never committed,
+            //    so the value was never transferred; the sender should not lose it.
+            //    Gas and blob fees are non-refundable regardless of execution outcome.
             {
                 var currentBalance = await state.GetBalanceAsync(tx.From, ct);
                 var gasRefundAmount = new BigInteger(gasRefund) * effectiveGasPrice;
                 BigInteger priceDiffRefund = BigInteger.Zero;
                 if (tx.TxType >= 2 && tx.MaxFeePerGas > effectiveGasPrice)
                     priceDiffRefund = new BigInteger(tx.GasLimit) * (tx.MaxFeePerGas - effectiveGasPrice);
-                state.SetBalance(tx.From, currentBalance + gasRefundAmount + priceDiffRefund);
+                // Value restoration on failed execution: tx.Value was debited upfront but the
+                // recipient credit in the overlay was never committed, so return it to sender.
+                var valueRestoration = result.IsSuccess ? BigInteger.Zero : tx.Value;
+                state.SetBalance(tx.From, currentBalance + gasRefundAmount + priceDiffRefund + valueRestoration);
             }
 
             // [AI-EDIT 2026-01-10] EIP-1559 coinbase credit = (effectiveGasPrice - baseFee) × gasUsed.
@@ -306,7 +316,7 @@ public sealed class StateTransition : IStateTransition
             blobFee = CalculateBlobFee(tx, block);
             var maxBlobCost = CalculateMaxBlobCost(tx);
             if (senderBalance < maxGasCost + maxBlobCost + tx.Value) return ExecutionResult.Failure(EvmError.InsufficientFunds);
-            if (commit) { state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee); state.SetNonce(tx.From, senderNonce + 1); }
+            if (commit) { state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee - tx.Value); state.SetNonce(tx.From, senderNonce + 1); }
         }
 
         ulong executionGasLimit = tx.Authorization == TransactionAuthorization.Internal
@@ -365,7 +375,8 @@ public sealed class StateTransition : IStateTransition
             BigInteger priceDiffRefund = BigInteger.Zero;
             if (tx.TxType >= 2 && tx.MaxFeePerGas > effectiveGasPrice)
                 priceDiffRefund = new BigInteger(tx.GasLimit) * (tx.MaxFeePerGas - effectiveGasPrice);
-            state.SetBalance(tx.From, currentBalance + gasRefundAmount + priceDiffRefund);
+            var valueRestoration = result.IsSuccess ? BigInteger.Zero : tx.Value;
+            state.SetBalance(tx.From, currentBalance + gasRefundAmount + priceDiffRefund + valueRestoration);
             if (!block.Coinbase.Equals(Address.Zero))
             {
                 var priorityFee = effectiveGasPrice > baseFeePerGas ? effectiveGasPrice - baseFeePerGas : BigInteger.Zero;
@@ -443,7 +454,11 @@ public sealed class StateTransition : IStateTransition
         GasFrameNode? parentGasFrame = null)
     {
         if (depth > 1024)
-             return ExecutionResult.Failure(EvmError.InternalError, 0, null); // Call stack depth limit reached
+        {
+            // [DIAGNOSTIC] Log call stack depth limit
+            Console.WriteLine($"[DEPTH_LIMIT_EXCEEDED] depth={depth} tx={tx} from={tx.From} to={tx.To}");
+            return ExecutionResult.Failure(EvmError.InternalError, 0, null); // Call stack depth limit reached
+        }
 
         // Use a state overlay to ensure snapshot isolation for this execution frame
         var overlay = new StateOverlay(state);
@@ -454,14 +469,22 @@ public sealed class StateTransition : IStateTransition
         // [AI-EDIT 2026-07-24] EIP-2200: reuse the top-level original storage snapshot for the whole tx tree.
         originalStorageSnapshot ??= new Dictionary<(Address, BigInteger), BigInteger>();
 
-        // [AI-EDIT 2026-01-10] For internal sub-calls (CALL/CREATE/etc.), validate
-        // that the caller has sufficient balance for the value transfer only.
-        // Top-level gas deduction and nonce increment are handled by ApplyTransactionAsync.
-        if (tx.Authorization == TransactionAuthorization.Internal)
+        // [AI-EDIT 2026-07-24] Value transfer: debit caller (if internal call) and credit recipient upfront.
+        // Top-level sender debit was already applied in ApplyTransactionAsync.
+        var recipient = creationAddress ?? tx.To;
+        if (tx.Value > 0 && recipient.HasValue)
         {
-            var senderBalance = await overlay.GetBalanceAsync(tx.From, ct);
-            if (senderBalance < tx.Value)
-                return ExecutionResult.Failure(EvmError.InsufficientFunds);
+            if (tx.Authorization == TransactionAuthorization.Internal)
+            {
+                var senderBalance = await overlay.GetBalanceAsync(tx.From, ct);
+                if (senderBalance < tx.Value)
+                    return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                
+                overlay.SetBalance(tx.From, senderBalance - tx.Value);
+            }
+            
+            var recipientBalance = await overlay.GetBalanceAsync(recipient.Value, ct);
+            overlay.SetBalance(recipient.Value, recipientBalance + tx.Value);
         }
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
@@ -475,15 +498,10 @@ public sealed class StateTransition : IStateTransition
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
             }
 
-            // Precompile succeeded — value transfer and state commit handled here
-            if (tx.Value > 0)
+            // Precompile succeeded — state commit handled here
+            if (commit)
             {
-                var preOverlay = new StateOverlay(state);
-                var senderBal = await preOverlay.GetBalanceAsync(tx.From, ct);
-                preOverlay.SetBalance(tx.From, senderBal - tx.Value);
-                var recipientBal = await preOverlay.GetBalanceAsync(tx.To.Value, ct);
-                preOverlay.SetBalance(tx.To.Value, recipientBal + tx.Value);
-                if (commit) preOverlay.Commit();
+                overlay.Commit();
             }
 
             return ExecutionResult.Success(preGas, preOutput);
@@ -595,22 +613,9 @@ public sealed class StateTransition : IStateTransition
         // 4. Execute
         var result = await _evm.ExecuteAsync(context, ct);
 
-        // 5. Finalize: commit state only on success
+        // 5. Finalize: commit state only on success.
         if (result.IsSuccess)
         {
-            // [AI-EDIT 2026-01-10] Value transfer: atomically debit sender AND credit recipient.
-            // Both sides must be updated so balance is conserved. Previously only the credit
-            // was applied, leaving the sender over-funded by tx.Value on every successful call.
-            var recipient = creationAddress ?? tx.To;
-            if (tx.Value > 0 && recipient.HasValue)
-            {
-                var senderBalance = await overlay.GetBalanceAsync(tx.From, ct);
-                overlay.SetBalance(tx.From, senderBalance - tx.Value);
-
-                var recipientBalance = await overlay.GetBalanceAsync(recipient.Value, ct);
-                overlay.SetBalance(recipient.Value, recipientBalance + tx.Value);
-            }
-
             if (commit)
             {
                 overlay.Commit();
