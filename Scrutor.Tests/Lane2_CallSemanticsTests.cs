@@ -423,6 +423,7 @@ public class CallGasForwardingTests
         // initCodeWordGas = 2 × 2 = 4; hashWordGas = 6 × 2 = 12; base = 32000 → total = 32016
         var initCode = new byte[64];
         ctx.Memory.Store(0, initCode);
+        var memoryExpansionGas = ctx.Memory.CalculateGasCost(initCode.Length);
 
         ctx.Stack.Push(0);  // salt
         ctx.Stack.Push(64); // length
@@ -432,8 +433,17 @@ public class CallGasForwardingTests
         await new OpcodeCreate2().ExecuteAsync(ctx);
 
         Assert.NotNull(gasPassedToChild);
-        // Parent consumed 32016 before handing over; rest goes to child.
-        Assert.Equal(10_000_000UL - 32_016UL, gasPassedToChild!.Value);
+        const ulong createBaseGas = 32_000;
+        const ulong initCodeWordGas = 2 * 2;
+        const ulong hashWordGas = 6 * 2;
+        var gasBeforeEip150 =
+            ctx.GasLimit - createBaseGas - memoryExpansionGas - initCodeWordGas - hashWordGas;
+        var expectedForwarded = gasBeforeEip150 - gasBeforeEip150 / 64UL;
+
+        Assert.Equal(0UL, memoryExpansionGas);
+        Assert.Equal(9_967_984UL, gasBeforeEip150);
+        Assert.Equal(9_812_235UL, expectedForwarded);
+        Assert.Equal(expectedForwarded, gasPassedToChild!.Value);
     }
 
     // ── EIP-3529: SELFDESTRUCT no gas refund ───────────────────────────────
@@ -483,7 +493,7 @@ public class CallGasForwardingTests
     // ── RETURNDATACOPY overflow safety ──────────────────────────────────────
 
     [Fact]
-    public async Task ReturnDataCopy_OobOffset_ReturnsInvalidMemoryAccess()
+    public async Task ReturnDataCopy_OobOffset_ReturnsOutOfGas()
     {
         var ctx = MakeContext();
         ctx.LastReturnData = new byte[] { 0x01, 0x02, 0x03 };
@@ -496,7 +506,7 @@ public class CallGasForwardingTests
         var (result, _) = await new OpcodeReturnDataCopy().ExecuteAsync(ctx);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(EvmError.InvalidMemoryAccess, result.Error);
+        Assert.Equal(EvmError.OutOfGas, result.Error);
     }
 
     [Fact]
@@ -587,7 +597,7 @@ public class CallGasForwardingTests
     // ── Gas refund accounting ───────────────────────────────────────────────
 
     [Fact]
-    public async Task Call_UnusedGas_RefundedToParent_ExcludingStipend()
+    public async Task Call_UnusedGas_RefundIncludesUnchargedStipend()
     {
         var state = new GlobalState();
         var caller = Address.FromHex("0x1000000000000000000000000000000000000001");
@@ -604,9 +614,13 @@ public class CallGasForwardingTests
             GasUsed         = 0
         };
 
-        // Child uses zero gas (returns everything).
+        const ulong childGasUsed = 0;
+        ulong? childGasLimit = null;
         ctx.SubCall = (tx, _, _, _) =>
-            Task.FromResult(ExecutionResult.Success(0)); // 0 gas used
+        {
+            childGasLimit = tx.GasLimit;
+            return Task.FromResult(ExecutionResult.Success(childGasUsed));
+        };
 
         var addrBig = new BigInteger(callee.Bytes, isUnsigned: true, isBigEndian: true);
         ctx.Stack.Push(0); ctx.Stack.Push(0); ctx.Stack.Push(0); ctx.Stack.Push(0);
@@ -614,16 +628,34 @@ public class CallGasForwardingTests
         ctx.Stack.Push(addrBig);
         ctx.Stack.Push(10_000); // request 10000
 
+        var parentGasBeforeCall = ctx.GasLimit - ctx.GasUsed;
         await new OpcodeCall().ExecuteAsync(ctx);
 
-        // callee is NOT empty (has code) → no new-account gas.
-        // gasLimit=10000 (within cap); childGasLimit=10000+2300=12300; child used 0.
-        // refundable=12300; strip stipend(2300) → parentRefund=10000; consumed=10000; GasUsed=10000-10000=0.
-        // However the child also has state reads that consume GasUsed in the mock; the mock returns
-        // Success(0) so childUsed=0. Net: GasUsed = forwarded(10000) - refund(10000) = 0 → but
-        // the EIP-2929 cold touch of callee address charges 2600 within OpcodeCall itself.
-        // Actual: GasUsed = 2600 (cold callee touch, non-refundable) + 0 forwarded = 2600.
-        Assert.Equal(2600UL, ctx.GasUsed);
+        const ulong accessCost = 2_600;
+        const ulong valueTransferCost = 9_000;
+        const ulong requestedGas = 10_000;
+        var gasAvailableForForwarding =
+            parentGasBeforeCall - accessCost - valueTransferCost;
+        var eip150Cap =
+            gasAvailableForForwarding - gasAvailableForForwarding / 64UL;
+        var forwardedGas = Math.Min(requestedGas, eip150Cap);
+        var parentDebit = accessCost + valueTransferCost + forwardedGas;
+        const ulong stipend = 2_300;
+        var expectedChildGasLimit = forwardedGas + stipend;
+        var childGasRemaining = expectedChildGasLimit - childGasUsed;
+        var parentRefund = childGasRemaining;
+        var parentFinalGas = parentGasBeforeCall - parentDebit + parentRefund;
+
+        Assert.Equal(100_000UL, parentGasBeforeCall);
+        Assert.Equal(87_019UL, eip150Cap);
+        Assert.Equal(10_000UL, forwardedGas);
+        Assert.Equal(21_600UL, parentDebit);
+        Assert.Equal(12_300UL, expectedChildGasLimit);
+        Assert.Equal(expectedChildGasLimit, childGasLimit);
+        Assert.Equal(12_300UL, childGasRemaining);
+        Assert.Equal(12_300UL, parentRefund);
+        Assert.Equal(90_700UL, parentFinalGas);
+        Assert.Equal(parentGasBeforeCall - parentFinalGas, ctx.GasUsed);
     }
 
     [Fact]

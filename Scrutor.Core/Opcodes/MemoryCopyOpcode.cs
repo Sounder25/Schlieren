@@ -22,7 +22,16 @@ public sealed class OpcodeMcopy : IOpcode
             return new ValueTask<(ExecutionResult, int)>(
                 (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var lengthInt = (int)length;
+        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
+        // Zero-length operations are always valid regardless of offsets.
+        if (!OperandValidation.TryResolveMemoryRange(dst, length, out var dstInt, out var lengthInt, out var dstEnd))
+            return new ValueTask<(ExecutionResult, int)>(
+                (ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
+
+        if (!OperandValidation.TryResolveMemoryRange(src, length, out var srcInt, out _, out var srcEnd))
+            return new ValueTask<(ExecutionResult, int)>(
+                (ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
+
         if (lengthInt == 0)
         {
             // Zero-length copy: only base gas cost (3), no memory expansion
@@ -30,15 +39,12 @@ public sealed class OpcodeMcopy : IOpcode
                 (ExecutionResult.Success(3), context.ProgramCounter + 1));
         }
 
-        var dstInt = (int)dst;
-        var srcInt = (int)src;
-
         // Gas: 3 (base) + 3 * words (copy cost) + memory expansion for both src and dst regions
-        var words = (ulong)(lengthInt + 31) / 32;
+        var words = ((ulong)lengthInt + 31) / 32;
         var copyCost = 3UL + 3UL * words;
 
         // Memory expansion cost: expand for whichever end is larger
-        var maxEnd = Math.Max(dstInt + lengthInt, srcInt + lengthInt);
+        var maxEnd = Math.Max((int)dstEnd, (int)srcEnd);
         var expansionGas = context.Memory.CalculateGasCost(maxEnd);
 
         // Load source data, then store at destination (handles overlapping copies correctly

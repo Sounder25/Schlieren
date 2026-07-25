@@ -220,16 +220,18 @@ public sealed class OpcodeCallDataCopy : IOpcode
         if (!context.Stack.TryPop(out var destOffset) || !context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var destInt = (int)destOffset;
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
+        // Zero-length operations are always valid regardless of offset.
+        if (!OperandValidation.TryResolveMemoryRange(destOffset, length, out var destInt, out var lengthInt, out var endExclusive))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
 
-        var expansionGas = context.Memory.CalculateGasCost(destInt + lengthInt);
-        var copyGas = (ulong)(lengthInt + 31) / 32 * 3;
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
+        var copyGas = ((ulong)lengthInt + 31) / 32 * 3;
 
         var data = new byte[lengthInt];
-        if (offsetInt < context.CallData.Length)
+        if (offset < context.CallData.Length)
         {
+            var offsetInt = (int)offset;
             var count = Math.Min(lengthInt, context.CallData.Length - offsetInt);
             Array.Copy(context.CallData, offsetInt, data, 0, count);
         }
@@ -272,16 +274,18 @@ public sealed class OpcodeCodeCopy : IOpcode
         if (!context.Stack.TryPop(out var destOffset) || !context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var destInt = (int)destOffset;
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
+        // Zero-length operations are always valid regardless of offset.
+        if (!OperandValidation.TryResolveMemoryRange(destOffset, length, out var destInt, out var lengthInt, out var endExclusive))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
 
-        var expansionGas = context.Memory.CalculateGasCost(destInt + lengthInt);
-        var copyGas = (ulong)(lengthInt + 31) / 32 * 3;
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
+        var copyGas = ((ulong)lengthInt + 31) / 32 * 3;
 
         var data = new byte[lengthInt];
-        if (offsetInt < context.Code.Length)
+        if (offset < context.Code.Length)
         {
+            var offsetInt = (int)offset;
             var count = Math.Min(lengthInt, context.Code.Length - offsetInt);
             Array.Copy(context.Code, offsetInt, data, 0, count);
         }
@@ -324,25 +328,25 @@ public sealed class OpcodeReturnDataCopy : IOpcode
         if (!context.Stack.TryPop(out var destOffset) || !context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        // Gap 5: Guard against BigInteger values that silently overflow int cast (EIP-211).
-        // Any offset or length exceeding int.MaxValue is treated as out-of-bounds (OutOfGas).
-        if (offset > int.MaxValue || length > int.MaxValue || destOffset > int.MaxValue)
-            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1));
+        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
+        // Zero-length operations are always valid regardless of offset.
+        if (!OperandValidation.TryResolveMemoryRange(destOffset, length, out var destInt, out var lengthInt, out var endExclusive))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
 
-        var destInt = (int)destOffset;
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        // EIP-211: source offsets are checked as 256-bit values, including
+        // zero-length ranges at the exact end of return data.
+        if (offset + length > context.LastReturnData.Length)
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
 
-        // EIP-211: reading past the end of RETURNDATA is an InvalidMemoryAccess.
-        if ((long)offsetInt + lengthInt > context.LastReturnData.Length)
-             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.InvalidMemoryAccess), context.ProgramCounter + 1));
-
-        var expansionGas = context.Memory.CalculateGasCost(destInt + lengthInt);
-        var copyGas = (ulong)(lengthInt + 31) / 32 * 3;
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
+        var copyGas = ((ulong)lengthInt + 31) / 32 * 3;
 
         var responseData = new byte[lengthInt];
         if (lengthInt > 0)
+        {
+            var offsetInt = (int)offset;
             Array.Copy(context.LastReturnData, offsetInt, responseData, 0, lengthInt);
+        }
 
         context.Memory.Store(destInt, responseData);
 

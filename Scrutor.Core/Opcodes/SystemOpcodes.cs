@@ -862,6 +862,7 @@ internal static class PrecompileExecutor
         var baseLen = ReadLengthWord(input, 0);
         var expLen = ReadLengthWord(input, 32);
         var modLen = ReadLengthWord(input, 64);
+
         var gasCost = ComputeModExpGas(baseLen, expLen, modLen, input);
 
         if (gasLimit < gasCost)
@@ -869,12 +870,18 @@ internal static class PrecompileExecutor
             return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
         }
 
-        if (modLen == 0)
+        if (modLen.IsZero)
         {
-            return ExecutionResult.Success(gasCost, Array.Empty<byte>());
+            return ExecutionResult.Success((ulong)gasCost, Array.Empty<byte>());
         }
 
-        var offset = 96UL;
+        if (baseLen > int.MaxValue || expLen > int.MaxValue || modLen > int.MaxValue ||
+            baseLen + expLen + modLen > int.MaxValue - 96)
+        {
+            return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
+        }
+
+        var offset = new BigInteger(96);
         var baseBytes = ReadSegment(input, offset, baseLen);
         offset += baseLen;
         var expBytes = ReadSegment(input, offset, expLen);
@@ -885,65 +892,63 @@ internal static class PrecompileExecutor
         byte[] output;
         if (modulus.IsZero)
         {
-            output = new byte[CheckedInt(modLen)];
+            output = new byte[(int)modLen];
         }
         else
         {
             var @base = new BigInteger(baseBytes, isUnsigned: true, isBigEndian: true);
             var exponent = new BigInteger(expBytes, isUnsigned: true, isBigEndian: true);
             var result = BigInteger.ModPow(@base, exponent, modulus);
-            output = ToFixedLengthWord(result, CheckedInt(modLen));
+            output = ToFixedLengthWord(result, (int)modLen);
         }
 
-        return ExecutionResult.Success(gasCost, output);
+        return ExecutionResult.Success((ulong)gasCost, output);
     }
 
-    private static ulong ReadLengthWord(byte[] input, int start)
+    private static BigInteger ReadLengthWord(byte[] input, int start)
     {
         if (start >= input.Length)
         {
-            return 0;
+            return BigInteger.Zero;
         }
 
         var len = Math.Min(32, input.Length - start);
         var bytes = new byte[32];
         Array.Copy(input, start, bytes, 0, len);
-        var value = new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
-        if (value > ulong.MaxValue)
-        {
-            return ulong.MaxValue;
-        }
-
-        return (ulong)value;
+        return new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
     }
 
-    private static byte[] ReadSegment(byte[] input, ulong start, ulong len)
+    private static byte[] ReadSegment(byte[] input, BigInteger start, BigInteger len)
     {
-        if (len == 0)
+        if (len.IsZero)
         {
             return Array.Empty<byte>();
         }
 
-        var output = new byte[CheckedInt(len)];
-        if (start >= (ulong)input.Length)
+        var output = new byte[(int)len];
+        if (start >= input.Length)
         {
             return output;
         }
 
-        var available = (ulong)input.Length - start;
-        var copyLen = Math.Min(available, len);
-        Array.Copy(input, (long)start, output, 0, (long)copyLen);
+        var startInt = (int)start;
+        var copyLen = Math.Min(input.Length - startInt, output.Length);
+        Array.Copy(input, startInt, output, 0, copyLen);
         return output;
     }
 
-    private static ulong ComputeModExpGas(ulong baseLen, ulong expLen, ulong modLen, byte[] input)
+    private static BigInteger ComputeModExpGas(
+        BigInteger baseLen,
+        BigInteger expLen,
+        BigInteger modLen,
+        byte[] input)
     {
-        var maxLen = Math.Max(baseLen, modLen);
+        var maxLen = BigInteger.Max(baseLen, modLen);
         var words = (maxLen + 7) / 8;
-        var multiplicationComplexity = new BigInteger(words) * new BigInteger(words);
+        var multiplicationComplexity = words * words;
 
-        var headLen = (int)Math.Min(expLen, 32UL);
-        var expHead = ReadSegment(input, 96UL + baseLen, (ulong)headLen);
+        var headLen = (int)BigInteger.Min(expLen, 32);
+        var expHead = ReadSegmentForGas(input, 96 + baseLen, headLen);
         var expHeadValue = new BigInteger(expHead, isUnsigned: true, isBigEndian: true);
         var expHeadBits = expHeadValue.IsZero ? 0 : GetBitLength(expHeadValue);
 
@@ -968,7 +973,21 @@ internal static class PrecompileExecutor
             gas = 200;
         }
 
-        return gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+        return gas;
+    }
+
+    private static byte[] ReadSegmentForGas(byte[] input, BigInteger start, int length)
+    {
+        var output = new byte[length];
+        if (length == 0 || start < 0 || start >= input.Length)
+        {
+            return output;
+        }
+
+        var startInt = (int)start;
+        var copyLen = Math.Min(length, input.Length - startInt);
+        Array.Copy(input, startInt, output, 0, copyLen);
+        return output;
     }
 
     private static int GetBitLength(BigInteger value)
@@ -988,16 +1007,6 @@ internal static class PrecompileExecutor
         }
 
         return ((bytes.Length - 1) * 8) + bitsInMsb;
-    }
-
-    private static int CheckedInt(ulong value)
-    {
-        if (value > int.MaxValue)
-        {
-            throw new InvalidOperationException("precompile input too large");
-        }
-
-        return (int)value;
     }
 
     private static byte[] ToFixedLengthWord(BigInteger value, int size)

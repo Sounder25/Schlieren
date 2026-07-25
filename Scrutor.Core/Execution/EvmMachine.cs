@@ -48,8 +48,7 @@ namespace Scrutor.Core.Execution
                 try
                 {
                     var (execResult, nextPc) = await opcode.ExecuteAsync(context, ct);
-                    
-                    // Consume gas
+
                     context.ConsumeGas(execResult.GasUsed);
                     context.AddTraceStep(pc, opcode.Name, gasBefore, execResult.GasUsed);
                     // Record into gas frame journal (for gas causality tree)
@@ -65,7 +64,7 @@ namespace Scrutor.Core.Execution
                     // Capture any return data (RETURN / REVERT opcodes carry deployed code or revert reason)
                     if (execResult.ReturnData.Length > 0)
                         lastReturnData = execResult.ReturnData;
-                    
+
                     // Advance PC to the next instruction
                     context.ProgramCounter = nextPc;
                 }
@@ -78,11 +77,23 @@ namespace Scrutor.Core.Execution
                 {
                     throw;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Catch-all for other potential issues during opcode execution
-                    context.AddTraceStep(pc, opcode.Name, gasBefore, 0);
-                    return ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasUsed) with { TraceSteps = context.TraceSteps };
+                    Console.Error.WriteLine(
+                        $"[INTERNAL_ERROR] " +
+                        $"depth={context.CallDepth} " +
+                        $"pc={pc} " +
+                        $"opcode={opcode.Name} (0x{opcodeByte:X2}) " +
+                        $"gasUsed={context.GasUsed} " +
+                        $"gasLimit={context.GasLimit} " +
+                        $"contract={context.ContractAddress} " +
+                        $"caller={context.Caller} " +
+                        $"stack=[{string.Join(",", context.Stack.SnapshotTopFirst().Select(value => $"0x{value:x}"))}] " +
+                        $"type={ex.GetType().FullName} " +
+                        $"message={ex.Message}\n" +
+                        $"stackTrace={ex.StackTrace}"
+                    );
+                    throw;
                 }
             }
 

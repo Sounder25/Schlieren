@@ -98,10 +98,10 @@ public sealed class OpcodeReturn : IOpcode
         if (!context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        if (!OperandValidation.TryResolveMemoryRange(offset, length, out var offsetInt, out var lengthInt, out var endExclusive))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1));
 
-        var expansionGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
         var data = context.Memory.Load(offsetInt, lengthInt);
 
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(expansionGas, data), context.Code.Length));
@@ -118,10 +118,10 @@ public sealed class OpcodeRevert : IOpcode
         if (!context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        if (!OperandValidation.TryResolveMemoryRange(offset, length, out var offsetInt, out var lengthInt, out var endExclusive))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1));
 
-        var expansionGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
         var data = context.Memory.Load(offsetInt, lengthInt);
 
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.Revert, expansionGas, data), context.Code.Length));

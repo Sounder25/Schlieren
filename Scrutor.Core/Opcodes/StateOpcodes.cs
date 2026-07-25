@@ -19,12 +19,14 @@ public sealed class OpcodeKeccak256 : IOpcode
         if (!context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
+        // Zero-length operations are always valid regardless of offset.
+        if (!OperandValidation.TryResolveMemoryRange(offset, length, out var offsetInt, out var lengthInt, out var endExclusive))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1));
 
-        var expansionGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
         
-        var words = (ulong)(lengthInt + 31) / 32;
+        var words = ((ulong)lengthInt + 31) / 32;
         var hashGas = 30 + 6 * words;
 
         var data = context.Memory.Load(offsetInt, lengthInt);
