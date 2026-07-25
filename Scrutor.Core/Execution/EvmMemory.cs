@@ -43,6 +43,14 @@ public sealed class EvmMemory
         return newCost - oldCost;
     }
 
+    public void Expand(int newSize)
+    {
+        if (newSize > 0)
+        {
+            EnsureCapacity(newSize);
+        }
+    }
+
     private void EnsureCapacity(int requiredSize)
     {
         if (_data.Length >= requiredSize) return;

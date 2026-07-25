@@ -172,6 +172,7 @@ public sealed class OpcodeCall : IOpcode
         var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
+        context.Memory.Expand(maxMemoryAccess);
 
         // Load input data
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
@@ -440,6 +441,7 @@ public sealed class OpcodeStaticCall : IOpcode
         var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
+        context.Memory.Expand(maxMemoryAccess);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
@@ -543,6 +545,7 @@ public sealed class OpcodeCallCode : IOpcode
         var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
+        context.Memory.Expand(maxMemoryAccess);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
@@ -658,6 +661,7 @@ public sealed class OpcodeDelegateCall : IOpcode
         var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
+        context.Memory.Expand(maxMemoryAccess);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 

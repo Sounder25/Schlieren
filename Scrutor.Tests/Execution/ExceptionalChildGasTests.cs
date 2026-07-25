@@ -65,6 +65,27 @@ public sealed class ExceptionalChildGasTests
         Assert.Equal(100UL, context.GasUsed);
     }
 
+    [Fact]
+    public async Task Call_ExpandsReservedOutputRegion_WhenChildReturnsNoData()
+    {
+        var context = CreateCallContext();
+        context.Memory.Store(0, new byte[32]);
+        context.Stack.Push(32);     // return length
+        context.Stack.Push(32);     // return offset
+        context.Stack.Push(32);     // argument length
+        context.Stack.Push(0);      // argument offset
+        context.Stack.Push(0);      // value
+        context.Stack.Push(0x1000); // callee
+        context.Stack.Push(10_000); // requested gas
+
+        await new OpcodeCall().ExecuteAsync(context);
+
+        Assert.Equal(64, context.Memory.Size);
+        context.Stack.Push(32);
+        var (mloadResult, _) = await new OpcodeMload().ExecuteAsync(context);
+        Assert.Equal(3UL, mloadResult.GasUsed);
+    }
+
     private static EvmExecutionContext CreateCallContext()
     {
         var callee = Address.FromHex(
