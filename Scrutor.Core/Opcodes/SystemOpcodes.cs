@@ -443,10 +443,10 @@ public sealed class OpcodeStaticCall : IOpcode
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
-        // EIP-2929: charge cold address surcharge before gas forwarding.
+        // EIP-2929: charge warm access or cold address access before forwarding.
         var isWarm = context.Access.TouchAddress(toAddress);
-        ulong coldSurcharge = isWarm ? 0UL : 2600UL;
-        if (coldSurcharge > 0) context.ConsumeGas(coldSurcharge);
+        ulong accessCost = isWarm ? 100UL : 2600UL;
+        context.ConsumeGas(accessCost);
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas.
         var remaining = context.GasLimit - context.GasUsed;
@@ -661,10 +661,10 @@ public sealed class OpcodeDelegateCall : IOpcode
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
-        // EIP-2929: charge cold address surcharge before gas forwarding.
+        // EIP-2929: charge warm access or cold address access before forwarding.
         var isCodeWarm = context.Access.TouchAddress(codeAddress);
-        ulong coldSurcharge = isCodeWarm ? 0UL : 2600UL;
-        if (coldSurcharge > 0) context.ConsumeGas(coldSurcharge);
+        ulong accessCost = isCodeWarm ? 100UL : 2600UL;
+        context.ConsumeGas(accessCost);
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas.
         var remaining = context.GasLimit - context.GasUsed;

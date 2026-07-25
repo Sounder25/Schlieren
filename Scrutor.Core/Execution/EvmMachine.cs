@@ -42,7 +42,12 @@ namespace Scrutor.Core.Execution
                 if (!_opcodes.TryGetValue(opcodeByte, out var opcode))
                 {
                     context.AddTraceStep(pc, $"0x{opcodeByte:X2}", gasBefore, 0);
-                    return ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasUsed) with { TraceSteps = context.TraceSteps };
+                    return ExecutionResult.Failure(
+                        EvmError.InvalidOpcode,
+                        context.GasLimit) with
+                    {
+                        TraceSteps = context.TraceSteps
+                    };
                 }
 
                 try
@@ -58,7 +63,14 @@ namespace Scrutor.Core.Execution
                     // If the opcode execution itself failed, propagate the failure
                     if (!execResult.IsSuccess)
                     {
-                        return execResult with { GasUsed = context.GasUsed, TraceSteps = context.TraceSteps };
+                        var failureGasUsed = execResult.Error == EvmError.Revert
+                            ? context.GasUsed
+                            : context.GasLimit;
+                        return execResult with
+                        {
+                            GasUsed = failureGasUsed,
+                            TraceSteps = context.TraceSteps
+                        };
                     }
 
                     // Capture any return data (RETURN / REVERT opcodes carry deployed code or revert reason)
@@ -71,7 +83,12 @@ namespace Scrutor.Core.Execution
                 catch (EvmOutOfGasException)
                 {
                     context.AddTraceStep(pc, opcode.Name, gasBefore, gasBefore);
-                    return ExecutionResult.Failure(EvmError.OutOfGas, context.GasUsed) with { TraceSteps = context.TraceSteps };
+                    return ExecutionResult.Failure(
+                        EvmError.OutOfGas,
+                        context.GasLimit) with
+                    {
+                        TraceSteps = context.TraceSteps
+                    };
                 }
                 catch (OperationCanceledException)
                 {
