@@ -55,39 +55,102 @@ public sealed class OpcodeSstore : IOpcode
         if (!context.Stack.TryPop(out var key) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1)).Result;
 
-        // EIP-2929: determine cold vs warm, charge cold surcharge if cold.
-        var isWarm = context.Access.TouchSlot(context.ContractAddress, key);
-        ulong gasCost = isWarm ? 0 : ColdSlotSurcharge;
-
-        // EIP-2200: determine base cost based on current vs new value.
+        var slotKey = (context.ContractAddress, key);
         var currentValue = await context.Storage.LoadAsync(key);
+        
+        // EIP-2200: Capture original value on first access to this slot in the transaction
+        if (!context.OriginalStorageValues.ContainsKey(slotKey))
+        {
+            context.OriginalStorageValues[slotKey] = currentValue;
+        }
+        var originalValue = context.OriginalStorageValues[slotKey];
+        
+        // EIP-2929: Determine cold vs warm, charge cold surcharge if cold
+        var isWarm = context.Access.TouchSlot(context.ContractAddress, key);
+        ulong coldCost = isWarm ? 0 : ColdSlotSurcharge;
+        
+        // EIP-2200 + EIP-3529: Full (original, current, new) tri-state metering
+        ulong baseCost;
+        long refundDelta = 0;
+        
         if (currentValue == value)
         {
-            gasCost += SstoreWarmNoopCost; // No change — warm no-op cost
+            // No-op: value unchanged
+            baseCost = SstoreWarmNoopCost; // 100 gas
         }
-        else if (currentValue == BigInteger.Zero)
+        else if (originalValue == currentValue)
         {
-            gasCost += SstoreSetCost; // Storage was empty, now setting a value
-        }
-        else if (value == BigInteger.Zero)
-        {
-            gasCost += SstoreCleanupCost; // Clearing storage (refunds handled externally)
+            // First write to this slot in the transaction
+            if (originalValue == BigInteger.Zero)
+            {
+                // 0 → non-zero: setting a new slot
+                baseCost = SstoreSetCost; // 20,000 gas
+            }
+            else
+            {
+                // non-zero → different value
+                baseCost = SstoreResetCost; // 2,900 gas
+                
+                // If clearing the slot, grant refund
+                if (value == BigInteger.Zero)
+                {
+                    refundDelta = 4800; // EIP-3529 refund for clearing storage
+                }
+            }
         }
         else
         {
-            gasCost += SstoreResetCost; // Changing to a different non-zero value
+            // Subsequent write to a slot already modified in this transaction
+            baseCost = SstoreWarmNoopCost; // 100 gas (dirty update)
+            
+            // Refund logic for dirty updates
+            if (originalValue != BigInteger.Zero)
+            {
+                // Original slot was non-zero
+                if (currentValue == BigInteger.Zero)
+                {
+                    // Previous write cleared it; this write un-clears it
+                    refundDelta = -4800; // Remove the earlier refund
+                }
+                else if (value == BigInteger.Zero)
+                {
+                    // This write clears it
+                    refundDelta = 4800; // Grant refund
+                }
+            }
+            
+            // Additional refund if we're restoring to original
+            if (value == originalValue)
+            {
+                if (originalValue == BigInteger.Zero)
+                {
+                    // Restoring to zero (was set, now cleared back)
+                    refundDelta += (long)(SstoreSetCost - SstoreWarmNoopCost); // +19,900
+                }
+                else
+                {
+                    // Restoring to original non-zero (was changed, now reverted)
+                    if (currentValue == BigInteger.Zero)
+                    {
+                        // Previous state was zero, now restoring to original non-zero
+                        refundDelta += (long)SstoreResetCost - (long)SstoreWarmNoopCost - 4800; // 2,900 - 100 - 4,800 = -2,000
+                    }
+                    else
+                    {
+                        // Previous state was different non-zero, now restoring to original
+                        refundDelta += (long)(SstoreResetCost - SstoreWarmNoopCost); // +2,800
+                    }
+                }
+            }
         }
-
+        
+        ulong totalCost = coldCost + baseCost;
+        context.GasRefundCounter += refundDelta;
+        
         context.Storage.Store(key, value);
         context.TraceStorageWrite(key, value);
 
-        // EIP-3529: grant refund when clearing storage (non-zero → zero).
-        if (value == BigInteger.Zero && currentValue != BigInteger.Zero)
-        {
-            context.GasRefundCounter += 4800;
-        }
-
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(gasCost), context.ProgramCounter + 1)).Result;
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(totalCost), context.ProgramCounter + 1)).Result;
     }
 }
 

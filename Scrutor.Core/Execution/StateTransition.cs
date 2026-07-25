@@ -390,6 +390,7 @@ public sealed class StateTransition : IStateTransition
         ulong? executionGasLimit = null,
         ITransientStorageFrame? transientStorage = null,
         AccessTracker? accessTracker = null,
+        Dictionary<(Address, BigInteger), BigInteger>? originalStorageSnapshot = null,
         GasFrameNode? parentGasFrame = null)
     {
         if (depth > 1024)
@@ -401,6 +402,8 @@ public sealed class StateTransition : IStateTransition
         var transientFrame = new TransientStorageOverlay(transientStorage);
         // [AI-EDIT 2026-01-10] EIP-2929: reuse the top-level access tracker for the whole tx tree.
         accessTracker ??= new AccessTracker();
+        // [AI-EDIT 2026-07-24] EIP-2200: reuse the top-level original storage snapshot for the whole tx tree.
+        originalStorageSnapshot ??= new Dictionary<(Address, BigInteger), BigInteger>();
 
         // [AI-EDIT 2026-01-10] For internal sub-calls (CALL/CREATE/etc.), validate
         // that the caller has sufficient balance for the value transfer only.
@@ -502,13 +505,16 @@ public sealed class StateTransition : IStateTransition
             Storage = new OverlayStorage(overlay, contractAddress, ct),
             TransientLoad = transientFrame.Load,
             TransientStore = transientFrame.Store,
-            Access = accessTracker
+            Access = accessTracker,
+            OriginalStorageValues = originalStorageSnapshot
         };
 
         // Wire up recursion — sub-calls receive their own gas stipend from the calling opcode,
         // so no executionGasLimit override is needed (depth > 0 path).
         // [AI-EDIT 2026-01-10] Share the same AccessTracker across all sub-calls: EIP-2929
         // warm/cold state accumulates across the entire transaction's call tree.
+        // [AI-EDIT 2026-07-24] Share the same OriginalStorageValues snapshot across all sub-calls: EIP-2200
+        // original values are captured at transaction start and shared across all frames.
         context.SubCall = (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
             ExecuteInternalAsync(
                 subTx,
@@ -524,6 +530,7 @@ public sealed class StateTransition : IStateTransition
                 executionGasLimit: null,
                 transientStorage: transientFrame,
                 accessTracker: accessTracker,
+                originalStorageSnapshot: originalStorageSnapshot,
                 parentGasFrame: thisFrame);
 
         // 4. Execute

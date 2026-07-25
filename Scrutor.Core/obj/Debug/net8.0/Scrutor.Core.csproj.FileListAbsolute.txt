@@ -1,12 +1,12 @@
-C:\projects\Scrutor\Scrutor.Core\bin\Debug\net8.0\Scrutor.Core.deps.json
-C:\projects\Scrutor\Scrutor.Core\bin\Debug\net8.0\Scrutor.Core.dll
-C:\projects\Scrutor\Scrutor.Core\bin\Debug\net8.0\Scrutor.Core.pdb
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.csproj.AssemblyReference.cache
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.GeneratedMSBuildEditorConfig.editorconfig
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.AssemblyInfoInputs.cache
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.AssemblyInfo.cs
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.csproj.CoreCompileInputs.cache
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.sourcelink.json
+C:\projects\Scrutor\Scrutor.Core\bin\Debug\net8.0\Scrutor.Core.deps.json
+C:\projects\Scrutor\Scrutor.Core\bin\Debug\net8.0\Scrutor.Core.dll
+C:\projects\Scrutor\Scrutor.Core\bin\Debug\net8.0\Scrutor.Core.pdb
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.dll
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\refint\Scrutor.Core.dll
 C:\projects\Scrutor\Scrutor.Core\obj\Debug\net8.0\Scrutor.Core.pdb

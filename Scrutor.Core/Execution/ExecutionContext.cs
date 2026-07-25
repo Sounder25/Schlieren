@@ -70,6 +70,14 @@ namespace Scrutor.Core.Execution
         /// transaction (including sub-calls). Must be set by StateTransition before execution.
         /// </summary>
         public AccessTracker Access { get; init; } = new();
+        
+        /// <summary>
+        /// [AI-EDIT 2026-07-24] EIP-2200 original storage values snapshot — tracks storage slot
+        /// values at transaction start for proper net-metering refund calculations. Shared across
+        /// entire transaction (including sub-calls). Populated lazily on first SLOAD/SSTORE per slot.
+        /// </summary>
+        public Dictionary<(Address, BigInteger), BigInteger> OriginalStorageValues { get; init; } = new();
+        
         public List<TransactionLog> Logs { get; } = new();
         
         public IGlobalState State { get; set; } = default!;
