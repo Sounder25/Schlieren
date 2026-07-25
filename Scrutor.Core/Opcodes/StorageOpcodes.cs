@@ -19,11 +19,20 @@ public sealed class OpcodeSload : IOpcode
         if (!context.Stack.TryPop(out var key))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
+        var slotKey = (context.StorageAddress, key);
+        
         // EIP-2929: first access to a slot within the tx is cold (2100), subsequent warm (100).
-        var isWarm = context.Access.TouchSlot(context.ContractAddress, key);
+        var isWarm = context.Access.TouchSlot(context.StorageAddress, key);
         var gasCost = isWarm ? WarmSlotCost : ColdSlotCost;
 
         var value = await context.Storage.LoadAsync(key);
+        
+        // EIP-2200: Capture original value on first access to this slot in the transaction
+        if (!context.OriginalStorageValues.ContainsKey(slotKey))
+        {
+            context.OriginalStorageValues[slotKey] = value;
+        }
+        
         context.TraceStorageRead(key, value);
         
         if (!context.Stack.TryPush(value))
@@ -55,7 +64,7 @@ public sealed class OpcodeSstore : IOpcode
         if (!context.Stack.TryPop(out var key) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1)).Result;
 
-        var slotKey = (context.ContractAddress, key);
+        var slotKey = (context.StorageAddress, key);
         var currentValue = await context.Storage.LoadAsync(key);
         
         // EIP-2200: Capture original value on first access to this slot in the transaction
@@ -66,7 +75,7 @@ public sealed class OpcodeSstore : IOpcode
         var originalValue = context.OriginalStorageValues[slotKey];
         
         // EIP-2929: Determine cold vs warm, charge cold surcharge if cold
-        var isWarm = context.Access.TouchSlot(context.ContractAddress, key);
+        var isWarm = context.Access.TouchSlot(context.StorageAddress, key);
         ulong coldCost = isWarm ? 0 : ColdSlotSurcharge;
         
         // EIP-2200 + EIP-3529: Full (original, current, new) tri-state metering
@@ -100,46 +109,37 @@ public sealed class OpcodeSstore : IOpcode
         }
         else
         {
-            // Subsequent write to a slot already modified in this transaction
-            baseCost = SstoreWarmNoopCost; // 100 gas (dirty update)
+            // Subsequent write to a slot already modified in this transaction (dirty slot)
+            baseCost = SstoreWarmNoopCost; // 100 gas
             
-            // Refund logic for dirty updates
+            // EIP-2200 dirty-slot refund adjustments
             if (originalValue != BigInteger.Zero)
             {
-                // Original slot was non-zero
+                // Original was non-zero: track zero-transitions for clear refund
                 if (currentValue == BigInteger.Zero)
                 {
-                    // Previous write cleared it; this write un-clears it
-                    refundDelta = -4800; // Remove the earlier refund
+                    // Was cleared, now writing non-zero: remove prior refund
+                    refundDelta -= 4800;
                 }
-                else if (value == BigInteger.Zero)
+                if (value == BigInteger.Zero)
                 {
-                    // This write clears it
-                    refundDelta = 4800; // Grant refund
+                    // Now clearing: add refund
+                    refundDelta += 4800;
                 }
             }
             
-            // Additional refund if we're restoring to original
+            // Restore-to-original refund (independent of clear refund)
             if (value == originalValue)
             {
                 if (originalValue == BigInteger.Zero)
                 {
-                    // Restoring to zero (was set, now cleared back)
+                    // Restoring to zero: reclaim the set cost
                     refundDelta += (long)(SstoreSetCost - SstoreWarmNoopCost); // +19,900
                 }
                 else
                 {
-                    // Restoring to original non-zero (was changed, now reverted)
-                    if (currentValue == BigInteger.Zero)
-                    {
-                        // Previous state was zero, now restoring to original non-zero
-                        refundDelta += (long)SstoreResetCost - (long)SstoreWarmNoopCost - 4800; // 2,900 - 100 - 4,800 = -2,000
-                    }
-                    else
-                    {
-                        // Previous state was different non-zero, now restoring to original
-                        refundDelta += (long)(SstoreResetCost - SstoreWarmNoopCost); // +2,800
-                    }
+                    // Restoring to original non-zero: reclaim the reset cost
+                    refundDelta += (long)(SstoreResetCost - SstoreWarmNoopCost); // +2,800
                 }
             }
         }

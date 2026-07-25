@@ -96,6 +96,13 @@ namespace Scrutor.Core.Execution
         public byte[] CallData { get; init; } = Array.Empty<byte>();
         public byte[] LastReturnData { get; set; } = Array.Empty<byte>();
         public Address ContractAddress { get; init; }
+        
+        /// <summary>
+        /// Storage owner address — determines which account's storage is accessed by SLOAD/SSTORE.
+        /// For CALL/STATICCALL: equals ContractAddress (callee's storage).
+        /// For DELEGATECALL/CALLCODE: equals caller's address (caller's storage).
+        /// </summary>
+        public Address StorageAddress { get; init; }
         public ulong GasUsed { get; set; }
         public ulong GasLimit { get; init; } = 30_000_000;
         /// <summary>

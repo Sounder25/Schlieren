@@ -485,6 +485,7 @@ public sealed class StateTransition : IStateTransition
         {
             Code = code,
             ContractAddress = contractAddress,
+            StorageAddress = contractAddress, // Storage owner (same for CALL, caller's address for DELEGATECALL/CALLCODE)
             Caller = tx.From,
             Origin = origin,
             // [AI-EDIT 2026-01-10] For type-2/3 transactions, GASPRICE should return the
