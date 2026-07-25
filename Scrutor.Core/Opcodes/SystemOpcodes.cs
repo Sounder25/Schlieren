@@ -107,6 +107,8 @@ public sealed class OpcodeCreate : IOpcode
                 // Install runtime code.
                 context.GlobalState.SetCode(newAddress, runtimeCode);
 
+                context.GasRefundCounter += result.GasRefundCounter;
+
                 // Refund remaining gas to parent.
                 context.RefundGas(childRemaining);
 
@@ -266,6 +268,10 @@ public sealed class OpcodeCall : IOpcode
         var childUsed = result.GasUsed > childGasLimit ? childGasLimit : result.GasUsed;
         var childRemaining = childGasLimit > childUsed ? childGasLimit - childUsed : 0UL;
         context.RefundGas(childRemaining);
+        if (result.IsSuccess)
+        {
+            context.GasRefundCounter += result.GasRefundCounter;
+        }
 
         // Handle return data
         context.LastReturnData = result.ReturnData;
@@ -379,6 +385,8 @@ public sealed class OpcodeCreate2 : IOpcode
                 // Install runtime code.
                 context.GlobalState.SetCode(newAddress, runtimeCode);
 
+                context.GasRefundCounter += result.GasRefundCounter;
+
                 // Refund remaining gas to parent.
                 context.RefundGas(childRemaining);
 
@@ -476,6 +484,10 @@ public sealed class OpcodeStaticCall : IOpcode
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
         context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL);
+        if (result.IsSuccess)
+        {
+            context.GasRefundCounter += result.GasRefundCounter;
+        }
         context.LastReturnData = result.ReturnData;
         
         var copyLen = Math.Min(retLengthInt, result.ReturnData.Length);
@@ -591,6 +603,10 @@ public sealed class OpcodeCallCode : IOpcode
         var childUsed = result.GasUsed > childGasLimit ? childGasLimit : result.GasUsed;
         var childRemaining = childGasLimit > childUsed ? childGasLimit - childUsed : 0UL;
         context.RefundGas(childRemaining);
+        if (result.IsSuccess)
+        {
+            context.GasRefundCounter += result.GasRefundCounter;
+        }
         context.LastReturnData = result.ReturnData;
         
         var copyLen = Math.Min(retLengthInt, result.ReturnData.Length);
@@ -679,6 +695,10 @@ public sealed class OpcodeDelegateCall : IOpcode
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
         context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL);
+        if (result.IsSuccess)
+        {
+            context.GasRefundCounter += result.GasRefundCounter;
+        }
         context.LastReturnData = result.ReturnData;
         
         var copyLen = Math.Min(retLengthInt, result.ReturnData.Length);
