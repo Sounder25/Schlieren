@@ -44,6 +44,13 @@ public enum TransactionAuthorization
     Internal
 }
 
+public enum StoragePresence
+{
+    Empty,
+    NonEmpty,
+    Unknown
+}
+
 /// <summary>
 /// EIP-2930 access list entry: one address + zero or more storage keys.
 /// </summary>

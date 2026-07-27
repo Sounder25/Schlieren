@@ -94,6 +94,40 @@ public sealed class GlobalState : IGlobalState
         return new ValueTask<BigInteger>(BigInteger.Zero);
     }
 
+    public ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (_accounts.TryGetValue(address, out var account))
+        {
+            lock (account)
+            {
+                return new ValueTask<IReadOnlyCollection<BigInteger>>(account.Storage.Keys.ToList().AsReadOnly());
+            }
+        }
+        return new ValueTask<IReadOnlyCollection<BigInteger>>(Array.Empty<BigInteger>());
+    }
+
+    public ValueTask<StoragePresence> GetStoragePresenceAsync(Address address, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (_accounts.TryGetValue(address, out var account))
+        {
+            lock (account)
+            {
+                return new ValueTask<StoragePresence>(
+                    account.Storage.Values.Any(v => v != BigInteger.Zero)
+                        ? StoragePresence.NonEmpty
+                        : StoragePresence.Empty);
+            }
+        }
+        return new ValueTask<StoragePresence>(StoragePresence.Empty);
+    }
+
+    public async ValueTask<bool> HasStorageAsync(Address address, CancellationToken ct = default)
+    {
+        return await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
+    }
+
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
     {
         _snapshotGate.EnterReadLock();
@@ -123,6 +157,26 @@ public sealed class GlobalState : IGlobalState
             _snapshotGate.ExitWriteLock();
         }
     }
+
+    public void DeleteAccount(Address address)
+    {
+        _snapshotGate.EnterReadLock();
+        try
+        {
+            _accounts.TryRemove(address, out _);
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
+    }
+
+    // Base state does not track transaction-level lifecycle markers.
+    public void MarkCreated(Address address) { }
+    public bool WasCreatedInTransaction(Address address) => false;
+    public void MarkForDeletion(Address address) { }
+    public bool IsMarkedForDeletion(Address address) => false;
+    public IEnumerable<Address> GetAccountsMarkedForDeletion() => Array.Empty<Address>();
 
     public ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default)
     {

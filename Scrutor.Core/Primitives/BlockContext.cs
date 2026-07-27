@@ -1,4 +1,5 @@
 using System.Numerics;
+using System;
 
 namespace Scrutor.Core.Primitives;
 
@@ -25,4 +26,31 @@ public sealed class BlockContext
         GasLimit = 30_000_000,
         BaseFeePerGas = 1_000_000_000 // 1 gwei
     };
+
+    public BigInteger GetBlobBaseFee()
+    {
+        return FakeExponential(
+            BigInteger.One,
+            new BigInteger(ExcessBlobGas),
+            new BigInteger(3_338_477));
+    }
+
+    private static BigInteger FakeExponential(
+        BigInteger factor,
+        BigInteger numerator,
+        BigInteger denominator)
+    {
+        var i = BigInteger.One;
+        var output = BigInteger.Zero;
+        var numeratorAccumulator = factor * denominator;
+        while (numeratorAccumulator > BigInteger.Zero)
+        {
+            output += numeratorAccumulator;
+            numeratorAccumulator =
+                numeratorAccumulator * numerator / (denominator * i);
+            i++;
+        }
+
+        return output / denominator;
+    }
 }

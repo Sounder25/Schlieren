@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Numerics;
+using System.Linq;
 using Scrutor.Core.Primitives;
 
 namespace Scrutor.Core.State;
@@ -8,6 +9,8 @@ public sealed class StateOverlay : IGlobalState
 {
     private readonly IGlobalState _parent;
     private readonly ConcurrentDictionary<Address, OverlayAccount> _buffer = new();
+    private readonly HashSet<Address> _createdAccounts = new();
+    private readonly HashSet<Address> _accountsMarkedForDeletion = new();
 
     public StateOverlay(IGlobalState parent)
     {
@@ -18,7 +21,6 @@ public sealed class StateOverlay : IGlobalState
     {
         if (_buffer.TryGetValue(address, out var acc) && acc.Balance.HasValue)
             return acc.Balance.Value;
-        
         return await _parent.GetBalanceAsync(address, ct);
     }
 
@@ -27,25 +29,9 @@ public sealed class StateOverlay : IGlobalState
         GetOrCreateOverlayAccount(address).Balance = amount;
     }
 
-    public async ValueTask<ulong> GetNonceAsync(Address address, CancellationToken ct = default)
-    {
-        if (_buffer.TryGetValue(address, out var acc) && acc.Nonce.HasValue)
-            return acc.Nonce.Value;
-        
-        return await _parent.GetNonceAsync(address, ct);
-    }
-
     public void SetNonce(Address address, ulong nonce)
     {
         GetOrCreateOverlayAccount(address).Nonce = nonce;
-    }
-
-    public async ValueTask<byte[]> GetCodeAsync(Address address, CancellationToken ct = default)
-    {
-        if (_buffer.TryGetValue(address, out var acc) && acc.Code != null)
-            return acc.Code;
-        
-        return await _parent.GetCodeAsync(address, ct);
     }
 
     public void SetCode(Address address, byte[] code)
@@ -53,12 +39,70 @@ public sealed class StateOverlay : IGlobalState
         GetOrCreateOverlayAccount(address).Code = code;
     }
 
+    public async ValueTask<ulong> GetNonceAsync(Address address, CancellationToken ct = default)
+    {
+        if (_buffer.TryGetValue(address, out var acc) && acc.Nonce.HasValue)
+            return acc.Nonce.Value;
+        return await _parent.GetNonceAsync(address, ct);
+    }
+
+    public async ValueTask<byte[]> GetCodeAsync(Address address, CancellationToken ct = default)
+    {
+        if (_buffer.TryGetValue(address, out var acc) && acc.Code != null)
+            return acc.Code;
+        return await _parent.GetCodeAsync(address, ct);
+    }
+
     public async ValueTask<BigInteger> GetStorageAtAsync(Address address, BigInteger key, CancellationToken ct = default)
     {
         if (_buffer.TryGetValue(address, out var acc) && acc.Storage.TryGetValue(key, out var val))
             return val;
-        
         return await _parent.GetStorageAtAsync(address, key, ct);
+    }
+
+    public async ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var parentKeys = await _parent.GetStorageKeysAsync(address, ct);
+        if (_buffer.TryGetValue(address, out var acc))
+        {
+            var set = new HashSet<BigInteger>(parentKeys);
+            foreach (var key in acc.Storage.Keys)
+                set.Add(key);
+            return set;
+        }
+        return parentKeys;
+    }
+
+    public async ValueTask<StoragePresence> GetStoragePresenceAsync(Address address, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (_buffer.TryGetValue(address, out var acc) && acc.Storage.Values.Any(v => v != BigInteger.Zero))
+        {
+            return StoragePresence.NonEmpty;
+        }
+
+        var parentPresence = await _parent.GetStoragePresenceAsync(address, ct);
+        if (parentPresence == StoragePresence.Unknown)
+        {
+            return StoragePresence.Unknown;
+        }
+
+        var keys = await GetStorageKeysAsync(address, ct);
+        foreach (var key in keys)
+        {
+            ct.ThrowIfCancellationRequested();
+            var val = await GetStorageAtAsync(address, key, ct);
+            if (val != BigInteger.Zero)
+                return StoragePresence.NonEmpty;
+        }
+
+        return StoragePresence.Empty;
+    }
+
+    public async ValueTask<bool> HasStorageAsync(Address address, CancellationToken ct = default)
+    {
+        return await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
     }
 
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
@@ -68,7 +112,8 @@ public sealed class StateOverlay : IGlobalState
 
     public async ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default)
     {
-        if (_buffer.ContainsKey(address)) return true;
+        if (_buffer.ContainsKey(address))
+            return true;
         return await _parent.AccountExistsAsync(address, ct);
     }
 
@@ -90,7 +135,17 @@ public sealed class StateOverlay : IGlobalState
                 _parent.SetStorageAt(address, key, val);
             }
         }
+
+        foreach (var addr in _createdAccounts) _parent.MarkCreated(addr);
+        foreach (var addr in _accountsMarkedForDeletion) _parent.MarkForDeletion(addr);
     }
+
+    public void MarkCreated(Address address) => _createdAccounts.Add(address);
+    public bool WasCreatedInTransaction(Address address) => _createdAccounts.Contains(address) || _parent.WasCreatedInTransaction(address);
+    public void MarkForDeletion(Address address) => _accountsMarkedForDeletion.Add(address);
+    public bool IsMarkedForDeletion(Address address) => _accountsMarkedForDeletion.Contains(address) || _parent.IsMarkedForDeletion(address);
+    public IEnumerable<Address> GetAccountsMarkedForDeletion() => _accountsMarkedForDeletion.Concat(_parent.GetAccountsMarkedForDeletion()).Distinct();
+    public void DeleteAccount(Address address) => _parent.DeleteAccount(address);
 
     private OverlayAccount GetOrCreateOverlayAccount(Address address)
     {
@@ -128,6 +183,11 @@ public sealed class StateOverlay : IGlobalState
             {
                 acc.Storage[k] = v;
             }
+        }
+        // Remove accounts that are marked for deletion in this overlay or parent
+        foreach (var addr in GetAccountsMarkedForDeletion())
+        {
+            snapshot.Remove(addr);
         }
         return snapshot;
     }

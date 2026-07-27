@@ -20,6 +20,8 @@ public sealed class StateTransition : IStateTransition
 
     public async Task<ExecutionResult> ApplyTransactionAsync(Transaction tx, IGlobalState state, BlockContext block, bool commit = true, CancellationToken ct = default)
     {
+        var txOverlay = new StateOverlay(state);
+
         // 0. Signature Recovery — must use signing hash (typed-tx unsigned digest), not tx hash.
         if (tx.Authorization == TransactionAuthorization.Signed)
         {
@@ -70,24 +72,52 @@ public sealed class StateTransition : IStateTransition
             if (tx.Nonce < senderNonce) return ExecutionResult.Failure(EvmError.NonceTooLow);
             if (tx.Nonce > senderNonce) return ExecutionResult.Failure(EvmError.NonceTooHigh);
 
-            // Validate upfront balance covers max possible cost (use maxFeePerGas for type-2, gasPrice otherwise)
+            // Calculate effective gas price
+            var baseFeePerGasVal = new BigInteger(block.BaseFeePerGas);
+            BigInteger effectiveGasPriceVal;
+            if (tx.TxType >= 2)
+            {
+                if (tx.MaxFeePerGas < baseFeePerGasVal) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                effectiveGasPriceVal = BigInteger.Min(tx.MaxFeePerGas, baseFeePerGasVal + tx.MaxPriorityFeePerGas);
+            }
+            else
+            {
+                if (tx.GasPrice < baseFeePerGasVal) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                effectiveGasPriceVal = tx.GasPrice;
+            }
+
+            if (tx.TxType >= 3)
+            {
+                if (tx.BlobVersionedHashes == null || tx.BlobVersionedHashes.Count == 0 || tx.BlobVersionedHashes.Count > 6)
+                    return ExecutionResult.Failure(EvmError.InternalError);
+                
+                foreach (var hash in tx.BlobVersionedHashes)
+                {
+                    if (hash == null || hash.Length != 32 || hash[0] != 0x01)
+                        return ExecutionResult.Failure(EvmError.InternalError);
+                }
+
+                if (tx.MaxFeePerBlobGas < block.GetBlobBaseFee())
+                    return ExecutionResult.Failure(EvmError.InsufficientFunds);
+            }
+
+            // Validate upfront balance covers max possible cost
             var senderBalance = await state.GetBalanceAsync(tx.From, ct);
-            var priceForUpfront = tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice;
-            maxGasCost = new BigInteger(tx.GasLimit) * priceForUpfront;
-            blobFee = CalculateBlobFee(tx, block);
+            maxGasCost = new BigInteger(tx.GasLimit) * (tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice);
             var maxBlobCost = CalculateMaxBlobCost(tx);
             var upfrontCost = maxGasCost + maxBlobCost + tx.Value;
             if (senderBalance < upfrontCost)
                 return ExecutionResult.Failure(EvmError.InsufficientFunds);
 
+            blobFee = CalculateBlobFee(tx, block);
+            // Actual deduction uses effective prices, not max prices
+            var actualGasCost = new BigInteger(tx.GasLimit) * effectiveGasPriceVal;
+
             if (commit)
             {
-                // Deduct max execution gas, actual blob fee, and transaction value upfront
-                // (spec §6.2 / EIP-4844). Value is included here so the BALANCE opcode
-                // returns the post-debit amount during EVM execution. On failed execution
-                // the post-execution settlement block restores tx.Value to the sender.
-                state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee - tx.Value);
-                state.SetNonce(tx.From, senderNonce + 1);
+                // Deduct actual execution gas, actual blob fee, and transaction value upfront
+                txOverlay.SetBalance(tx.From, senderBalance - actualGasCost - blobFee - tx.Value);
+                txOverlay.SetNonce(tx.From, senderNonce + 1);
             }
         }
 
@@ -116,7 +146,9 @@ public sealed class StateTransition : IStateTransition
             if (tx.To.HasValue) accessTracker.WarmAddress(tx.To.Value);
             if (topLevelCreation.HasValue) accessTracker.WarmAddress(topLevelCreation.Value);
             // EIP-2929: precompile addresses 0x01–0x09 are pre-warmed.
-            for (int i = 1; i <= 9; i++)
+            // EIP-4844: precompile 0x0A is added and pre-warmed.
+            int precompileCount = block.BlobHashEnabled ? 10 : 9;
+            for (int i = 1; i <= precompileCount; i++)
             {
                 var precompileBytes = new byte[20];
                 precompileBytes[19] = (byte)i;
@@ -134,7 +166,7 @@ public sealed class StateTransition : IStateTransition
         }
 
         var result = await ExecuteInternalAsync(
-            tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
+            tx, txOverlay, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
             executionGasLimit, accessTracker: accessTracker);
 
         // Install runtime bytecode after successful top-level CREATE (CREATE opcode does this
@@ -160,7 +192,7 @@ public sealed class StateTransition : IStateTransition
                 else
                 {
                     if (commit)
-                        state.SetCode(topLevelCreation.Value, result.ReturnData);
+                        txOverlay.SetCode(topLevelCreation.Value, result.ReturnData);
 
                     result = ExecutionResult.Success(
                         result.GasUsed + depositGas,
@@ -206,15 +238,13 @@ public sealed class StateTransition : IStateTransition
             //    so the value was never transferred; the sender should not lose it.
             //    Gas and blob fees are non-refundable regardless of execution outcome.
             {
-                var currentBalance = await state.GetBalanceAsync(tx.From, ct);
+                var currentBalance = await txOverlay.GetBalanceAsync(tx.From, ct);
                 var gasRefundAmount = new BigInteger(gasRefund) * effectiveGasPrice;
-                BigInteger priceDiffRefund = BigInteger.Zero;
-                if (tx.TxType >= 2 && tx.MaxFeePerGas > effectiveGasPrice)
-                    priceDiffRefund = new BigInteger(tx.GasLimit) * (tx.MaxFeePerGas - effectiveGasPrice);
+                
                 // Value restoration on failed execution: tx.Value was debited upfront but the
                 // recipient credit in the overlay was never committed, so return it to sender.
                 var valueRestoration = result.IsSuccess ? BigInteger.Zero : tx.Value;
-                state.SetBalance(tx.From, currentBalance + gasRefundAmount + priceDiffRefund + valueRestoration);
+                txOverlay.SetBalance(tx.From, currentBalance + gasRefundAmount + valueRestoration);
             }
 
             // [AI-EDIT 2026-01-10] EIP-1559 coinbase credit = (effectiveGasPrice - baseFee) × gasUsed.
@@ -228,13 +258,22 @@ public sealed class StateTransition : IStateTransition
                 var minerFee = new BigInteger(totalGasUsed) * effectivePriorityFee;
                 if (minerFee > 0)
                 {
-                    var coinbaseBalance = await state.GetBalanceAsync(block.Coinbase, ct);
-                    state.SetBalance(block.Coinbase, coinbaseBalance + minerFee);
+                    var coinbaseBalance = await txOverlay.GetBalanceAsync(block.Coinbase, ct);
+                    txOverlay.SetBalance(block.Coinbase, coinbaseBalance + minerFee);
                 }
             }
 
             // Return a result that reflects the true total gas used to callers (e.g. eth_getReceipt).
             result = result with { GasUsed = totalGasUsed };
+        }
+
+        if (commit)
+        {
+            txOverlay.Commit();
+            foreach (var addr in txOverlay.GetAccountsMarkedForDeletion())
+            {
+                state.DeleteAccount(addr);
+            }
         }
 
         return result;
@@ -489,9 +528,9 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
         // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).
-        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value))
+        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.BlobHashEnabled))
         {
-            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit);
+            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit, block.BlobHashEnabled);
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change
@@ -521,6 +560,9 @@ public sealed class StateTransition : IStateTransition
             // initialization code executes. Keep this mutation in the creation
             // frame overlay so a failed creation rolls it back with the frame.
             overlay.SetNonce(contractAddress, 1);
+            
+            // EIP-6780: Mark the account as created in this transaction
+            overlay.MarkCreated(contractAddress);
         }
         else if (codeAddress.HasValue)
         {

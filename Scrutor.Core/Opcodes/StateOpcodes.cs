@@ -318,6 +318,24 @@ public sealed class OpcodeBaseFee : IOpcode
 }
 
 /// <summary>
+/// BLOBBASEFEE (0x4A): Get the EIP-4844 blob base fee for the current block.
+/// Gas: 2
+/// </summary>
+public sealed class OpcodeBlobBaseFee : IOpcode
+{
+    public byte Code => 0x4A;
+    public string Name => "BLOBBASEFEE";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPush(context.Block.GetBlobBaseFee()))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));
+    }
+}
+
+/// <summary>
 /// EXTCODEHASH (0x3F): Get hash of an account's code
 /// Gas: EIP-2929 warm = 100, cold = 2600
 /// </summary>

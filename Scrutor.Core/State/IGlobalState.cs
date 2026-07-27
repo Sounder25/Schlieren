@@ -19,9 +19,20 @@ public interface IGlobalState
     void SetCode(Address address, byte[] code);
 
     ValueTask<BigInteger> GetStorageAtAsync(Address address, BigInteger key, CancellationToken ct = default);
+    ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default);
+    ValueTask<StoragePresence> GetStoragePresenceAsync(Address address, CancellationToken ct = default);
+    ValueTask<bool> HasStorageAsync(Address address, CancellationToken ct = default);
     void SetStorageAt(Address address, BigInteger key, BigInteger value);
 
     void Reset();
     ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default);
     IDictionary<Address, Account> Snapshot();
+
+    // EIP-6780 lifecycle tracking
+    void MarkCreated(Address address);
+    bool WasCreatedInTransaction(Address address);
+    void MarkForDeletion(Address address);
+    bool IsMarkedForDeletion(Address address);
+    IEnumerable<Address> GetAccountsMarkedForDeletion();
+    void DeleteAccount(Address address);
 }

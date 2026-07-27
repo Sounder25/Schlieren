@@ -43,7 +43,11 @@ public static class IntrinsicGas
 
             // Contract creation surcharge
             if (tx.To == null)
+            {
                 gas += TxCreate;
+                // EIP-3860: 2 gas per 32-byte word of initcode
+                gas += 2UL * ((ulong)(tx.Data.Length + 31) / 32);
+            }
 
             // Calldata cost: 4 per zero byte, 16 per non-zero byte
             foreach (var b in tx.Data)

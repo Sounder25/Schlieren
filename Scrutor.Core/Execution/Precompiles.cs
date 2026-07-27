@@ -16,16 +16,20 @@ namespace Scrutor.Core.Execution;
 /// </summary>
 public static class Precompiles
 {
-    public static bool IsPrecompile(Address address)
+    public static bool IsPrecompile(Address address, bool kzgEnabled = true)
     {
         var bytes = address.Bytes;
         for (int i = 0; i < 19; i++)
             if (bytes[i] != 0) return false;
         var id = bytes[19];
-        return id is >= 1 and <= 9;
+        
+        if (id is >= 1 and <= 9) return true;
+        if (id == 10) return kzgEnabled;
+        
+        return false;
     }
 
-    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit)
+    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true)
     {
         var id = address.Bytes[19];
         return id switch
@@ -39,6 +43,7 @@ public static class Precompiles
             7 => BnMul(input, gasLimit),
             8 => BnPairing(input, gasLimit),
             9 => Blake2F(input, gasLimit),
+            10 => kzgEnabled ? KzgPointEvaluation(input, gasLimit) : (Array.Empty<byte>(), 0),
             _ => (Array.Empty<byte>(), 0)
         };
     }
@@ -47,9 +52,9 @@ public static class Precompiles
     /// Convenience wrapper that returns an <see cref="ExecutionResult"/> so callers
     /// in CALL/STATICCALL opcodes don't need to adapt the tuple themselves.
     /// </summary>
-    public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit)
+    public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true)
     {
-        var (output, gasUsed) = Execute(address, input, gasLimit);
+        var (output, gasUsed) = Execute(address, input, gasLimit, kzgEnabled);
         if (output == null)
             return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
         return ExecutionResult.Success(gasUsed, output);
@@ -171,14 +176,9 @@ public static class Precompiles
     {
         long maxLen = Math.Max(baseLen, modLen);
 
-        // EIP-2565 multiplication complexity (replaces the old words^2 formula)
-        BigInteger multComp;
-        if (maxLen <= 64)
-            multComp = (BigInteger)maxLen * maxLen;
-        else if (maxLen <= 1024)
-            multComp = (BigInteger)maxLen * maxLen / 4 + 96 * maxLen - 3072;
-        else
-            multComp = (BigInteger)maxLen * maxLen / 16 + 480 * maxLen - 199_680;
+        // EIP-2565 multiplication complexity: ceil(max_length / 8) ^ 2
+        var words = (maxLen + 7) / 8;
+        BigInteger multComp = (BigInteger)words * words;
 
         // Adjusted exponent length (iterationCount)
         BigInteger iterCount;
@@ -291,11 +291,11 @@ public static class Precompiles
     private static (byte[]? output, ulong gasUsed) Blake2F(byte[] input, ulong gasLimit)
     {
         if (input.Length != 213)
-            return (Array.Empty<byte>(), 0);
+            return (null, gasLimit); // Validation failure must consume all provided gas
 
         byte finalByte = input[212];
         if (finalByte != 0 && finalByte != 1)
-            return (Array.Empty<byte>(), 0);
+            return (null, gasLimit); // Validation failure must consume all provided gas
 
         uint rounds = (uint)((input[0] << 24) | (input[1] << 16) | (input[2] << 8) | input[3]);
         ulong gas = rounds;
@@ -319,6 +319,84 @@ public static class Precompiles
         for (int i = 0; i < 8; i++)
             BitConverter.TryWriteBytes(output.AsSpan(i * 8), h[i]);
         return (output, gas);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  0x0A: KZG Point Evaluation (EIP-4844)
+    // ══════════════════════════════════════════════════════════════════════════
+    private static readonly byte[] KzgConstantsOutput;
+    private static IntPtr _kzgSetup = IntPtr.Zero;
+    private static readonly object _kzgLock = new object();
+
+    static Precompiles()
+    {
+        // 4096 (FIELD_ELEMENTS_PER_BLOB) as 32-byte BE
+        var p1 = new byte[32];
+        p1[30] = 0x10;
+        p1[31] = 0x00;
+
+        // 52435875175126190479447740508185965837690552500527637822603658699938581184513 (BLS_MODULUS) as 32-byte BE
+        var p2 = new byte[32]
+        {
+            0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48,
+            0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1, 0xd8, 0x05,
+            0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe,
+            0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01
+        };
+
+        KzgConstantsOutput = new byte[64];
+        Array.Copy(p1, 0, KzgConstantsOutput, 0, 32);
+        Array.Copy(p2, 0, KzgConstantsOutput, 32, 32);
+    }
+
+    private static (byte[]? output, ulong gasUsed) KzgPointEvaluation(byte[] input, ulong gasLimit)
+    {
+        const ulong gas = 50_000;
+        if (gasLimit < gas) return (null, gasLimit);
+        
+        if (input.Length != 192) return (null, gasLimit);
+
+        if (_kzgSetup == IntPtr.Zero)
+        {
+            lock (_kzgLock)
+            {
+                if (_kzgSetup == IntPtr.Zero)
+                {
+                    var path = Path.Combine(AppContext.BaseDirectory, "kzg_trusted_setup.txt");
+                    _kzgSetup = Ckzg.Ckzg.LoadTrustedSetup(path, 0);
+                    if (_kzgSetup == IntPtr.Zero)
+                        throw new InvalidOperationException("Failed to load KZG trusted setup.");
+                }
+            }
+        }
+
+        var versionedHash = input[0..32];
+        var z = input[32..64];
+        var y = input[64..96];
+        var commitment = input[96..144];
+        var proof = input[144..192];
+
+        // 1. Validate versioned hash matches commitment
+        var expectedVersionedHash = new byte[32];
+        expectedVersionedHash[0] = 0x01;
+        var sha = SHA256.HashData(commitment);
+        Array.Copy(sha, 1, expectedVersionedHash, 1, 31);
+
+        if (!versionedHash.SequenceEqual(expectedVersionedHash))
+            return (null, gasLimit);
+
+        // 2. Verify KZG proof
+        try
+        {
+            bool valid = Ckzg.Ckzg.VerifyKzgProof(commitment, z, y, proof, _kzgSetup);
+            if (!valid) return (null, gasLimit);
+        }
+        catch
+        {
+            return (null, gasLimit);
+        }
+
+        return (KzgConstantsOutput, gas);
     }
 
     // ── BLAKE2b F compression function ───────────────────────────────────────

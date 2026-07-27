@@ -1,0 +1,84 @@
+"""
+Ethereum Virtual Machine (EVM) Storage Instructions.
+
+.. contents:: Table of Contents
+    :backlinks: none
+    :local:
+
+Introduction
+------------
+
+Implementations of the EVM storage related instructions.
+"""
+
+from ethereum_types.numeric import Uint
+
+from ...state_tracker import get_storage, set_storage
+from .. import Evm
+from ..exceptions import WriteInStaticContext
+from ..gas import (
+    GasCosts,
+    charge_gas,
+)
+from ..stack import pop, push
+
+
+def sload(evm: Evm) -> None:
+    """
+    Loads to the stack, the value corresponding to a certain key from the
+    storage of the current account.
+
+    Parameters
+    ----------
+    evm :
+        The current EVM frame.
+
+    """
+    # STACK
+    key = pop(evm.stack).to_be_bytes32()
+
+    # GAS
+    charge_gas(evm, GasCosts.SLOAD)
+
+    # OPERATION
+    tx_state = evm.message.tx_env.state
+    value = get_storage(tx_state, evm.message.current_target, key)
+
+    push(evm.stack, value)
+
+    # PROGRAM COUNTER
+    evm.pc += Uint(1)
+
+
+def sstore(evm: Evm) -> None:
+    """
+    Stores a value at a certain key in the current context's storage.
+
+    Parameters
+    ----------
+    evm :
+        The current EVM frame.
+
+    """
+    # STACK
+    key = pop(evm.stack).to_be_bytes32()
+    new_value = pop(evm.stack)
+
+    # GAS
+    tx_state = evm.message.tx_env.state
+    current_value = get_storage(tx_state, evm.message.current_target, key)
+    if new_value != 0 and current_value == 0:
+        gas_cost = GasCosts.STORAGE_SET
+    else:
+        gas_cost = GasCosts.COLD_STORAGE_WRITE
+
+    if new_value == 0 and current_value != 0:
+        evm.refund_counter += GasCosts.REFUND_STORAGE_CLEAR
+
+    charge_gas(evm, gas_cost)
+    if evm.message.is_static:
+        raise WriteInStaticContext
+    set_storage(tx_state, evm.message.current_target, key, new_value)
+
+    # PROGRAM COUNTER
+    evm.pc += Uint(1)

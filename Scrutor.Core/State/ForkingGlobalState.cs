@@ -73,6 +73,39 @@ public sealed class ForkingGlobalState : IGlobalState
         return localValue;
     }
 
+    public async ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        await EnsureAccountFetchedAsync(address, ct);
+        return await _localState.GetStorageKeysAsync(address, ct);
+    }
+
+    public async ValueTask<StoragePresence> GetStoragePresenceAsync(Address address, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        await EnsureAccountFetchedAsync(address, ct);
+
+        // Check if local cached state already knows about non-zero storage
+        var localPresence = await _localState.GetStoragePresenceAsync(address, ct);
+        if (localPresence == StoragePresence.NonEmpty)
+        {
+            return StoragePresence.NonEmpty;
+        }
+
+        // For remote forked accounts where key enumeration is unsupported, return Unknown
+        if (_forkProvider != null)
+        {
+            return StoragePresence.Unknown;
+        }
+
+        return localPresence;
+    }
+
+    public async ValueTask<bool> HasStorageAsync(Address address, CancellationToken ct = default)
+    {
+        return await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
+    }
+
     private async Task<BigInteger> FetchStorageFromRemoteAsync(Address address, BigInteger key, CancellationToken ct)
     {
         try
@@ -164,4 +197,11 @@ public sealed class ForkingGlobalState : IGlobalState
     {
         return _localState.Snapshot();
     }
+
+    public void MarkCreated(Address address) => _localState.MarkCreated(address);
+    public bool WasCreatedInTransaction(Address address) => _localState.WasCreatedInTransaction(address);
+    public void MarkForDeletion(Address address) => _localState.MarkForDeletion(address);
+    public bool IsMarkedForDeletion(Address address) => _localState.IsMarkedForDeletion(address);
+    public IEnumerable<Address> GetAccountsMarkedForDeletion() => _localState.GetAccountsMarkedForDeletion();
+    public void DeleteAccount(Address address) => _localState.DeleteAccount(address);
 }

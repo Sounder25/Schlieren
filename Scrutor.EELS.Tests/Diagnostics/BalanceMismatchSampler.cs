@@ -30,52 +30,50 @@ public sealed class BalanceMismatchSampler
         }
 
         var executor = new EelsStateFixtureExecutor();
-        var balanceMismatches = new List<string>();
-        var dumped = 0;
-
+        var reports = new List<EelsCaseExecutionReport>();
         foreach (var tc in cases)
         {
-            if (dumped >= 5) break;
+            reports.Add(await executor.ExecuteAsync(tc));
+        }
 
-            var report = await executor.ExecuteAsync(tc);
+        var groups = new Dictionary<string, List<string>>();
+
+        foreach (var (tc, report) in cases.Zip(reports))
+        {
             var balHits = report.Mismatches
                 .Where(m => m.StartsWith("balance mismatch", StringComparison.Ordinal))
                 .ToList();
 
             if (balHits.Count == 0) continue;
 
-            dumped++;
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"=== CASE {tc.CaseId} ===");
-            sb.AppendLine($"  Fork:         {tc.ForkName}");
-            sb.AppendLine($"  TxType:       {tc.Transaction.TxType}");
-            sb.AppendLine($"  GasLimit:     {tc.Transaction.GasLimit}");
-            sb.AppendLine($"  GasPrice:     {tc.Transaction.GasPrice}");
-            sb.AppendLine($"  MaxFeePerGas: {tc.Transaction.MaxFeePerGas}");
-            sb.AppendLine($"  MaxPriority:  {tc.Transaction.MaxPriorityFeePerGas}");
-            sb.AppendLine($"  Value:        {tc.Transaction.Value}");
-            sb.AppendLine($"  BaseFee:      {tc.BlockContext.BaseFeePerGas}");
-            sb.AppendLine($"  Coinbase:     {tc.BlockContext.Coinbase}");
-            sb.AppendLine($"  From:         {tc.Transaction.From}");
-            sb.AppendLine($"  To:           {tc.Transaction.To}");
-            sb.AppendLine($"  Execution:    {(report.ExecutionSucceeded ? "SUCCESS" : "FAILED")}");
-            sb.AppendLine($"  Pre-balances (relevant accounts):");
-
-            // Print pre-state balances for every address in the expected post state
-            foreach (var (addr, expected) in tc.ExpectedPostState)
-            {
-                tc.PreState.TryGetValue(addr, out var pre);
-                var preBal = pre?.Balance ?? BigInteger.Zero;
-                sb.AppendLine($"    {addr}  pre={preBal}  expected={expected.Balance}  delta={expected.Balance - preBal}");
-            }
-
-            sb.AppendLine($"  Mismatches:");
             foreach (var m in balHits)
-                sb.AppendLine($"    {m}");
+            {
+                // extract expected and actual
+                var parts = m.Split(new[] { "expected=", ", actual=" }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 3)
+                {
+                    var expectedHex = parts[1];
+                    var actualHex = parts[2];
+                    var expInt = expectedHex.StartsWith("0x") ? BigInteger.Parse(expectedHex.Substring(2), System.Globalization.NumberStyles.HexNumber) : BigInteger.Parse(expectedHex);
+                    var actInt = actualHex.StartsWith("0x") ? BigInteger.Parse(actualHex.Substring(2), System.Globalization.NumberStyles.HexNumber) : BigInteger.Parse(actualHex);
+                    var delta = expInt - actInt;
+                    var key = delta.ToString();
 
-            balanceMismatches.Add(sb.ToString());
+                    if (!groups.ContainsKey(key)) groups[key] = new List<string>();
+                    groups[key].Add(tc.CaseId);
+                }
+            }
         }
 
-        Assert.Fail(string.Join("\n", balanceMismatches));
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== BALANCE MISMATCH CLUSTERS ===");
+        foreach (var kvp in groups.OrderByDescending(g => g.Value.Count))
+        {
+            sb.AppendLine($"Delta: {kvp.Key} | Count: {kvp.Value.Count}");
+            sb.AppendLine($"Sample Families: {string.Join(", ", kvp.Value.Take(3))}");
+            sb.AppendLine();
+        }
+
+        Assert.Fail(sb.ToString());
     }
 }
