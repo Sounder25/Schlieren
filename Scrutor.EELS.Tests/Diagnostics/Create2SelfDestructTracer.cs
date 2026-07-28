@@ -32,12 +32,16 @@ public sealed class Create2SelfDestructTracer
     [Fact]
     public async Task Trace_DynamicCreate2SelfDestructCollision_AtEnd_AlreadyInState()
     {
-        const string CasePattern = "call_create2_contract_at_the_end_True-create2_dest_already_in_state_True";
+        var casePattern = Environment.GetEnvironmentVariable("EELS_CASE_PATTERN");
+        if (string.IsNullOrWhiteSpace(casePattern))
+        {
+            casePattern = "call_create2_contract_at_the_end_True-create2_dest_already_in_state_True";
+        }
 
-        var tc = LoadSingleCase(CasePattern);
+        var tc = LoadSingleCase(casePattern);
         if (tc is null)
         {
-            _output.WriteLine($"Case matching '{CasePattern}' not found — set EELS_FIXTURES_ROOT.");
+            _output.WriteLine($"Case matching '{casePattern}' not found — set EELS_FIXTURES_ROOT.");
             return;
         }
 

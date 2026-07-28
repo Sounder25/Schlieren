@@ -34,6 +34,60 @@ public sealed class SelfDestructAccessTests
     }
 
     [Fact]
+    public async Task SelfDestruct_ChargesNewAccountCostWhenTransferringValue()
+    {
+        var contract = Address.FromHex(
+            "0x0000000000000000000000000000000000002000");
+        var beneficiary = Address.FromHex(
+            "0x0000000000000000000000000000000000003000");
+        var state = new GlobalState();
+        state.SetBalance(contract, 1_000);
+
+        var context = new EvmExecutionContext
+        {
+            ContractAddress = contract,
+            GlobalState = state,
+            GasLimit = 100_000
+        };
+        context.Stack.Push(new BigInteger(
+            beneficiary.Bytes,
+            isUnsigned: true,
+            isBigEndian: true));
+
+        var (result, _) = await new OpcodeSelfDestruct().ExecuteAsync(context);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(32_600UL, result.GasUsed);
+        Assert.Equal(new BigInteger(1_000), await state.GetBalanceAsync(beneficiary));
+    }
+
+    [Fact]
+    public async Task SelfDestruct_PreExistingContractToSelf_PreservesBalance()
+    {
+        var contract = Address.FromHex(
+            "0x0000000000000000000000000000000000002000");
+        var state = new GlobalState();
+        state.SetBalance(contract, 1_000);
+        state.SetCode(contract, [0x60, 0x00]);
+
+        var context = new EvmExecutionContext
+        {
+            ContractAddress = contract,
+            GlobalState = state,
+            GasLimit = 100_000
+        };
+        context.Stack.Push(new BigInteger(
+            contract.Bytes,
+            isUnsigned: true,
+            isBigEndian: true));
+
+        var (result, _) = await new OpcodeSelfDestruct().ExecuteAsync(context);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new BigInteger(1_000), await state.GetBalanceAsync(contract));
+    }
+
+    [Fact]
     public async Task Create_WarmsCreatedAddress()
     {
         var context = CreateContext();
@@ -179,7 +233,7 @@ public sealed class SelfDestructAccessTests
     }
 
     [Fact]
-    public async Task StateOverlay_RevertedChildFrame_DiscardsDeletionMarker()
+    public void StateOverlay_RevertedChildFrame_DiscardsDeletionMarker()
     {
         var parentState = new GlobalState();
         var parentOverlay = new StateOverlay(parentState);

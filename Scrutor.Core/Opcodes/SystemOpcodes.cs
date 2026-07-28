@@ -207,21 +207,25 @@ public sealed class OpcodeCall : IOpcode
         // Parent pays forwarded gas + extra costs (but NOT the stipend).
         context.ConsumeGas(forwardedGas + extraCost);
 
+        // Value-bearing calls receive a 2,300 gas stipend in the child allocation.
+        // On a pre-execution failure, EELS returns that full allocation even though
+        // only the forwarded portion was charged to the parent.
+        var stipend = value.IsZero ? 0UL : 2300UL;
+
         // Gap 4: Check caller balance BEFORE issuing sub-call.
         if (!value.IsZero)
         {
             var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
             if (callerBalance < value)
             {
-                // Fail: refund all forwarded gas + extra costs, push 0.
-                context.RefundGas(forwardedGas + extraCost);
+                // The CALL extras remain charged; return the unused child allocation.
+                context.RefundGas(forwardedGas + stipend);
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
             }
         }
 
         // Gap 2: Add 2300 call stipend when value > 0 (EELS: stipend added to child, not charged to parent).
-        var stipend = value.IsZero ? 0UL : 2300UL;
         var childGasLimit = forwardedGas + stipend;
 
         ExecutionResult result;
@@ -348,6 +352,21 @@ public sealed class OpcodeCreate2 : IOpcode
 
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
+
+        // EELS account_deployable(): CREATE2 collides when the destination has
+        // a nonzero nonce, existing code, or any storage. The EIP-150 message
+        // gas has already been reserved and remains consumed on collision.
+        var destinationNonce = await context.GlobalState.GetNonceAsync(newAddress, ct);
+        var destinationCode = await context.GlobalState.GetCodeAsync(newAddress, ct);
+        var destinationStorage =
+            await context.GlobalState.GetStoragePresenceAsync(newAddress, ct);
+        if (destinationNonce != 0 ||
+            destinationCode.Length != 0 ||
+            destinationStorage != StoragePresence.Empty)
+        {
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
 
         var tx = new Transaction
         {
@@ -758,18 +777,46 @@ public sealed class OpcodeSelfDestruct : IOpcode
 
         // EIP-2929: charge cold address surcharge for the beneficiary.
         var isWarm = context.Access.TouchAddress(beneficiary);
-        // Gap 7: EIP-3529 – base SELFDESTRUCT refund removed (was 5000). Only the EIP-2929
-        // cold-address surcharge remains when the beneficiary is touched for the first time.
         ulong gasCost = 5000UL + (isWarm ? 0UL : 2600UL);
 
         var balance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
-        
+
+        // EELS Cancun selfdestruct(): transferring a nonzero balance to an account
+        // that is not alive costs an additional 25,000 gas. An account is alive
+        // only when at least one of nonce, code, or balance is nonzero.
         if (balance > 0)
+        {
+            var beneficiaryNonce = await context.GlobalState.GetNonceAsync(beneficiary, ct);
+            var beneficiaryCode = await context.GlobalState.GetCodeAsync(beneficiary, ct);
+            var beneficiaryBalance = await context.GlobalState.GetBalanceAsync(beneficiary, ct);
+            var beneficiaryIsAlive =
+                beneficiaryNonce != 0 ||
+                beneficiaryCode.Length != 0 ||
+                beneficiaryBalance != 0;
+            if (!beneficiaryIsAlive)
+                gasCost += 25_000UL;
+        }
+
+        var createdInTransaction =
+            context.GlobalState.WasCreatedInTransaction(context.ContractAddress);
+
+        if (balance > 0 && !beneficiary.Equals(context.ContractAddress))
         {
             var benBalance = await context.GlobalState.GetBalanceAsync(beneficiary, ct);
             context.GlobalState.SetBalance(beneficiary, benBalance + balance);
             context.GlobalState.SetBalance(context.ContractAddress, 0);
         }
+        else if (balance > 0 && createdInTransaction)
+        {
+            // EIP-6780 burns the balance when a same-transaction creation
+            // selfdestructs to itself.
+            context.GlobalState.SetBalance(context.ContractAddress, 0);
+        }
+
+        // EIP-6780: account deletion is deferred to transaction finalization
+        // and applies only to contracts created during this transaction.
+        if (createdInTransaction)
+            context.GlobalState.MarkForDeletion(context.ContractAddress);
 
         return (ExecutionResult.Success(gasCost), context.Code.Length);
     }

@@ -38,6 +38,7 @@ public sealed class EelsStateFixtureExecutor
         return new EelsCaseExecutionReport(
             testCase.CaseId,
             result.IsSuccess,
+            result.GasUsed,
             stateMatches,
             receiptStatusMatches,
             mismatches);

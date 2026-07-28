@@ -24,6 +24,7 @@ public sealed record EelsStateCase(
 public sealed record EelsCaseExecutionReport(
     string CaseId,
     bool ExecutionSucceeded,
+    ulong GasUsed,
     bool StateMatches,
     bool ReceiptStatusMatches,
     IReadOnlyList<string> Mismatches);

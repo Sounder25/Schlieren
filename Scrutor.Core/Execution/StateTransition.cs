@@ -65,7 +65,11 @@ public sealed class StateTransition : IStateTransition
             intrinsicGas = IntrinsicGas.Compute(tx);
             if (tx.GasLimit < intrinsicGas)
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+        }
 
+        if (tx.Authorization != TransactionAuthorization.Internal &&
+            tx.Authorization != TransactionAuthorization.Simulation)
+        {
             var senderNonce = await state.GetNonceAsync(tx.From, ct);
 
             // Validate nonce before deducting anything
@@ -208,7 +212,9 @@ public sealed class StateTransition : IStateTransition
         // 1. Refund unspent gas back to sender (always, success or failure)
         // 2. Credit effective total gas fee to coinbase/miner
         // Only when committing (not dry-run probes like estimateGas).
-        if (tx.Authorization != TransactionAuthorization.Internal && commit)
+        if (tx.Authorization != TransactionAuthorization.Internal &&
+            tx.Authorization != TransactionAuthorization.Simulation &&
+            commit)
         {
             // [AI-EDIT 2026-01-10] Cap EVM-reported gas at executionGasLimit.
             // On OOG, ConsumeGas overshoots (e.g. adds 20000 gas then throws), leaving
@@ -346,6 +352,11 @@ public sealed class StateTransition : IStateTransition
         {
             intrinsicGas = IntrinsicGas.Compute(tx);
             if (tx.GasLimit < intrinsicGas) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+        }
+
+        if (tx.Authorization != TransactionAuthorization.Internal &&
+            tx.Authorization != TransactionAuthorization.Simulation)
+        {
             var senderNonce = await state.GetNonceAsync(tx.From, ct);
             if (tx.Nonce < senderNonce) return ExecutionResult.Failure(EvmError.NonceTooLow);
             if (tx.Nonce > senderNonce) return ExecutionResult.Failure(EvmError.NonceTooHigh);
@@ -399,7 +410,9 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
-        if (tx.Authorization != TransactionAuthorization.Internal && commit)
+        if (tx.Authorization != TransactionAuthorization.Internal &&
+            tx.Authorization != TransactionAuthorization.Simulation &&
+            commit)
         {
             var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
             var totalGasUsed = intrinsicGas + evmGasUsed;
@@ -505,6 +518,7 @@ public sealed class StateTransition : IStateTransition
         var transientFrame = new TransientStorageOverlay(transientStorage);
         // [AI-EDIT 2026-01-10] EIP-2929: reuse the top-level access tracker for the whole tx tree.
         accessTracker ??= new AccessTracker();
+        var accessCheckpoint = accessTracker.CreateCheckpoint();
         // [AI-EDIT 2026-07-24] EIP-2200: reuse the top-level original storage snapshot for the whole tx tree.
         originalStorageSnapshot ??= new Dictionary<(Address, BigInteger), BigInteger>();
 
@@ -663,6 +677,10 @@ public sealed class StateTransition : IStateTransition
                 overlay.Commit();
                 transientFrame.Commit();
             }
+        }
+        else
+        {
+            accessTracker.Restore(accessCheckpoint);
         }
         
         return result;

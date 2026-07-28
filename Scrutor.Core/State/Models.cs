@@ -41,6 +41,7 @@ public enum TransactionAuthorization
     None,
     Signed,
     Impersonated,
+    Simulation,
     Internal
 }
 

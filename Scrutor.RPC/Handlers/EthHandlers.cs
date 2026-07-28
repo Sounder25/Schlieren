@@ -1285,7 +1285,7 @@ public sealed class EthHandlers
             GasLimit = callObj.TryGetProperty("gas", out var gasProp)
                 ? EthereumTypes.FromEthHex(gasProp.GetString() ?? "0x0")
                 : defaultGasLimit,
-            Authorization = TransactionAuthorization.Impersonated
+            Authorization = TransactionAuthorization.Simulation
         };
 
         return tx;

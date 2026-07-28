@@ -471,8 +471,9 @@ public class CallGasForwardingTests
 
         Assert.True(result.IsSuccess);
         // EIP-3529 removes the old refund, not SELFDESTRUCT's 5000 static cost.
-        // A cold beneficiary adds the EIP-2929 2600 access surcharge.
-        Assert.Equal(7600UL, result.GasUsed);
+        // A cold, previously nonexistent beneficiary adds both the EIP-2929
+        // 2600 access surcharge and the 25000 new-account surcharge.
+        Assert.Equal(32600UL, result.GasUsed);
         // Balance must flow to beneficiary.
         var benBal = await state.GetBalanceAsync(beneficiary, default);
         Assert.Equal(new BigInteger(500), benBal);

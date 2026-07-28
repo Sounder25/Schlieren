@@ -16,6 +16,29 @@ namespace Scrutor.Core.Execution
         private readonly HashSet<Address> _warmAddresses = new();
         private readonly Dictionary<Address, HashSet<BigInteger>> _warmSlots = new();
 
+        public sealed record Checkpoint(
+            HashSet<Address> WarmAddresses,
+            Dictionary<Address, HashSet<BigInteger>> WarmSlots);
+
+        public Checkpoint CreateCheckpoint() =>
+            new(
+                new HashSet<Address>(_warmAddresses),
+                _warmSlots.ToDictionary(
+                    entry => entry.Key,
+                    entry => new HashSet<BigInteger>(entry.Value)));
+
+        public void Restore(Checkpoint checkpoint)
+        {
+            _warmAddresses.Clear();
+            _warmAddresses.UnionWith(checkpoint.WarmAddresses);
+
+            _warmSlots.Clear();
+            foreach (var (address, slots) in checkpoint.WarmSlots)
+            {
+                _warmSlots[address] = new HashSet<BigInteger>(slots);
+            }
+        }
+
         /// <summary>Pre-warm an address (charges the 2400 cost externally via EIP-2930 intrinsic gas).</summary>
         public void WarmAddress(Address address) => _warmAddresses.Add(address);
 

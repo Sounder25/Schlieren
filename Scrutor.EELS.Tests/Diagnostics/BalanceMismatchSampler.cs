@@ -23,9 +23,20 @@ public sealed class BalanceMismatchSampler
 
         var loader   = new EelsStateFixtureLoader();
         var cases    = loader.LoadCases(options);
+        var casePattern = Environment.GetEnvironmentVariable("EELS_CASE_PATTERN");
+        if (!string.IsNullOrWhiteSpace(casePattern))
+        {
+            cases = cases
+                .Where(testCase => testCase.CaseId.Contains(casePattern, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
         if (cases.Count == 0)
         {
-            Assert.Fail("No cases loaded — set EELS_FIXTURES_ROOT.");
+            Assert.Fail(
+                string.IsNullOrWhiteSpace(casePattern)
+                    ? "No cases loaded — set EELS_FIXTURES_ROOT."
+                    : $"No cases matched EELS_CASE_PATTERN='{casePattern}'.");
             return;
         }
 
@@ -66,6 +77,28 @@ public sealed class BalanceMismatchSampler
         }
 
         var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Selected cases: {cases.Count}");
+        if (!string.IsNullOrWhiteSpace(casePattern))
+        {
+            sb.AppendLine($"EELS_CASE_PATTERN: {casePattern}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("=== CASE RESULTS ===");
+        foreach (var (tc, report) in cases.Zip(reports))
+        {
+            sb.AppendLine($"{(report.StateMatches && report.ReceiptStatusMatches ? "PASS" : "FAIL")}: {tc.CaseId}");
+            sb.AppendLine(
+                $"  gasUsed={report.GasUsed}, gasLimit={tc.Transaction.GasLimit}, " +
+                $"gasPrice={tc.Transaction.GasPrice}, maxFeePerGas={tc.Transaction.MaxFeePerGas}, " +
+                $"maxPriorityFeePerGas={tc.Transaction.MaxPriorityFeePerGas}");
+            foreach (var mismatch in report.Mismatches)
+            {
+                sb.AppendLine($"  {mismatch}");
+            }
+        }
+
+        sb.AppendLine();
         sb.AppendLine("=== BALANCE MISMATCH CLUSTERS ===");
         foreach (var kvp in groups.OrderByDescending(g => g.Value.Count))
         {
@@ -74,6 +107,6 @@ public sealed class BalanceMismatchSampler
             sb.AppendLine();
         }
 
-        Assert.Fail(sb.ToString());
+        Assert.True(groups.Count == 0, sb.ToString());
     }
 }

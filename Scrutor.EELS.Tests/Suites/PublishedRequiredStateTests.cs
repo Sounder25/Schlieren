@@ -110,9 +110,7 @@ public sealed class PublishedRequiredStateTests
     }
 
     /// <summary>
-    /// Always runs (no env-var guard) and reports the mismatch taxonomy.
-    /// Intentionally fails so the output can be read directly from the test runner.
-    /// Remove after taxonomy goal is achieved (storage:0, balance:0).
+    /// Always runs (no env-var guard) and requires a zero-mismatch taxonomy.
     /// </summary>
     [Fact]
     public async Task BENCHMARK_TaxonomySnapshot_AlwaysReportsCurrentMismatchCounts()
@@ -141,7 +139,7 @@ public sealed class PublishedRequiredStateTests
             .ToArray();
 
         var summary = $"TotalCases={reports.Count}, FailedCases={failed.Length}, Taxonomy=[{string.Join(", ", taxonomy)}]";
-        Assert.Fail(summary);
+        Assert.True(failed.Length == 0, summary);
     }
 
     private static string ClassifyMismatch(string mismatch)
