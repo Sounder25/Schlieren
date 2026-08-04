@@ -7,218 +7,317 @@
         Width="1400" Height="900"
         MinWidth="1200" MinHeight="700"
         WindowStartupLocation="CenterScreen"
-        Background="#0D0D0D">
-    
+        Background="#0D0D0D"
+        RequestedThemeVariant="Dark">
+
     <Window.Styles>
+        <!-- Header Text Style -->
+        <Style Selector="TextBlock.header">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#00D4AA"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        
+        <!-- Panel Border -->
         <Style Selector="Border.panel">
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="BorderBrush" Value="#333"/>
+            <Setter Property="Background" Value="#1A1A1A"/>
+            <Setter Property="BorderBrush" Value="#2D2D2D"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Padding" Value="12"/>
         </Style>
-        <Style Selector="TextBlock.header">
-            <Setter Property="FontSize" Value="12"/>
+        
+        <!-- Critical Finding -->
+        <Style Selector="TextBlock.critical">
+            <Setter Property="Foreground" Value="#FF4444"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#888"/>
-            <Setter Property="Margin" Value="10,5"/>
         </Style>
-        <Style Selector="TextBlock.mono">
-            <Setter Property="FontFamily" Value="Consolas"/>
+        
+        <!-- Warning Finding -->
+        <Style Selector="TextBlock.warning">
+            <Setter Property="Foreground" Value="#FFAA00"/>
+        </Style>
+        
+        <!-- Info Finding -->
+        <Style Selector="TextBlock.info">
+            <Setter Property="Foreground" Value="#00D4AA"/>
+        </Style>
+        
+        <!-- OpSec Active -->
+        <Style Selector="Border.opsec-active">
+            <Setter Property="Background" Value="#2D1F1F"/>
+            <Setter Property="BorderBrush" Value="#FF4444"/>
+            <Setter Property="BorderThickness" Value="2"/>
+        </Style>
+        
+        <!-- Button Style -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#00D4AA"/>
+            <Setter Property="Foreground" Value="#0D0D0D"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="#00FFCC"/>
+        </Style>
+        
+        <!-- TextBox Style -->
+        <Style Selector="TextBox.dark">
+            <Setter Property="Background" Value="#2D2D2D"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="#3D3D3D"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
     </Window.Styles>
-    
-    <Grid RowDefinitions="Auto,*">
-        
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="8">
         <!-- TOP BAR -->
-        <Border Grid.Row="0" Background="#1A1A1A" Padding="10">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="SCRUTOR EVM WORKBENCH" FontSize="16" FontWeight="Bold" 
-                              Foreground="#00D4AA" VerticalAlignment="Center"/>
-                    <Border Background="#2D2D2D" Padding="8,4" CornerRadius="4">
-                        <TextBlock Text="{Binding ForkVersion}" Foreground="#666" FontSize="12"/>
-                    </Border>
-                    <ToggleButton IsChecked="{Binding OpSecEnabled}"
-                                 Command="{Binding ToggleOpSecCommand}">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="🔒" FontSize="12"/>
-                            <TextBlock Text="OPSEC" FontSize="12" Foreground="White"/>
-                        </StackPanel>
-                    </ToggleButton>
-                </StackPanel>
-                
-                <!-- Transaction Input -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+        <Border Grid.Row="0" Background="#1A1A1A" Padding="12,8" CornerRadius="4">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                <!-- Address Input -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="To:" VerticalAlignment="Center" Foreground="#888"/>
                     <TextBox Text="{Binding ToAddress}" Width="280" 
-                             Watermark="0x... Contract Address" Background="#2D2D2D"/>
-                    <TextBlock Text="Gas:" VerticalAlignment="Center" Foreground="#888"/>
-                    <TextBox Text="{Binding GasLimit}" Width="80" Background="#2D2D2D"/>
-                    <Button Content="▶ RUN" Background="#00AA88" Foreground="White"
-                           Padding="15,8" CornerRadius="4"/>
+                             Watermark="0x... Contract Address" 
+                             Classes="dark"/>
                 </StackPanel>
                 
-                <!-- Status -->
-                <TextBlock Grid.Column="3" Text="{Binding StatusMessage}" 
-                          Foreground="#888" VerticalAlignment="Center" Margin="20,0"/>
+                <!-- Gas Limit -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
+                    <TextBlock Text="Gas Limit:" VerticalAlignment="Center" Foreground="#888"/>
+                    <TextBox Text="{Binding GasLimit}" Width="100" Classes="dark"/>
+                </StackPanel>
+                
+                <!-- Step Navigation -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" 
+                            HorizontalAlignment="Center" Spacing="4" Margin="16,0">
+                    <Button Content="⏮" Width="32" Command="{Binding JumpToStartCommand}"/>
+                    <Button Content="◀" Width="32" Command="{Binding StepBackCommand}"/>
+                    <Button Content="{Binding PlayPauseIcon}" Width="40" 
+                            Command="{Binding TogglePlaybackCommand}" Classes="primary"/>
+                    <Button Content="▶" Width="32" Command="{Binding StepForwardCommand}"/>
+                    <Button Content="⏭" Width="32" Command="{Binding JumpToEndCommand}"/>
+                </StackPanel>
+                
+                <!-- OpSec Toggle -->
+                <Border Grid.Column="3" Classes="opsec-active" Padding="8,4" CornerRadius="4"
+                        IsVisible="{Binding OpSecEnabled}">
+                    <TextBlock Text="🔒 OPSEC ACTIVE" Foreground="#FF4444" FontWeight="Bold"/>
+                </Border>
+                
+                <!-- Run Button -->
+                <Button Grid.Column="4" Content="▶ RUN TRANSACTION" 
+                        Command="{Binding RunTransactionCommand}"
+                        Classes="primary" Margin="16,0,0,0"/>
             </Grid>
         </Border>
-        
-        <!-- MAIN GRID -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,*,*" RowDefinitions="*,*" Margin="5">
+
+        <!-- MAIN PANELS -->
+        <Grid Grid.Row="1" RowDefinitions="*,*" ColumnDefinitions="*,*,*" Margin="0,8,0,0">
             
-            <!-- PANEL 1: Trace Scrubber -->
-            <Border Grid.Column="0" Grid.Row="0" Classes="panel">
-                <Grid RowDefinitions="Auto,Auto,*">
-                    <TextBlock Grid.Row="0" Text="STEP TIMELINE" Classes="header"/>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="5" Margin="10,0">
-                        <Button Content="|◀" Command="{Binding JumpToStartCommand}" Width="30"/>
-                        <Button Content="◀" Command="{Binding StepBackCommand}" Width="30"/>
-                        <Button Content="▶" Command="{Binding StepForwardCommand}" Width="30"/>
-                        <Button Content="▶|" Command="{Binding JumpToEndCommand}" Width="30"/>
-                        <TextBlock Text="{Binding CurrentStepIndex}" Foreground="#00D4AA" 
-                                  VerticalAlignment="Center" Margin="10,0,0,0"/>
-                        <TextBlock Text="/" Foreground="#666" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding TotalSteps}" Foreground="#666" VerticalAlignment="Center"/>
+            <!-- 1. STEP TIMELINE SCRUBBER (Top Left) -->
+            <Border Grid.Row="0" Grid.Column="0" Classes="panel" Margin="0,0,4,4">
+                <StackPanel>
+                    <TextBlock Text="1. STEP TIMELINE" Classes="header"/>
+                    
+                    <!-- Timeline Slider -->
+                    <Slider Value="{Binding CurrentStepIndex}" 
+                            Maximum="{Binding TotalSteps}"
+                            Margin="0,8,0,8"/>
+                    
+                    <!-- Step Counter -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding StepProgress}" Foreground="#666"/>
+                        <TextBlock Grid.Column="1" Text="{Binding StepPercentage}" Foreground="#00D4AA"/>
+                    </Grid>
+                    
+                    <!-- Playback Controls -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,8,0,0">
+                        <Button Content="⏮" Width="28" Command="{Binding JumpToStartCommand}"/>
+                        <Button Content="◀" Width="28" Command="{Binding StepBackCommand}"/>
+                        <Button Content="{Binding PlayPauseIcon}" Width="36" 
+                                Command="{Binding TogglePlaybackCommand}"/>
+                        <Button Content="▶" Width="28" Command="{Binding StepForwardCommand}"/>
+                        <Button Content="⏭" Width="28" Command="{Binding JumpToEndCommand}"/>
                     </StackPanel>
-                    <ScrollViewer Grid.Row="2" Margin="5"/>
-                </Grid>
+                    
+                    <!-- Jump to Step -->
+                    <TextBox Watermark="Jump to step #..." Classes="dark" Margin="0,8,0,0"/>
+                </StackPanel>
             </Border>
-            
-            <!-- PANEL 2: Disassembly -->
-            <Border Grid.Column="1" Grid.Row="0" Classes="panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Text="DISASSEMBLY" Classes="header"/>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding TraceSteps}"
-                             SelectedIndex="{Binding CurrentStepIndex}"
-                             AutoGenerateColumns="False" IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="PC" Binding="{Binding Pc}" Width="60"/>
-                            <DataGridTextColumn Header="CALL" Binding="{Binding CallType}" Width="80"/>
-                            <DataGridTextColumn Header="OP" Binding="{Binding Op}" Width="70"/>
-                            <DataGridTextColumn Header="GAS" Binding="{Binding Gas}" Width="60"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </Border>
-            
-            <!-- PANEL 3: State Inspector -->
-            <Border Grid.Column="2" Grid.Row="0" Classes="panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Text="STATE" Classes="header"/>
-                    <TabControl Grid.Row="1">
-                        <TabItem Header="Stack">
-                            <ScrollViewer>
-                                <ItemsControl ItemsSource="{Binding StackItems}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" Classes="mono" 
-                                                      Foreground="#00D4AA" Margin="2" FontSize="11"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </TabItem>
-                        <TabItem Header="Mem">
-                            <ScrollViewer>
-                                <ItemsControl ItemsSource="{Binding MemoryRows}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" Classes="mono" 
-                                                      Foreground="#AAA" Margin="2" FontSize="11"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </TabItem>
-                        <TabItem Header="Storage">
-                            <ScrollViewer>
-                                <ItemsControl ItemsSource="{Binding StorageSlots}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" Classes="mono" 
-                                                      Foreground="#FF8800" Margin="2" FontSize="11"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </TabItem>
-                    </TabControl>
-                </Grid>
-            </Border>
-            
-            <!-- PANEL 4: Gas Tree -->
-            <Border Grid.Column="0" Grid.Row="1" Classes="panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Text="GAS TREE" Classes="header"/>
-                    <ScrollViewer Grid.Row="1" Margin="10">
-                        <TextBlock Text="{Binding GasTreeRoot}" Classes="mono" Foreground="#00AAFF"/>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-            
-            <!-- PANEL 5: Security Findings -->
-            <Border Grid.Column="1" Grid.Row="1" Classes="panel">
-                <Grid RowDefinitions="Auto,Auto,*">
-                    <TextBlock Grid.Row="0" Text="SECURITY FINDINGS" Classes="header"/>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="20" Margin="10,0">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="🔴" FontSize="14"/>
-                            <TextBlock Text="{Binding CriticalCount}" Foreground="#FF4444" FontWeight="Bold"/>
-                            <TextBlock Text="Critical" Foreground="#888"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="⚠️" FontSize="14"/>
-                            <TextBlock Text="{Binding WarningCount}" Foreground="#FFAA00"/>
-                            <TextBlock Text="Warning" Foreground="#888"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <ScrollViewer Grid.Row="2" Margin="5">
-                        <StackPanel Spacing="5">
-                            <ItemsControl ItemsSource="{Binding ReentrancyFindings}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="#2D2D2D" Padding="8" CornerRadius="3" Margin="2">
-                                            <TextBlock Classes="mono" FontSize="10" 
-                                                       Foreground="#FF4444"
-                                                       Text="{Binding Description}" TextWrapping="Wrap"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <ItemsControl ItemsSource="{Binding StorageCollisionFindings}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="#2D2D2D" Padding="8" CornerRadius="3" Margin="2">
-                                            <TextBlock Classes="mono" FontSize="10" 
-                                                       Foreground="#FFAA00"
-                                                       Text="{Binding Description}" TextWrapping="Wrap"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-            
-            <!-- PANEL 6: Logs -->
-            <Border Grid.Column="2" Grid.Row="1" Classes="panel">
-                <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Text="EVENTS" Classes="header"/>
-                    <ScrollViewer Grid.Row="1" Margin="5">
-                        <ItemsControl ItemsSource="{Binding EventLogs}">
+
+            <!-- 2. DISASSEMBLY & INSTRUCTION (Top Center) -->
+            <Border Grid.Row="0" Grid.Column="1" Classes="panel" Margin="4,0,4,4">
+                <StackPanel>
+                    <TextBlock Text="2. DISASSEMBLY" Classes="header"/>
+                    
+                    <!-- Headers -->
+                    <Grid ColumnDefinitions="60,80,80,*" Margin="0,0,0,4">
+                        <TextBlock Text="PC" Foreground="#666" FontSize="11"/>
+                        <TextBlock Grid.Column="1" Text="OPCODE" Foreground="#666" FontSize="11"/>
+                        <TextBlock Grid.Column="2" Text="GAS" Foreground="#666" FontSize="11"/>
+                        <TextBlock Grid.Column="3" Text="CALLTYPE" Foreground="#666" FontSize="11"/>
+                    </Grid>
+                    
+                    <!-- Instruction List -->
+                    <ScrollViewer Height="200">
+                        <ItemsControl ItemsSource="{Binding Instructions}">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" Classes="mono" 
-                                              Foreground="#666" FontSize="10" Margin="2"/>
+                                <DataTemplate x:DataType="vm:InstructionViewModel">
+                                    <Grid ColumnDefinitions="60,80,80,*">
+                                        <TextBlock Text="{Binding PC}" FontFamily="Consolas"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Opcode}" FontFamily="Consolas"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding GasCost}" Foreground="#FFAA00"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding CallType}"/>
+                                    </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- 3. STATE INSPECTOR (Top Right) -->
+            <Border Grid.Row="0" Grid.Column="2" Classes="panel" Margin="4,0,0,4">
+                <ScrollViewer>
+                    <StackPanel>
+                        <TextBlock Text="3. STATE INSPECTOR" Classes="header"/>
+                        
+                        <!-- Stack -->
+                        <TextBlock Text="STACK (top down):" Foreground="#888" Margin="0,0,0,4"/>
+                        <ItemsControl ItemsSource="{Binding StackRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#2D2D2D" Padding="8,2" Margin="0,1">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        
+                        <!-- Memory -->
+                        <TextBlock Text="MEMORY (32-byte hex):" Foreground="#888" Margin="0,12,0,4"/>
+                        <ItemsControl ItemsSource="{Binding MemoryRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#2D2D2D" Padding="8,2" Margin="0,1">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        
+                        <!-- Storage -->
+                        <TextBlock Text="STORAGE:" Foreground="#888" Margin="0,12,0,4"/>
+                        <ItemsControl ItemsSource="{Binding StorageRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#2D2D2D" Padding="8,2" Margin="0,1">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- 4. GAS TREE (Bottom Left) -->
+            <Border Grid.Row="1" Grid.Column="0" Classes="panel" Margin="0,4,4,0">
+                <StackPanel>
+                    <TextBlock Text="4. HIERARCHICAL GAS TREE" Classes="header"/>
+                    <ScrollViewer Height="200">
+                        <ItemsControl ItemsSource="{Binding GasTreeNodes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GasNodeViewModel">
+                                    <TextBlock Text="{Binding DisplayText}" 
+                                               Margin="{Binding Indent}"
+                                               Foreground="{Binding Color}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <!-- 5. SECURITY FINDINGS (Bottom Center) -->
+            <Border Grid.Row="1" Grid.Column="1" Classes="panel" Margin="4,4,4,0">
+                <StackPanel>
+                    <TextBlock Text="5. SECURITY &amp; AUDIT FINDINGS" Classes="header"/>
+                    
+                    <!-- Summary -->
+                    <Grid ColumnDefinitions="*,*,Auto" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="🔴" Foreground="#FF4444"/>
+                            <TextBlock Text="{Binding CriticalCount}" FontWeight="Bold" Foreground="#FF4444"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="⚠" Foreground="#FFAA00"/>
+                            <TextBlock Text="{Binding WarningCount}" Foreground="#FFAA00"/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <!-- Findings List -->
+                    <ScrollViewer Height="180">
+                        <ItemsControl ItemsSource="{Binding SecurityFindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SecurityFindingViewModel">
+                                    <Border Background="#2D2D2D" Padding="8,4" Margin="0,2" CornerRadius="3">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding SeverityEmoji}"/>
+                                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Details}" FontSize="11" 
+                                                       Foreground="#888" Margin="16,2,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <!-- 6. PRECOMPILE FUZZER (Bottom Right) -->
+            <Border Grid.Row="1" Grid.Column="2" Classes="panel" Margin="4,4,0,0">
+                <StackPanel>
+                    <TextBlock Text="6. PRECOMPILE FUZZER" Classes="header"/>
+                    
+                    <!-- Precompile Selector -->
+                    <ComboBox ItemsSource="{Binding Precompiles}" Margin="0,0,0,8"/>
+                    
+                    <!-- Fuzzer Controls -->
+                    <Grid ColumnDefinitions="*,*" Margin="0,0,0,8">
+                        <TextBox Watermark="Iterations: 1000" Classes="dark"/>
+                        <Button Grid.Column="1" Content="FUZZ" Classes="primary" Margin="8,0,0,0"/>
+                    </Grid>
+                    
+                    <!-- Fuzzer Output -->
+                    <ScrollViewer Height="160">
+                        <ItemsControl ItemsSource="{Binding FuzzerResults}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#2D2D2D" Padding="8,2" Margin="0,1">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
             </Border>
         </Grid>
+
+        <!-- STATUS BAR -->
+        <Border Grid.Row="2" Background="#1A1A1A" Padding="12,6" CornerRadius="4" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="#E0E0E0"/>
+                <TextBlock Grid.Column="2" Text="CANCUN" FontWeight="Bold" Foreground="#00D4AA"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
