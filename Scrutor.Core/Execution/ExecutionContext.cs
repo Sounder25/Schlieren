@@ -148,6 +148,21 @@ namespace Scrutor.Core.Execution
         private readonly Dictionary<string, string> _traceStorage = new(StringComparer.OrdinalIgnoreCase);
         private HashSet<int>? _validJumpDestinations;
         
+        // Security analysis tracking fields
+        private CallType? _callType;
+        private Address? _callerAddress;
+        private Address? _codeAddress;
+        
+        /// <summary>
+        /// Set the call context for security analysis. Called when entering a new call frame.
+        /// </summary>
+        public void SetCallContext(CallType callType, Address? caller = null, Address? codeAddress = null)
+        {
+            _callType = callType;
+            _callerAddress = caller;
+            _codeAddress = codeAddress;
+        }
+        
         /// <summary>
         /// Callback to execute a sub-call (internal transaction).
         /// Args: Transaction, isStatic, creationAddress (if CREATE), codeAddress (if DELEGATECALL/CALLCODE)
@@ -276,7 +291,12 @@ namespace Scrutor.Core.Execution
                 Depth = CallDepth,
                 Stack = stackItems,
                 Memory = Memory.SnapshotWordsHex(),
-                Storage = new Dictionary<string, string>(_traceStorage, StringComparer.OrdinalIgnoreCase)
+                Storage = new Dictionary<string, string>(_traceStorage, StringComparer.OrdinalIgnoreCase),
+                // Security analysis fields
+                CallType = _callType,
+                ContractAddress = ContractAddress == Address.Zero ? null : ContractAddress.ToString(),
+                CallerAddress = _callerAddress?.ToString(),
+                CodeAddress = _codeAddress?.ToString()
             });
         }
 

@@ -688,6 +688,10 @@ public sealed class StateTransition : IStateTransition
             Access = accessTracker,
             OriginalStorageValues = originalStorageSnapshot
         };
+        
+        // [AI-EDIT 2026-08-03] Set call context for security analysis (reentrancy detection, storage collision)
+        var callType = DetermineCallType(creationAddress, codeAddress, isStatic);
+        context.SetCallContext(callType, caller: tx.From, codeAddress: codeAddress);
 
         // Wire up recursion — sub-calls receive their own gas stipend from the calling opcode,
         // so no executionGasLimit override is needed (depth > 0 path).
@@ -762,6 +766,35 @@ public sealed class StateTransition : IStateTransition
     {
         BigInteger Load(Address address, BigInteger key);
         void Store(Address address, BigInteger key, BigInteger value);
+    }
+
+    /// <summary>
+    /// Determines the call type based on execution context for security analysis.
+    /// </summary>
+    private static CallType DetermineCallType(Address? creationAddress, Address? codeAddress, bool isStatic)
+    {
+        if (creationAddress.HasValue)
+        {
+            // CREATE vs CREATE2 differentiation would require additional context
+            // For now, we mark all contract creations as Create
+            return CallType.Create;
+        }
+        
+        if (codeAddress.HasValue)
+        {
+            // DELEGATECALL vs CALLCODE would need to be passed from the opcode
+            // The opcode handler should set this, but for now we assume DELEGATECALL
+            // as it's the more common proxy pattern case
+            return CallType.DelegateCall;
+        }
+        
+        if (isStatic)
+        {
+            return CallType.StaticCall;
+        }
+        
+        // Root transaction (depth 0) or regular CALL
+        return CallType.Call;
     }
 
     private sealed class TransientStorageRoot : ITransientStorageFrame
