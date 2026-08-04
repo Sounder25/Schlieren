@@ -26,8 +26,8 @@ public sealed class OpcodeCreate : IOpcode
         if (length > 2 * 24576)
             return (ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1);
 
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
+        var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
         // EIP-3860 word gas: 2 per 32-byte word of init code, charged before execution.
         var initCodeWordGas = 2UL * ((ulong)(lengthInt + 31) / 32);
@@ -56,6 +56,9 @@ public sealed class OpcodeCreate : IOpcode
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
 
+        // EIP-211: Clear return data buffer before any call-like operation
+        context.LastReturnData = Array.Empty<byte>();
+
         // Construct internal tx for creation
         var tx = new Transaction
         {
@@ -72,6 +75,11 @@ public sealed class OpcodeCreate : IOpcode
 
         var result = await context.SubCall(tx, false, newAddress, null); // isStatic=false, creationAddress, codeAddress=null
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+
+        // EIP-211: Only capture return data on revert (failure), not on success
+        // Successful CREATE/CREATE2 does NOT set return data - deployed code is separate
+        if (!result.IsSuccess)
+            context.LastReturnData = result.ReturnData;
 
         // Calculate unused gas from child
         var childRemaining = forwardedGas > result.GasUsed ? forwardedGas - result.GasUsed : 0UL;
@@ -162,15 +170,15 @@ public sealed class OpcodeCall : IOpcode
         else Array.Copy(addressBytes, 0, padded, 20 - addressBytes.Length, addressBytes.Length);
         var toAddress = new Address(padded);
 
-        var argsOffsetInt = (int)argsOffset;
-        var argsLengthInt = (int)argsLength;
-        var retOffsetInt = (int)retOffset;
-        var retLengthInt = (int)retLength;
+        var argsOffsetInt = argsOffset > int.MaxValue ? int.MaxValue : (int)argsOffset;
+        var argsLengthInt = argsLength > int.MaxValue ? int.MaxValue : (int)argsLength;
+        var retOffsetInt = retOffset > int.MaxValue ? int.MaxValue : (int)retOffset;
+        var retLengthInt = retLength > int.MaxValue ? int.MaxValue : (int)retLength;
 
         // Calculate memory expansion cost for both input and return data regions
-        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
-        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
-        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var maxInputEnd = argsLengthInt > 0 ? (long)argsOffsetInt + argsLengthInt : 0L;
+        var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
+        var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
         context.Memory.Expand(maxMemoryAccess);
@@ -317,8 +325,8 @@ public sealed class OpcodeCreate2 : IOpcode
         if (length > 2 * 24576)
             return (ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1);
 
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
+        var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
         // EIP-3860 word gas: 2 per 32-byte word of init code.
         var initCodeWordGas = 2UL * ((ulong)(lengthInt + 31) / 32);
@@ -353,6 +361,9 @@ public sealed class OpcodeCreate2 : IOpcode
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
 
+        // EIP-211: Clear return data buffer before any call-like operation
+        context.LastReturnData = Array.Empty<byte>();
+
         // EELS account_deployable(): CREATE2 collides when the destination has
         // a nonzero nonce, existing code, or any storage. The EIP-150 message
         // gas has already been reserved and remains consumed on collision.
@@ -383,6 +394,11 @@ public sealed class OpcodeCreate2 : IOpcode
 
         var result = await context.SubCall(tx, false, newAddress, null);
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+
+        // EIP-211: Only capture return data on revert (failure), not on success
+        // Successful CREATE/CREATE2 does NOT set return data - deployed code is separate
+        if (!result.IsSuccess)
+            context.LastReturnData = result.ReturnData;
 
         // Calculate unused gas from child
         var childRemaining = forwardedGas > result.GasUsed ? forwardedGas - result.GasUsed : 0UL;
@@ -451,15 +467,15 @@ public sealed class OpcodeStaticCall : IOpcode
         else Array.Copy(addressBytes, 0, padded, 20 - addressBytes.Length, addressBytes.Length);
         var toAddress = new Address(padded);
 
-        var argsOffsetInt = (int)argsOffset;
-        var argsLengthInt = (int)argsLength;
-        var retOffsetInt = (int)retOffset;
-        var retLengthInt = (int)retLength;
+        var argsOffsetInt = argsOffset > int.MaxValue ? int.MaxValue : (int)argsOffset;
+        var argsLengthInt = argsLength > int.MaxValue ? int.MaxValue : (int)argsLength;
+        var retOffsetInt = retOffset > int.MaxValue ? int.MaxValue : (int)retOffset;
+        var retLengthInt = retLength > int.MaxValue ? int.MaxValue : (int)retLength;
 
         // Calculate memory expansion cost for both input and return data regions
-        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
-        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
-        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var maxInputEnd = argsLengthInt > 0 ? (long)argsOffsetInt + argsLengthInt : 0L;
+        var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
+        var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
         context.Memory.Expand(maxMemoryAccess);
@@ -555,15 +571,15 @@ public sealed class OpcodeCallCode : IOpcode
         else Array.Copy(addressBytes, 0, padded, 20 - addressBytes.Length, addressBytes.Length);
         var codeAddress = new Address(padded);
 
-        var argsOffsetInt = (int)argsOffset;
-        var argsLengthInt = (int)argsLength;
-        var retOffsetInt = (int)retOffset;
-        var retLengthInt = (int)retLength;
+        var argsOffsetInt = argsOffset > int.MaxValue ? int.MaxValue : (int)argsOffset;
+        var argsLengthInt = argsLength > int.MaxValue ? int.MaxValue : (int)argsLength;
+        var retOffsetInt = retOffset > int.MaxValue ? int.MaxValue : (int)retOffset;
+        var retLengthInt = retLength > int.MaxValue ? int.MaxValue : (int)retLength;
 
         // Calculate memory expansion cost for both input and return data regions
-        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
-        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
-        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var maxInputEnd = argsLengthInt > 0 ? (long)argsOffsetInt + argsLengthInt : 0L;
+        var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
+        var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
         context.Memory.Expand(maxMemoryAccess);
@@ -679,15 +695,15 @@ public sealed class OpcodeDelegateCall : IOpcode
         else Array.Copy(addressBytes, 0, padded, 20 - addressBytes.Length, addressBytes.Length);
         var codeAddress = new Address(padded);
 
-        var argsOffsetInt = (int)argsOffset;
-        var argsLengthInt = (int)argsLength;
-        var retOffsetInt = (int)retOffset;
-        var retLengthInt = (int)retLength;
+        var argsOffsetInt = argsOffset > int.MaxValue ? int.MaxValue : (int)argsOffset;
+        var argsLengthInt = argsLength > int.MaxValue ? int.MaxValue : (int)argsLength;
+        var retOffsetInt = retOffset > int.MaxValue ? int.MaxValue : (int)retOffset;
+        var retLengthInt = retLength > int.MaxValue ? int.MaxValue : (int)retLength;
 
         // Calculate memory expansion cost for both input and return data regions
-        var maxInputEnd = argsLengthInt > 0 ? argsOffsetInt + argsLengthInt : 0;
-        var maxReturnEnd = retLengthInt > 0 ? retOffsetInt + retLengthInt : 0;
-        var maxMemoryAccess = Math.Max(maxInputEnd, maxReturnEnd);
+        var maxInputEnd = argsLengthInt > 0 ? (long)argsOffsetInt + argsLengthInt : 0L;
+        var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
+        var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
         context.ConsumeGas(memoryCost);
         context.Memory.Expand(maxMemoryAccess);

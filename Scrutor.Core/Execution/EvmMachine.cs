@@ -52,10 +52,16 @@ namespace Scrutor.Core.Execution
 
                 try
                 {
+                    // Capture stack snapshot BEFORE opcode executes (EELS OpStart semantics:
+                    //   evm_trace(evm, OpStart(op))  ← state before
+                    //   op_implementation[op](evm)
+                    // This makes structLogs show the stack the opcode *received*, not what it left.)
+                    var preStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null;
+
                     var (execResult, nextPc) = await opcode.ExecuteAsync(context, ct);
 
                     context.ConsumeGas(execResult.GasUsed);
-                    context.AddTraceStep(pc, opcode.Name, gasBefore, execResult.GasUsed);
+                    context.AddTraceStep(pc, opcode.Name, gasBefore, execResult.GasUsed, preStack);
                     // Record into gas frame journal (for gas causality tree)
                     if (context.GasFrame != null && execResult.GasUsed > 0)
                         context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));

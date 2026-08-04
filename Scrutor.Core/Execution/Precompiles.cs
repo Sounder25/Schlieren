@@ -281,8 +281,9 @@ public static class Precompiles
             return (success, gas);
         }
 
-        // Fail closed: do not invent pairing results.
-        return (Array.Empty<byte>(), gas);
+        // Return 0 for failure per EIP-197
+        var failure = new byte[32];
+        return (failure, gas);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

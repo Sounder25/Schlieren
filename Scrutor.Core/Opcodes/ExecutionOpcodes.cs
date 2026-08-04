@@ -224,7 +224,7 @@ public sealed class OpcodeCallDataLoad : IOpcode
         if (!context.Stack.TryPop(out var offset))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        var offsetInt = (int)offset;
+        var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
         var data = new byte[32];
         if (offsetInt < context.CallData.Length)
         {
@@ -283,7 +283,7 @@ public sealed class OpcodeCallDataCopy : IOpcode
         var data = new byte[lengthInt];
         if (offset < context.CallData.Length)
         {
-            var offsetInt = (int)offset;
+            var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
             var count = Math.Min(lengthInt, context.CallData.Length - offsetInt);
             Array.Copy(context.CallData, offsetInt, data, 0, count);
         }
@@ -337,7 +337,7 @@ public sealed class OpcodeCodeCopy : IOpcode
         var data = new byte[lengthInt];
         if (offset < context.Code.Length)
         {
-            var offsetInt = (int)offset;
+            var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
             var count = Math.Min(lengthInt, context.Code.Length - offsetInt);
             Array.Copy(context.Code, offsetInt, data, 0, count);
         }
@@ -396,7 +396,7 @@ public sealed class OpcodeReturnDataCopy : IOpcode
         var responseData = new byte[lengthInt];
         if (lengthInt > 0)
         {
-            var offsetInt = (int)offset;
+            var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
             Array.Copy(context.LastReturnData, offsetInt, responseData, 0, lengthInt);
         }
 

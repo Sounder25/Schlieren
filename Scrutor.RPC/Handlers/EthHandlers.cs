@@ -963,6 +963,20 @@ public sealed class EthHandlers
             ? hash.ToLowerInvariant()
             : "0x" + hash.ToLowerInvariant();
 
+        // Parse options once
+        var options = ParseTraceOptions(parameters.Length > 1 ? parameters[1] : null);
+        
+        // First try to get the stored trace
+        var storedTrace = _chainState.BlockStore.GetTraceByHash(normalizedHash);
+        var receipt = _chainState.BlockStore.GetReceiptByHash(normalizedHash);
+
+        if (storedTrace != null && receipt != null)
+        {
+            // Return stored trace with receipt data
+            return BuildTraceResponseFromStored(receipt, storedTrace, options);
+        }
+
+        // Fallback: try to find transaction and replay (for un-traced transactions)
         Transaction? tx = null;
         foreach (var block in _chainState.BlockStore.GetAllBlocks())
         {
@@ -994,7 +1008,6 @@ public sealed class EthHandlers
             commit: false,
             ct: ct);
 
-        var options = ParseTraceOptions(parameters.Length > 1 ? parameters[1] : null);
         return BuildTraceResponse(result, options);
     }
 
@@ -1342,6 +1355,33 @@ public sealed class EthHandlers
             gas = EthereumTypes.ToEthHex(result.GasUsed),
             failed = !result.IsSuccess,
             returnValue = EthereumTypes.ToEthHex(result.ReturnData),
+            structLogs = steps.Select(s => new
+            {
+                pc = s.Pc,
+                op = s.Op,
+                gas = s.Gas,
+                gasCost = s.GasCost,
+                depth = s.Depth,
+                stack = options.DisableStack ? new List<string>() : s.Stack,
+                memory = options.DisableMemory ? new List<string>() : s.Memory,
+                storage = options.DisableStorage ? new Dictionary<string, string>() : s.Storage
+            }).ToList()
+        };
+    }
+
+    private static object BuildTraceResponseFromStored(TransactionReceipt receipt, List<ExecutionTraceStep> traceSteps, TraceOptions options)
+    {
+        var steps = traceSteps.AsEnumerable();
+        if (options.Limit.HasValue)
+        {
+            steps = steps.Take(options.Limit.Value);
+        }
+
+        return new
+        {
+            gas = EthereumTypes.ToEthHex(receipt.GasUsed),
+            failed = receipt.Status == 0,
+            returnValue = "0x",  // We don't store return value separately
             structLogs = steps.Select(s => new
             {
                 pc = s.Pc,

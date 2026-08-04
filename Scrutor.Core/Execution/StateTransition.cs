@@ -60,6 +60,12 @@ public sealed class StateTransition : IStateTransition
 
         if (tx.Authorization != TransactionAuthorization.Internal)
         {
+            // EIP-3860: reject contract-creating transactions whose initcode exceeds
+            // 2 × MAX_CODE_SIZE (49152 bytes). This is a transaction-validity rule —
+            // the tx is never executed and produces no state change.
+            if (!tx.To.HasValue && tx.Data.Length > 2 * 24576)
+                return ExecutionResult.Failure(EvmError.InternalError, 0);
+
             // [AI-EDIT 2026-01-10] Intrinsic gas must be charged before EVM execution.
             // Yellow Paper §6.2 / EIP-2930: base 21000 + calldata bytes + access-list entries.
             intrinsicGas = IntrinsicGas.Compute(tx);
@@ -67,34 +73,54 @@ public sealed class StateTransition : IStateTransition
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
         }
 
-        if (tx.Authorization != TransactionAuthorization.Internal &&
-            tx.Authorization != TransactionAuthorization.Simulation)
+        // Split into two gates:
+        //
+        //  VALIDATION gate — Signed only.
+        //    Nonce ordering, EIP-1559 fee floor, blob hash well-formedness, and
+        //    the upfront balance sufficiency check. Impersonated txs have no real
+        //    key so we cannot enforce these; Simulation and Internal bypass for the
+        //    same reason.
+        //
+        //  DEDUCTION gate — everything except Internal and Simulation.
+        //    The sender must be charged gas + blob fee + value and have their nonce
+        //    bumped for every externally-submitted tx, signed OR impersonated.
+        //    Skipping this for Impersonated was the bug: the sender was never debited,
+        //    so post-execution gas refund math operated on an unmodified balance,
+        //    and the net effect was a free transaction.
+
+        var isSigned = tx.Authorization == TransactionAuthorization.Signed;
+        var isImpersonated = tx.Authorization == TransactionAuthorization.Impersonated;
+        var isInternal = tx.Authorization == TransactionAuthorization.Internal;
+        var isSimulation = tx.Authorization == TransactionAuthorization.Simulation;
+
+        // ── Validation (Signed only) ────────────────────────────────────────────
+        ulong senderNonceForDeduction = 0;
+        BigInteger senderBalanceForDeduction = BigInteger.Zero;
+
+        if (isSigned)
         {
-            var senderNonce = await state.GetNonceAsync(tx.From, ct);
+            senderNonceForDeduction = await state.GetNonceAsync(tx.From, ct);
 
-            // Validate nonce before deducting anything
-            if (tx.Nonce < senderNonce) return ExecutionResult.Failure(EvmError.NonceTooLow);
-            if (tx.Nonce > senderNonce) return ExecutionResult.Failure(EvmError.NonceTooHigh);
+            // Nonce ordering
+            if (tx.Nonce < senderNonceForDeduction) return ExecutionResult.Failure(EvmError.NonceTooLow);
+            if (tx.Nonce > senderNonceForDeduction) return ExecutionResult.Failure(EvmError.NonceTooHigh);
 
-            // Calculate effective gas price
-            var baseFeePerGasVal = new BigInteger(block.BaseFeePerGas);
-            BigInteger effectiveGasPriceVal;
+            // EIP-1559 fee floor
             if (tx.TxType >= 2)
             {
-                if (tx.MaxFeePerGas < baseFeePerGasVal) return ExecutionResult.Failure(EvmError.InsufficientFunds);
-                effectiveGasPriceVal = BigInteger.Min(tx.MaxFeePerGas, baseFeePerGasVal + tx.MaxPriorityFeePerGas);
+                if (tx.MaxFeePerGas < baseFeePerGas) return ExecutionResult.Failure(EvmError.InsufficientFunds);
             }
             else
             {
-                if (tx.GasPrice < baseFeePerGasVal) return ExecutionResult.Failure(EvmError.InsufficientFunds);
-                effectiveGasPriceVal = tx.GasPrice;
+                if (tx.GasPrice < baseFeePerGas) return ExecutionResult.Failure(EvmError.InsufficientFunds);
             }
 
+            // EIP-4844 blob hash well-formedness
             if (tx.TxType >= 3)
             {
                 if (tx.BlobVersionedHashes == null || tx.BlobVersionedHashes.Count == 0 || tx.BlobVersionedHashes.Count > 6)
                     return ExecutionResult.Failure(EvmError.InternalError);
-                
+
                 foreach (var hash in tx.BlobVersionedHashes)
                 {
                     if (hash == null || hash.Length != 32 || hash[0] != 0x01)
@@ -105,23 +131,37 @@ public sealed class StateTransition : IStateTransition
                     return ExecutionResult.Failure(EvmError.InsufficientFunds);
             }
 
-            // Validate upfront balance covers max possible cost
-            var senderBalance = await state.GetBalanceAsync(tx.From, ct);
+            // Upfront balance sufficiency
+            senderBalanceForDeduction = await state.GetBalanceAsync(tx.From, ct);
             maxGasCost = new BigInteger(tx.GasLimit) * (tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice);
             var maxBlobCost = CalculateMaxBlobCost(tx);
             var upfrontCost = maxGasCost + maxBlobCost + tx.Value;
-            if (senderBalance < upfrontCost)
+            if (senderBalanceForDeduction < upfrontCost)
                 return ExecutionResult.Failure(EvmError.InsufficientFunds);
+        }
+
+        // ── Deduction (all externally-submitted txs: Signed + Impersonated) ────
+        // Internal and Simulation never deduct — they are read-only probes or
+        // recursive sub-calls that get their gas budget from the parent frame.
+        if (!isInternal && !isSimulation)
+        {
+            // For Impersonated txs we did not pre-fetch nonce/balance above,
+            // so fetch them now (only one extra await when impersonated).
+            if (isImpersonated)
+            {
+                senderNonceForDeduction = await state.GetNonceAsync(tx.From, ct);
+                senderBalanceForDeduction = await state.GetBalanceAsync(tx.From, ct);
+                maxGasCost = new BigInteger(tx.GasLimit) * (tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice);
+            }
 
             blobFee = CalculateBlobFee(tx, block);
-            // Actual deduction uses effective prices, not max prices
-            var actualGasCost = new BigInteger(tx.GasLimit) * effectiveGasPriceVal;
+            var actualGasCost = new BigInteger(tx.GasLimit) * effectiveGasPrice;
 
             if (commit)
             {
-                // Deduct actual execution gas, actual blob fee, and transaction value upfront
-                txOverlay.SetBalance(tx.From, senderBalance - actualGasCost - blobFee - tx.Value);
-                txOverlay.SetNonce(tx.From, senderNonce + 1);
+                // Deduct gas + blob fee + value upfront; refund of unspent gas happens post-execution.
+                txOverlay.SetBalance(tx.From, senderBalanceForDeduction - actualGasCost - blobFee - tx.Value);
+                txOverlay.SetNonce(tx.From, senderNonceForDeduction + 1);
             }
         }
 
@@ -205,6 +245,16 @@ public sealed class StateTransition : IStateTransition
                         result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
                 }
             }
+        }
+
+        // EELS: process_create_message calls restore_tx_state(snapshot) on failure,
+        // which undoes all mutations to the creation address (nonce=1, storage, etc).
+        // Our overlay architecture may have leaked writes to the creation address into
+        // txOverlay during execution (e.g. via SSTORE, value transfer, or sub-calls).
+        // Clean it up so txOverlay.Commit() doesn't persist the ghost account.
+        if (topLevelCreation.HasValue && !result.IsSuccess)
+        {
+            txOverlay.Reset(topLevelCreation.Value);
         }
 
         // [AI-EDIT 2026-01-10] Post-execution accounting on the base state.

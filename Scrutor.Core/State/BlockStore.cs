@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Scrutor.Core.Execution;
 using Scrutor.Core.Models;
 
 namespace Scrutor.Core.State;
@@ -13,6 +14,8 @@ public interface IBlockStore
     IEnumerable<TransactionReceipt> GetReceiptsByBlockNumber(ulong blockNumber);
     IEnumerable<TransactionReceipt> GetAllReceipts();
     IEnumerable<Block> GetAllBlocks();
+    void AddTrace(string transactionHash, List<ExecutionTraceStep> trace);
+    List<ExecutionTraceStep>? GetTraceByHash(string transactionHash);
 }
 
 public sealed class BlockStore : IBlockStore
@@ -51,4 +54,25 @@ public sealed class BlockStore : IBlockStore
 
     public IEnumerable<TransactionReceipt> GetAllReceipts() => _receiptsByHash.Values;
     public IEnumerable<Block> GetAllBlocks() => _blocksByNumber.Values;
+
+    private readonly ConcurrentDictionary<string, List<ExecutionTraceStep>> _tracesByHash = new();
+
+    public void AddTrace(string transactionHash, List<ExecutionTraceStep> trace)
+        {
+            if (trace.Count > 0)
+            {
+                var key = transactionHash.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                    ? transactionHash.ToLowerInvariant()
+                    : "0x" + transactionHash.ToLowerInvariant();
+                _tracesByHash[key] = trace;
+            }
+        }
+
+    public List<ExecutionTraceStep>? GetTraceByHash(string transactionHash)
+    {
+        var key = transactionHash.StartsWith("0x", StringComparison.OrdinalIgnoreCase) 
+            ? transactionHash.ToLowerInvariant() 
+            : "0x" + transactionHash.ToLowerInvariant();
+        return _tracesByHash.TryGetValue(key, out var trace) ? trace : null;
+    }
 }

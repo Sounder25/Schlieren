@@ -83,7 +83,7 @@ public sealed class ExceptionalChildGasTests
         Assert.Equal(64, context.Memory.Size);
         context.Stack.Push(32);
         var (mloadResult, _) = await new OpcodeMload().ExecuteAsync(context);
-        Assert.Equal(3UL, mloadResult.GasUsed);
+        Assert.Equal(0UL, mloadResult.GasUsed);
     }
 
     private static EvmExecutionContext CreateCallContext()

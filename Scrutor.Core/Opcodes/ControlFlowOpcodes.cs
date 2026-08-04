@@ -29,7 +29,7 @@ public sealed class OpcodeJump : IOpcode
         if (dest > int.MaxValue || dest < 0)
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.BadJumpDestination), context.ProgramCounter + 1));
 
-        var destInt = (int)dest;
+        var destInt = dest > int.MaxValue ? int.MaxValue : (int)dest;
         
         if (!context.IsValidJumpDestination(destInt))
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.BadJumpDestination), context.ProgramCounter + 1));
@@ -54,7 +54,7 @@ public sealed class OpcodeJumpi : IOpcode
         if (dest > int.MaxValue || dest < 0)
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.BadJumpDestination), context.ProgramCounter + 1));
 
-        var destInt = (int)dest;
+        var destInt = dest > int.MaxValue ? int.MaxValue : (int)dest;
 
         if (!context.IsValidJumpDestination(destInt))
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.BadJumpDestination), context.ProgramCounter + 1));

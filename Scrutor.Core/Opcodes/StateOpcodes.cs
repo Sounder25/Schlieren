@@ -145,9 +145,9 @@ public sealed class OpcodeExtCodeCopy : IOpcode
 
         var code = await context.GlobalState.GetCodeAsync(address, ct);
 
-        var destInt = (int)destOffset;
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        var destInt = destOffset > int.MaxValue ? int.MaxValue : (int)destOffset;
+        var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
+        var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
         var expansionGas = context.Memory.CalculateGasCost(destInt + lengthInt);
         var copyGas = (ulong)(lengthInt + 31) / 32 * 3;

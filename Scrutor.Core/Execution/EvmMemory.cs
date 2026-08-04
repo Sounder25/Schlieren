@@ -53,8 +53,15 @@ public sealed class EvmMemory
 
     private void EnsureCapacity(int requiredSize)
     {
-        if (_data.Length >= requiredSize) return;
+        if (requiredSize <= 0 || _data.Length >= requiredSize) return;
         
+        // Guard against unreasonable allocation attempts. The EVM gas cost formula
+        // makes anything beyond ~1MB astronomically expensive (>30M gas), so if we
+        // reach here with a large size, gas accounting will reject it. Cap at 16MB
+        // as a safety net against OOM — legitimate EVM execution never reaches this.
+        if (requiredSize > 16 * 1024 * 1024)
+            throw new EvmOutOfGasException($"Memory expansion too large: {requiredSize} bytes");
+
         var newSize = ((requiredSize + 31) / 32) * 32; // Round up to 32-byte boundary
         Array.Resize(ref _data, newSize);
     }

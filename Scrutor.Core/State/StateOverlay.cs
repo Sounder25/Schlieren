@@ -78,15 +78,11 @@ public sealed class StateOverlay : IGlobalState
     {
         ct.ThrowIfCancellationRequested();
         if (_buffer.TryGetValue(address, out var acc) && acc.Storage.Values.Any(v => v != BigInteger.Zero))
-        {
             return StoragePresence.NonEmpty;
-        }
 
         var parentPresence = await _parent.GetStoragePresenceAsync(address, ct);
         if (parentPresence == StoragePresence.Unknown)
-        {
             return StoragePresence.Unknown;
-        }
 
         var keys = await GetStorageKeysAsync(address, ct);
         foreach (var key in keys)
@@ -96,14 +92,11 @@ public sealed class StateOverlay : IGlobalState
             if (val != BigInteger.Zero)
                 return StoragePresence.NonEmpty;
         }
-
         return StoragePresence.Empty;
     }
 
     public async ValueTask<bool> HasStorageAsync(Address address, CancellationToken ct = default)
-    {
-        return await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
-    }
+        => await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
 
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
     {
@@ -122,6 +115,17 @@ public sealed class StateOverlay : IGlobalState
         _buffer.Clear();
     }
 
+    /// <summary>
+    /// Remove all buffered mutations for a single address.
+    /// Used to roll back a failed top-level CREATE so the creation address
+    /// doesn't leak into the committed state (EELS: restore_tx_state semantics).
+    /// </summary>
+    public void Reset(Address address)
+    {
+        _buffer.TryRemove(address, out _);
+        _createdAccounts.Remove(address);
+    }
+
     public void Commit()
     {
         foreach (var (address, acc) in _buffer)
@@ -129,13 +133,9 @@ public sealed class StateOverlay : IGlobalState
             if (acc.Balance.HasValue) _parent.SetBalance(address, acc.Balance.Value);
             if (acc.Nonce.HasValue) _parent.SetNonce(address, acc.Nonce.Value);
             if (acc.Code != null) _parent.SetCode(address, acc.Code);
-            
             foreach (var (key, val) in acc.Storage)
-            {
                 _parent.SetStorageAt(address, key, val);
-            }
         }
-
         foreach (var addr in _createdAccounts) _parent.MarkCreated(addr);
         foreach (var addr in _accountsMarkedForDeletion) _parent.MarkForDeletion(addr);
     }
@@ -148,9 +148,7 @@ public sealed class StateOverlay : IGlobalState
     public void DeleteAccount(Address address) => _parent.DeleteAccount(address);
 
     private OverlayAccount GetOrCreateOverlayAccount(Address address)
-    {
-        return _buffer.GetOrAdd(address, _ => new OverlayAccount());
-    }
+        => _buffer.GetOrAdd(address, _ => new OverlayAccount());
 
     private class OverlayAccount
     {
@@ -172,7 +170,7 @@ public sealed class StateOverlay : IGlobalState
             }
             else
             {
-                acc = acc.Clone(); // Clone to avoid mutating parent snapshot if it was returned directly
+                acc = acc.Clone();
                 snapshot[address] = acc;
             }
 
@@ -180,15 +178,10 @@ public sealed class StateOverlay : IGlobalState
             if (overlayAcc.Nonce.HasValue) acc.Nonce = overlayAcc.Nonce.Value;
             if (overlayAcc.Code != null) acc.Code = overlayAcc.Code;
             foreach (var (k, v) in overlayAcc.Storage)
-            {
                 acc.Storage[k] = v;
-            }
         }
-        // Remove accounts that are marked for deletion in this overlay or parent
         foreach (var addr in GetAccountsMarkedForDeletion())
-        {
             snapshot.Remove(addr);
-        }
         return snapshot;
     }
 }

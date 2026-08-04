@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Scrutor.Core.State;
 using Scrutor.Core.Execution;
 using Scrutor.Core.Opcodes;
@@ -72,7 +73,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EvmMachine>();
         services.AddSingleton<IStateTransition, StateTransition>();
         
-        services.AddSingleton<MiningService>();
+        services.AddSingleton<MiningService>(sp =>
+        {
+            var config = sp.GetRequiredService<NodeConfiguration>();
+            return new MiningService(
+                sp.GetRequiredService<ITxMempool>(),
+                sp.GetRequiredService<IGlobalState>(),
+                sp.GetRequiredService<IChainState>(),
+                sp.GetRequiredService<IStateTransition>(),
+                sp.GetRequiredService<ILogger<MiningService>>(),
+                config.StepTracing);
+        });
         services.AddSingleton<IMiningService>(sp => sp.GetRequiredService<MiningService>());
         services.AddHostedService(sp => sp.GetRequiredService<MiningService>());
         

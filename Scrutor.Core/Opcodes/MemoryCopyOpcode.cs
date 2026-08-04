@@ -44,7 +44,7 @@ public sealed class OpcodeMcopy : IOpcode
         var copyCost = 3UL + 3UL * words;
 
         // Memory expansion cost: expand for whichever end is larger
-        var maxEnd = Math.Max((int)dstEnd, (int)srcEnd);
+        var maxEnd = (int)Math.Min(Math.Max(dstEnd, srcEnd), (ulong)int.MaxValue);
         var expansionGas = context.Memory.CalculateGasCost(maxEnd);
 
         // Load source data, then store at destination (handles overlapping copies correctly

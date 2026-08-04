@@ -29,8 +29,8 @@ public abstract class LogOpcodeBase : IOpcode
             topics.Add("0x" + hex.PadLeft(64, '0'));
         }
 
-        var offsetInt = (int)offset;
-        var lengthInt = (int)length;
+        var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
+        var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
         var expansionGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
         var data = context.Memory.Load(offsetInt, lengthInt);

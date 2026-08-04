@@ -205,8 +205,45 @@ public sealed class EelsStateFixtureLoader
             AccessList = accessList,
             BlobVersionedHashes = blobVersionedHashes,
             MaxFeePerBlobGas = ResolveMaxFeePerBlobGas(txNode),
-            Authorization = TransactionAuthorization.Impersonated
+            Authorization = txNode.TryGetProperty("secretKey", out _)
+                ? TransactionAuthorization.Signed
+                : TransactionAuthorization.Impersonated
         };
+
+        // Generate valid signature for Signed transactions using Nethereum
+        // StateTransition will recover address from signature to verify sender
+        if (tx.Authorization == TransactionAuthorization.Signed)
+        {
+            if (txNode.TryGetProperty("secretKey", out var secretKeyNode))
+            {
+                var skText = GetJsonText(secretKeyNode);
+                var skBytes = EelsHex.ParseBytes(skText);
+                var key = new EthECKey(skBytes, true);
+                
+                // Build EIP-155 signing hash: keccak256(rlp([nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]))
+                var signingHash = BuildLegacyEip155SigningHash(tx, blockContext.ChainId);
+                tx.SigningHash = signingHash;
+                
+                // Sign with Nethereum - EthECDSASignature has R and S as byte[][]
+                var signature = key.SignAndCalculateV(signingHash);
+                
+                // signature.V from Nethereum is a byte array - extract the integer value
+                tx.R = PadTo32Bytes(signature.R);
+                tx.S = PadTo32Bytes(signature.S);
+                // V is stored as a single byte or minimal big-endian bytes, convert to int
+                if (signature.V.Length == 1)
+                    tx.V = signature.V[0];
+                else if (signature.V.Length > 1)
+                {
+                    // Convert from big-endian
+                    tx.V = 0;
+                    for (int i = 0; i < signature.V.Length; i++)
+                        tx.V = (tx.V << 8) | signature.V[i];
+                }
+                else
+                    tx.V = 0;
+            }
+        }
 
         if (!firstPostVariant.TryGetProperty("state", out var expectedStateNode))
         {
@@ -290,6 +327,10 @@ public sealed class EelsStateFixtureLoader
             var valueIndexes = ParseIndexVector(indexesNode, "value");
             var expectedState = ParseAccountMap(resultNode, preState, allowPartial: true);
 
+            // Derive a deterministic private key from sender address for legacy tx signing
+            var legacySenderKey = DeriveKeyFromAddress(sender);
+            var legacyChainId = ParseChainId(txNode);
+
             foreach (var dataIndex in dataIndexes)
             foreach (var gasIndex in gasIndexes)
             foreach (var valueIndex in valueIndexes)
@@ -312,8 +353,11 @@ public sealed class EelsStateFixtureLoader
                     AccessList = legacyAccessList,
                     BlobVersionedHashes = ParseBlobVersionedHashes(txNode),
                     MaxFeePerBlobGas = ResolveMaxFeePerBlobGas(txNode),
-                    Authorization = TransactionAuthorization.Impersonated
+                    Authorization = TransactionAuthorization.Signed
                 };
+
+                // Sign the legacy transaction for proper gas accounting
+                SignTransaction(tx, legacySenderKey, legacyChainId);
 
                 var variantSuffix = $"expect{variantNumber}_d{dataIndex}_g{gasIndex}_v{valueIndex}";
                 cases.Add(new EelsStateCase(
@@ -758,5 +802,208 @@ public sealed class EelsStateFixtureLoader
         if (hasMaxFeePerGas && !hasGasPrice) return 2;
         if (hasGasPrice && accessList.Count > 0) return 1;
         return 0;
+    }
+
+    /// <summary>
+    /// Builds the EIP-155 signing hash for legacy transactions.
+    /// Format: keccak256(rlp([nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]))
+    /// </summary>
+    private static byte[] BuildLegacyEip155SigningHash(Transaction tx, ulong chainId)
+    {
+        var items = new List<byte[]>();
+        items.Add(EncodeUint(tx.Nonce));
+        items.Add(BigIntegerToBytes(tx.GasPrice));
+        items.Add(EncodeUint(tx.GasLimit));
+        items.Add(tx.To?.Bytes ?? Array.Empty<byte>());
+        items.Add(BigIntegerToBytes(tx.Value));
+        items.Add(tx.Data);
+        items.Add(EncodeUint(chainId));
+        items.Add(Array.Empty<byte>()); // 0 for r
+        items.Add(Array.Empty<byte>()); // 0 for s
+        
+        var encoded = RlpEncodeList(items);
+        return Scrutor.Core.Primitives.CryptoUtils.Keccak256(encoded);
+    }
+
+    /// <summary>
+    /// Converts BigInteger to minimal big-endian bytes (no leading zeros).
+    /// </summary>
+    private static byte[] BigIntegerToBytes(BigInteger value)
+    {
+        if (value == 0) return Array.Empty<byte>();
+        var bytes = value.ToByteArray();
+        // Convert from little-endian to big-endian
+        Array.Reverse(bytes);
+        // Trim leading zeros
+        int start = 0;
+        while (start < bytes.Length && bytes[start] == 0) start++;
+        if (start == 0) return bytes;
+        var result = new byte[bytes.Length - start];
+        Buffer.BlockCopy(bytes, start, result, 0, result.Length);
+        return result;
+    }
+
+    /// <summary>
+    /// Encodes an unsigned integer as big-endian minimal bytes.
+    /// </summary>
+    private static byte[] EncodeUint(ulong value)
+    {
+        if (value == 0) return Array.Empty<byte>();
+        var bytes = BitConverter.GetBytes(value);
+        // Convert from little-endian to big-endian
+        Array.Reverse(bytes);
+        // Trim leading zeros
+        int start = 0;
+        while (start < bytes.Length - 1 && bytes[start] == 0) start++;
+        if (start == 0) return bytes;
+        var result = new byte[bytes.Length - start];
+        Buffer.BlockCopy(bytes, start, result, 0, result.Length);
+        return result;
+    }
+
+    /// <summary>
+    /// RLP encodes a list of byte arrays.
+    /// </summary>
+    private static byte[] RlpEncodeList(List<byte[]> items)
+    {
+        if (items.Count == 0) return new byte[] { 0xc0 };
+        
+        var encodedItems = items.Select(item => RlpEncodeItem(item)).ToArray();
+        var totalLen = encodedItems.Sum(i => i.Length);
+        
+        if (totalLen <= 55)
+        {
+            var result = new byte[1 + totalLen];
+            result[0] = (byte)(0xc0 + totalLen);
+            int pos = 1;
+            foreach (var item in encodedItems)
+            {
+                Buffer.BlockCopy(item, 0, result, pos, item.Length);
+                pos += item.Length;
+            }
+            return result;
+        }
+        else
+        {
+            var lenBytes = GetLenBytes(totalLen);
+            var result = new byte[1 + lenBytes.Length + totalLen];
+            result[0] = (byte)(0xf7 + lenBytes.Length);
+            Buffer.BlockCopy(lenBytes, 0, result, 1, lenBytes.Length);
+            int pos = 1 + lenBytes.Length;
+            foreach (var item in encodedItems)
+            {
+                Buffer.BlockCopy(item, 0, result, pos, item.Length);
+                pos += item.Length;
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// RLP encodes a single item.
+    /// </summary>
+    private static byte[] RlpEncodeItem(byte[] item)
+    {
+        if (item == null || item.Length == 0)
+            return new byte[] { 0x80 };
+        if (item.Length == 1 && item[0] < 0x80)
+            return item;
+        
+        if (item.Length <= 55)
+        {
+            var result = new byte[1 + item.Length];
+            result[0] = (byte)(0x80 + item.Length);
+            Buffer.BlockCopy(item, 0, result, 1, item.Length);
+            return result;
+        }
+        else
+        {
+            var lenBytes = GetLenBytes(item.Length);
+            var result = new byte[1 + lenBytes.Length + item.Length];
+            result[0] = (byte)(0xb7 + lenBytes.Length);
+            Buffer.BlockCopy(lenBytes, 0, result, 1, lenBytes.Length);
+            Buffer.BlockCopy(item, 0, result, 1 + lenBytes.Length, item.Length);
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Gets minimal big-endian bytes for a length value.
+    /// </summary>
+    private static byte[] GetLenBytes(int len)
+    {
+        if (len == 0) return Array.Empty<byte>();
+        var bytes = new List<byte>();
+        while (len > 0)
+        {
+            bytes.Insert(0, (byte)(len & 0xff));
+            len >>= 8;
+        }
+        return bytes.ToArray();
+    }
+
+    /// <summary>
+    /// Pads a byte array to 32 bytes (big-endian).
+    /// </summary>
+    private static byte[] PadTo32Bytes(byte[] bytes)
+    {
+        if (bytes.Length >= 32) return bytes;
+        var result = new byte[32];
+        Buffer.BlockCopy(bytes, 0, result, 32 - bytes.Length, bytes.Length);
+        return result;
+    }
+
+    /// <summary>
+    /// Calculates the EIP-155 V value from raw V and chainId.
+    /// </summary>
+    private static int CalculateEip155V(int rawV, ulong chainId)
+    {
+        // For EIP-155, V = chainId * 2 + 35 or chainId * 2 + 36
+        // rawV is typically 27 or 28
+        if (rawV < 27)
+            return rawV + (int)chainId * 2 + 8; // Adjust for recovery ID
+        return rawV + (int)chainId * 2 + 8;
+    }
+
+    /// <summary>
+    /// Derives a deterministic private key from an address for test signing.
+    /// This allows signing legacy transactions that don't have a secretKey in the fixture.
+    /// </summary>
+    private static EthECKey DeriveKeyFromAddress(Address sender)
+    {
+        // Hash the address bytes to create a deterministic private key
+        var addressBytes = sender.Bytes;
+        var hash = Nethereum.Util.Sha3Keccack.Current.CalculateHash(addressBytes);
+        return new EthECKey(hash, true);
+    }
+
+    /// <summary>
+    /// Signs a transaction with the given key and chainId.
+    /// </summary>
+    private static void SignTransaction(Transaction tx, EthECKey key, ulong chainId)
+    {
+        // Build EIP-155 signing hash: keccak256(rlp([nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]))
+        var signingHash = BuildLegacyEip155SigningHash(tx, chainId);
+        tx.SigningHash = signingHash;
+
+        // Sign with Nethereum - EthECDSASignature has R and S as byte[][]
+        var signature = key.SignAndCalculateV(signingHash);
+
+        // Convert signature components
+        tx.R = PadTo32Bytes(signature.R);
+        tx.S = PadTo32Bytes(signature.S);
+
+        // V is stored as a single byte or minimal big-endian bytes, convert to int
+        if (signature.V.Length == 1)
+            tx.V = signature.V[0];
+        else if (signature.V.Length > 1)
+        {
+            // Convert from big-endian
+            tx.V = 0;
+            for (int i = 0; i < signature.V.Length; i++)
+                tx.V = (tx.V << 8) | signature.V[i];
+        }
+        else
+            tx.V = 0;
     }
 }

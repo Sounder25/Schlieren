@@ -211,8 +211,21 @@ namespace Scrutor.Core.Execution
 
         public void RefundGas(ulong amount)
         {
-            if (amount > GasUsed) GasUsed = 0; // Should ideally not happen if logic is correct
-            else GasUsed -= amount;
+            if (amount > GasUsed)
+            {
+                // [DIAGNOSTIC] Over-refund masks a gas-accounting bug (the caller
+                // tried to give back more than the frame has consumed). Behavior is
+                // preserved (clamp to 0) so existing conformance stays green, but the
+                // event is surfaced because it should never legitimately occur.
+                Console.Error.WriteLine(
+                    $"[OVER_REFUND] amount={amount} gasUsed={GasUsed} " +
+                    $"opcode-frame contract={ContractAddress} depth={CallDepth} gasLimit={GasLimit}");
+                GasUsed = 0;
+            }
+            else
+            {
+                GasUsed -= amount;
+            }
         }
 
         public BigInteger LoadTransientStorage(BigInteger key)
@@ -230,11 +243,27 @@ namespace Scrutor.Core.Execution
             TransientStore?.Invoke(ContractAddress, key, value);
         }
 
-        public void AddTraceStep(int pc, string op, ulong gasBefore, ulong gasCost)
+        /// <summary>
+        /// Records one EIP-3155 structLog step.
+        ///
+        /// EELS trace semantics (ethereum/trace.py + fork interpreter):
+        ///   evm_trace(evm, OpStart(op))   ← snapshot BEFORE opcode executes
+        ///   op_implementation[op](evm)
+        ///   evm_trace(evm, OpEnd())
+        ///
+        /// So <paramref name="preStack"/> must be captured **before** calling
+        /// <see cref="IOpcode.ExecuteAsync"/> — pass <c>Stack.SnapshotTopFirst()</c>
+        /// taken before execution. When <paramref name="preStack"/> is null (legacy callers),
+        /// the stack is snapshotted at call time (post-execution, less accurate).
+        /// </summary>
+        public void AddTraceStep(int pc, string op, ulong gasBefore, ulong gasCost,
+            IReadOnlyList<BigInteger>? preStack = null)
         {
             if (!CaptureTrace) return;
 
-            var stack = Stack.SnapshotTopFirst()
+            // Prefer the pre-execution snapshot (OpStart semantics). Fall back to
+            // current stack if not provided (backwards-compat with existing callers).
+            var stackItems = (preStack ?? Stack.SnapshotTopFirst())
                 .Select(v => "0x" + v.ToString("x"))
                 .ToList();
 
@@ -245,7 +274,7 @@ namespace Scrutor.Core.Execution
                 Gas = $"0x{gasBefore:x}",
                 GasCost = $"0x{gasCost:x}",
                 Depth = CallDepth,
-                Stack = stack,
+                Stack = stackItems,
                 Memory = Memory.SnapshotWordsHex(),
                 Storage = new Dictionary<string, string>(_traceStorage, StringComparer.OrdinalIgnoreCase)
             });

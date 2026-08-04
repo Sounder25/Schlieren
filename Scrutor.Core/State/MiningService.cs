@@ -15,19 +15,22 @@ public sealed class MiningService : BackgroundService, IMiningService
     private readonly IChainState _chainState;
     private readonly IStateTransition _stateTransition;
     private readonly ILogger<MiningService> _logger;
+    private readonly bool _enableGlobalTracing;
 
     public MiningService(
         ITxMempool mempool, 
         IGlobalState globalState, 
         IChainState chainState, 
         IStateTransition stateTransition,
-        ILogger<MiningService> logger)
+        ILogger<MiningService> logger,
+        bool enableGlobalTracing = false)
     {
         _mempool = mempool;
         _globalState = globalState;
         _chainState = chainState;
         _stateTransition = stateTransition;
         _logger = logger;
+        _enableGlobalTracing = enableGlobalTracing;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -132,6 +135,12 @@ public sealed class MiningService : BackgroundService, IMiningService
                 Coinbase = Address.FromHex(block.Miner)
             };
 
+            // Enable tracing if global tracing is on
+            if (_enableGlobalTracing)
+            {
+                tx.EnableTracing = true;
+            }
+
             var result = await _stateTransition.ApplyTransactionAsync(tx, _globalState, blockContext, ct: ct);
 
             // Pre-execution validation failures: do not include in block (no receipt → clients hang if we drop after accept).
@@ -180,6 +189,12 @@ public sealed class MiningService : BackgroundService, IMiningService
             }
 
             _chainState.BlockStore.AddReceipt(receipt);
+
+            // Store execution trace if available
+            if (result.TraceSteps.Count > 0)
+            {
+                _chainState.BlockStore.AddTrace(receipt.TransactionHash, result.TraceSteps);
+            }
 
             if (!result.IsSuccess)
             {

@@ -13,9 +13,7 @@ public sealed class GlobalState : IGlobalState
     public ValueTask<BigInteger> GetBalanceAsync(Address address, CancellationToken ct = default)
     {
         if (_accounts.TryGetValue(address, out var account))
-        {
             return new ValueTask<BigInteger>(account.Balance);
-        }
         return new ValueTask<BigInteger>(BigInteger.Zero);
     }
 
@@ -25,21 +23,13 @@ public sealed class GlobalState : IGlobalState
         try
         {
             var account = GetOrCreateAccount(address);
-            lock (account)
-            {
-                account.Balance = amount;
-            }
+            lock (account) { account.Balance = amount; }
         }
-        finally
-        {
-            _snapshotGate.ExitReadLock();
-        }
+        finally { _snapshotGate.ExitReadLock(); }
     }
 
     public ValueTask<ulong> GetNonceAsync(Address address, CancellationToken ct = default)
-    {
-        return new ValueTask<ulong>(_accounts.TryGetValue(address, out var account) ? account.Nonce : 0);
-    }
+        => new(_accounts.TryGetValue(address, out var account) ? account.Nonce : 0);
 
     public void SetNonce(Address address, ulong nonce)
     {
@@ -47,23 +37,13 @@ public sealed class GlobalState : IGlobalState
         try
         {
             var account = GetOrCreateAccount(address);
-            lock (account)
-            {
-                account.Nonce = nonce;
-            }
+            lock (account) { account.Nonce = nonce; }
         }
-        finally
-        {
-            _snapshotGate.ExitReadLock();
-        }
+        finally { _snapshotGate.ExitReadLock(); }
     }
 
     public ValueTask<byte[]> GetCodeAsync(Address address, CancellationToken ct = default)
-    {
-        return new ValueTask<byte[]>(_accounts.TryGetValue(address, out var account) 
-            ? account.Code 
-            : Array.Empty<byte>());
-    }
+        => new(_accounts.TryGetValue(address, out var account) ? account.Code : Array.Empty<byte>());
 
     public void SetCode(Address address, byte[] code)
     {
@@ -71,15 +51,9 @@ public sealed class GlobalState : IGlobalState
         try
         {
             var account = GetOrCreateAccount(address);
-            lock (account)
-            {
-                account.Code = code;
-            }
+            lock (account) { account.Code = code; }
         }
-        finally
-        {
-            _snapshotGate.ExitReadLock();
-        }
+        finally { _snapshotGate.ExitReadLock(); }
     }
 
     public ValueTask<BigInteger> GetStorageAtAsync(Address address, BigInteger key, CancellationToken ct = default)
@@ -87,9 +61,7 @@ public sealed class GlobalState : IGlobalState
         if (_accounts.TryGetValue(address, out var account))
         {
             lock (account)
-            {
                 return new ValueTask<BigInteger>(account.Storage.GetValueOrDefault(key, BigInteger.Zero));
-            }
         }
         return new ValueTask<BigInteger>(BigInteger.Zero);
     }
@@ -100,9 +72,7 @@ public sealed class GlobalState : IGlobalState
         if (_accounts.TryGetValue(address, out var account))
         {
             lock (account)
-            {
                 return new ValueTask<IReadOnlyCollection<BigInteger>>(account.Storage.Keys.ToList().AsReadOnly());
-            }
         }
         return new ValueTask<IReadOnlyCollection<BigInteger>>(Array.Empty<BigInteger>());
     }
@@ -113,20 +83,16 @@ public sealed class GlobalState : IGlobalState
         if (_accounts.TryGetValue(address, out var account))
         {
             lock (account)
-            {
                 return new ValueTask<StoragePresence>(
                     account.Storage.Values.Any(v => v != BigInteger.Zero)
                         ? StoragePresence.NonEmpty
                         : StoragePresence.Empty);
-            }
         }
         return new ValueTask<StoragePresence>(StoragePresence.Empty);
     }
 
     public async ValueTask<bool> HasStorageAsync(Address address, CancellationToken ct = default)
-    {
-        return await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
-    }
+        => await GetStoragePresenceAsync(address, ct) == StoragePresence.NonEmpty;
 
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
     {
@@ -134,44 +100,25 @@ public sealed class GlobalState : IGlobalState
         try
         {
             var account = GetOrCreateAccount(address);
-            lock (account)
-            {
-                account.Storage[key] = value;
-            }
+            lock (account) { account.Storage[key] = value; }
         }
-        finally
-        {
-            _snapshotGate.ExitReadLock();
-        }
+        finally { _snapshotGate.ExitReadLock(); }
     }
 
     public void Reset()
     {
         _snapshotGate.EnterWriteLock();
-        try
-        {
-            _accounts.Clear();
-        }
-        finally
-        {
-            _snapshotGate.ExitWriteLock();
-        }
+        try { _accounts.Clear(); }
+        finally { _snapshotGate.ExitWriteLock(); }
     }
 
     public void DeleteAccount(Address address)
     {
         _snapshotGate.EnterReadLock();
-        try
-        {
-            _accounts.TryRemove(address, out _);
-        }
-        finally
-        {
-            _snapshotGate.ExitReadLock();
-        }
+        try { _accounts.TryRemove(address, out _); }
+        finally { _snapshotGate.ExitReadLock(); }
     }
 
-    // Base state does not track transaction-level lifecycle markers.
     public void MarkCreated(Address address) { }
     public bool WasCreatedInTransaction(Address address) => false;
     public void MarkForDeletion(Address address) { }
@@ -179,9 +126,7 @@ public sealed class GlobalState : IGlobalState
     public IEnumerable<Address> GetAccountsMarkedForDeletion() => Array.Empty<Address>();
 
     public ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default)
-    {
-        return new ValueTask<bool>(_accounts.ContainsKey(address));
-    }
+        => new(_accounts.ContainsKey(address));
 
     public IDictionary<Address, Account> Snapshot()
     {
@@ -191,32 +136,14 @@ public sealed class GlobalState : IGlobalState
             var snapshot = new Dictionary<Address, Account>();
             foreach (var kvp in _accounts)
             {
-                // We assume _accounts structure doesn't change during iteration because we hold WriteLock?
-                // Wait, GetOrCreateAccount adds to _accounts. SetBalance calls GetOrCreateAccount.
-                // SetBalance holds ReadLock. Snapshot holds WriteLock.
-                // So no GetOrCreateAccount can happen during Snapshot.
-                // So _accounts keys are stable.
-                
-                // We still lock account for internal consistency, although strictly 
-                // if all setters take consistencyLock, and Snapshot takes WriteLock, 
-                // no one can be holding the per-account lock either (because they'd need ReadLock first).
-                // But let's keep the inner lock for safety/correctness if accessed elsewhere.
-                
                 lock (kvp.Value)
-                {
                     snapshot[kvp.Key] = kvp.Value.Clone();
-                }
             }
             return snapshot;
         }
-        finally
-        {
-            _snapshotGate.ExitWriteLock();
-        }
+        finally { _snapshotGate.ExitWriteLock(); }
     }
 
     private Account GetOrCreateAccount(Address address)
-    {
-        return _accounts.GetOrAdd(address, _ => new Account());
-    }
+        => _accounts.GetOrAdd(address, _ => new Account());
 }
