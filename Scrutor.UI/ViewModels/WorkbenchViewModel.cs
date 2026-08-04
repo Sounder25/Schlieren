@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Timers;
-using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Scrutor.Core.Execution;
@@ -13,8 +11,48 @@ public partial class WorkbenchViewModel : ObservableObject
 {
     private readonly WorkbenchExecutionService _executionService = new();
     private List<ExecutionTraceStep> _currentTrace = new();
-    private System.Timers.Timer? _playbackTimer;
-    private bool _isPlaying = false;
+
+    // ============================================
+    // CODE EDITOR & FILE SYSTEM
+    // ============================================
+    public ObservableCollection<ProjectFileViewModel> ProjectFiles { get; } = new();
+    public ObservableCollection<CodeLineViewModel> ActiveCodeLines { get; } = new();
+    
+    [ObservableProperty] private ProjectFileViewModel? _selectedFile;
+    [ObservableProperty] private string _searchQuery = string.Empty;
+    [ObservableProperty] private bool _isInspectorExpanded = true;
+    [ObservableProperty] private bool _isCallGraphVisible;
+    public CallTopologyViewModel CallTopology { get; } = new();
+    
+    public string CurrentFileTitle => SelectedFile != null ? $"{SelectedFile.FileName} — Line {CurrentStepIndex + 1} / {SelectedFile.Lines.Count}" : "No file loaded";
+
+    [RelayCommand]
+    private void SelectFile(ProjectFileViewModel file)
+    {
+        IsCallGraphVisible = false;
+        foreach (var f in ProjectFiles) f.IsSelected = false;
+        SelectedFile = file;
+        SelectedFile.IsSelected = true;
+        
+        ActiveCodeLines.Clear();
+        foreach (var line in file.Lines)
+            ActiveCodeLines.Add(line);
+    }
+    
+    [RelayCommand]
+    private void ShowCallGraph()
+    {
+        foreach (var f in ProjectFiles) f.IsSelected = false;
+        IsCallGraphVisible = true;
+    }
+    
+    [RelayCommand]
+    private void JumpToStep(int stepIndex)
+    {
+        if (stepIndex >= 0 && stepIndex < TotalSteps)
+            CurrentStepIndex = stepIndex;
+    }
+
     // ============================================
     // TRANSACTION PARAMS
     // ============================================
@@ -36,7 +74,7 @@ public partial class WorkbenchViewModel : ObservableObject
     // ============================================
     // OPSEC STATE
     // ============================================
-    [ObservableProperty] private bool _opSecEnabled;
+    [ObservableProperty] private bool _opSecEnabled = true;
 
     // ============================================
     // STATE INSPECTOR
@@ -46,7 +84,7 @@ public partial class WorkbenchViewModel : ObservableObject
     public ObservableCollection<string> StorageRows { get; } = new();
 
     // ============================================
-    // INSTRUCTIONS
+    // INSTRUCTIONS & GAS TREE
     // ============================================
     public ObservableCollection<InstructionViewModel> Instructions { get; } = new();
     public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
@@ -64,7 +102,7 @@ public partial class WorkbenchViewModel : ObservableObject
     // ============================================
     public ObservableCollection<string> Precompiles { get; } = new()
     {
-        "",  // Empty default
+        "",
         "SHA256 (0x02)",
         "RIPEMD160 (0x03)",
         "ID (0x04)",
@@ -81,52 +119,192 @@ public partial class WorkbenchViewModel : ObservableObject
     // ============================================
     // STATUS
     // ============================================
-    [ObservableProperty] private string _statusMessage = "Ready — Load a transaction trace to begin analysis";
+    [ObservableProperty] private string _statusMessage = "Ready — Load a contract workspace or run simulation";
 
     // ============================================
-    // PLAYBACK COMMANDS
+    // INITIALIZATION
     // ============================================
-    
+    public WorkbenchViewModel()
+    {
+        LoadSampleWorkspace();
+        OpSecLockout.IsEnabled = true;
+        RunTransaction();
+    }
+
+    private void LoadSampleWorkspace()
+    {
+        var vaultLines = new[]
+        {
+            "// SPDX-License-Identifier: MIT",
+            "pragma solidity ^0.8.24;",
+            "",
+            "contract Vault {",
+            "    mapping(address => uint256) public balances;",
+            "    bool private locked;",
+            "",
+            "    event Deposit(address indexed sender, uint256 amount);",
+            "    event Withdraw(address indexed sender, uint256 amount);",
+            "",
+            "    function deposit() external payable {",
+            "        require(msg.value > 0, \"Zero deposit\");",
+            "        balances[msg.sender] += msg.value;",
+            "        emit Deposit(msg.sender, msg.value);",
+            "    }",
+            "",
+            "    /// @notice Withdraw funds from vault",
+            "    function withdraw(uint256 amount) external {",
+            "        require(balances[msg.sender] >= amount, \"Insufficient balance\");",
+            "        ",
+            "        // 🔴 REENTRANCY VULNERABILITY:",
+            "        // External interaction precedes state modification!",
+            "        (bool success, ) = msg.sender.call{value: amount}(\"\");",
+            "        require(success, \"Transfer failed\");",
+            "",
+            "        // State mutation AFTER external call!",
+            "        balances[msg.sender] -= amount;",
+            "        emit Withdraw(msg.sender, amount);",
+            "    }",
+            "}"
+        };
+
+        var proxyLines = new[]
+        {
+            "// SPDX-License-Identifier: MIT",
+            "pragma solidity ^0.8.24;",
+            "",
+            "contract ERC1967Proxy {",
+            "    // ⚠️ STORAGE COLLISION VULNERABILITY:",
+            "    // Slot 0 holds owner address, but implementation uses slot 0 for balances!",
+            "    address public owner;",
+            "    address public implementation;",
+            "",
+            "    fallback() external payable {",
+            "        address impl = implementation;",
+            "        assembly {",
+            "            calldatacopy(0, 0, calldatasize())",
+            "            let result := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)",
+            "            returndatacopy(0, 0, returndatasize())",
+            "            switch result",
+            "            case 0 { revert(0, returndatasize()) }",
+            "            default { return(0, returndatasize()) }",
+            "        }",
+            "    }",
+            "}"
+        };
+
+        var tokenLines = new[]
+        {
+            "// SPDX-License-Identifier: MIT",
+            "pragma solidity ^0.8.24;",
+            "",
+            "contract ERC20Token {",
+            "    string public name = \"Scrutor Test Token\";",
+            "    string public symbol = \"SCR\";",
+            "    uint8 public decimals = 18;",
+            "    uint256 public totalSupply = 1_000_000 * 10**18;",
+            "    mapping(address => uint256) public balanceOf;",
+            "",
+            "    constructor() {",
+            "        balanceOf[msg.sender] = totalSupply;",
+            "    }",
+            "}"
+        };
+
+        ProjectFiles.Add(new ProjectFileViewModel("Vault.sol", "contracts/Vault.sol", vaultLines, new HashSet<int> { 23 }));
+        ProjectFiles.Add(new ProjectFileViewModel("Proxy.sol", "contracts/Proxy.sol", proxyLines, new HashSet<int> { 14 }));
+        ProjectFiles.Add(new ProjectFileViewModel("Token.sol", "contracts/Token.sol", tokenLines));
+
+        SelectedFile = ProjectFiles[0];
+        SelectedFile.IsSelected = true;
+        
+        // Load code lines for display
+        foreach (var line in SelectedFile.Lines)
+            ActiveCodeLines.Add(line);
+    }
+
+    // ============================================
+    // COMMANDS
+    // ============================================
+
+    [RelayCommand]
+    private void ToggleInspector()
+    {
+        IsInspectorExpanded = !IsInspectorExpanded;
+    }
+
+    [RelayCommand]
+    private void JumpToFinding(SecurityFindingViewModel finding)
+    {
+        // Find file
+        var file = ProjectFiles.FirstOrDefault(f => f.FileName.Equals(finding.FileName, StringComparison.OrdinalIgnoreCase));
+        if (file != null)
+        {
+            SelectFile(file);
+            
+            // Highlight target line
+            foreach (var l in file.Lines)
+            {
+                l.IsActiveLine = (l.LineNumber == finding.LineNumber);
+            }
+        }
+
+        // Scrub timeline to exact step
+        if (finding.StepIndex >= 0 && finding.StepIndex < TotalSteps)
+        {
+            CurrentStepIndex = finding.StepIndex;
+        }
+
+        StatusMessage = $"Focused: {finding.LocationText} — {finding.Description}";
+    }
+
     [RelayCommand]
     private void StepForward()
     {
-        if (CurrentStepIndex < TotalSteps)
+        if (_currentTrace.Count == 0) RunTransaction();
+        if (CurrentStepIndex < TotalSteps - 1)
             CurrentStepIndex++;
     }
 
     [RelayCommand]
     private void StepBack()
     {
+        if (_currentTrace.Count == 0) RunTransaction();
         if (CurrentStepIndex > 0)
             CurrentStepIndex--;
     }
 
     [RelayCommand]
-    private void JumpToStart() => CurrentStepIndex = 0;
+    private void JumpToStart()
+    {
+        if (_currentTrace.Count == 0) RunTransaction();
+        CurrentStepIndex = 0;
+    }
 
     [RelayCommand]
-    private void JumpToEnd() => CurrentStepIndex = TotalSteps;
+    private void JumpToEnd()
+    {
+        if (_currentTrace.Count == 0) RunTransaction();
+        CurrentStepIndex = Math.Max(0, TotalSteps - 1);
+    }
 
     [RelayCommand]
     private void TogglePlayback()
     {
-        // Playback removed - just show results immediately
+        IsPlayingState = !IsPlayingState;
     }
 
     // ============================================
-    // TRANSACTION COMMANDS
+    // TRANSACTION RUNNER
     // ============================================
     
     [RelayCommand]
     private void RunTransaction()
     {
-        StatusMessage = "Executing transaction through Scrutor.Core...";
+        StatusMessage = "Running transaction execution & security scanning...";
         
-        // Execute transaction - get full trace and analysis
         var result = _executionService.RunFullTransaction();
         _currentTrace = result.TraceSteps;
         
-        // Clear all panels
         Instructions.Clear();
         StackRows.Clear();
         MemoryRows.Clear();
@@ -134,7 +312,7 @@ public partial class WorkbenchViewModel : ObservableObject
         SecurityFindings.Clear();
         GasTreeNodes.Clear();
         
-        // Populate instructions (disassembly)
+        // Populate instructions
         for (int i = 0; i < result.TraceSteps.Count; i++)
         {
             var step = result.TraceSteps[i];
@@ -146,18 +324,19 @@ public partial class WorkbenchViewModel : ObservableObject
             ));
         }
         
-        // Run security analysis
+        // Security analysis
         var reentrancy = ReentrancyDetector.Analyze(result.TraceSteps);
         var collisions = StorageCollisionDetector.Analyze(result.TraceSteps);
         
-        // Populate findings
         foreach (var f in reentrancy)
         {
             SecurityFindings.Add(new SecurityFindingViewModel
             {
                 SeverityEmoji = f.Severity == ReentrancySeverity.Critical ? "🔴" : "⚠️",
-                Description = $"REENTRANCY: {f.Severity} - Depth {f.DepthDelta}",
-                Details = $"Target: {f.TargetContract} Entry: step {f.InitialEntryStep}",
+                Description = $"REENTRANCY: {f.Severity} - Depth Delta {f.DepthDelta}",
+                Details = $"Target: {f.TargetContract} | Re-entered at step {f.ReentryStep}",
+                FileName = "Vault.sol",
+                LineNumber = 23,
                 StepIndex = f.ReentryStep
             });
         }
@@ -168,86 +347,93 @@ public partial class WorkbenchViewModel : ObservableObject
             {
                 SeverityEmoji = "⚠️",
                 Description = $"STORAGE COLLISION: Slot {c.CollidingSlot}",
-                Details = $"Proxy: {c.ProxyContract} Impl: {c.ImplementationContract}",
+                Details = $"Proxy: {c.ProxyContract} | Implementation: {c.ImplementationContract}",
+                FileName = "Proxy.sol",
+                LineNumber = 14,
                 StepIndex = c.StepIndex
             });
         }
         
-        // Populate gas tree
+        // Gas tree
         GasTreeNodes.Add(new GasNodeViewModel { DisplayText = $"▼ TOTAL: {result.GasUsed:N0} gas", Indent = new(0, 0, 0, 8), Color = "#FFFFFF" });
         GasTreeNodes.Add(new GasNodeViewModel { DisplayText = "├── Intrinsic: 21,000", Indent = new(16, 2) });
         GasTreeNodes.Add(new GasNodeViewModel { DisplayText = $"├── Computation: {result.GasUsed - 21000:N0}", Indent = new(16, 2) });
         GasTreeNodes.Add(new GasNodeViewModel { DisplayText = $"│   └── Steps: {result.TraceSteps.Count}", Indent = new(32, 2), Color = "#FFAA00" });
         GasTreeNodes.Add(new GasNodeViewModel { DisplayText = "└── Refunds: 0", Indent = new(16, 2), Color = "#00D4AA" });
         
-        // Show final state (last step)
-        if (result.TraceSteps.Count > 0)
-        {
-            var lastStep = result.TraceSteps[^1];
-            foreach (var item in lastStep.Stack.Take(5))
-                StackRows.Add(item);
-            foreach (var row in lastStep.Memory.Take(8))
-                MemoryRows.Add(row);
-        }
-        
         TotalSteps = result.TraceSteps.Count;
-        CurrentStepIndex = result.TraceSteps.Count - 1;
+        
+        // Load call topology from trace
+        CallTopology.LoadFromTrace(result.TraceSteps);
+        CurrentStepIndex = Math.Min(28, result.TraceSteps.Count - 1);
         CriticalCount = reentrancy.Count(r => r.Severity == ReentrancySeverity.Critical);
         WarningCount = collisions.Count + reentrancy.Count(r => r.Severity == ReentrancySeverity.Medium);
         
-        StatusMessage = $"✓ COMPLETE: {result.TraceSteps.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {result.GasUsed:N0} gas";
-    }
-    
-    private void StopPlayback()
-    {
-        _isPlaying = false;
-        IsPlayingState = false;
-        _playbackTimer?.Stop();
-        _playbackTimer?.Dispose();
-        _playbackTimer = null;
-    }
-    
-    private void UpdateStepDisplay()
-    {
-        if (_currentTrace.Count == 0 || CurrentStepIndex < 0 || CurrentStepIndex >= _currentTrace.Count)
-            return;
-        
-        var step = _currentTrace[CurrentStepIndex];
-        
-        // Update stack
-        StackRows.Clear();
-        for (int i = step.Stack.Count - 1; i >= 0; i--)
-        {
-            StackRows.Add($"[{i}] {step.Stack[i]}");
-        }
-        
-        // Update memory
-        MemoryRows.Clear();
-        foreach (var row in step.Memory)
-        {
-            MemoryRows.Add(row);
-        }
-        
-        // Update storage
-        StorageRows.Clear();
-        foreach (var kvp in step.Storage)
-        {
-            StorageRows.Add($"{kvp.Key}: {kvp.Value}");
-        }
-        
-        StatusMessage = $"Step {CurrentStepIndex + 1}/{TotalSteps} | {step.Op} | Depth: {step.Depth} | Gas: {step.Gas}";
+        StatusMessage = $"✓ COMPLETE: {result.TraceSteps.Count} steps | {CriticalCount} Critical | {WarningCount} Warnings | {result.GasUsed:N0} gas";
     }
 
-    // ============================================
-    // OPSEC COMMANDS
-    // ============================================
-    // INITIALIZATION
-    // ============================================
-    
-    public WorkbenchViewModel()
+    partial void OnCurrentStepIndexChanged(int value)
     {
-        // Start with clean empty state - user must click RUN to load data
-        StatusMessage = "Ready — Click RUN TRANSACTION to load a 421-step execution trace";
+        if (_currentTrace.Count == 0 || value < 0 || value >= _currentTrace.Count)
+            return;
+
+        var step = _currentTrace[value];
+        CurrentStep = step;
+
+        StackRows.Clear();
+        for (int i = step.Stack.Count - 1; i >= 0; i--)
+            StackRows.Add($"[{i}] {step.Stack[i]}");
+
+        MemoryRows.Clear();
+        foreach (var row in step.Memory)
+            MemoryRows.Add(row);
+
+        StorageRows.Clear();
+        foreach (var kvp in step.Storage)
+            StorageRows.Add($"{kvp.Key}: {kvp.Value}");
+
+        // Map step PC to line highlighting in active file & ActiveCodeLines
+        UpdateActiveLineForStep(value);
+
+        StatusMessage = $"Step {value + 1} / {TotalSteps} | {step.Op} | Depth: {step.Depth} | Gas: {step.Gas}";
+    }
+
+    private void UpdateActiveLineForStep(int stepIndex)
+    {
+        if (SelectedFile == null) return;
+
+        int targetLine = 1;
+        if (SelectedFile.FileName.Equals("Vault.sol", StringComparison.OrdinalIgnoreCase))
+        {
+            targetLine = stepIndex switch
+            {
+                < 4 => 11,
+                < 8 => 12,
+                < 12 => 13,
+                < 16 => 14,
+                < 20 => 18,
+                < 24 => 19,
+                < 29 => 23,
+                < 32 => 24,
+                < 34 => 27,
+                _ => 28
+            };
+        }
+        else if (SelectedFile.FileName.Equals("Proxy.sol", StringComparison.OrdinalIgnoreCase))
+        {
+            targetLine = (stepIndex % 2 == 0) ? 14 : 11;
+        }
+
+        foreach (CodeLineViewModel l in SelectedFile.Lines)
+        {
+            l.IsActiveLine = (l.LineNumber == targetLine);
+        }
+
+        ActiveCodeLines.Clear();
+        foreach (CodeLineViewModel line in SelectedFile.Lines)
+        {
+            ActiveCodeLines.Add(line);
+        }
     }
 }
 
