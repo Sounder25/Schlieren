@@ -28,7 +28,6 @@ fixtures_develop.tar.gz
 fixtures_static.tar.gz
 EELs/
 EELs-NotebookLM/
-_eels_full_repo_backup/
 temp_fixture/
 
 # One-off local experiments
@@ -37,3 +36,15 @@ CkzgTest/
 CkzgTest2/
 BruteForce.cs
 DebugBalance.cs
+
+# Hardhat/contract testing (muscle project)
+muscle/node_modules/
+muscle/cache/
+muscle/artifacts/
+
+# Hermes session data
+.hermes/
+
+# Development tools output
+tools/specdata/
+tools/*.txt

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 using Scrutor.Core.Execution;
 using Scrutor.Core.State;
@@ -29,9 +30,38 @@ public sealed class EelsStateFixtureExecutor
             }
         }
 
-        var result = await _stateTransition.ApplyTransactionAsync(testCase.Transaction, globalState, testCase.BlockContext, commit: true, ct: ct);
+        // [AI-EDIT 2026-08-03] EVM spec allows 1024 call depth. Each async frame
+        // in .NET consumes ~8-16KB of stack. On the default 1MB thread this overflows
+        // for deeply-nested fixtures. Run execution on a thread with 32MB stack.
+        ExecutionResult result;
+        Exception? unhandledException = null;
+
+        try
+        {
+            result = await RunOnLargeStackAsync(() =>
+                _stateTransition.ApplyTransactionAsync(testCase.Transaction, globalState, testCase.BlockContext, commit: true, ct: ct));
+        }
+        catch (OutOfMemoryException ex)
+        {
+            unhandledException = ex;
+            result = ExecutionResult.Failure(EvmError.OutOfGas, testCase.Transaction.GasLimit);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            unhandledException = ex;
+            result = ExecutionResult.Failure(EvmError.InternalError, testCase.Transaction.GasLimit);
+        }
 
         var mismatches = new List<string>();
+
+        if (unhandledException is not null)
+        {
+            mismatches.Add(
+                $"Unhandled engine exception: " +
+                $"{unhandledException.GetType().FullName}: " +
+                $"{unhandledException.Message}");
+        }
+
         var stateMatches = CompareExpectedState(testCase, globalState, mismatches);
         var receiptStatusMatches = CompareReceiptStatus(testCase.ExpectedReceiptStatus, result.IsSuccess, mismatches);
 
@@ -42,6 +72,56 @@ public sealed class EelsStateFixtureExecutor
             stateMatches,
             receiptStatusMatches,
             mismatches);
+    }
+
+    /// <summary>
+    /// Runs an async operation on a dedicated thread with a 32MB stack to support deep EVM recursion.
+    /// Reuses a single long-lived thread to avoid per-fixture thread creation overhead.
+    /// </summary>
+    private static readonly LargeStackWorker _worker = new();
+
+    private static Task<T> RunOnLargeStackAsync<T>(Func<Task<T>> action)
+    {
+        return _worker.RunAsync(action);
+    }
+
+    private sealed class LargeStackWorker
+    {
+        private readonly Thread _thread;
+        private readonly BlockingCollection<Action> _queue = new();
+
+        public LargeStackWorker()
+        {
+            _thread = new Thread(WorkerLoop, 32 * 1024 * 1024);
+            _thread.IsBackground = true;
+            _thread.Start();
+        }
+
+        public Task<T> RunAsync<T>(Func<Task<T>> action)
+        {
+            var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _queue.Add(() =>
+            {
+                try
+                {
+                    var result = action().GetAwaiter().GetResult();
+                    tcs.SetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+            return tcs.Task;
+        }
+
+        private void WorkerLoop()
+        {
+            foreach (var work in _queue.GetConsumingEnumerable())
+            {
+                work();
+            }
+        }
     }
 
     private static bool CompareReceiptStatus(bool? expectedStatus, bool actualStatus, List<string> mismatches)

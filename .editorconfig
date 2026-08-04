@@ -2,6 +2,51 @@
 charset = utf-8
 end_of_line = crlf
 insert_final_newline = true
+trim_trailing_whitespace = true
 
 [*.cs]
+# Default severity for compiler diagnostics
 dotnet_diagnostic.CS1002.severity = error
+
+# Indentation
+indent_style = space
+indent_size = 4
+
+# New line preferences
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# Space preferences
+dotnet_style_space_after_cast = false
+dotnet_style_space_between_method_declaration_parameter_list_parentheses = false
+dotnet_style_space_between_method_call_parameter_list_parentheses = false
+
+# Naming conventions
+dotnet_naming_rule.interfaces_should_be_prefixed.severity = warning
+dotnet_naming_rule.interfaces_should_be_prefixed.symbols = interface
+dotnet_naming_rule.interfaces_should_be_prefixed.style = begins_with_i
+dotnet_naming_symbols.interface.applicable_kinds = interface
+dotnet_naming_style.begins_with_i.required_prefix = I
+dotnet_naming_style.begins_with_i.capitalization = pascal_case
+
+# Code quality
+dotnet_code_quality_unused_parameters = all:warning
+dotnet_style_require_accessibility_modifiers = always
+
+# Organize usings
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+[*.csproj]
+indent_style = space
+indent_size = 2
+
+[*.json]
+indent_style = space
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2

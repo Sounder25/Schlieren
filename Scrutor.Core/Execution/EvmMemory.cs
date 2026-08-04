@@ -5,6 +5,8 @@ namespace Scrutor.Core.Execution;
 /// </summary>
 public sealed class EvmMemory
 {
+    private const int MaxMemorySize = 16 * 1024 * 1024;
+
     private byte[] _data = Array.Empty<byte>();
 
     public int Size => _data.Length;
@@ -20,11 +22,29 @@ public sealed class EvmMemory
 
     public byte[] Load(int offset, int length)
     {
-        if (offset < 0 || length <= 0) return Array.Empty<byte>();
-        
-        EnsureCapacity(offset + length);
+        if (offset < 0)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
+        if (length < 0)
+            throw new ArgumentOutOfRangeException(nameof(length));
+
+        if (length == 0)
+            return Array.Empty<byte>();
+
+        // EVM operands may produce offset/length combinations whose sum
+        // exceeds Int32.MaxValue. Calculate in 64-bit space first.
+        var required = (long)offset + length;
+
+        if (required > int.MaxValue)
+        {
+            throw new EvmOutOfGasException(
+                $"Memory expansion too large: {required} bytes");
+        }
+
+        EnsureCapacity((int)required);
+
         var result = new byte[length];
-        Array.Copy(_data, offset, result, 0, length);
+        Buffer.BlockCopy(_data, offset, result, 0, length);
         return result;
     }
 
@@ -53,14 +73,14 @@ public sealed class EvmMemory
 
     private void EnsureCapacity(int requiredSize)
     {
-        if (requiredSize <= 0 || _data.Length >= requiredSize) return;
-        
-        // Guard against unreasonable allocation attempts. The EVM gas cost formula
-        // makes anything beyond ~1MB astronomically expensive (>30M gas), so if we
-        // reach here with a large size, gas accounting will reject it. Cap at 16MB
-        // as a safety net against OOM — legitimate EVM execution never reaches this.
-        if (requiredSize > 16 * 1024 * 1024)
-            throw new EvmOutOfGasException($"Memory expansion too large: {requiredSize} bytes");
+        if (requiredSize < 0 || requiredSize > MaxMemorySize)
+        {
+            throw new EvmOutOfGasException(
+                $"Memory expansion exceeds the {MaxMemorySize}-byte limit.");
+        }
+
+        if (requiredSize <= _data.Length)
+            return;
 
         var newSize = ((requiredSize + 31) / 32) * 32; // Round up to 32-byte boundary
         Array.Resize(ref _data, newSize);

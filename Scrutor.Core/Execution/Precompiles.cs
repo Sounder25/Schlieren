@@ -258,32 +258,25 @@ public static class Precompiles
     // ══════════════════════════════════════════════════════════════════════════
     //  0x08: BN254 Pairing  (EIP-197, Istanbul gas = 45000 + k*34000)
     //
-    //  Fail-closed until a correct pairing implementation lands.
-    //  - Gas formula and input-length checks match EIP-197 (no lying on metering).
-    //  - k == 0 is defined: empty product of pairings is 1 → success (32-byte 1).
-    //  - k  > 0 fails closed (empty output) so we never return a false "success"
-    //    from wrong curve math. Anvil-style Hardhat/Foundry deploys do not need this.
+    //  Gas: 45,000 base + 34,000 per pair.
+    //  Bad input length (not multiple of 192) → revert (null = OOG sentinel).
+    //  Any G1/G2 decode failure → revert.
+    //  k == 0 → success, output = 1  (empty product of pairings = 1 in GT).
+    //  Otherwise: Ate pairing check; return 32-byte 1 if product = GT.1 else 0.
     // ══════════════════════════════════════════════════════════════════════════
     private static (byte[]? output, ulong gasUsed) BnPairing(byte[] input, ulong gasLimit)
     {
-        if (input.Length % 192 != 0)
-            return (Array.Empty<byte>(), 0);
+        // Bad length → revert (null means "consume all gas / revert" in our convention)
+        if (input.Length % 192 != 0) return (null, gasLimit);
 
         int k = input.Length / 192;
         ulong gas = 45_000 + (ulong)k * 34_000;
         if (gasLimit < gas) return (null, gasLimit);
 
-        // EIP-197: empty input → success with 1
-        if (k == 0)
-        {
-            var success = new byte[32];
-            success[31] = 1;
-            return (success, gas);
-        }
+        var output = Bn254Pairing.Run(input);
+        if (output == null) return (null, gasLimit); // decode failure → revert
 
-        // Return 0 for failure per EIP-197
-        var failure = new byte[32];
-        return (failure, gas);
+        return (output, gas);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

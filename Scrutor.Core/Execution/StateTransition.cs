@@ -695,6 +695,11 @@ public sealed class StateTransition : IStateTransition
         // warm/cold state accumulates across the entire transaction's call tree.
         // [AI-EDIT 2026-07-24] Share the same OriginalStorageValues snapshot across all sub-calls: EIP-2200
         // original values are captured at transaction start and shared across all frames.
+        // [AI-EDIT 2026-08-03] Deep CALL recursion (up to 1024 per EVM spec) can exceed
+        // .NET's default 1MB thread stack. Callers that execute deep fixture contracts
+        // must run on a thread with sufficient stack (see EelsStateFixtureExecutor).
+        // The recursion itself is architecturally correct per EELS process_message().
+
         context.SubCall = (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
         {
             subTx.BlobVersionedHashes = context.BlobVersionedHashes;
