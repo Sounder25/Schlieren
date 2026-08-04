@@ -7,6 +7,25 @@ using Scrutor.UI.Services;
 
 namespace Scrutor.UI.ViewModels;
 
+// ---- Built-in demo bytecodes for one-click loading ----
+public static class DemoBytecodes
+{
+    // ADD two numbers and return: PUSH1 0x05 PUSH1 0x03 ADD PUSH1 0x00 MSTORE PUSH1 0x20 PUSH1 0x00 RETURN
+    public const string SimpleAdd = "6005600301600052602060003";
+
+    // Counter loop: increments a value 5 times via JUMPDEST + ADD + loop
+    public const string CounterLoop = "600060005b600190016001900380600c57505b";
+
+    // TSTORE/TLOAD (EIP-1153 Cancun) → write slot 0x01, read it back, RETURN 32 bytes
+    public const string TstoreTload = "60016001b36001b260005260206000f3";
+
+    // keccak256 of empty input
+    public const string Keccak256Empty = "600060002060005260206000f3";
+
+    // PUSH32 a big value, SHA3 of 32 bytes in memory, RETURN
+    public const string BigHash = "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60005260206000206000526020600080f3";
+}
+
 public partial class WorkbenchViewModel : ObservableObject
 {
     private readonly WorkbenchExecutionService _executionService = new();
@@ -294,15 +313,76 @@ public partial class WorkbenchViewModel : ObservableObject
     }
 
     // ============================================
-    // TRANSACTION RUNNER
+    // BYTECODE INPUT (real EVM execution)
     // ============================================
-    
+    [ObservableProperty] private string _bytecodeInput = string.Empty;
+    [ObservableProperty] private bool _isBytecodeMode;
+    [ObservableProperty] private bool _isRunning;
+
+    [RelayCommand]
+    private void LoadDemoBytecode(string tag)
+    {
+        BytecodeInput = tag switch
+        {
+            "add"       => DemoBytecodes.SimpleAdd,
+            "loop"      => DemoBytecodes.CounterLoop,
+            "tstore"    => DemoBytecodes.TstoreTload,
+            "keccak"    => DemoBytecodes.Keccak256Empty,
+            "bighash"   => DemoBytecodes.BigHash,
+            _           => BytecodeInput
+        };
+        IsBytecodeMode = true;
+    }
+
+    [RelayCommand]
+    private async Task RunBytecodeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(BytecodeInput))
+        {
+            StatusMessage = "⚠ Paste hex bytecode first (e.g. 6005600301...)";
+            return;
+        }
+
+        IsRunning = true;
+        StatusMessage = "⚙ Executing bytecode through live EVM engine...";
+
+        ExecutionResult? result;
+        try
+        {
+            result = await BytecodeExecutionService.RunAsync(BytecodeInput);
+        }
+        finally
+        {
+            IsRunning = false;
+        }
+
+        if (result is null)
+        {
+            StatusMessage = "⚠ Invalid hex — check your input";
+            return;
+        }
+
+        PopulateFromResult(result.Value, isBytecodeRun: true);
+    }
+
+    // ============================================
+    // TRANSACTION RUNNER (synthetic demo data)
+    // ============================================
+
     [RelayCommand]
     private void RunTransaction()
     {
-        StatusMessage = "Running transaction execution & security scanning...";
-        
+        IsBytecodeMode = false;
         var result = _executionService.RunFullTransaction();
+        PopulateFromResult(result, isBytecodeRun: false);
+    }
+
+    // ============================================
+    // SHARED RESULT POPULATION
+    // ============================================
+
+    private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun)
+    {
         _currentTrace = result.TraceSteps;
         
         Instructions.Clear();
@@ -369,7 +449,9 @@ public partial class WorkbenchViewModel : ObservableObject
         CriticalCount = reentrancy.Count(r => r.Severity == ReentrancySeverity.Critical);
         WarningCount = collisions.Count + reentrancy.Count(r => r.Severity == ReentrancySeverity.Medium);
         
-        StatusMessage = $"✓ COMPLETE: {result.TraceSteps.Count} steps | {CriticalCount} Critical | {WarningCount} Warnings | {result.GasUsed:N0} gas";
+        StatusMessage = isBytecodeRun
+            ? $"⚡ LIVE EVM: {result.TraceSteps.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"REVERTED ({result.Error})")} | {result.GasUsed:N0} gas used"
+            : $"✓ COMPLETE: {result.TraceSteps.Count} steps | {CriticalCount} Critical | {WarningCount} Warnings | {result.GasUsed:N0} gas";
     }
 
     partial void OnCurrentStepIndexChanged(int value)

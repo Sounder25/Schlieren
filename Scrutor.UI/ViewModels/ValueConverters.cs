@@ -58,3 +58,15 @@ public class BoolToFontWeightConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+// Bool to Run/Loading button label
+public class BoolToRunLabelConverter : IValueConverter
+{
+    public static readonly BoolToRunLabelConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? "⏳ RUNNING..." : "▶ RUN";
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
