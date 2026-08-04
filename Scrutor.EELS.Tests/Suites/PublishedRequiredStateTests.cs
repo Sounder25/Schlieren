@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Scrutor.EELS.Tests.Harness;
 
 namespace Scrutor.EELS.Tests.Suites;
@@ -37,15 +38,8 @@ public sealed class PublishedRequiredStateTests
         var cases = loader.LoadCases(options);
         Assert.NotEmpty(cases);
 
-        var executor = new EelsStateFixtureExecutor();
-        var reports = new List<EelsCaseExecutionReport>(cases.Count);
-        foreach (var testCase in cases)
-        {
-            reports.Add(await executor.ExecuteAsync(testCase));
-        }
+        var reports = await RunParallelAsync(cases);
 
-        // [AI-EDIT 2026-01-10] This asserts harness stability (same input ->
-        // structured report), even before full EELS conformance is complete.
         Assert.Equal(cases.Count, reports.Count);
         Assert.All(reports, report =>
         {
@@ -60,62 +54,32 @@ public sealed class PublishedRequiredStateTests
         var strictMode = Environment.GetEnvironmentVariable("EELS_ENFORCE_TRUTH");
         if (!string.Equals(strictMode, "1", StringComparison.Ordinal) &&
             !string.Equals(strictMode, "true", StringComparison.OrdinalIgnoreCase))
-        {
             return;
-        }
 
-        var options = EelsHarnessOptions.FromEnvironment() with
-        {
-            IncludeSubdirectories = true
-        };
-
-        var loader = new EelsStateFixtureLoader();
-        var cases = loader.LoadCases(options);
+        var options = EelsHarnessOptions.FromEnvironment() with { IncludeSubdirectories = true };
+        var loader  = new EelsStateFixtureLoader();
+        var cases   = loader.LoadCases(options);
         Assert.NotEmpty(cases);
 
-        var executor = new EelsStateFixtureExecutor();
-        var reports = new List<EelsCaseExecutionReport>(cases.Count);
-        foreach (var testCase in cases)
-        {
-            reports.Add(await executor.ExecuteAsync(testCase));
-        }
+        var reports = await RunParallelAsync(cases);
+        var failed  = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToArray();
+        if (failed.Length == 0) return;
 
-        var failed = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToArray();
-        if (failed.Length == 0)
-        {
-            return;
-        }
+        var taxonomy = BuildTaxonomy(failed);
+        var samples  = BuildSamples(failed, 10);
 
-        // [AI-EDIT 2026-01-10] Bucket mismatches into actionable categories so
-        // each correction slice can target the highest-volume failure class first.
-        var taxonomy = failed
-            .SelectMany(f => f.Mismatches)
-            .GroupBy(ClassifyMismatch, StringComparer.Ordinal)
-            .OrderByDescending(g => g.Count())
-            .Select(g => $"{g.Key}:{g.Count()}")
-            .ToArray();
-
-        var sampleFailures = failed
-            .Take(5)
-            .Select(f => $"{f.CaseId} => {string.Join(" | ", f.Mismatches.Take(3))}")
-            .ToArray();
-
-        var message =
-            $"Strict EELS truth mismatch detected. " +
+        Assert.Fail(
             $"TotalCases={reports.Count}, FailedCases={failed.Length}, " +
-            $"Taxonomy=[{string.Join(", ", taxonomy)}], " +
-            $"Sample=[{string.Join(" || ", sampleFailures)}]";
-
-        Assert.Fail(message);
+            $"Taxonomy=[{taxonomy}]\n\nSAMPLES:\n{samples}");
     }
 
     /// <summary>
-    /// Always runs (no env-var guard) and requires a zero-mismatch taxonomy.
+    /// Parallel full-suite sweep. Reports taxonomy + samples so balance root cause is visible.
     /// </summary>
     [Fact]
     public async Task BENCHMARK_TaxonomySnapshot_AlwaysReportsCurrentMismatchCounts()
     {
-        var options = EelsHarnessOptions.FromEnvironment() with { IncludeSubdirectories = true, MaxCases = int.MaxValue };
+        var options  = EelsHarnessOptions.FromEnvironment() with { IncludeSubdirectories = true, MaxCases = int.MaxValue };
         var loader   = new EelsStateFixtureLoader();
         var cases    = loader.LoadCases(options);
         if (cases.Count == 0)
@@ -124,38 +88,70 @@ public sealed class PublishedRequiredStateTests
             return;
         }
 
-        var executor = new EelsStateFixtureExecutor();
-        var reports  = new List<EelsCaseExecutionReport>(cases.Count);
-        foreach (var testCase in cases)
-            reports.Add(await executor.ExecuteAsync(testCase));
+        var reports = await RunParallelAsync(cases);
+        var failed  = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToArray();
 
-        var failed = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToArray();
+        var taxonomy = BuildTaxonomy(failed);
+        var samples  = BuildSamples(failed, 20);
 
-        var taxonomy = failed
-            .SelectMany(f => f.Mismatches)
-            .GroupBy(ClassifyMismatch, StringComparer.Ordinal)
-            .OrderByDescending(g => g.Count())
-            .Select(g => $"{g.Key}:{g.Count()}")
-            .ToArray();
+        var summary =
+            $"TotalCases={reports.Count}, FailedCases={failed.Length}, " +
+            $"Taxonomy=[{taxonomy}]\n\nSAMPLES (first 20 failures):\n{samples}";
 
-        var summary = $"TotalCases={reports.Count}, FailedCases={failed.Length}, Taxonomy=[{string.Join(", ", taxonomy)}]";
         Assert.True(failed.Length == 0, summary);
     }
 
+    // ── Parallel runner ─────────────────────────────────────────────────────
+    // Each test case is fully isolated (own GlobalState, own StateTransition).
+    // Safe to run on all logical cores — no shared mutable state.
+
+    private static async Task<List<EelsCaseExecutionReport>> RunParallelAsync(
+        IReadOnlyList<EelsStateCase> cases)
+    {
+        var bag       = new ConcurrentBag<EelsCaseExecutionReport>();
+        var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
+
+        await Parallel.ForEachAsync(cases, async (testCase, ct) =>
+        {
+            await semaphore.WaitAsync(ct);
+            try
+            {
+                var executor = new EelsStateFixtureExecutor(); // one per task — thread-safe
+                bag.Add(await executor.ExecuteAsync(testCase));
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        // Preserve original load order for deterministic output
+        var index = cases.Select((c, i) => (c.CaseId, i)).ToDictionary(x => x.CaseId, x => x.i);
+        return bag.OrderBy(r => index.TryGetValue(r.CaseId, out var i) ? i : int.MaxValue).ToList();
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static string BuildTaxonomy(EelsCaseExecutionReport[] failed) =>
+        string.Join(", ", failed
+            .SelectMany(f => f.Mismatches)
+            .GroupBy(ClassifyMismatch, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count())
+            .Select(g => $"{g.Key}:{g.Count()}"));
+
+    private static string BuildSamples(EelsCaseExecutionReport[] failed, int count) =>
+        string.Join("\n", failed
+            .Take(count)
+            .Select(f => $"  {f.CaseId}\n    {string.Join("\n    ", f.Mismatches.Take(4))}"));
+
     private static string ClassifyMismatch(string mismatch)
     {
-        if (mismatch.StartsWith("nonce mismatch", StringComparison.Ordinal))
-            return "nonce";
-        if (mismatch.StartsWith("balance mismatch", StringComparison.Ordinal))
-            return "balance";
-        if (mismatch.StartsWith("code mismatch", StringComparison.Ordinal))
-            return "code";
-        if (mismatch.StartsWith("storage mismatch", StringComparison.Ordinal))
-            return "storage";
-        if (mismatch.StartsWith("receipt.status mismatch", StringComparison.Ordinal))
-            return "receipt_status";
-        if (mismatch.StartsWith("missing account", StringComparison.Ordinal))
-            return "missing_account";
+        if (mismatch.StartsWith("nonce mismatch",        StringComparison.Ordinal)) return "nonce";
+        if (mismatch.StartsWith("balance mismatch",      StringComparison.Ordinal)) return "balance";
+        if (mismatch.StartsWith("code mismatch",         StringComparison.Ordinal)) return "code";
+        if (mismatch.StartsWith("storage mismatch",      StringComparison.Ordinal)) return "storage";
+        if (mismatch.StartsWith("receipt.status mismatch", StringComparison.Ordinal)) return "receipt_status";
+        if (mismatch.StartsWith("missing account",       StringComparison.Ordinal)) return "missing_account";
         return "other";
     }
 }

@@ -207,7 +207,10 @@ public sealed class OpcodeCall : IOpcode
         ulong extraCost = accessCost + valueTransferCost + newAccountCost;
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas (after extra costs).
-        var availableAfterExtras = context.GasLimit - context.GasUsed - extraCost;
+        // EELS: if gas_left < extra_gas + memory_cost → OOG path (charge_gas will throw).
+        // Guard against ulong underflow: if remaining < extraCost there is nothing to forward.
+        var remaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+        var availableAfterExtras = remaining > extraCost ? remaining - extraCost : 0UL;
         var maxForward = availableAfterExtras - availableAfterExtras / 64;
         var requestedGas = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
         var forwardedGas = Math.Min(requestedGas, maxForward);
@@ -596,7 +599,9 @@ public sealed class OpcodeCallCode : IOpcode
         ulong extraCost = accessCost + valueTransferCost;
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas (after extra costs).
-        var availableAfterExtras = context.GasLimit - context.GasUsed - extraCost;
+        // Guard against ulong underflow: if remaining < extraCost there is nothing to forward.
+        var remaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+        var availableAfterExtras = remaining > extraCost ? remaining - extraCost : 0UL;
         var maxForward = availableAfterExtras - availableAfterExtras / 64;
         var requestedGas = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
         var forwardedGas = Math.Min(requestedGas, maxForward);
@@ -610,8 +615,10 @@ public sealed class OpcodeCallCode : IOpcode
             var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
             if (callerBalance < value)
             {
-                // Refund all forwarded gas + extra costs on balance-check failure.
-                context.RefundGas(forwardedGas + extraCost);
+                // The CALLCODE extras (access + value-transfer cost) remain charged.
+                // Only return the unused child gas allocation (forwardedGas), not extraCost.
+                // EELS: evm.gas_left += message_call_gas.sub_call  (sub_call = forwardedGas only)
+                context.RefundGas(forwardedGas);
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
             }
@@ -734,6 +741,9 @@ public sealed class OpcodeDelegateCall : IOpcode
                  return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
             // DELEGATECALL: From=caller, To=ContractAddress, Value=context.CallValue
+            // The Value field is set so CALLVALUE returns the inherited value inside
+            // the child frame, but NO actual balance transfer occurs.
+            // ExecuteInternalAsync skips transfer when codeAddress != null (DELEGATECALL).
             var tx = new Transaction
             {
                 From = context.Caller,

@@ -574,8 +574,10 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-07-24] Value transfer: debit caller (if internal call) and credit recipient upfront.
         // Top-level sender debit was already applied in ApplyTransactionAsync.
+        // DELEGATECALL/CALLCODE (codeAddress != null): NO value transfer — Value field is only
+        // for CALLVALUE opcode return, not actual balance movement. EELS: should_transfer_value=False.
         var recipient = creationAddress ?? tx.To;
-        if (tx.Value > 0 && recipient.HasValue)
+        if (tx.Value > 0 && recipient.HasValue && codeAddress == null)
         {
             if (tx.Authorization == TransactionAuthorization.Internal)
             {
