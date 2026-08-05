@@ -69,6 +69,9 @@ public sealed class EelsStateFixtureExecutor
             testCase.CaseId,
             result.IsSuccess,
             result.GasUsed,
+            // [AI-EDIT 2026-08-05] Expose raw refund counter so the balance auditor can
+            // compute Term 4 (EIP-3529 cap) exactly: min(counter, gasUsed/5) × price.
+            result.GasRefundCounter,
             stateMatches,
             receiptStatusMatches,
             mismatches);
@@ -76,11 +79,13 @@ public sealed class EelsStateFixtureExecutor
 
     /// <summary>
     /// Runs an async operation on a dedicated thread with a 32MB stack to support deep EVM recursion.
-    /// Reuses a single long-lived thread to avoid per-fixture thread creation overhead.
+    /// Each executor instance owns its own worker thread so multiple instances can run concurrently
+    /// without serialising through a shared queue (required for Parallel.ForEachAsync in the
+    /// taxonomy analyzer and balance auditor).
     /// </summary>
-    private static readonly LargeStackWorker _worker = new();
+    private readonly LargeStackWorker _worker = new();
 
-    private static Task<T> RunOnLargeStackAsync<T>(Func<Task<T>> action)
+    private Task<T> RunOnLargeStackAsync<T>(Func<Task<T>> action)
     {
         return _worker.RunAsync(action);
     }

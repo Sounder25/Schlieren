@@ -69,6 +69,7 @@ public sealed class StateTransition : IStateTransition
             // [AI-EDIT 2026-01-10] Intrinsic gas must be charged before EVM execution.
             // Yellow Paper §6.2 / EIP-2930: base 21000 + calldata bytes + access-list entries.
             intrinsicGas = IntrinsicGas.Compute(tx);
+            
             if (tx.GasLimit < intrinsicGas)
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
         }
@@ -691,7 +692,7 @@ public sealed class StateTransition : IStateTransition
             OriginalStorageValues = originalStorageSnapshot
         };
         
-        // [AI-EDIT 2026-08-03] Set call context for security analysis (reentrancy detection, storage collision)
+        // [AI-EDIT 2026-08-03] Set call context for security analysis
         var callType = DetermineCallType(creationAddress, codeAddress, isStatic);
         context.SetCallContext(callType, caller: tx.From, codeAddress: codeAddress);
 

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Scrutor.Core.Execution;
@@ -7,64 +9,258 @@ using Scrutor.UI.Services;
 
 namespace Scrutor.UI.ViewModels;
 
-// ---- Built-in demo bytecodes for one-click loading ----
+/// <summary>Optional one-click hex snippets for live EVM smoke tests (not loaded at startup).</summary>
 public static class DemoBytecodes
 {
-    // ADD two numbers and return: PUSH1 0x05 PUSH1 0x03 ADD PUSH1 0x00 MSTORE PUSH1 0x20 PUSH1 0x00 RETURN
-    public const string SimpleAdd = "6005600301600052602060003";
-
-    // Counter loop: increments a value 5 times via JUMPDEST + ADD + loop
+    public const string SimpleAdd = "600560030160005260206000f3";
     public const string CounterLoop = "600060005b600190016001900380600c57505b";
-
-    // TSTORE/TLOAD (EIP-1153 Cancun) → write slot 0x01, read it back, RETURN 32 bytes
     public const string TstoreTload = "60016001b36001b260005260206000f3";
-
-    // keccak256 of empty input
     public const string Keccak256Empty = "600060002060005260206000f3";
-
-    // PUSH32 a big value, SHA3 of 32 bytes in memory, RETURN
-    public const string BigHash = "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60005260206000206000526020600080f3";
+    public const string BigHash =
+        "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60005260206000206000526020600080f3";
 }
 
-public partial class WorkbenchViewModel : ObservableObject
+public partial class WorkbenchViewModel : ObservableObject, IDisposable
 {
-    private readonly WorkbenchExecutionService _executionService = new();
+    private readonly WorkbenchExecutionService _syntheticService = new();
     private List<ExecutionTraceStep> _currentTrace = new();
+    private DispatcherTimer? _autoPlayTimer;
+    private bool _disposed;
 
-    // ============================================
-    // CODE EDITOR & FILE SYSTEM
-    // ============================================
     public ObservableCollection<ProjectFileViewModel> ProjectFiles { get; } = new();
+    public ObservableCollection<ProjectFileViewModel> FilteredProjectFiles { get; } = new();
     public ObservableCollection<CodeLineViewModel> ActiveCodeLines { get; } = new();
-    
+    public CallTopologyViewModel CallTopology { get; } = new();
+    public ObservableCollection<string> StackRows { get; } = new();
+    public ObservableCollection<string> MemoryRows { get; } = new();
+    public ObservableCollection<string> StorageRows { get; } = new();
+    public ObservableCollection<InstructionViewModel> Instructions { get; } = new();
+    public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
+    public ObservableCollection<SecurityFindingViewModel> SecurityFindings { get; } = new();
+
+    public ObservableCollection<string> AvailableForks { get; } = new()
+    {
+        "Cancun", "Prague", "Shanghai", "London", "Berlin"
+    };
+
     [ObservableProperty] private ProjectFileViewModel? _selectedFile;
     [ObservableProperty] private string _searchQuery = string.Empty;
     [ObservableProperty] private bool _isInspectorExpanded = true;
     [ObservableProperty] private bool _isCallGraphVisible;
-    public CallTopologyViewModel CallTopology { get; } = new();
-    
-    public string CurrentFileTitle => SelectedFile != null ? $"{SelectedFile.FileName} — Line {CurrentStepIndex + 1} / {SelectedFile.Lines.Count}" : "No file loaded";
+    [ObservableProperty] private string _selectedFork = "Cancun";
+    [ObservableProperty] private ulong _baseFeeGwei = 1;
+    [ObservableProperty] private ulong _blockGasLimit = 30_000_000;
+    [ObservableProperty] private ulong _txGasLimit = 10_000_000;
+    [ObservableProperty] private ulong _chainId = 1;
+    [ObservableProperty] private string _coinbaseAddress = "0x0000000000000000000000000000000000000000";
+    [ObservableProperty] private bool _isBlockContextExpanded;
+    [ObservableProperty] private int _currentStepIndex;
+    [ObservableProperty] private int _totalSteps;
+    [ObservableProperty] private ExecutionTraceStep? _currentStep;
+    [ObservableProperty] private bool _opSecEnabled = true;
+    [ObservableProperty] private int _criticalCount;
+    [ObservableProperty] private int _warningCount;
+    [ObservableProperty] private string _statusMessage =
+        "Ready — open a contract, or paste bytecode and Run";
+    [ObservableProperty] private bool _isAutoPlaying;
+    [ObservableProperty] private string _currentOpcodeSpec = string.Empty;
+    [ObservableProperty] private string _currentGasFormulaBreakdown = string.Empty;
+    [ObservableProperty] private string _currentStepDetail = string.Empty;
+    [ObservableProperty] private string _bytecodeInput = string.Empty;
+    [ObservableProperty] private bool _isBytecodeMode;
+    [ObservableProperty] private bool _isRunning;
+    [ObservableProperty] private bool _hasTrace;
+    [ObservableProperty] private bool _hasOpenFiles;
+    [ObservableProperty] private string _centerEmptyHint =
+        "Open a .sol/.hex file or paste bytecode above, then Run.";
+    [ObservableProperty] private string _opSecLabel = "OPSEC: ON";
+
+    /// <summary>
+    /// Full brand mark as a soft center watermark. Stronger when empty, ghosted when code is up.
+    /// </summary>
+    public double WatermarkOpacity => HasOpenFiles || HasTrace ? 0.07 : 0.20;
+
+    public string CurrentFileTitle =>
+        SelectedFile != null
+            ? $"{SelectedFile.FileName} ({SelectedFile.Lines.Count} lines)"
+            : "No file loaded";
+
+    public string StepProgress => TotalSteps <= 0
+        ? "0 / 0"
+        : $"{CurrentStepIndex + 1} / {TotalSteps}";
+
+    public string StepPercentage => TotalSteps > 0
+        ? $"{(CurrentStepIndex + 1) * 100 / TotalSteps}%"
+        : "0%";
+
+    public double StepProgressRatio => TotalSteps <= 0
+        ? 0.0
+        : (double)(CurrentStepIndex + 1) / TotalSteps;
+
+    /// <summary>Slider max index (TotalSteps - 1, or 0 when empty).</summary>
+    public int MaxStepIndex => Math.Max(0, TotalSteps - 1);
+
+    /// <summary>
+    /// Honest note: fork name is report metadata. Core uses the unified modern opcode set.
+    /// Block fields (gas, base fee, chain id, coinbase) are applied to live runs.
+    /// </summary>
+    public string ForkNote =>
+        $"{SelectedFork} · block fields apply; fork is report label";
+
+    public WorkbenchViewModel()
+    {
+        ApplyOpSec();
+        RefreshFilteredFiles();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        StopAutoPlay();
+        GC.SuppressFinalize(this);
+    }
+
+    partial void OnSearchQueryChanged(string value) => RefreshFilteredFiles();
+    partial void OnOpSecEnabledChanged(bool value) => ApplyOpSec();
+    partial void OnSelectedForkChanged(string value) => OnPropertyChanged(nameof(ForkNote));
+
+    private void ApplyOpSec()
+    {
+        OpSecLockout.IsEnabled = OpSecEnabled;
+        OpSecLabel = OpSecEnabled ? "OPSEC: ON" : "OPSEC: OFF";
+    }
+
+    private void RefreshFilteredFiles()
+    {
+        FilteredProjectFiles.Clear();
+        var q = SearchQuery?.Trim() ?? string.Empty;
+        IEnumerable<ProjectFileViewModel> src = ProjectFiles;
+        if (!string.IsNullOrEmpty(q))
+        {
+            src = ProjectFiles.Where(f =>
+                f.FileName.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || f.Lines.Any(l => l.Text.Contains(q, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        foreach (var f in src)
+            FilteredProjectFiles.Add(f);
+
+        HasOpenFiles = ProjectFiles.Count > 0;
+        OnPropertyChanged(nameof(WatermarkOpacity));
+    }
+
+    // ---------- files ----------
 
     [RelayCommand]
     private void SelectFile(ProjectFileViewModel file)
     {
         IsCallGraphVisible = false;
-        foreach (var f in ProjectFiles) f.IsSelected = false;
+        foreach (var f in ProjectFiles)
+            f.IsSelected = false;
+
         SelectedFile = file;
-        SelectedFile.IsSelected = true;
-        
+        file.IsSelected = true;
+
         ActiveCodeLines.Clear();
         foreach (var line in file.Lines)
             ActiveCodeLines.Add(line);
+
+        OnPropertyChanged(nameof(CurrentFileTitle));
+        CenterEmptyHint = string.Empty;
     }
-    
+
+    public void AddCustomFile(string fileName, string filePath, IEnumerable<string> lines)
+    {
+        var existing = ProjectFiles.FirstOrDefault(f =>
+            f.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            SelectFile(existing);
+            return;
+        }
+
+        var newFile = new ProjectFileViewModel(fileName, filePath, lines);
+        ProjectFiles.Add(newFile);
+        RefreshFilteredFiles();
+        SelectFile(newFile);
+
+        // If opened file looks like hex bytecode, load into run box
+        var joined = string.Join("", lines).Trim();
+        if (LooksLikeHexBytecode(joined))
+        {
+            BytecodeInput = joined;
+            StatusMessage = $"Loaded {fileName} as bytecode candidate";
+        }
+        else
+        {
+            StatusMessage = $"Loaded {fileName} (source view — paste compiled hex to execute)";
+        }
+    }
+
+    private static bool LooksLikeHexBytecode(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s) || s.Length < 4) return false;
+        var c = s.Replace("0x", "", StringComparison.OrdinalIgnoreCase)
+            .Replace(" ", "").Replace("\n", "").Replace("\r", "");
+        if (c.Length < 4 || c.Length % 2 != 0) return false;
+        return c.All(ch => Uri.IsHexDigit(ch));
+    }
+
+    [RelayCommand]
+    private void CloseTab(ProjectFileViewModel? file)
+    {
+        var target = file ?? SelectedFile;
+        if (target is null) return;
+
+        var idx = ProjectFiles.IndexOf(target);
+        if (idx < 0) return;
+
+        ProjectFiles.RemoveAt(idx);
+        RefreshFilteredFiles();
+
+        if (ProjectFiles.Count == 0)
+        {
+            SelectedFile = null;
+            ActiveCodeLines.Clear();
+            OnPropertyChanged(nameof(CurrentFileTitle));
+            CenterEmptyHint = "Open a .sol/.hex file or paste bytecode above, then Run.";
+            StatusMessage = "No files open";
+            return;
+        }
+
+        var next = ProjectFiles.ElementAtOrDefault(Math.Min(idx, ProjectFiles.Count - 1))
+                   ?? ProjectFiles[0];
+        SelectFile(next);
+    }
+
     [RelayCommand]
     private void ShowCallGraph()
     {
-        foreach (var f in ProjectFiles) f.IsSelected = false;
+        foreach (var f in ProjectFiles)
+            f.IsSelected = false;
         IsCallGraphVisible = true;
     }
-    
+
+    [RelayCommand]
+    private void ShowSource()
+    {
+        IsCallGraphVisible = false;
+        if (SelectedFile != null)
+            SelectFile(SelectedFile);
+    }
+
+    [RelayCommand]
+    private void ToggleBlockContext() => IsBlockContextExpanded = !IsBlockContextExpanded;
+
+    [RelayCommand]
+    private void ToggleInspector() => IsInspectorExpanded = !IsInspectorExpanded;
+
+    [RelayCommand]
+    private void ToggleOpSec() => OpSecEnabled = !OpSecEnabled;
+
+    // ---------- scrubber ----------
+
     [RelayCommand]
     private void JumpToStep(int stepIndex)
     {
@@ -72,214 +268,10 @@ public partial class WorkbenchViewModel : ObservableObject
             CurrentStepIndex = stepIndex;
     }
 
-    // ============================================
-    // TRANSACTION PARAMS
-    // ============================================
-    [ObservableProperty] private string _toAddress = "0x0000000000000000000000000000000000000008";
-    [ObservableProperty] private string _gasLimit = "500000";
-
-    // ============================================
-    // PLAYBACK STATE
-    // ============================================
-    [ObservableProperty] private int _currentStepIndex;
-    [ObservableProperty] private int _totalSteps;
-    [ObservableProperty] private ExecutionTraceStep? _currentStep;
-    [ObservableProperty] private bool _isPlayingState;
-    
-    public string PlayPauseIcon => IsPlayingState ? "⏸" : "▶";
-    public string StepProgress => $"{CurrentStepIndex} / {TotalSteps}";
-    public string StepPercentage => TotalSteps > 0 ? $"{(CurrentStepIndex * 100 / TotalSteps)}%" : "0%";
-
-    // ============================================
-    // OPSEC STATE
-    // ============================================
-    [ObservableProperty] private bool _opSecEnabled = true;
-
-    // ============================================
-    // STATE INSPECTOR
-    // ============================================
-    public ObservableCollection<string> StackRows { get; } = new();
-    public ObservableCollection<string> MemoryRows { get; } = new();
-    public ObservableCollection<string> StorageRows { get; } = new();
-
-    // ============================================
-    // INSTRUCTIONS & GAS TREE
-    // ============================================
-    public ObservableCollection<InstructionViewModel> Instructions { get; } = new();
-    public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
-
-    // ============================================
-    // SECURITY FINDINGS
-    // ============================================
-    public ObservableCollection<SecurityFindingViewModel> SecurityFindings { get; } = new();
-    
-    [ObservableProperty] private int _criticalCount;
-    [ObservableProperty] private int _warningCount;
-
-    // ============================================
-    // FUZZER
-    // ============================================
-    public ObservableCollection<string> Precompiles { get; } = new()
-    {
-        "",
-        "SHA256 (0x02)",
-        "RIPEMD160 (0x03)",
-        "ID (0x04)",
-        "MODEXP (0x05)",
-        "BN254_ADD (0x06)",
-        "BN254_MUL (0x07)",
-        "BN254_PAIRING (0x08)",
-        "BLAKE2_F (0x09)",
-        "KZG_POINT_EVAL (0x0A)"
-    };
-    
-    public ObservableCollection<string> FuzzerResults { get; } = new();
-
-    // ============================================
-    // STATUS
-    // ============================================
-    [ObservableProperty] private string _statusMessage = "Ready — Load a contract workspace or run simulation";
-
-    // ============================================
-    // INITIALIZATION
-    // ============================================
-    public WorkbenchViewModel()
-    {
-        LoadSampleWorkspace();
-        OpSecLockout.IsEnabled = true;
-        RunTransaction();
-    }
-
-    private void LoadSampleWorkspace()
-    {
-        var vaultLines = new[]
-        {
-            "// SPDX-License-Identifier: MIT",
-            "pragma solidity ^0.8.24;",
-            "",
-            "contract Vault {",
-            "    mapping(address => uint256) public balances;",
-            "    bool private locked;",
-            "",
-            "    event Deposit(address indexed sender, uint256 amount);",
-            "    event Withdraw(address indexed sender, uint256 amount);",
-            "",
-            "    function deposit() external payable {",
-            "        require(msg.value > 0, \"Zero deposit\");",
-            "        balances[msg.sender] += msg.value;",
-            "        emit Deposit(msg.sender, msg.value);",
-            "    }",
-            "",
-            "    /// @notice Withdraw funds from vault",
-            "    function withdraw(uint256 amount) external {",
-            "        require(balances[msg.sender] >= amount, \"Insufficient balance\");",
-            "        ",
-            "        // 🔴 REENTRANCY VULNERABILITY:",
-            "        // External interaction precedes state modification!",
-            "        (bool success, ) = msg.sender.call{value: amount}(\"\");",
-            "        require(success, \"Transfer failed\");",
-            "",
-            "        // State mutation AFTER external call!",
-            "        balances[msg.sender] -= amount;",
-            "        emit Withdraw(msg.sender, amount);",
-            "    }",
-            "}"
-        };
-
-        var proxyLines = new[]
-        {
-            "// SPDX-License-Identifier: MIT",
-            "pragma solidity ^0.8.24;",
-            "",
-            "contract ERC1967Proxy {",
-            "    // ⚠️ STORAGE COLLISION VULNERABILITY:",
-            "    // Slot 0 holds owner address, but implementation uses slot 0 for balances!",
-            "    address public owner;",
-            "    address public implementation;",
-            "",
-            "    fallback() external payable {",
-            "        address impl = implementation;",
-            "        assembly {",
-            "            calldatacopy(0, 0, calldatasize())",
-            "            let result := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)",
-            "            returndatacopy(0, 0, returndatasize())",
-            "            switch result",
-            "            case 0 { revert(0, returndatasize()) }",
-            "            default { return(0, returndatasize()) }",
-            "        }",
-            "    }",
-            "}"
-        };
-
-        var tokenLines = new[]
-        {
-            "// SPDX-License-Identifier: MIT",
-            "pragma solidity ^0.8.24;",
-            "",
-            "contract ERC20Token {",
-            "    string public name = \"Scrutor Test Token\";",
-            "    string public symbol = \"SCR\";",
-            "    uint8 public decimals = 18;",
-            "    uint256 public totalSupply = 1_000_000 * 10**18;",
-            "    mapping(address => uint256) public balanceOf;",
-            "",
-            "    constructor() {",
-            "        balanceOf[msg.sender] = totalSupply;",
-            "    }",
-            "}"
-        };
-
-        ProjectFiles.Add(new ProjectFileViewModel("Vault.sol", "contracts/Vault.sol", vaultLines, new HashSet<int> { 23 }));
-        ProjectFiles.Add(new ProjectFileViewModel("Proxy.sol", "contracts/Proxy.sol", proxyLines, new HashSet<int> { 14 }));
-        ProjectFiles.Add(new ProjectFileViewModel("Token.sol", "contracts/Token.sol", tokenLines));
-
-        SelectedFile = ProjectFiles[0];
-        SelectedFile.IsSelected = true;
-        
-        // Load code lines for display
-        foreach (var line in SelectedFile.Lines)
-            ActiveCodeLines.Add(line);
-    }
-
-    // ============================================
-    // COMMANDS
-    // ============================================
-
-    [RelayCommand]
-    private void ToggleInspector()
-    {
-        IsInspectorExpanded = !IsInspectorExpanded;
-    }
-
-    [RelayCommand]
-    private void JumpToFinding(SecurityFindingViewModel finding)
-    {
-        // Find file
-        var file = ProjectFiles.FirstOrDefault(f => f.FileName.Equals(finding.FileName, StringComparison.OrdinalIgnoreCase));
-        if (file != null)
-        {
-            SelectFile(file);
-            
-            // Highlight target line
-            foreach (var l in file.Lines)
-            {
-                l.IsActiveLine = (l.LineNumber == finding.LineNumber);
-            }
-        }
-
-        // Scrub timeline to exact step
-        if (finding.StepIndex >= 0 && finding.StepIndex < TotalSteps)
-        {
-            CurrentStepIndex = finding.StepIndex;
-        }
-
-        StatusMessage = $"Focused: {finding.LocationText} — {finding.Description}";
-    }
-
     [RelayCommand]
     private void StepForward()
     {
-        if (_currentTrace.Count == 0) RunTransaction();
+        if (_currentTrace.Count == 0) return;
         if (CurrentStepIndex < TotalSteps - 1)
             CurrentStepIndex++;
     }
@@ -287,7 +279,7 @@ public partial class WorkbenchViewModel : ObservableObject
     [RelayCommand]
     private void StepBack()
     {
-        if (_currentTrace.Count == 0) RunTransaction();
+        if (_currentTrace.Count == 0) return;
         if (CurrentStepIndex > 0)
             CurrentStepIndex--;
     }
@@ -295,61 +287,107 @@ public partial class WorkbenchViewModel : ObservableObject
     [RelayCommand]
     private void JumpToStart()
     {
-        if (_currentTrace.Count == 0) RunTransaction();
+        if (_currentTrace.Count == 0) return;
         CurrentStepIndex = 0;
     }
 
     [RelayCommand]
     private void JumpToEnd()
     {
-        if (_currentTrace.Count == 0) RunTransaction();
+        if (_currentTrace.Count == 0) return;
         CurrentStepIndex = Math.Max(0, TotalSteps - 1);
     }
 
     [RelayCommand]
-    private void TogglePlayback()
+    private void ToggleAutoPlay()
     {
-        IsPlayingState = !IsPlayingState;
+        if (_currentTrace.Count == 0)
+        {
+            StatusMessage = "No trace yet — run bytecode first";
+            IsAutoPlaying = false;
+            return;
+        }
+
+        if (IsAutoPlaying)
+            StopAutoPlay();
+        else
+            StartAutoPlay();
     }
 
-    // ============================================
-    // BYTECODE INPUT (real EVM execution)
-    // ============================================
-    [ObservableProperty] private string _bytecodeInput = string.Empty;
-    [ObservableProperty] private bool _isBytecodeMode;
-    [ObservableProperty] private bool _isRunning;
+    private void StartAutoPlay()
+    {
+        StopAutoPlay();
+        IsAutoPlaying = true;
+        _autoPlayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        _autoPlayTimer.Tick += (_, _) =>
+        {
+            if (!IsAutoPlaying || _currentTrace.Count == 0) return;
+            if (CurrentStepIndex < TotalSteps - 1)
+                CurrentStepIndex++;
+            else
+                CurrentStepIndex = 0;
+        };
+        _autoPlayTimer.Start();
+    }
+
+    private void StopAutoPlay()
+    {
+        IsAutoPlaying = false;
+        if (_autoPlayTimer is null) return;
+        _autoPlayTimer.Stop();
+        _autoPlayTimer = null;
+    }
+
+    // ---------- execution ----------
 
     [RelayCommand]
     private void LoadDemoBytecode(string tag)
     {
         BytecodeInput = tag switch
         {
-            "add"       => DemoBytecodes.SimpleAdd,
-            "loop"      => DemoBytecodes.CounterLoop,
-            "tstore"    => DemoBytecodes.TstoreTload,
-            "keccak"    => DemoBytecodes.Keccak256Empty,
-            "bighash"   => DemoBytecodes.BigHash,
-            _           => BytecodeInput
+            "add" => DemoBytecodes.SimpleAdd,
+            "loop" => DemoBytecodes.CounterLoop,
+            "tstore" => DemoBytecodes.TstoreTload,
+            "keccak" => DemoBytecodes.Keccak256Empty,
+            "bighash" => DemoBytecodes.BigHash,
+            _ => BytecodeInput
         };
         IsBytecodeMode = true;
+        StatusMessage = $"Demo bytecode loaded ({tag}) — press Run";
     }
+
+    private BytecodeRunOptions BuildRunOptions() => new()
+    {
+        GasLimit = TxGasLimit,
+        BlockGasLimit = BlockGasLimit,
+        BaseFeeGwei = BaseFeeGwei,
+        ChainId = ChainId,
+        CoinbaseHex = CoinbaseAddress,
+        ForkLabel = SelectedFork
+    };
 
     [RelayCommand]
     private async Task RunBytecodeAsync()
     {
         if (string.IsNullOrWhiteSpace(BytecodeInput))
         {
-            StatusMessage = "⚠ Paste hex bytecode first (e.g. 6005600301...)";
+            StatusMessage = "Paste hex bytecode first (e.g. 6005600301...)";
             return;
         }
 
+        StopAutoPlay();
         IsRunning = true;
-        StatusMessage = "⚙ Executing bytecode through live EVM engine...";
+        StatusMessage = $"Executing on live EVM (gas≤{TxGasLimit:N0}, chain {ChainId})...";
 
         ExecutionResult? result;
         try
         {
-            result = await BytecodeExecutionService.RunAsync(BytecodeInput);
+            result = await BytecodeExecutionService.RunAsync(BytecodeInput, BuildRunOptions());
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Run failed: {ex.Message}";
+            return;
         }
         finally
         {
@@ -358,112 +396,189 @@ public partial class WorkbenchViewModel : ObservableObject
 
         if (result is null)
         {
-            StatusMessage = "⚠ Invalid hex — check your input";
+            StatusMessage = "Invalid hex — check input";
             return;
         }
 
         PopulateFromResult(result.Value, isBytecodeRun: true);
     }
 
-    // ============================================
-    // TRANSACTION RUNNER (synthetic demo data)
-    // ============================================
-
     [RelayCommand]
-    private void RunTransaction()
+    private void RunSyntheticDemo()
     {
+        StopAutoPlay();
         IsBytecodeMode = false;
-        var result = _executionService.RunFullTransaction();
+        var result = _syntheticService.RunFullTransaction();
         PopulateFromResult(result, isBytecodeRun: false);
+        StatusMessage =
+            $"Synthetic demo only: {result.TraceSteps.Count} steps | {CriticalCount} critical | {WarningCount} warnings";
     }
 
-    // ============================================
-    // SHARED RESULT POPULATION
-    // ============================================
+    public async Task GenerateAuditReportAsync(string savePath)
+    {
+        var totalGas = Instructions.Count > 0
+            ? (ulong)Instructions.Sum(i => i.GasCost) + 21_000UL
+            : 0UL;
+
+        await AuditReportExporter.GenerateReportAsync(
+            CurrentFileTitle,
+            SelectedFork,
+            BlockGasLimit,
+            BaseFeeGwei,
+            TotalSteps,
+            totalGas,
+            SecurityFindings,
+            Instructions,
+            savePath);
+
+        StatusMessage = $"Wrote audit report: {Path.GetFileName(savePath)}";
+    }
+
+    [RelayCommand]
+    private void JumpToFinding(SecurityFindingViewModel finding)
+    {
+        var file = ProjectFiles.FirstOrDefault(f =>
+            f.FileName.Equals(finding.FileName, StringComparison.OrdinalIgnoreCase));
+        if (file != null)
+            SelectFile(file);
+
+        if (finding.StepIndex >= 0 && finding.StepIndex < TotalSteps)
+            CurrentStepIndex = finding.StepIndex;
+
+        if (SelectedFile != null && finding.LineNumber > 0)
+        {
+            foreach (var line in SelectedFile.Lines)
+                line.IsActiveLine = line.LineNumber == finding.LineNumber;
+        }
+
+        StatusMessage = $"Focused: {finding.LocationText}";
+    }
+
+    // ---------- result plumbing ----------
 
     private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun)
     {
-        _currentTrace = result.TraceSteps;
-        
+        _currentTrace = result.TraceSteps ?? new List<ExecutionTraceStep>();
+        HasTrace = _currentTrace.Count > 0;
+
         Instructions.Clear();
         StackRows.Clear();
         MemoryRows.Clear();
         StorageRows.Clear();
         SecurityFindings.Clear();
         GasTreeNodes.Clear();
-        
-        // Populate instructions
-        for (int i = 0; i < result.TraceSteps.Count; i++)
+
+        foreach (var step in _currentTrace)
         {
-            var step = result.TraceSteps[i];
+            var gas = ParseGasCost(step.GasCost);
+            var desc = BytecodeExecutionService.DescribeOpcode(step.Op);
             Instructions.Add(new InstructionViewModel(
                 step.Pc.ToString("X4"),
                 step.Op,
-                int.TryParse(step.GasCost.Replace("0x", ""), System.Globalization.NumberStyles.HexNumber, null, out int gc) ? gc : 0,
-                step.CallType?.ToString() ?? "ROOT"
-            ));
+                gas,
+                step.CallType?.ToString() ?? $"D{step.Depth}",
+                desc));
         }
-        
-        // Security analysis
-        var reentrancy = ReentrancyDetector.Analyze(result.TraceSteps);
-        var collisions = StorageCollisionDetector.Analyze(result.TraceSteps);
-        
+
+        var reentrancy = ReentrancyDetector.Analyze(_currentTrace);
+        var collisions = StorageCollisionDetector.Analyze(_currentTrace);
+
         foreach (var f in reentrancy)
         {
             SecurityFindings.Add(new SecurityFindingViewModel
             {
                 SeverityEmoji = f.Severity == ReentrancySeverity.Critical ? "🔴" : "⚠️",
-                Description = $"REENTRANCY: {f.Severity} - Depth Delta {f.DepthDelta}",
-                Details = $"Target: {f.TargetContract} | Re-entered at step {f.ReentryStep}",
-                FileName = "Vault.sol",
-                LineNumber = 23,
+                Description = $"REENTRANCY: {f.Severity} — depth Δ {f.DepthDelta}",
+                Details = $"Target: {f.TargetContract} | re-entry step {f.ReentryStep}",
+                FileName = isBytecodeRun ? string.Empty : "Vault.sol",
+                LineNumber = isBytecodeRun ? 0 : 23,
                 StepIndex = f.ReentryStep
             });
         }
-        
+
         foreach (var c in collisions)
         {
             SecurityFindings.Add(new SecurityFindingViewModel
             {
                 SeverityEmoji = "⚠️",
-                Description = $"STORAGE COLLISION: Slot {c.CollidingSlot}",
-                Details = $"Proxy: {c.ProxyContract} | Implementation: {c.ImplementationContract}",
-                FileName = "Proxy.sol",
-                LineNumber = 14,
+                Description = $"STORAGE COLLISION: slot {c.CollidingSlot}",
+                Details = $"Proxy: {c.ProxyContract} | Impl: {c.ImplementationContract}",
+                FileName = isBytecodeRun ? string.Empty : "Proxy.sol",
+                LineNumber = isBytecodeRun ? 0 : 14,
                 StepIndex = c.StepIndex
             });
         }
-        
-        // Gas tree
-        GasTreeNodes.Add(new GasNodeViewModel { DisplayText = $"▼ TOTAL: {result.GasUsed:N0} gas", Indent = new(0, 0, 0, 8), Color = "#FFFFFF" });
-        GasTreeNodes.Add(new GasNodeViewModel { DisplayText = "├── Intrinsic: 21,000", Indent = new(16, 2) });
-        GasTreeNodes.Add(new GasNodeViewModel { DisplayText = $"├── Computation: {result.GasUsed - 21000:N0}", Indent = new(16, 2) });
-        GasTreeNodes.Add(new GasNodeViewModel { DisplayText = $"│   └── Steps: {result.TraceSteps.Count}", Indent = new(32, 2), Color = "#FFAA00" });
-        GasTreeNodes.Add(new GasNodeViewModel { DisplayText = "└── Refunds: 0", Indent = new(16, 2), Color = "#00D4AA" });
-        
-        TotalSteps = result.TraceSteps.Count;
-        
-        // Load call topology from trace
-        CallTopology.LoadFromTrace(result.TraceSteps);
-        CurrentStepIndex = Math.Min(28, result.TraceSteps.Count - 1);
+
+        var gasUsed = result.GasUsed;
+        var refund = result.GasRefundCounter;
+        GasTreeNodes.Add(new GasNodeViewModel
+        {
+            DisplayText = $"▼ TOTAL USED: {gasUsed:N0}",
+            Indent = new(0, 0, 0, 8),
+            Color = "#FFFFFF"
+        });
+        GasTreeNodes.Add(new GasNodeViewModel
+        {
+            DisplayText = $"├── Tx gas limit: {TxGasLimit:N0}",
+            Indent = new(16, 2)
+        });
+        GasTreeNodes.Add(new GasNodeViewModel
+        {
+            DisplayText = $"├── Steps: {_currentTrace.Count}",
+            Indent = new(16, 2),
+            Color = "#FFAA00"
+        });
+        GasTreeNodes.Add(new GasNodeViewModel
+        {
+            DisplayText = $"└── Refund counter: {refund:N0}",
+            Indent = new(16, 2),
+            Color = "#00D4AA"
+        });
+
+        TotalSteps = _currentTrace.Count;
+        HasTrace = _currentTrace.Count > 0;
+        OnPropertyChanged(nameof(MaxStepIndex));
+        OnPropertyChanged(nameof(WatermarkOpacity));
+        CallTopology.LoadFromTrace(_currentTrace);
+
         CriticalCount = reentrancy.Count(r => r.Severity == ReentrancySeverity.Critical);
         WarningCount = collisions.Count + reentrancy.Count(r => r.Severity == ReentrancySeverity.Medium);
-        
+
+        if (TotalSteps > 0)
+        {
+            CenterEmptyHint = string.Empty;
+            if (CurrentStepIndex == 0)
+                OnCurrentStepIndexChanged(0);
+            else
+                CurrentStepIndex = 0;
+        }
+        else
+        {
+            CurrentStep = null;
+            CurrentOpcodeSpec = string.Empty;
+            CurrentGasFormulaBreakdown = string.Empty;
+            CurrentStepDetail = string.Empty;
+            NotifyStepProps();
+        }
+
         StatusMessage = isBytecodeRun
-            ? $"⚡ LIVE EVM: {result.TraceSteps.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"REVERTED ({result.Error})")} | {result.GasUsed:N0} gas used"
-            : $"✓ COMPLETE: {result.TraceSteps.Count} steps | {CriticalCount} Critical | {WarningCount} Warnings | {result.GasUsed:N0} gas";
+            ? $"LIVE EVM [{SelectedFork} label]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"REVERT ({result.Error})")} | {gasUsed:N0} gas | refund {refund}"
+            : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {gasUsed:N0} gas";
     }
 
     partial void OnCurrentStepIndexChanged(int value)
     {
         if (_currentTrace.Count == 0 || value < 0 || value >= _currentTrace.Count)
+        {
+            NotifyStepProps();
             return;
+        }
 
         var step = _currentTrace[value];
         CurrentStep = step;
 
         StackRows.Clear();
-        for (int i = step.Stack.Count - 1; i >= 0; i--)
+        for (var i = step.Stack.Count - 1; i >= 0; i--)
             StackRows.Add($"[{i}] {step.Stack[i]}");
 
         MemoryRows.Clear();
@@ -474,48 +589,104 @@ public partial class WorkbenchViewModel : ObservableObject
         foreach (var kvp in step.Storage)
             StorageRows.Add($"{kvp.Key}: {kvp.Value}");
 
-        // Map step PC to line highlighting in active file & ActiveCodeLines
+        ComputeEelsSpecCitation(step);
         UpdateActiveLineForStep(value);
+        NotifyStepProps();
 
-        StatusMessage = $"Step {value + 1} / {TotalSteps} | {step.Op} | Depth: {step.Depth} | Gas: {step.Gas}";
+        StatusMessage =
+            $"Step {value + 1}/{TotalSteps} | {step.Op} | depth {step.Depth} | gas {step.Gas}";
+    }
+
+    private void NotifyStepProps()
+    {
+        OnPropertyChanged(nameof(StepProgress));
+        OnPropertyChanged(nameof(StepPercentage));
+        OnPropertyChanged(nameof(StepProgressRatio));
+        OnPropertyChanged(nameof(MaxStepIndex));
+        OnPropertyChanged(nameof(CurrentFileTitle));
+    }
+
+    private void ComputeEelsSpecCitation(ExecutionTraceStep step)
+    {
+        var op = step.Op.ToUpperInvariant();
+        CurrentOpcodeSpec = op switch
+        {
+            "SSTORE" => "EELS: sstore(evm) — EIP-2200 / EIP-2929",
+            "SLOAD" => "EELS: sload(evm) — cold 2100 / warm 100",
+            "TSTORE" => "EELS: tstore(evm) — EIP-1153",
+            "TLOAD" => "EELS: tload(evm) — EIP-1153",
+            "MCOPY" => "EELS: mcopy(evm) — EIP-5656",
+            "CALL" => "EELS: call(evm) — EIP-150 63/64ths",
+            "DELEGATECALL" => "EELS: delegatecall(evm)",
+            "STATICCALL" => "EELS: staticcall(evm)",
+            "CREATE2" => "EELS: create2(evm)",
+            "KECCAK256" or "SHA3" => "EELS: keccak256(evm)",
+            _ when op.StartsWith("PUSH") => $"EELS: push — {op}",
+            _ when op.StartsWith("DUP") => $"EELS: dup — {op}",
+            _ when op.StartsWith("SWAP") => $"EELS: swap — {op}",
+            _ => $"EELS: {op.ToLowerInvariant()}(evm)"
+        };
+
+        CurrentGasFormulaBreakdown = op switch
+        {
+            "SSTORE" => "Cold access / set / clear refund per EIP-2200",
+            "SLOAD" => "Cold 2,100 | Warm 100",
+            "CALL" => "Stipend 2,300 on value | cold account +2,600 | 63/64ths",
+            "MCOPY" => "3 gas/word + memory expansion",
+            "KECCAK256" or "SHA3" => "30 + 6/word",
+            _ => $"Reported cost: {step.GasCost}"
+        };
+
+        CurrentStepDetail = $"PC 0x{step.Pc:X4} | depth {step.Depth} | gas left {step.Gas}";
     }
 
     private void UpdateActiveLineForStep(int stepIndex)
     {
-        if (SelectedFile == null) return;
+        if (SelectedFile is null || SelectedFile.Lines.Count == 0)
+            return;
 
-        int targetLine = 1;
-        if (SelectedFile.FileName.Equals("Vault.sol", StringComparison.OrdinalIgnoreCase))
+        // Honest proportional highlight until sourcemaps exist.
+        var lineCount = SelectedFile.Lines.Count;
+        var targetLine = Math.Clamp(stepIndex % lineCount + 1, 1, lineCount);
+
+        var currentStep = stepIndex >= 0 && stepIndex < _currentTrace.Count
+            ? _currentTrace[stepIndex]
+            : null;
+        var gasBadge = currentStep != null
+            ? $"[{currentStep.Op} · {currentStep.GasCost}]"
+            : string.Empty;
+
+        foreach (var line in SelectedFile.Lines)
         {
-            targetLine = stepIndex switch
+            var active = line.LineNumber == targetLine;
+            line.IsActiveLine = active;
+            if (active)
             {
-                < 4 => 11,
-                < 8 => 12,
-                < 12 => 13,
-                < 16 => 14,
-                < 20 => 18,
-                < 24 => 19,
-                < 29 => 23,
-                < 32 => 24,
-                < 34 => 27,
-                _ => 28
-            };
+                line.GasBadgeText = gasBadge;
+                line.IsColdAccess = currentStep?.GasCost is "0x834" or "2100" or "0x83A" or "2106";
+            }
+            else
+            {
+                line.GasBadgeText = string.Empty;
+                line.IsColdAccess = false;
+            }
         }
-        else if (SelectedFile.FileName.Equals("Proxy.sol", StringComparison.OrdinalIgnoreCase))
+    }
+
+    private static int ParseGasCost(string? gasCost)
+    {
+        if (string.IsNullOrWhiteSpace(gasCost))
+            return 0;
+
+        var s = gasCost.Trim();
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
         {
-            targetLine = (stepIndex % 2 == 0) ? 14 : 11;
+            return int.TryParse(s.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hx)
+                ? hx
+                : 0;
         }
 
-        foreach (CodeLineViewModel l in SelectedFile.Lines)
-        {
-            l.IsActiveLine = (l.LineNumber == targetLine);
-        }
-
-        ActiveCodeLines.Clear();
-        foreach (CodeLineViewModel line in SelectedFile.Lines)
-        {
-            ActiveCodeLines.Add(line);
-        }
+        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
     }
 }
 
@@ -525,12 +696,17 @@ public class InstructionViewModel
     public string Opcode { get; }
     public int GasCost { get; }
     public string CallType { get; }
+    public string Description { get; }
+    public string DisplayText => string.IsNullOrEmpty(Description)
+        ? $"0x{PC}  {Opcode}  ({GasCost})"
+        : $"0x{PC}  {Opcode}  ({GasCost})  {Description}";
 
-    public InstructionViewModel(string pc, string opcode, int gasCost, string callType)
+    public InstructionViewModel(string pc, string opcode, int gasCost, string callType, string description = "")
     {
         PC = pc;
         Opcode = opcode;
         GasCost = gasCost;
         CallType = callType;
+        Description = description;
     }
 }

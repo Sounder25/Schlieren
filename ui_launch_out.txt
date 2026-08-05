@@ -1,0 +1,1 @@
+PID=81320 Exited=False Hwnd=4132668 Title='SCRUTOR — .NET 8 Ethereum Execution & Verification Engine' Responding=True

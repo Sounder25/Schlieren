@@ -8,9 +8,9 @@ public class SecurityFindingViewModel
     public int LineNumber { get; init; }
     public string FileName { get; init; } = "";
     public int StepIndex { get; init; }
-    
-    public string LocationText => $"{FileName}:{LineNumber}";
-    
-    // Command property for data binding - set by parent ViewModel
-    public System.Windows.Input.ICommand? JumpToCodeCommand { get; set; }
+
+    public string LocationText =>
+        string.IsNullOrEmpty(FileName)
+            ? (LineNumber > 0 ? $"step→line {LineNumber}" : $"step {StepIndex}")
+            : $"{FileName}:{LineNumber}";
 }

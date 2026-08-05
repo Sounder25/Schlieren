@@ -49,12 +49,27 @@ public abstract class PushOpcodeBase : IOpcode
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         // A PUSH_N at PC requires (Size) immediate bytes starting at PC+1.
-        // The last valid PC+Size index is Code.Length-1, so the check is >.
-        if (context.ProgramCounter + Size > context.Code.Length - 1)
-            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1));
+        // Per EELS / Yellow Paper: bytes past end-of-code are treated as 0x00 (zero-padded).
+        // Only fail if the opcode byte itself is at or past end-of-code (handled by the
+        // EvmMachine loop — this opcode would never be dispatched in that case).
+        var start = context.ProgramCounter + 1;
+        var available = Math.Max(0, context.Code.Length - start);
 
-        var dataSpan = context.Code.AsSpan(context.ProgramCounter + 1, Size);
-        var value = new BigInteger(dataSpan, isUnsigned: true, isBigEndian: true);
+        BigInteger value;
+        if (available >= Size)
+        {
+            // All bytes present — fast path.
+            var dataSpan = context.Code.AsSpan(start, Size);
+            value = new BigInteger(dataSpan, isUnsigned: true, isBigEndian: true);
+        }
+        else
+        {
+            // Partial or zero bytes available — zero-pad to Size bytes.
+            var padded = new byte[Size];
+            if (available > 0)
+                Array.Copy(context.Code, start, padded, 0, available);
+            value = new BigInteger(padded, isUnsigned: true, isBigEndian: true);
+        }
 
         if (!context.Stack.TryPush(value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));

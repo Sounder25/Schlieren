@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Scrutor.Core\Scrutor.Core.csproj" />
     <ProjectReference Include="..\Scrutor.RPC\Scrutor.RPC.csproj" />
+    <ProjectReference Include="..\Scrutor.UI\Scrutor.UI.csproj" />
   </ItemGroup>
 
 </Project>

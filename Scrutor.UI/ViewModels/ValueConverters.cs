@@ -13,8 +13,8 @@ public class BoolToColorConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isSelected && isSelected)
-            return new SolidColorBrush(Color.Parse("#1A1A1A"));
-        return new SolidColorBrush(Color.Parse("#141414"));
+            return new SolidColorBrush(Color.Parse("#241B47")); // indigo-tinted selected
+        return new SolidColorBrush(Color.Parse("#0C0D14"));
     }
     
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -31,8 +31,8 @@ public class BoolToFGConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isSelected && isSelected)
-            return new SolidColorBrush(Color.Parse("#00D4AA"));
-        return new SolidColorBrush(Color.Parse("#888888"));
+            return new SolidColorBrush(Color.Parse("#19D7E5")); // Blob Aqua
+        return new SolidColorBrush(Color.Parse("#A9A9A9")); // Cold Access Grey
     }
     
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -66,6 +66,18 @@ public class BoolToRunLabelConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is true ? "⏳ RUNNING..." : "▶ RUN";
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+// Bool to Play/Pause button label
+public class BoolToPlayLabelConverter : IValueConverter
+{
+    public static readonly BoolToPlayLabelConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? "⏸ PAUSE" : "▶ PLAY";
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();

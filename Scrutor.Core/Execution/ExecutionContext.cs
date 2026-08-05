@@ -84,6 +84,11 @@ namespace Scrutor.Core.Execution
     /// </summary>
     public sealed class ExecutionContext
     {
+        /// <summary>
+        /// Unique execution ID for diagnostic tracing.
+        /// </summary>
+        public string ExecutionId { get; init; } = Guid.NewGuid().ToString("N").Substring(0, 8);
+        
         public EvmStack Stack { get; } = new();
         public EvmMemory Memory { get; } = new();
         public IEvmStorage Storage { get; init; } = new InMemoryStorage();

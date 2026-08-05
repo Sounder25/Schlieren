@@ -2,16 +2,18 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Scrutor.UI.ViewModels"
         x:Class="Scrutor.UI.Views.MainWindow"
+        x:Name="root"
         x:DataType="vm:WorkbenchViewModel"
         Title="SCRUTOR — .NET 8 Ethereum Execution &amp; Verification Engine"
-        WindowState="Maximized"
+        Icon="/Assets/scrutor-icon.png"
+        Width="1440" Height="900"
+        WindowStartupLocation="CenterScreen"
         Background="#0D0D0D"
-        FontFamily="Consolas, Menlo, monospace">
+        FontFamily="Inter, Segoe UI, sans-serif">
 
     <Window.Styles>
         <Style Selector="TextBlock.header">
             <Setter Property="Foreground" Value="#19D7E5"/>
-            <Setter Property="FontFamily" Value="Montserrat, Arial, sans-serif"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
@@ -23,358 +25,382 @@
             <Setter Property="CornerRadius" Value="4"/>
         </Style>
         <Style Selector="TextBlock.code">
-            <Setter Property="FontFamily" Value="Consolas, Menlo, monospace"/>
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="Foreground" Value="#F0F4F8"/>
         </Style>
         <Style Selector="TextBlock.linenumber">
             <Setter Property="Foreground" Value="#19D7E5"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontFamily" Value="Montserrat, Arial, sans-serif"/>
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
         </Style>
-
         <Style Selector="Border.activeLine">
             <Setter Property="Background" Value="#241B47"/>
             <Setter Property="BorderBrush" Value="#19D7E5"/>
             <Setter Property="BorderThickness" Value="2,0,0,0"/>
         </Style>
-
         <Style Selector="Border.vulnerableLine">
             <Setter Property="Background" Value="#2E141B"/>
             <Setter Property="BorderBrush" Value="#FF4500"/>
             <Setter Property="BorderThickness" Value="2,0,0,0"/>
         </Style>
-
-        <Style Selector="Border.vulnerability-badge">
-            <Setter Property="Background" Value="#3D1414"/>
-            <Setter Property="BorderBrush" Value="#FF4500"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="3"/>
-            <Setter Property="Padding" Value="6,2"/>
-            <Style.Animations>
-                <Animation Duration="0:0:1.0" IterationCount="Infinite" PlaybackDirection="Alternate">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="Opacity" Value="1.0"/>
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="Opacity" Value="0.3"/>
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
-        </Style>
-
-        <Style Selector="Button.file-tab">
-            <Setter Property="Background" Value="#16171D"/>
-            <Setter Property="Foreground" Value="#A9A9A9"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="CornerRadius" Value="4,4,0,0"/>
-            <Setter Property="Margin" Value="0,0,2,0"/>
-        </Style>
-
-        <Style Selector="Button.file-tab-selected">
-            <Setter Property="Background" Value="#241B47"/>
-            <Setter Property="Foreground" Value="#19D7E5"/>
-            <Setter Property="FontFamily" Value="Montserrat, Arial, sans-serif"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="CornerRadius" Value="4,4,0,0"/>
-            <Setter Property="Margin" Value="0,0,2,0"/>
-        </Style>
-
-        <Style Selector="TextBox.dark">
-            <Setter Property="Background" Value="#1A1C23"/>
-            <Setter Property="Foreground" Value="#F0F4F8"/>
-            <Setter Property="BorderBrush" Value="#4A00E0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*">
-        <!-- TOP BAR -->
-        <Border Grid.Row="0" Background="#141414" Padding="16,10" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+        <!-- MENU -->
+        <Menu Grid.Row="0" Background="#0C0D14" BorderBrush="#2D2D3D" BorderThickness="0,0,0,1" Height="26">
+            <MenuItem Header="_File" Foreground="#E0E0E0" FontSize="11">
+                <MenuItem Header="Open Contract File..." Click="OnOpenFileClick" InputGesture="Ctrl+O"/>
+                <MenuItem Header="Open Project Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O"/>
+                <Separator/>
+                <MenuItem Header="Export Security Audit Report (.md)..." Click="OnExportReportClick"/>
+                <Separator/>
+                <MenuItem Header="Exit" Click="OnExitClick" InputGesture="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="_EVM Engine" Foreground="#E0E0E0" FontSize="11">
+                <MenuItem Header="Run Bytecode (Live EVM)" Command="{Binding RunBytecodeCommand}" InputGesture="F5"/>
+                <MenuItem Header="Synthetic Detector Demo..." Command="{Binding RunSyntheticDemoCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Tools" Foreground="#E0E0E0" FontSize="11">
+                <MenuItem Header="Show Call Topology" Command="{Binding ShowCallGraphCommand}"/>
+                <MenuItem Header="Show Source" Command="{Binding ShowSourceCommand}"/>
+                <MenuItem Header="Toggle OpSec Lockout" Command="{Binding ToggleOpSecCommand}"/>
+                <MenuItem Header="Export Audit Report (.md)..." Click="OnExportReportClick"/>
+            </MenuItem>
+            <MenuItem Header="_Help" Foreground="#E0E0E0" FontSize="11">
+                <MenuItem Header="F5 Run · F10 Step · F11 Back · Space Play · Home/End"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- TOP BAR (brand) -->
+        <Border Grid.Row="1" Background="#0C0D14" Padding="14,8" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <!-- Logo -->
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="⚡ SCRUTOR IDE" FontWeight="Bold" FontSize="18" Foreground="#19D7E5"/>
-                    <TextBlock Text="EVM Security Platform" FontSize="13" Foreground="#888" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Border Width="44" Height="44" CornerRadius="10" Background="#12131A"
+                            BorderBrush="#2D2D4D" BorderThickness="1" Padding="4"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="SCRUTOR — Precise · Verifiable · Traceable · Conformant">
+                        <Image Source="/Assets/scrutor-icon.png"
+                               Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="SCRUTOR" FontWeight="Bold" FontSize="20"
+                                   Foreground="#F0F4F8" LetterSpacing="2"/>
+                        <TextBlock Text=".NET 8 Ethereum Execution &amp; Verification Engine"
+                                   FontSize="11" Foreground="#19D7E5"/>
+                    </StackPanel>
                 </StackPanel>
-                
-                <!-- Center: Status -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                    <TextBlock Text="{Binding CurrentFileTitle}" Foreground="#888" FontSize="12"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+                    <TextBlock Text="{Binding CurrentFileTitle}" Foreground="#888" FontSize="12" VerticalAlignment="Center"/>
+                    <Border Background="#1E1E2E" Padding="6,2" CornerRadius="3" BorderBrush="#2D2D3D" BorderThickness="1"
+                            ToolTip.Tip="Report fork label only. Live runs use the unified modern opcode set. Block fields below ARE applied.">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="REPORT FORK:" Foreground="#888" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <ComboBox ItemsSource="{Binding AvailableForks}" SelectedItem="{Binding SelectedFork}"
+                                      Background="#0D0D0D" Foreground="#19D7E5" FontWeight="Bold" FontSize="11" Height="24" Padding="6,2"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                
-                <!-- Right Controls -->
+
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <!-- Conformance Badge -->
-                    <Border Background="#1E1E2E" Padding="10,4" CornerRadius="3" BorderBrush="#2D2D3D" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <TextBlock Text="[CANCUN]" Foreground="#19D7E5" FontWeight="Bold" FontSize="11"/>
-                            <TextBlock Text="✓ 265 UNIT TESTS" Foreground="#00D4AA" FontWeight="SemiBold" FontSize="11"/>
-                            <TextBlock Text="✓ EELS v5.4.0" Foreground="#FFAA00" FontWeight="SemiBold" FontSize="11"/>
-                        </StackPanel>
+                    <Border Background="#1E1E2E" Padding="10,4" CornerRadius="3" BorderBrush="#2D2D3D" BorderThickness="1"
+                            ToolTip.Tip="{Binding ForkNote}">
+                        <TextBlock Text="{Binding ForkNote}" Foreground="#A0A0B0" FontSize="10" MaxWidth="280" TextTrimming="CharacterEllipsis"/>
                     </Border>
-                    <Border Background="#1E1E2E" Padding="10,4" CornerRadius="3">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="🔒" FontSize="11"/>
-                            <TextBlock Text="OPSEC: OFFLINE" Foreground="#19D7E5" FontSize="11"/>
-                        </StackPanel>
-                    </Border>
-                    <Button Content="▶ RUN ANALYSIS" Background="#4A00E0" Foreground="#0D0D0D" 
-                            FontWeight="Bold" Padding="16,6" CornerRadius="4" FontSize="12"
-                            Command="{Binding RunTransactionCommand}"/>
+                    <Button Content="{Binding OpSecLabel}" Background="#1E1E2E" Foreground="#19D7E5" FontSize="11"
+                            Padding="10,4" CornerRadius="3" Command="{Binding ToggleOpSecCommand}"/>
+                    <Button Classes="brand-primary" Content="RUN BYTECODE"
+                            Padding="16,6" FontSize="12"
+                            Command="{Binding RunBytecodeCommand}"
+                            IsEnabled="{Binding !IsRunning}"/>
                 </StackPanel>
             </Grid>
         </Border>
-        
-        
-        <!-- FILE TABS -->
-        <Border Grid.Row="1" Background="#141414" Padding="16,6" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Spacing="0">
-                <ItemsControl ItemsSource="{Binding ProjectFiles}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="0"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ProjectFileViewModel">
-                            <Border Padding="12,6" CornerRadius="4,4,0,0" 
-                                    Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
-                                    PointerPressed="OnTabClick"
-                                    Cursor="Hand">
-                                <TextBlock Text="{Binding FileName}" 
-                                           Foreground="{Binding IsSelected, Converter={x:Static vm:BoolToFGConverter.Instance}}"
-                                           FontWeight="{Binding IsSelected, Converter={x:Static vm:BoolToFontWeightConverter.Instance}}"
-                                           FontSize="12"/>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                
-                <!-- Separator -->
-                <Border Width="1" Height="16" Background="#2D2D2D" Margin="12,0,12,0" VerticalAlignment="Center"/>
-                
-                <!-- Call Graph Tab -->
-                <Border Padding="12,6" CornerRadius="4,4,0,0" Background="#1E1E2E"
-                        PointerPressed="OnCallGraphClick" Cursor="Hand">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="📊" FontSize="12"/>
-                        <TextBlock Text="CALL GRAPH" Foreground="#FFAA00" FontWeight="Bold" FontSize="12"/>
-                    </StackPanel>
+
+        <!-- TABS -->
+        <Border Grid.Row="2" Background="#141414" Padding="16,6" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                    <ItemsControl ItemsSource="{Binding ProjectFiles}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="0"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProjectFileViewModel">
+                                <Border Padding="10,6" CornerRadius="4,4,0,0"
+                                        Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                                        PointerPressed="OnTabClick"
+                                        Cursor="Hand" Margin="0,0,2,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding FileName}"
+                                                   Foreground="{Binding IsSelected, Converter={x:Static vm:BoolToFGConverter.Instance}}"
+                                                   FontWeight="{Binding IsSelected, Converter={x:Static vm:BoolToFontWeightConverter.Instance}}"
+                                                   FontSize="12"/>
+                                        <Button Content="×" FontSize="10" Foreground="#888" Background="Transparent" Padding="2,0" Margin="4,0,0,0"
+                                                Command="{Binding #root.DataContext.CloseTabCommand}" CommandParameter="{Binding}"
+                                                x:CompileBindings="False" ToolTip.Tip="Close tab"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Width="1" Height="16" Background="#2D2D2D" Margin="12,0,12,0" VerticalAlignment="Center"/>
+                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="#1E1E2E"
+                            PointerPressed="OnCallGraphClick" Cursor="Hand">
+                        <TextBlock Text="CALL GRAPH" Foreground="#FFD700" FontWeight="Bold" FontSize="12"/>
+                    </Border>
+                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="#1E1E2E" Margin="4,0,0,0"
+                            PointerPressed="OnSourceClick" Cursor="Hand">
+                        <TextBlock Text="SOURCE" Foreground="#19D7E5" FontWeight="Bold" FontSize="12"/>
+                    </Border>
+                </StackPanel>
+
+                <Button Grid.Column="1" Content="BLOCK CONTEXT"
+                        Background="#1E1E2E" Foreground="#19D7E5" FontWeight="SemiBold" FontSize="11"
+                        Padding="10,4" CornerRadius="3" Cursor="Hand"
+                        Command="{Binding ToggleBlockContextCommand}"
+                        ToolTip.Tip="Tx gas, block gas, base fee, chain id, coinbase — applied to live Run"/>
+            </Grid>
+        </Border>
+
+        <!-- BYTECODE + BLOCK CONTEXT -->
+        <Border Grid.Row="3" Background="#0F0F1A" Padding="12,8" BorderBrush="#2D2D4D" BorderThickness="0,0,0,1">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
+                    <TextBlock Grid.Column="0" Text="BYTECODE" Foreground="#19D7E5" FontWeight="Bold" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding BytecodeInput}"
+                             Watermark="Paste hex bytecode (0x optional) e.g. 600560030160005260206000f3"
+                             Background="#1A1C23" Foreground="#F0F4F8"
+                             BorderBrush="#4A00E0" BorderThickness="1"
+                             FontFamily="Consolas, Menlo, monospace" FontSize="12"
+                             Padding="8,4" CornerRadius="3" Margin="0,0,8,0"/>
+                    <Button Grid.Column="2" Content="ADD" ToolTip.Tip="PUSH1 5 + PUSH1 3 + ADD + RETURN"
+                            Background="#1E1E2E" Foreground="#FFAA00" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="add"/>
+                    <Button Grid.Column="3" Content="LOOP"
+                            Background="#1E1E2E" Foreground="#FFAA00" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="loop"/>
+                    <Button Grid.Column="4" Content="TSTORE"
+                            Background="#1E1E2E" Foreground="#00D4AA" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="tstore"/>
+                    <Button Grid.Column="5" Content="KECCAK"
+                            Background="#1E1E2E" Foreground="#FFAA00" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,12,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="keccak"/>
+                    <Button Grid.Column="6"
+                            Content="{Binding IsRunning, Converter={x:Static vm:BoolToRunLabelConverter.Instance}}"
+                            Background="#4A00E0" Foreground="White"
+                            FontWeight="Bold" FontSize="12" Padding="16,6" CornerRadius="4"
+                            Command="{Binding RunBytecodeCommand}"
+                            IsEnabled="{Binding !IsRunning}"/>
+                </Grid>
+
+                <Border Background="#161824" BorderBrush="#2D2D4D" BorderThickness="1" CornerRadius="4" Padding="10,6"
+                        IsVisible="{Binding IsBlockContextExpanded}">
+                    <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*,Auto,*,Auto,*">
+                        <TextBlock Grid.Column="0" Text="Tx Gas:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="1" Text="{Binding TxGasLimit}" Background="#0D0D0D" Foreground="#19D7E5" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="Block Gas:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="3" Text="{Binding BlockGasLimit}" Background="#0D0D0D" Foreground="#E0E0E0" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="4" Text="BaseFee Gwei:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="5" Text="{Binding BaseFeeGwei}" Background="#0D0D0D" Foreground="#19D7E5" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="6" Text="ChainId:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="7" Text="{Binding ChainId}" Background="#0D0D0D" Foreground="#E0E0E0" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="8" Text="Coinbase:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="9" Text="{Binding CoinbaseAddress}" Background="#0D0D0D" Foreground="#FFAA00" FontSize="10" FontFamily="Consolas" Padding="6,2"/>
+                    </Grid>
                 </Border>
             </StackPanel>
         </Border>
 
-        <!-- BYTECODE INPUT PANEL (Row 2) -->
-        <Border Grid.Row="2" Background="#0F0F1A" Padding="12,8" BorderBrush="#2D2D4D" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                <!-- Label -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <TextBlock Text="⚡" FontSize="14" VerticalAlignment="Center"/>
-                    <TextBlock Text="BYTECODE" Foreground="#19D7E5" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
-                </StackPanel>
-
-                <!-- Hex Input -->
-                <TextBox Grid.Column="1"
-                         Text="{Binding BytecodeInput}"
-                         Watermark="Paste hex bytecode (0x optional)  e.g. 6005600301..."
-                         Background="#1A1C23" Foreground="#F0F4F8"
-                         BorderBrush="#4A00E0" BorderThickness="1"
-                         FontFamily="Consolas, Menlo, monospace" FontSize="12"
-                         Padding="8,4" CornerRadius="3"
-                         Margin="0,0,8,0"/>
-
-                <!-- Demo quick-load buttons -->
-                <Button Grid.Column="2" Content="ADD" ToolTip.Tip="PUSH1 5, PUSH1 3, ADD"
-                        Background="#1E1E2E" Foreground="#FFAA00" FontSize="10" FontWeight="Bold"
-                        Padding="8,4" CornerRadius="3" Margin="0,0,4,0" Cursor="Hand"
-                        Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="add"/>
-                <Button Grid.Column="3" Content="LOOP" ToolTip.Tip="Counter loop (JUMPDEST)"
-                        Background="#1E1E2E" Foreground="#FFAA00" FontSize="10" FontWeight="Bold"
-                        Padding="8,4" CornerRadius="3" Margin="0,0,4,0" Cursor="Hand"
-                        Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="loop"/>
-                <Button Grid.Column="4" Content="TSTORE" ToolTip.Tip="EIP-1153 TSTORE/TLOAD (Cancun)"
-                        Background="#1E1E2E" Foreground="#00D4AA" FontSize="10" FontWeight="Bold"
-                        Padding="8,4" CornerRadius="3" Margin="0,0,4,0" Cursor="Hand"
-                        Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="tstore"/>
-                <Button Grid.Column="5" Content="KECCAK" ToolTip.Tip="keccak256 of empty input"
-                        Background="#1E1E2E" Foreground="#FFAA00" FontSize="10" FontWeight="Bold"
-                        Padding="8,4" CornerRadius="3" Margin="0,0,12,0" Cursor="Hand"
-                        Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="keccak"/>
-
-                <!-- Run button -->
-                <Button Grid.Column="6"
-                        Content="{Binding IsRunning, Converter={x:Static vm:BoolToRunLabelConverter.Instance}}"
-                        Background="#4A00E0" Foreground="White"
-                        FontWeight="Bold" FontSize="12" Padding="16,6" CornerRadius="4" Cursor="Hand"
-                        Command="{Binding RunBytecodeCommand}"
-                        IsEnabled="{Binding !IsRunning}"/>
-            </Grid>
-        </Border>
-
-        <!-- MAIN CONTENT -->
-        <Grid Grid.Row="3" ColumnDefinitions="220,*,280" Margin="8,8,8,8">
-            
-            <!-- LEFT: PROJECT EXPLORER -->
+        <!-- MAIN -->
+        <Grid Grid.Row="4" ColumnDefinitions="220,*,300" Margin="8,8,8,0">
+            <!-- Explorer -->
             <Border Grid.Column="0" Classes="panel">
                 <Grid RowDefinitions="Auto,*">
-                    <TextBlock Text="PROJECT EXPLORER" Classes="header" Margin="12,12,12,0"/>
-                    
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="12,12,12,0">
+                        <TextBlock Grid.Column="0" Text="EXPLORER" Classes="header" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="Open" Padding="6,2" FontSize="11" Background="#1E1E2E" CornerRadius="3" Margin="0,0,4,0"
+                                Click="OnOpenFileClick"/>
+                        <Button Grid.Column="2" Content="Folder" Padding="6,2" FontSize="11" Background="#1E1E2E" CornerRadius="3"
+                                Click="OnOpenFolderClick"/>
+                    </Grid>
                     <ScrollViewer Grid.Row="1">
                         <StackPanel Margin="12,8">
-                            <TextBox Watermark="🔍 Search code..." 
+                            <TextBox Watermark="Search files or code..."
                                      Text="{Binding SearchQuery}"
-                                     Background="#0D0D0D" BorderBrush="#2D2D2D" 
+                                     Background="#0D0D0D" BorderBrush="#2D2D2D"
                                      Foreground="#E0E0E0" Padding="8,6" Margin="0,0,0,12"/>
-                            
-                            <ItemsControl ItemsSource="{Binding ProjectFiles}">
+                            <ItemsControl ItemsSource="{Binding FilteredProjectFiles}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:ProjectFileViewModel">
-                                        <Border Background="#0D0D0D" Padding="8,6" Margin="0,2" CornerRadius="3"
-                                                PointerPressed="OnFileClick">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="📄" FontSize="12"/>
-                                                <TextBlock Text="{Binding FileName}" Foreground="#E0E0E0" FontSize="12"/>
-                                            </StackPanel>
+                                        <Border Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                                                Padding="8,6" Margin="0,2" CornerRadius="3"
+                                                PointerPressed="OnFileClick" Cursor="Hand">
+                                            <TextBlock Text="{Binding FileName}" Foreground="#E0E0E0" FontSize="12"/>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock Text="No open files" Foreground="#666" FontSize="11" Margin="0,8,0,0"
+                                       IsVisible="{Binding !HasOpenFiles}"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </Border>
 
-            <!-- CENTER: SOURCE CODE EDITOR -->
-            <Border Grid.Column="1" Classes="panel" Margin="4,0,4,0"
-                    IsVisible="{Binding !IsCallGraphVisible}">
-                <ScrollViewer>
-                    <ItemsControl ItemsSource="{Binding ActiveCodeLines}" Margin="12,8">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:CodeLineViewModel">
-                                <Grid ColumnDefinitions="20,40,*" Margin="0,0,0,2">
-                                    <!-- Active Line Cursor -->
-                                    <TextBlock Grid.Column="0" Text="▶" 
-                                               Foreground="#19D7E5" FontWeight="Bold" FontSize="11"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               IsVisible="{Binding IsActiveLine}"/>
-                                    
-                                    <!-- Line Number -->
-                                    <TextBlock Grid.Column="1" Text="{Binding LineNumber}" Classes="linenumber" VerticalAlignment="Center"/>
-                                    
-                                    <!-- Code Line -->
-                                    <Border Grid.Column="2" Padding="8,2" CornerRadius="2"
-                                            Classes.activeLine="{Binding IsActiveLine}"
-                                            Classes.vulnerableLine="{Binding IsVulnerableLine}">
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Text="{Binding Text}" Classes="code" TextWrapping="NoWrap" VerticalAlignment="Center"/>
-                                            
-                                            <!-- Pulsing Vulnerability Marker -->
-                                            <Border Grid.Column="1" Classes="vulnerability-badge" IsVisible="{Binding IsVulnerableLine}">
-                                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                    <TextBlock Text="🔴" FontSize="10" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="REENTRANCY VULNERABILITY" Foreground="#FF4500" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                </StackPanel>
+            <!-- Center: source / empty / call graph -->
+            <Border Grid.Column="1" Classes="panel" Margin="4,0,4,0">
+                <Grid>
+                    <!-- Source (when not call graph) -->
+                    <Grid IsVisible="{Binding !IsCallGraphVisible}">
+                        <!-- Full brand mark as soft watermark — sits behind code, never steals clicks -->
+                        <Image Source="/Assets/scrutor-watermark.png"
+                               Width="300" Height="300"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="{Binding WatermarkOpacity}"
+                               IsHitTestVisible="False"/>
+
+                        <!-- Code on top of watermark -->
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{Binding ActiveCodeLines}" Margin="12,8">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CodeLineViewModel">
+                                        <Grid ColumnDefinitions="20,40,*" Margin="0,0,0,2">
+                                            <TextBlock Grid.Column="0" Text=">" Foreground="#19D7E5" FontWeight="Bold" FontSize="11"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding IsActiveLine}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding LineNumber}" Classes="linenumber" VerticalAlignment="Center"/>
+                                            <Border Grid.Column="2" Padding="8,2" CornerRadius="2"
+                                                    Classes.activeLine="{Binding IsActiveLine}"
+                                                    Classes.vulnerableLine="{Binding IsVulnerableLine}">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Text}" Classes="code" TextWrapping="NoWrap"/>
+                                                    <Border Grid.Column="1" Background="#1E143B" BorderBrush="#19D7E5" BorderThickness="1"
+                                                            CornerRadius="3" Padding="6,1" Margin="6,0"
+                                                            IsVisible="{Binding HasGasBadge}">
+                                                        <TextBlock Text="{Binding GasBadgeText}" Foreground="#19D7E5" FontSize="10" FontWeight="Bold"/>
+                                                    </Border>
+                                                </Grid>
                                             </Border>
                                         </Grid>
-                                    </Border>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Empty-state hints only (logo is watermark, not a blocking overlay) -->
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                    Margin="0,0,0,28" Spacing="6"
+                                    IsVisible="{Binding !HasOpenFiles}"
+                                    IsHitTestVisible="False">
+                            <TextBlock Text="Precise · Verifiable · Traceable · Conformant"
+                                       Foreground="#A9A9A9" FontSize="12" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding CenterEmptyHint}" Foreground="#19D7E5" FontSize="12"
+                                       TextWrapping="Wrap" MaxWidth="380" TextAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Call graph -->
+                    <Grid IsVisible="{Binding IsCallGraphVisible}" RowDefinitions="Auto,*">
+                        <Border Background="#141414" Padding="12,6" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
+                            <TextBlock Text="{Binding CallTopology.EmptyHint}" Foreground="#FFAA00" FontWeight="Bold" FontSize="12"/>
+                        </Border>
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <Canvas Width="900" Height="600" Background="#0D0D0D">
+                                <ItemsControl ItemsSource="{Binding CallTopology.Nodes}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <!-- Position the item containers on the canvas -->
+                                    <ItemsControl.Styles>
+                                        <Style Selector="ContentPresenter" x:DataType="vm:CallNodeViewModel">
+                                            <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                            <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                        </Style>
+                                    </ItemsControl.Styles>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:CallNodeViewModel">
+                                            <Border Background="#1E1E2E" BorderBrush="{Binding Color}" BorderThickness="2"
+                                                    Padding="12,8" CornerRadius="8" MinWidth="120">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" Foreground="{Binding Color}" FontWeight="Bold" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Address}" Foreground="#888" FontSize="10"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Canvas>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
             </Border>
 
+            <!-- Inspector -->
+            <Border Grid.Column="2" Classes="panel">
+                <ScrollViewer>
+                    <StackPanel Margin="12">
+                        <TextBlock Text="EVM INSPECTOR" Classes="header"/>
 
-            <!-- CALL GRAPH PANEL -->
-            <Border Grid.Column="1" Classes="panel" Margin="4,0,4,0"
-                    IsVisible="{Binding IsCallGraphVisible}">
-                <Grid RowDefinitions="Auto,*">
-                    <Border Background="#141414" Padding="12,6" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
-                        <TextBlock Text="📊 Live Call Topology" Foreground="#FFAA00" FontWeight="Bold" FontSize="12"/>
-                    </Border>
-                    
-                    <Canvas Grid.Row="1" Background="#0D0D0D">
-                        <!-- Title -->
-                        <TextBlock Canvas.Left="200" Canvas.Top="20" Text="Inter-Contract Call Flow" 
-                                   Foreground="#FFAA00" FontSize="14" FontWeight="Bold"/>
-                        
-                        <!-- Dynamic Nodes -->
-                        <ItemsControl ItemsSource="{Binding CallTopology.Nodes}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
+                        <TextBlock Text="STEP (F10 / F11 / Space)" Foreground="#888" FontSize="10" Margin="0,8,0,4"/>
+                        <Grid>
+                            <TextBlock Text="{Binding StepProgress}" Foreground="#19D7E5" FontWeight="Bold" FontSize="13"/>
+                            <TextBlock Text="{Binding StepPercentage}" Foreground="#888" FontSize="11" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Slider Minimum="0" Maximum="{Binding MaxStepIndex}" Value="{Binding CurrentStepIndex}"
+                                IsEnabled="{Binding HasTrace}" Margin="0,6,0,0"/>
+                        <Grid ColumnDefinitions="*,*,*,*,*" Margin="0,8,0,0">
+                            <Button Grid.Column="0" Content="|◀" Height="28" Command="{Binding JumpToStartCommand}"
+                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold"/>
+                            <Button Grid.Column="1" Content="◀" Height="28" Command="{Binding StepBackCommand}"
+                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold"/>
+                            <Button Grid.Column="2"
+                                    Content="{Binding IsAutoPlaying, Converter={x:Static vm:BoolToPlayLabelConverter.Instance}}"
+                                    Height="28" Command="{Binding ToggleAutoPlayCommand}"
+                                    Background="#4A00E0" Foreground="White" FontWeight="Bold"/>
+                            <Button Grid.Column="3" Content="▶" Height="28" Command="{Binding StepForwardCommand}"
+                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold"/>
+                            <Button Grid.Column="4" Content="▶|" Height="28" Command="{Binding JumpToEndCommand}"
+                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Border Background="#12131A" BorderBrush="#2D2D4D" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0" Padding="10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="OPCODE NOTES (reference)" Foreground="#FFAA00" FontWeight="Bold" FontSize="10"/>
+                                <TextBlock Text="{Binding CurrentOpcodeSpec}" Foreground="#19D7E5" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding CurrentGasFormulaBreakdown}" Foreground="#E0E0E0" FontSize="10" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding CurrentStepDetail}" Foreground="#888888" FontSize="10"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="DISASSEMBLY" Foreground="#888" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding Instructions}" MaxHeight="180">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CallNodeViewModel">
-                                    <Border Background="#1E1E2E" BorderBrush="{Binding Color}" BorderThickness="2" 
-                                            Padding="16,10" CornerRadius="8" MinWidth="120">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}" Foreground="{Binding Color}" FontWeight="Bold" FontSize="14"/>
-                                            <TextBlock Text="{Binding Address}" Foreground="#888" FontSize="10"/>
-                                            <Border Background="#3A1A1A" Padding="4,2" CornerRadius="2" Margin="0,4,0,0"
-                                                    IsVisible="{Binding HasVulnerability}">
-                                                <TextBlock Text="🔴 VULNERABLE" Foreground="#FF4500" FontSize="9" FontWeight="Bold"/>
-                                            </Border>
-                                        </StackPanel>
+                                <DataTemplate x:DataType="vm:InstructionViewModel">
+                                    <Border Background="#0D0D0D" Padding="6,2" Margin="0,1" CornerRadius="2">
+                                        <TextBlock Text="{Binding DisplayText}" FontFamily="Consolas" FontSize="10" Foreground="#E0E0E0"/>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        
-                        <!-- Legend -->
-                        <Border Canvas.Left="50" Canvas.Top="400" Background="#1E1E2E" Padding="16,12" CornerRadius="6" BorderBrush="#2D2D2D" BorderThickness="1">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="LEGEND:" Foreground="#888" FontSize="11" FontWeight="Bold"/>
-                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,2">
-                                    <Border Width="14" Height="14" Background="#FF4500" CornerRadius="3"/>
-                                    <TextBlock Text="Attacker (External)" Foreground="#888" FontSize="11"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,2">
-                                    <Border Width="14" Height="14" Background="#4A00E0" CornerRadius="3"/>
-                                    <TextBlock Text="Victim (Vulnerable)" Foreground="#888" FontSize="11"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,2">
-                                    <Border Width="14" Height="14" Background="#FFAA00" CornerRadius="3"/>
-                                    <TextBlock Text="Intermediate Contract" Foreground="#888" FontSize="11"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </Canvas>
-                </Grid>
-            </Border>
 
-        <!-- RIGHT: EVM INSPECTOR DRAWER -->
-            <Border Grid.Column="2" Classes="panel">
-                <ScrollViewer>
-                    <StackPanel Margin="12">
-                        <TextBlock Text="⚙ EVM INSPECTOR" Classes="header"/>
-                        
-                        <!-- Step Scrubber -->
-                        <TextBlock Text="STEP SCRUBBER" Foreground="#888" FontSize="10" Margin="0,8,0,4"/>
-                        <Grid>
-                            <TextBlock Text="{Binding StepProgress}" Foreground="#19D7E5" FontWeight="Bold" FontSize="13"/>
-                            <TextBlock Text="{Binding StepPercentage}" Foreground="#888" FontSize="11" 
-                                       HorizontalAlignment="Right"/>
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,8,0,0">
-                            <Button Content="|◀" Width="36" Height="28" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold" CornerRadius="3" Cursor="Hand"
-                                    Command="{Binding JumpToStartCommand}" ToolTip.Tip="Jump to Start"/>
-                            <Button Content="◀" Width="36" Height="28" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold" CornerRadius="3" Cursor="Hand"
-                                    Command="{Binding StepBackCommand}" ToolTip.Tip="Step Back"/>
-                            <Button Content="▶" Width="36" Height="28" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold" CornerRadius="3" Cursor="Hand"
-                                    Command="{Binding StepForwardCommand}" ToolTip.Tip="Step Forward"/>
-                            <Button Content="▶|" Width="36" Height="28" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                                    Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold" CornerRadius="3" Cursor="Hand"
-                                    Command="{Binding JumpToEndCommand}" ToolTip.Tip="Jump to End"/>
-                        </StackPanel>
-                        
-                        <!-- Stack -->
                         <TextBlock Text="STACK" Foreground="#888" FontSize="10" Margin="0,16,0,4"/>
                         <ItemsControl ItemsSource="{Binding StackRows}">
                             <ItemsControl.ItemTemplate>
@@ -385,8 +411,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        
-                        <!-- Memory -->
+
                         <TextBlock Text="MEMORY" Foreground="#888" FontSize="10" Margin="0,16,0,4"/>
                         <ItemsControl ItemsSource="{Binding MemoryRows}">
                             <ItemsControl.ItemTemplate>
@@ -397,15 +422,24 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        
-                        <!-- Gas Tree -->
-                        <TextBlock Text="GAS TREE" Foreground="#888" FontSize="10" Margin="0,16,0,4"/>
+
+                        <TextBlock Text="STORAGE" Foreground="#888" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding StorageRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#0D0D0D" Padding="8,4" Margin="0,1" CornerRadius="2">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="#FFAA00"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="GAS" Foreground="#888" FontSize="10" Margin="0,16,0,4"/>
                         <ItemsControl ItemsSource="{Binding GasTreeNodes}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:GasNodeViewModel">
-                                    <TextBlock Text="{Binding DisplayText}" 
-                                               FontFamily="Consolas" FontSize="11"
-                                               Foreground="{Binding Color}"/>
+                                    <TextBlock Text="{Binding DisplayText}" FontFamily="Consolas" FontSize="11"
+                                               Foreground="{Binding Color}" Margin="{Binding Indent}"/>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -414,30 +448,29 @@
             </Border>
         </Grid>
 
-        <!-- BOTTOM: SECURITY FINDINGS -->
-        <Border Grid.Row="3" VerticalAlignment="Bottom" Background="#141414"
-                BorderBrush="#2D2D2D" BorderThickness="0,1,0,0" MaxHeight="160" Margin="0,0,0,0">
+        <!-- FINDINGS -->
+        <Border Grid.Row="5" Background="#141414" BorderBrush="#2D2D2D" BorderThickness="0,1,0,0" MinHeight="48" MaxHeight="140">
             <Grid RowDefinitions="Auto,*" Margin="16,8">
-                <TextBlock Text="⚠ SECURITY FINDINGS" Classes="header"/>
-                
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="SECURITY FINDINGS" Classes="header" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="EXPORT AUDIT (.MD)"
+                            Background="#1E1E2E" Foreground="#19D7E5" FontWeight="Bold" FontSize="10"
+                            Padding="10,4" CornerRadius="3" Click="OnExportReportClick"/>
+                </Grid>
                 <ScrollViewer Grid.Row="1">
                     <ItemsControl ItemsSource="{Binding SecurityFindings}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SecurityFindingViewModel">
                                 <Border Background="#1E1E2E" Padding="12,8" Margin="0,0,0,4" CornerRadius="3">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding SeverityEmoji}" 
-                                                   FontWeight="Bold" FontSize="14" Margin="0,0,12,0"/>
-                                        
+                                        <TextBlock Grid.Column="0" Text="{Binding SeverityEmoji}" FontSize="14" Margin="0,0,12,0"/>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="{Binding Description}" Foreground="#E0E0E0" FontSize="12"/>
                                             <TextBlock Text="{Binding Details}" Foreground="#888" FontSize="10" Margin="0,2,0,0"/>
                                         </StackPanel>
-                                        
-                                        <Button Grid.Column="2" Content="JUMP TO CODE ➔" 
-                                                Background="#4A00E0" Foreground="#0D0D0D"
+                                        <Button Grid.Column="2" Content="JUMP" Background="#4A00E0" Foreground="#0D0D0D"
                                                 FontWeight="Bold" FontSize="11" Padding="12,6" CornerRadius="3"
-                                                Command="{Binding #root.DataContext.JumpToFindingCommand}" 
+                                                Command="{Binding #root.DataContext.JumpToFindingCommand}"
                                                 CommandParameter="{Binding}"
                                                 x:CompileBindings="False"/>
                                     </Grid>
@@ -447,6 +480,11 @@
                     </ItemsControl>
                 </ScrollViewer>
             </Grid>
+        </Border>
+
+        <!-- STATUS -->
+        <Border Grid.Row="6" Background="#0C0D14" BorderBrush="#2D2D3D" BorderThickness="0,1,0,0" Padding="12,6">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="#A0A0B0" FontSize="11" TextTrimming="CharacterEllipsis"/>
         </Border>
     </Grid>
 </Window>

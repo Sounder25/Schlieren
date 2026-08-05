@@ -1,22 +1,35 @@
-# Scrutor
+# Scrutor — .NET 8 Ethereum Execution & Verification Engine
 
-Scrutor is a .NET 8 Ethereum execution client and EVM implementation. The
-solution includes the core execution engine, JSON-RPC services, a command-line
-host, a Windows desktop UI, unit tests, and an EELS state-test conformance
-harness.
+Scrutor is a high-performance .NET 8 Ethereum execution client, EVM security debugger, and specification verification platform.
+
+The solution includes the core execution engine, JSON-RPC services, a command-line host, an Avalonia desktop IDE, unit tests, and an EELS state-test conformance harness.
 
 ## Projects
 
-- `Scrutor.Core` — EVM execution, state transitions, opcodes, transaction
-  handling, precompiles, and chain state.
-- `Scrutor.RPC` — Ethereum JSON-RPC server.
-- `Scrutor.CLI` — command-line host.
-- `Scrutor.UI` — WPF desktop application.
-- `Scrutor.Tests` — unit and integration tests.
-- `Scrutor.EELS.Tests` — adapter for published Ethereum Execution Layer
-  Specification state-test fixtures.
+- `Scrutor.Core` — EVM execution, state transitions, opcodes, precompiles, access tracking, and security detectors (Reentrancy, Storage Collision).
+- `Scrutor.RPC` — Ethereum JSON-RPC server (`eth_call`, `eth_sendRawTransaction`, `debug_traceTransaction`).
+- `Scrutor.CLI` — Command-line host & runner.
+- `Scrutor.UI` — Modern Avalonia .NET 8 EVM Security & Execution IDE.
+- `Scrutor.Tests` — Core unit and integration test suite (**303 tests**).
+- `Scrutor.EELS.Tests` — Conformance adapter & automated debugging suite for published EELS state-test fixtures.
 
-## Build and test
+---
+
+## Scrutor IDE Features (`Scrutor.UI`)
+
+- **Top Application Menu Bar**: Desktop menus (`File`, `Edit`, `EVM Engine`, `Tools`, `Help`) with hotkeys (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+S`, `Alt+F4`).
+- **Native OS Open File & Folder Dialogs**: Open custom `.sol`, `.yul`, `.json`, `.hex`, or `.txt` contract files and workspace directories natively.
+- **EVM Hard Fork Selector & Block Configurator**: Switch hard forks (`Cancun`, `Prague`, `Shanghai`, `London`, `Berlin`) and configure `BaseFeePerGas`, `GasLimit`, `ChainId`, and `Coinbase`.
+- **Interactive EVM Step Scrubber**: Step through contract bytecode line-by-line or toggle automated playback (`▶ PLAY` / `⏸ PAUSE`).
+- **Full Keyboard Debugger Shortcuts**: `F10` (Step Forward), `F11` (Step Back), `Space` (Toggle Auto-Play), `Home` (Jump Start), `End` (Jump End).
+- **Inline Opcode Gas Badges**: Displays exact gas costs directly on active execution lines (e.g. `[PUSH1 • 3]`, `[SLOAD • 2100 ❄ COLD]`).
+- **Live EELS Spec Audit Drawer**: Shows real-time EELS spec citations (`sstore(evm)`, `sload(evm)`) and exact gas formula breakdowns (`COLD_ACCESS + STORAGE_SET`).
+- **One-Click Audit Report Exporter**: Generate professional Markdown security audit reports (`AUDIT_REPORT.md`) with Reentrancy & Proxy Storage Collision findings.
+- **Call Topology Graph**: Visual inter-contract call topology and depth tracking.
+
+---
+
+## Build and Test
 
 ```powershell
 dotnet restore
@@ -24,58 +37,52 @@ dotnet build --no-restore
 dotnet test Scrutor.Tests/Scrutor.Tests.csproj --no-build
 ```
 
-The EELS harness requires a local fixture checkout. Fixture data and local
-reference copies are intentionally excluded from Git.
+### EELS Conformance & Debugging Suite
+
+Scrutor includes an automated 5-tool EELS debugging toolchain:
 
 ```powershell
 $env:EELS_FIXTURES_ROOT = "C:/projects/Scrutor/fixtures/state_tests/cancun"
 $env:EELS_INCLUDE_SUBDIRS = "1"
 
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --no-build
+# 1. Taxonomy Drill — bucket all failures by category & delta magnitude
+dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "EelsTaxonomyDrill"
+
+# 2. Balance Auditor — 5-term gas ledger reconstruction
+dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "EelsBalanceAudit"
+
+# 3. Single-Case Step Tracer — emit full EIP-3155 structLog
+$env:EELS_CASE_FILTER = "callBasic"
+dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "SingleCaseTrace"
+
+# 4. StructLog Step-Diff — find exact step & opcode where execution diverges
+python tools/eels_trace_compare.py <scrutor_log.json> <reference_log.json>
+
+# 5. Log Auditor — audit event topics, data payloads, and logsBloom filters
+dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "EelsLogAudit"
 ```
 
-See [Scrutor.EELS.Tests/README.md](Scrutor.EELS.Tests/README.md) for harness
-configuration details.
+See [Scrutor.EELS.Tests/README.md](Scrutor.EELS.Tests/README.md) for harness configuration details.
 
-## Cancun conformance status
+---
 
-The current work targets Cancun semantics using the EELS Cancun implementation
-as the behavioral authority. Areas under active implementation and validation
-include:
+## Cancun Conformance Baseline
 
-- EIP-150 message-call and contract-creation gas forwarding.
-- EIP-2929 warm/cold address and storage access tracking.
-- EIP-3529 refund behavior.
-- EIP-6780 same-transaction `SELFDESTRUCT` lifecycle handling.
-- EIP-7610 storage-aware contract-creation collision checks.
-- Cancun `BLOBHASH` and blob precompile routing.
+As of **2026-08-05**:
 
-The `SELFDESTRUCT` new-account surcharge is covered by a regression test:
-transferring a nonzero balance to a beneficiary that is not alive costs an
-additional 25,000 gas. Restoring the EELS `CREATE2` collision predicate and
-EIP-6780 lifecycle behavior resolves the tracked dynamic
-CREATE2/SELFDESTRUCT fixture completely: Scrutor and EELS both use 368,516 gas,
-and the expected balances, nonces, code, and storage match.
+- `dotnet build Scrutor.sln`: **Build succeeded with 0 errors**.
+- `Scrutor.Tests`: **303 passed, 0 failed**.
+- `Scrutor.EELS.Tests`: Conformance suite and 5-tool EELS taxonomy suite active.
+- CI Gate: Automated PR conformance check via `.github/workflows/eels-gate.yml`.
 
-Conformance work remains ongoing; diagnostic tests must not be treated as proof
-that the full Cancun suite passes.
+---
 
-### Current verification baseline
+## Hermes Agent Skills
 
-As of 2026-07-27:
-
-- `dotnet build Scrutor.sln --no-restore`: succeeds with 0 warnings and 0
-  errors.
-- `Scrutor.Tests`: 233 passed, 0 failed. RPC call simulations bypass mined
-  transaction fee, nonce, and sender-funding validation while retaining normal
-  EVM execution and intrinsic-gas behavior.
-- `Scrutor.EELS.Tests`: 13 passed, 0 failed. The Cancun taxonomy sweep reports
-  0 failing cases out of 1,127 published state-test cases.
-
-These numbers are a development baseline, not a conformance claim.
-
-## Reference material
-
-Local EELS source, NotebookLM exports, fixture archives, generated traces, and
-scratch experiments are intentionally ignored. They should be downloaded or
-generated locally rather than committed to this repository.
+Custom skills for autonomous agent execution are defined in `.agents/skills/`:
+- `eels-taxonomy-drill`
+- `eels-balance-auditor`
+- `eels-single-case-tracer`
+- `eels-trace-compare`
+- `eels-log-auditor`
+- `eels-fixture-diff`

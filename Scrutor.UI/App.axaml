@@ -1,8 +1,34 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Scrutor.UI.App"
+             Name="SCRUTOR"
              RequestedThemeVariant="Dark">
+    <!-- Brand: Execution Indigo #4A00E0 · Blob Aqua #19D7E5 · Tracing White #F0F4F8 -->
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="Button.brand-primary">
+            <Setter Property="Background" Value="#4A00E0"/>
+            <Setter Property="Foreground" Value="#F0F4F8"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="Button.brand-primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#5B14F0"/>
+        </Style>
+        <Style Selector="TextBlock.brand-aqua">
+            <Setter Property="Foreground" Value="#19D7E5"/>
+        </Style>
+        <Style Selector="TextBlock.brand-white">
+            <Setter Property="Foreground" Value="#F0F4F8"/>
+        </Style>
+        <Style Selector="TextBlock.brand-muted">
+            <Setter Property="Foreground" Value="#A9A9A9"/>
+        </Style>
+        <Style Selector="TextBlock.brand-alert">
+            <Setter Property="Foreground" Value="#FF4500"/>
+        </Style>
+        <Style Selector="TextBlock.brand-warm">
+            <Setter Property="Foreground" Value="#FFD700"/>
+        </Style>
     </Application.Styles>
 </Application>

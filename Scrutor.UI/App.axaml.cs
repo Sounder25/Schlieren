@@ -8,6 +8,8 @@ namespace Scrutor.UI;
 
 public partial class App : Application
 {
+    private WorkbenchViewModel? _workbench;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -17,13 +19,19 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var viewModel = new WorkbenchViewModel();
+            _workbench = new WorkbenchViewModel();
             desktop.MainWindow = new MainWindow
             {
-                DataContext = viewModel
+                DataContext = _workbench
+            };
+
+            desktop.Exit += (_, _) =>
+            {
+                _workbench?.Dispose();
+                _workbench = null;
             };
         }
-        
+
         base.OnFrameworkInitializationCompleted();
     }
 }

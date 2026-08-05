@@ -75,8 +75,9 @@ public static class Precompiles
         var r = padded[64..96];
         var s = padded[96..128];
 
+        // v must be exactly 27 or 28 — anything else (including values that don't fit int32) is invalid
+        if (vBig != 27 && vBig != 28) return (Array.Empty<byte>(), gas);
         int v = (int)vBig;
-        if (v != 27 && v != 28) return (Array.Empty<byte>(), gas);
 
         try
         {

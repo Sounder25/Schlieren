@@ -143,17 +143,20 @@ public sealed class OpcodeExtCodeCopy : IOpcode
         var isWarm = context.Access.TouchAddress(address);
         var addressGas = isWarm ? WarmCost : ColdCost;
 
+        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
+        // Zero-length operations are always valid regardless of offset.
+        if (!OperandValidation.TryResolveMemoryRange(destOffset, length, out var destInt, out var lengthInt, out var endExclusive))
+            return (ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1);
+
         var code = await context.GlobalState.GetCodeAsync(address, ct);
 
-        var destInt = destOffset > int.MaxValue ? int.MaxValue : (int)destOffset;
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
-        var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
-        var expansionGas = context.Memory.CalculateGasCost(destInt + lengthInt);
-        var copyGas = (ulong)(lengthInt + 31) / 32 * 3;
+        var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
+        var copyGas = ((ulong)lengthInt + 31) / 32 * 3;
 
         var data = new byte[lengthInt];
-        if (offsetInt < code.Length)
+        if (lengthInt > 0 && offsetInt < code.Length)
         {
             var remaining = Math.Min(lengthInt, code.Length - offsetInt);
             Array.Copy(code, offsetInt, data, 0, remaining);

@@ -90,23 +90,15 @@ public sealed class OpcodeCreate : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            // Debug instrumentation for code-deposit accounting
-            if (context.CaptureTrace)
-            {
-                Console.WriteLine($"[CREATE_DEPOSIT] runtimeBytes={runtimeCode.Length} depositCost={codeDepositCost} childRemaining={childRemaining}");
-            }
-
             if (childRemaining < codeDepositCost)
             {
                 // Exceptional halt: out of gas during code deposit.
                 // The child's remaining gas is consumed (not refunded to parent).
-                // State reverted, address 0 returned.
-                if (context.CaptureTrace)
-                {
-                    Console.WriteLine($"[CREATE_DEPOSIT_OOG] consumedChildGas={childRemaining} NOT_REFUNDED");
-                }
+                // EIP-161 / EELS: the creation frame's state must be fully reverted —
+                // the account (nonce=1, any balance credit) must not exist in final state.
+                context.GlobalState.DeleteAccount(newAddress);
                 context.Stack.TryPush(0);
-                // No RefundGas—child gas is consumed by exceptional halt.
+                // No RefundGas — child gas is consumed by exceptional halt.
             }
             else
             {
@@ -120,11 +112,6 @@ public sealed class OpcodeCreate : IOpcode
 
                 // Refund remaining gas to parent.
                 context.RefundGas(childRemaining);
-
-                if (context.CaptureTrace)
-                {
-                    Console.WriteLine($"[CREATE_SUCCESS] depositPaid={codeDepositCost} refundedToParent={childRemaining}");
-                }
 
                 // Push created address.
                 context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
@@ -180,11 +167,14 @@ public sealed class OpcodeCall : IOpcode
         var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
         var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
+
+
         context.ConsumeGas(memoryCost);
         context.Memory.Expand(maxMemoryAccess);
 
         // Load input data
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
+
 
         // EIP-2929: charge cold address surcharge (part of extra gas).
         var isWarm = context.Access.TouchAddress(toAddress);
@@ -206,6 +196,7 @@ public sealed class OpcodeCall : IOpcode
 
         ulong extraCost = accessCost + valueTransferCost + newAccountCost;
 
+
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas (after extra costs).
         // EELS: if gas_left < extra_gas + memory_cost → OOG path (charge_gas will throw).
         // Guard against ulong underflow: if remaining < extraCost there is nothing to forward.
@@ -215,10 +206,11 @@ public sealed class OpcodeCall : IOpcode
         var requestedGas = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
         var forwardedGas = Math.Min(requestedGas, maxForward);
 
+
         // Parent pays forwarded gas + extra costs (but NOT the stipend).
         context.ConsumeGas(forwardedGas + extraCost);
 
-        // Value-bearing calls receive a 2,300 gas stipend in the child allocation.
+        // Value-bearing calls receive a 2,300 gas stipend
         // On a pre-execution failure, EELS returns that full allocation even though
         // only the forwarded portion was charged to the parent.
         var stipend = value.IsZero ? 0UL : 2300UL;
@@ -284,6 +276,8 @@ public sealed class OpcodeCall : IOpcode
         // so EELS `evm.gas_left += child_evm.gas_left` naturally handles it.
         var childUsed = result.GasUsed > childGasLimit ? childGasLimit : result.GasUsed;
         var childRemaining = childGasLimit > childUsed ? childGasLimit - childUsed : 0UL;
+        
+        
         context.RefundGas(childRemaining);
         if (result.IsSuccess)
         {
@@ -415,8 +409,11 @@ public sealed class OpcodeCreate2 : IOpcode
             if (childRemaining < codeDepositCost)
             {
                 // Exceptional halt: out of gas during code deposit.
-                // Consume all child gas, revert creation, return 0 address.
+                // EIP-161 / EELS: creation frame state must be fully reverted —
+                // the account (nonce=1, any balance credit) must not exist in final state.
+                context.GlobalState.DeleteAccount(newAddress);
                 context.Stack.TryPush(0);
+                // No RefundGas — child gas consumed by exceptional halt.
             }
             else
             {
