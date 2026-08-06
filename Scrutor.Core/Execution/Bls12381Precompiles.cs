@@ -121,7 +121,10 @@ internal static class Bls12381Precompiles
                 bool allZero = true;
                 foreach (var b in scalar) if (b != 0) { allZero = false; break; }
                 if (allZero) continue;
-                var ptJ = pt.ToJacobian().Mult(scalar);
+                // blst Mult() expects little-endian scalar; EIP-2537 scalars are big-endian
+                var scalarLE = new byte[32];
+                for (int j = 0; j < 32; j++) scalarLE[j] = scalar[31 - j];
+                var ptJ = pt.ToJacobian().Mult(scalarLE.AsSpan());
                 acc = acc.Add(ptJ);
             }
             return (EncodeG1(acc.ToAffine()), gas);
@@ -176,7 +179,10 @@ internal static class Bls12381Precompiles
                 bool allZero = true;
                 foreach (var b in scalar) if (b != 0) { allZero = false; break; }
                 if (allZero) continue;
-                var ptJ = pt.ToJacobian().Mult(scalar);
+                // blst Mult() expects little-endian scalar; EIP-2537 scalars are big-endian
+                var scalarLE = new byte[32];
+                for (int j = 0; j < 32; j++) scalarLE[j] = scalar[31 - j];
+                var ptJ = pt.ToJacobian().Mult(scalarLE.AsSpan());
                 acc = acc.Add(ptJ);
             }
             return (EncodeG2(acc.ToAffine()), gas);
@@ -301,9 +307,10 @@ internal static class Bls12381Precompiles
         var raw = new byte[BlstG1Size];
         input.AsSpan(offset + 16, BlstFpSize).CopyTo(raw);          // X
         input.AsSpan(offset + FpSize + 16, BlstFpSize).CopyTo(raw.AsSpan(BlstFpSize)); // Y
-        var p = new Bls.P1Affine(raw.AsSpan());
-        if (!p.OnCurve()) throw new InvalidOperationException("G1 not on curve");
-        return p;
+        // Use P1(96B) to load without subgroup check (P1Affine throws for non-subgroup points)
+        var pJ = new Bls.P1(raw.AsSpan());
+        if (!pJ.OnCurve()) throw new InvalidOperationException("G1 not on curve");
+        return pJ.ToAffine();
     }
 
     /// <summary>
@@ -347,9 +354,10 @@ internal static class Bls12381Precompiles
         input.AsSpan(offset + 16,           BlstFpSize).CopyTo(raw.AsSpan(BlstFpSize));   // X.c0
         input.AsSpan(offset + 3*FpSize+ 16, BlstFpSize).CopyTo(raw.AsSpan(2*BlstFpSize));// Y.c1
         input.AsSpan(offset + 2*FpSize+ 16, BlstFpSize).CopyTo(raw.AsSpan(3*BlstFpSize));// Y.c0
-        var p = new Bls.P2Affine(raw.AsSpan());
-        if (!p.OnCurve()) throw new InvalidOperationException("G2 not on curve");
-        return p;
+        // Use P2(192B) to load without subgroup check
+        var pJ = new Bls.P2(raw.AsSpan());
+        if (!pJ.OnCurve()) throw new InvalidOperationException("G2 not on curve");
+        return pJ.ToAffine();
     }
 
     /// <summary>
