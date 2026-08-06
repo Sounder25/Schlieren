@@ -228,18 +228,25 @@ public sealed class StateTransition : IStateTransition
                 if (auth.ChainId != 0 && auth.ChainId != block.ChainId)
                     continue;
 
+                // Always warm the signer address on first encounter (EELS validate_authorization:
+                // message.accessed_addresses.add(authority) runs even before nonce/code checks)
+                accessTracker?.WarmAddress(auth.Signer);
+
                 var signerNonce = await txOverlay.GetNonceAsync(auth.Signer, ct);
                 if (signerNonce != auth.Nonce || signerNonce == ulong.MaxValue)
                     continue;
 
-                // Warm the signer address (EIP-7702: authority address is treated like
-                // an access list entry — warmed as part of authorization processing)
-                accessTracker?.WarmAddress(auth.Signer);
+                // EELS validate_authorization line 4506:
+                // if authority has code AND it's not a valid delegation designator → skip
+                var signerCode = await txOverlay.GetCodeAsync(auth.Signer, ct);
+                bool isDelegation = signerCode.Length == 23 &&
+                                    signerCode[0] == 0xEF && signerCode[1] == 0x01 && signerCode[2] == 0x00;
+                if (signerCode.Length > 0 && !isDelegation)
+                    continue;
 
                 // If the authority already exists in state, grant the partial refund
                 // EELS: refund_counter += AUTH_PER_EMPTY_ACCOUNT - REFUND_AUTH_PER_EXISTING_ACCOUNT
                 //                       = 25000 - 12500 = 12500
-                var signerCode = await txOverlay.GetCodeAsync(auth.Signer, ct);
                 var signerBalance = await txOverlay.GetBalanceAsync(auth.Signer, ct);
                 var accountExists = signerNonce > 0 || !signerBalance.IsZero || signerCode.Length > 0;
                 if (accountExists)
