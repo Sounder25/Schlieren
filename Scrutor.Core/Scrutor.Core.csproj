@@ -20,6 +20,7 @@
     <PackageReference Include="Nethereum.HdWallet" />
     <PackageReference Include="Nethereum.Signer" />
     <PackageReference Include="Nethereum.Util" />
+    <PackageReference Include="Nethermind.Crypto.Bls" />
     <PackageReference Include="Scrutor" />
     <PackageReference Include="Tomlyn" />
   </ItemGroup>

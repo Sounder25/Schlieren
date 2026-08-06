@@ -201,12 +201,22 @@ public sealed class StateTransition : IStateTransition
             if (topLevelCreation.HasValue) accessTracker.WarmAddress(topLevelCreation.Value);
             // EIP-2929: precompile addresses 0x01–0x09 are pre-warmed.
             // EIP-4844: precompile 0x0A is added and pre-warmed.
+            // EIP-2537: BLS12-381 precompiles 0x0b–0x11 pre-warmed when Prague-enabled.
             int precompileCount = block.BlobHashEnabled ? 10 : 9;
             for (int i = 1; i <= precompileCount; i++)
             {
                 var precompileBytes = new byte[20];
                 precompileBytes[19] = (byte)i;
                 accessTracker.WarmAddress(new Address(precompileBytes));
+            }
+            if (block.Eip7702Enabled) // Prague = BLS also active
+            {
+                for (int i = 0x0b; i <= 0x11; i++)
+                {
+                    var precompileBytes = new byte[20];
+                    precompileBytes[19] = (byte)i;
+                    accessTracker.WarmAddress(new Address(precompileBytes));
+                }
             }
             // EIP-3651: pre-warm coinbase address so COINBASE access is always warm.
             if (!block.Coinbase.Equals(Address.Zero))
@@ -694,9 +704,9 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
         // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).
-        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.BlobHashEnabled))
+        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.BlobHashEnabled, block.Eip7702Enabled))
         {
-            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit, block.BlobHashEnabled);
+            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit, block.BlobHashEnabled, block.Eip7702Enabled);
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change

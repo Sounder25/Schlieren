@@ -16,7 +16,7 @@ namespace Scrutor.Core.Execution;
 /// </summary>
 public static class Precompiles
 {
-    public static bool IsPrecompile(Address address, bool kzgEnabled = true)
+    public static bool IsPrecompile(Address address, bool kzgEnabled = true, bool blsEnabled = false)
     {
         var bytes = address.Bytes;
         for (int i = 0; i < 19; i++)
@@ -25,11 +25,12 @@ public static class Precompiles
         
         if (id is >= 1 and <= 9) return true;
         if (id == 10) return kzgEnabled;
+        if (id is >= 0x0b and <= 0x11) return blsEnabled; // EIP-2537 BLS12-381 (Prague)
         
         return false;
     }
 
-    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true)
+    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true, bool blsEnabled = false)
     {
         var id = address.Bytes[19];
         return id switch
@@ -44,6 +45,7 @@ public static class Precompiles
             8 => BnPairing(input, gasLimit),
             9 => Blake2F(input, gasLimit),
             10 => kzgEnabled ? KzgPointEvaluation(input, gasLimit) : (Array.Empty<byte>(), 0),
+            >= 0x0b and <= 0x11 => blsEnabled ? Bls12381Precompiles.Execute(id, input, gasLimit) : (Array.Empty<byte>(), 0),
             _ => (Array.Empty<byte>(), 0)
         };
     }
@@ -52,9 +54,9 @@ public static class Precompiles
     /// Convenience wrapper that returns an <see cref="ExecutionResult"/> so callers
     /// in CALL/STATICCALL opcodes don't need to adapt the tuple themselves.
     /// </summary>
-    public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true)
+    public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true, bool blsEnabled = false)
     {
-        var (output, gasUsed) = Execute(address, input, gasLimit, kzgEnabled);
+        var (output, gasUsed) = Execute(address, input, gasLimit, kzgEnabled, blsEnabled);
         if (output == null)
             return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
         return ExecutionResult.Success(gasUsed, output);

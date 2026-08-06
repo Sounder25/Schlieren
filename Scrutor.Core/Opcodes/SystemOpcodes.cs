@@ -244,9 +244,9 @@ public sealed class OpcodeCall : IOpcode
         var childGasLimit = forwardedGas + stipend;
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(toAddress))
+        if (Precompiles.IsPrecompile(toAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
         {
-            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit);
+            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
             if (result.IsSuccess && value > 0)
             {
                 var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
@@ -508,9 +508,9 @@ public sealed class OpcodeStaticCall : IOpcode
         context.ConsumeGas(gasLimit);
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(toAddress))
+        if (Precompiles.IsPrecompile(toAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
         {
-            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit);
+            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
         }
         else
         {
@@ -638,9 +638,9 @@ public sealed class OpcodeCallCode : IOpcode
         var childGasLimit = forwardedGas + stipend;
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(codeAddress))
+        if (Precompiles.IsPrecompile(codeAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
         {
-            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit);
+            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
         }
         else
         {
@@ -740,9 +740,9 @@ public sealed class OpcodeDelegateCall : IOpcode
         context.ConsumeGas(gasLimit);
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(codeAddress))
+        if (Precompiles.IsPrecompile(codeAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
         {
-            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit);
+            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
         }
         else
         {
