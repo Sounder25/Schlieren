@@ -232,6 +232,10 @@ public sealed class StateTransition : IStateTransition
                 if (signerNonce != auth.Nonce || signerNonce == ulong.MaxValue)
                     continue;
 
+                // Warm the signer address (EIP-7702: authority address is treated like
+                // an access list entry — warmed as part of authorization processing)
+                accessTracker?.WarmAddress(auth.Signer);
+
                 // If the authority already exists in state, grant the partial refund
                 // EELS: refund_counter += AUTH_PER_EMPTY_ACCOUNT - REFUND_AUTH_PER_EXISTING_ACCOUNT
                 //                       = 25000 - 12500 = 12500
@@ -694,6 +698,7 @@ public sealed class StateTransition : IStateTransition
         // Determine Code and Contract Address
         byte[] code;
         Address contractAddress;
+        ulong delegatePreambleCost = 0; // EIP-7702: cost of resolving delegation pointer
 
         if (creationAddress.HasValue)
         {
@@ -720,6 +725,29 @@ public sealed class StateTransition : IStateTransition
             // CALL: Use code at To address
             code = tx.To.HasValue ? await overlay.GetCodeAsync(tx.To.Value, ct) : Array.Empty<byte>();
             contractAddress = tx.To ?? Address.Zero;
+
+            // EIP-7702: if the callee has a delegation designator (0xEF0100 || addr),
+            // resolve the actual code from the delegate address while keeping storage context.
+            if (block.Eip7702Enabled && code.Length == 23 &&
+                code[0] == 0xEF && code[1] == 0x01 && code[2] == 0x00)
+            {
+                var delegateAddr = new Address(code[3..]);
+                // Charge cold (2600) or warm (100) access for the delegate address.
+                // EELS charges this inside get_delegated_code_address() before EVM runs.
+                accessTracker ??= new AccessTracker();
+                delegatePreambleCost = accessTracker.IsWarm(delegateAddr)
+                    ? 100UL   // WARM_ACCESS
+                    : 2600UL; // COLD_ACCOUNT_ACCESS
+                accessTracker.WarmAddress(delegateAddr);
+                code = await overlay.GetCodeAsync(delegateAddr, ct);
+                // contractAddress stays as tx.To (storage context of the EOA)
+
+                // Reduce the EVM execution budget by the preamble cost.
+                var budgetNow = executionGasLimit ?? tx.GasLimit;
+                executionGasLimit = budgetNow > delegatePreambleCost
+                    ? budgetNow - delegatePreambleCost
+                    : 0;
+            }
         }
 
         // [AI-EDIT 2026-01-10] Use the pre-computed execution gas limit (post-intrinsic deduction)
@@ -808,6 +836,13 @@ public sealed class StateTransition : IStateTransition
 
         // 4. Execute
         var result = await _evm.ExecuteAsync(context, ct);
+
+        // Add back the delegate preamble cost (EIP-7702 delegate address access charge).
+        // It was deducted from the budget before EVM execution; result.GasUsed measures
+        // only what the EVM consumed from the reduced budget. Add it here so the
+        // total gas used is: preamble_cost + evm_gas_used.
+        if (delegatePreambleCost > 0)
+            result = result with { GasUsed = result.GasUsed + delegatePreambleCost };
 
         // 5. Finalize: commit state only on success.
         if (result.IsSuccess)

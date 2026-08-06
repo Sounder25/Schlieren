@@ -41,6 +41,7 @@ namespace Scrutor.Core.Execution
 
         /// <summary>Pre-warm an address (charges the 2400 cost externally via EIP-2930 intrinsic gas).</summary>
         public void WarmAddress(Address address) => _warmAddresses.Add(address);
+        public bool IsWarm(Address address) => _warmAddresses.Contains(address);
 
         /// <summary>Pre-warm a specific storage slot (charges the 1900 cost externally via EIP-2930 intrinsic gas).</summary>
         public void WarmSlot(Address address, BigInteger slot)
