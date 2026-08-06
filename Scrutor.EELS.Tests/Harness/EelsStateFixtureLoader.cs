@@ -183,6 +183,8 @@ public sealed class EelsStateFixtureLoader
             Difficulty = EelsHex.ParseQuantity(envNode.GetProperty("currentDifficulty").GetString()!),
             BaseFeePerGas = EelsHex.ParseUlong(envNode.GetProperty("currentBaseFee").GetString()!),
             BlobHashEnabled = ForkRank(forkName) >= ForkRank("Cancun"),
+            Eip7623Enabled = ForkRank(forkName) >= ForkRank("Prague"),
+            Eip7702Enabled = ForkRank(forkName) >= ForkRank("Prague"),
             ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
                 ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
                 : 0
@@ -190,6 +192,7 @@ public sealed class EelsStateFixtureLoader
 
         var priorityFee = ResolvePriorityFee(txNode);
         var txType = DetectTxType(txNode, accessList);
+        var authorizationList = ParseAuthorizationList(txNode);
         var tx = new Transaction
         {
             From = sender,
@@ -205,7 +208,10 @@ public sealed class EelsStateFixtureLoader
             AccessList = accessList,
             BlobVersionedHashes = blobVersionedHashes,
             MaxFeePerBlobGas = ResolveMaxFeePerBlobGas(txNode),
-            Authorization = txNode.TryGetProperty("secretKey", out _)
+            AuthorizationList = authorizationList,
+            // Type-4 (EIP-7702) uses a different signing hash format; use Impersonated
+            // when the fixture provides 'sender' directly to avoid wrong address recovery.
+            Authorization = (txNode.TryGetProperty("secretKey", out _) && txType != 4)
                 ? TransactionAuthorization.Signed
                 : TransactionAuthorization.Impersonated
         };
@@ -302,6 +308,8 @@ public sealed class EelsStateFixtureLoader
                 ? EelsHex.ParseUlong(GetJsonText(baseFeeNode))
                 : 0,
             BlobHashEnabled = ForkRank(forkName) >= ForkRank("Cancun"),
+            Eip7623Enabled = ForkRank(forkName) >= ForkRank("Prague"),
+            Eip7702Enabled = ForkRank(forkName) >= ForkRank("Prague"),
             ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
                 ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
                 : 0
@@ -797,11 +805,64 @@ public sealed class EelsStateFixtureLoader
         bool hasMaxFeePerGas = txNode.TryGetProperty("maxFeePerGas", out _);
         bool hasGasPrice = txNode.TryGetProperty("gasPrice", out _);
         bool hasBlobs = txNode.TryGetProperty("blobVersionedHashes", out _);
+        bool hasAuthList = txNode.TryGetProperty("authorizationList", out _);
 
+        if (hasAuthList) return 4;
         if (hasBlobs) return 3;
         if (hasMaxFeePerGas && !hasGasPrice) return 2;
         if (hasGasPrice && accessList.Count > 0) return 1;
         return 0;
+    }
+
+    /// <summary>
+    /// Parses EIP-7702 authorizationList from a transaction node.
+    /// Each entry has chainId, address, nonce, yParity, r, s, signer (pre-recovered).
+    /// </summary>
+    private static IReadOnlyList<Eip7702Authorization> ParseAuthorizationList(JsonElement txNode)
+    {
+        if (!txNode.TryGetProperty("authorizationList", out var authListNode) ||
+            authListNode.ValueKind != JsonValueKind.Array)
+            return Array.Empty<Eip7702Authorization>();
+
+        var list = new List<Eip7702Authorization>();
+        foreach (var authNode in authListNode.EnumerateArray())
+        {
+            // chainId — 0 = any chain; may be u256 in invalid-auth test fixtures
+            ulong chainId = 0;
+            if (authNode.TryGetProperty("chainId", out var chainIdNode))
+            {
+                try { chainId = EelsHex.ParseUlong(GetJsonText(chainIdNode)); }
+                catch { chainId = ulong.MaxValue; } // non-matching chain → skip auth
+            }
+
+            // delegate address
+            if (!authNode.TryGetProperty("address", out var addrNode)) continue;
+            var delegateAddress = Address.FromHex(GetJsonText(addrNode));
+
+            // nonce — may be u256 in fixture; values >= 2^64 are treated as invalid
+            ulong nonce = 0;
+            if (authNode.TryGetProperty("nonce", out var nonceNode))
+            {
+                var nonceText = GetJsonText(nonceNode);
+                // If the nonce doesn't fit in ulong, flag as invalid (EIP-7702 §validity)
+                try { nonce = EelsHex.ParseUlong(nonceText); }
+                catch { nonce = ulong.MaxValue; } // ulong.MaxValue → always invalid
+            }
+
+            // signer (pre-recovered from the fixture)
+            if (!authNode.TryGetProperty("signer", out var signerNode)) continue;
+            var signer = Address.FromHex(GetJsonText(signerNode));
+
+            list.Add(new Eip7702Authorization
+            {
+                ChainId         = chainId,
+                DelegateAddress = delegateAddress,
+                Nonce           = nonce,
+                Signer          = signer,
+                IsValid         = true,
+            });
+        }
+        return list;
     }
 
     /// <summary>

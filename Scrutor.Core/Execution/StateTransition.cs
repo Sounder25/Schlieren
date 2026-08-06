@@ -72,6 +72,15 @@ public sealed class StateTransition : IStateTransition
             
             if (tx.GasLimit < intrinsicGas)
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+
+            // EIP-7623 (Prague): transaction validity — gasLimit must cover the calldata token floor.
+            // If gasLimit < floor = TX_BASE + tokens×10, the tx is intrinsically invalid.
+            if (block.Eip7623Enabled)
+            {
+                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
+                if (tx.GasLimit < tokenFloor)
+                    return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+            }
         }
 
         // Split into two gates:
@@ -210,11 +219,59 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
-        var result = await ExecuteInternalAsync(
-            tx, txOverlay, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
-            executionGasLimit, accessTracker: accessTracker);
+        // EIP-7702 authorization processing
+        ulong authRefund = 0;
+        if (block.Eip7702Enabled && tx.TxType == 4 && tx.AuthorizationList.Count > 0)
+        {
+            foreach (var auth in tx.AuthorizationList)
+            {
+                if (auth.ChainId != 0 && auth.ChainId != block.ChainId)
+                    continue;
 
-        // Install runtime bytecode after successful top-level CREATE (CREATE opcode does this
+                var signerNonce = await txOverlay.GetNonceAsync(auth.Signer, ct);
+                if (signerNonce != auth.Nonce || signerNonce == ulong.MaxValue)
+                    continue;
+
+                // If the authority already exists in state, grant the partial refund
+                // EELS: refund_counter += AUTH_PER_EMPTY_ACCOUNT - REFUND_AUTH_PER_EXISTING_ACCOUNT
+                //                       = 25000 - 12500 = 12500
+                var signerCode = await txOverlay.GetCodeAsync(auth.Signer, ct);
+                var signerBalance = await txOverlay.GetBalanceAsync(auth.Signer, ct);
+                var accountExists = signerNonce > 0 || !signerBalance.IsZero || signerCode.Length > 0;
+                if (accountExists)
+                    authRefund += 12500;
+
+                var designation = new byte[23];
+                designation[0] = 0xEF;
+                designation[1] = 0x01;
+                designation[2] = 0x00;
+
+                auth.DelegateAddress.Bytes.CopyTo(designation, 3);
+
+                txOverlay.SetCode(auth.Signer, designation);
+                txOverlay.SetNonce(auth.Signer, signerNonce + 1);
+            }
+        }
+
+        var result = await ExecuteInternalAsync(
+            tx,
+            txOverlay,
+            block,
+            tx.From,
+            topLevelCreation,
+            null,
+            false,
+            commit,
+            ct,
+            0,
+            executionGasLimit,
+            accessTracker: accessTracker);
+
+        // Merge EIP-7702 authorization refund into result
+        if (authRefund > 0)
+            result = result with { GasRefundCounter = result.GasRefundCounter + (long)authRefund };
+
+        // Install runtime bytecode after successful top-level CREATE
         // Always charge code-deposit gas (even commit=false / estimateGas) so estimates cover it.
         if (topLevelCreation.HasValue && result.IsSuccess)
         {
@@ -282,7 +339,15 @@ public sealed class StateTransition : IStateTransition
                 totalGasUsed -= (ulong)cappedRefund;
             }
 
-            var gasRefund = tx.GasLimit > totalGasUsed ? tx.GasLimit - totalGasUsed : 0UL;
+            // EIP-7623 (Prague): enforce calldata token floor.
+            // If actual gas consumed is below floor = TX_BASE + tokens×10, charge the floor instead.
+            // Floor applies after EIP-3529 refund to prevent double-benefit.
+            if (block.Eip7623Enabled && tx.Authorization != TransactionAuthorization.Internal)
+            {
+                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
+                if (totalGasUsed < tokenFloor)
+                    totalGasUsed = tokenFloor;
+            }
 
             // Sender balance recovery after execution:
             // 1. Refund for UNUSED gas at the effective gas price.
@@ -295,6 +360,7 @@ public sealed class StateTransition : IStateTransition
             //    so the value was never transferred; the sender should not lose it.
             //    Gas and blob fees are non-refundable regardless of execution outcome.
             {
+                var gasRefund = tx.GasLimit > totalGasUsed ? tx.GasLimit - totalGasUsed : 0UL;
                 var currentBalance = await txOverlay.GetBalanceAsync(tx.From, ct);
                 var gasRefundAmount = new BigInteger(gasRefund) * effectiveGasPrice;
                 
@@ -403,6 +469,11 @@ public sealed class StateTransition : IStateTransition
         {
             intrinsicGas = IntrinsicGas.Compute(tx);
             if (tx.GasLimit < intrinsicGas) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+            if (block.Eip7623Enabled)
+            {
+                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
+                if (tx.GasLimit < tokenFloor) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+            }
         }
 
         if (tx.Authorization != TransactionAuthorization.Internal &&
@@ -471,6 +542,13 @@ public sealed class StateTransition : IStateTransition
             {
                 var maxRefund = (long)(totalGasUsed / 5);
                 totalGasUsed -= (ulong)Math.Min(result.GasRefundCounter, maxRefund);
+            }
+            // EIP-7623 (Prague): enforce calldata token floor.
+            if (block.Eip7623Enabled && tx.Authorization != TransactionAuthorization.Internal)
+            {
+                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
+                if (totalGasUsed < tokenFloor)
+                    totalGasUsed = tokenFloor;
             }
             var gasRefund = tx.GasLimit > totalGasUsed ? tx.GasLimit - totalGasUsed : 0UL;
             var currentBalance = await state.GetBalanceAsync(tx.From, ct);

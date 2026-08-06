@@ -100,6 +100,52 @@ public partial class MainWindow : Window
             vm.ShowSourceCommand.Execute(null);
     }
 
+    private void OnInstructionClick(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Border border && border.DataContext is InstructionViewModel instr
+            && DataContext is WorkbenchViewModel vm)
+        {
+            vm.JumpToInstructionCommand.Execute(instr);
+            e.Handled = true;
+        }
+    }
+
+    public async void OnExportTraceClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not WorkbenchViewModel vm) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+
+        try
+        {
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export execution trace (structLog JSON)",
+                DefaultExtension = "json",
+                SuggestedFileName = "scrutor_trace.json",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("JSON") { Patterns = ["*.json"] }
+                ]
+            });
+
+            if (file is null) return;
+            var path = file.TryGetLocalPath();
+            if (string.IsNullOrEmpty(path))
+            {
+                // Fallback: temp export if picker has no local path
+                await vm.ExportTraceJsonCommand.ExecuteAsync(null);
+                return;
+            }
+
+            await vm.ExportTraceToPathAsync(path);
+        }
+        catch (Exception ex)
+        {
+            vm.StatusMessage = $"Trace export failed: {ex.Message}";
+        }
+    }
+
     public async void OnOpenFileClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkbenchViewModel vm) return;

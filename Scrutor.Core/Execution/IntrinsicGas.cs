@@ -19,6 +19,35 @@ public static class IntrinsicGas
     private const ulong AccessListAddressCost = 2_400;
     private const ulong AccessListStorageKeyCost = 1_900;
 
+    // EIP-7623 (Prague): token-based calldata floor
+    // Zero byte  = 1 token, Non-zero byte = 4 tokens
+    // Floor = TX_BASE + tokens × TOTAL_COST_FLOOR_PER_TOKEN
+    private const ulong TokensPerZeroByte    = 1;
+    private const ulong TokensPerNonZeroByte = 4;
+    private const ulong FloorCostPerToken    = 10;    // TOTAL_COST_FLOOR_PER_TOKEN
+
+    /// <summary>
+    /// EIP-7623: number of calldata tokens for the transaction.
+    /// tokens = sum(1 per zero byte, 4 per non-zero byte).
+    /// </summary>
+    public static ulong ComputeTokens(Transaction tx)
+    {
+        ulong tokens = 0;
+        foreach (var b in tx.Data)
+            tokens += b == 0 ? TokensPerZeroByte : TokensPerNonZeroByte;
+        return tokens;
+    }
+
+    /// <summary>
+    /// EIP-7623: minimum gas that must be consumed by this transaction (floor).
+    /// floor = TX_BASE + tokens × 10
+    /// If actual gasUsed after execution is less than this, the floor is charged instead.
+    /// </summary>
+    public static ulong ComputeFloor(Transaction tx)
+    {
+        return TxBase + ComputeTokens(tx) * FloorCostPerToken;
+    }
+
     /// <summary>
     /// Returns the intrinsic gas for <paramref name="tx"/>.
     /// Returns false (via out param) when the gas limit is already below intrinsic cost.
@@ -32,9 +61,11 @@ public static class IntrinsicGas
         return tx.GasLimit >= intrinsic;
     }
 
+    // EIP-7702 (Prague): per-authorization base cost in type-4 transactions
+    private const ulong PerAuthorizationCost = 25_000;
+
     /// <summary>
-    /// Returns the intrinsic gas for <paramref name="tx"/> (may exceed GasLimit — caller must check).
-    /// </summary>
+    /// Returns the intrinsic gas for <paramref name="tx"/> (may exceed GasLimit — caller must check).</summary>
     public static ulong Compute(Transaction tx)
     {
         checked
@@ -58,6 +89,12 @@ public static class IntrinsicGas
             {
                 gas += AccessListAddressCost;
                 gas += AccessListStorageKeyCost * (ulong)entry.StorageKeys.Count;
+            }
+
+            // EIP-7702 (Prague): 25,000 gas per authorization in type-4 transactions
+            if (tx.TxType == 4)
+            {
+                gas += PerAuthorizationCost * (ulong)tx.AuthorizationList.Count;
             }
 
             return gas;

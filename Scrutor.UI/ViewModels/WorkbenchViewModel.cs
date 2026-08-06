@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,6 +27,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private readonly WorkbenchExecutionService _syntheticService = new();
     private List<ExecutionTraceStep> _currentTrace = new();
     private DispatcherTimer? _autoPlayTimer;
+    private CancellationTokenSource? _runCts;
     private bool _disposed;
 
     public ObservableCollection<ProjectFileViewModel> ProjectFiles { get; } = new();
@@ -37,6 +40,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public ObservableCollection<InstructionViewModel> Instructions { get; } = new();
     public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
     public ObservableCollection<SecurityFindingViewModel> SecurityFindings { get; } = new();
+    public ObservableCollection<string> EventLogRows { get; } = new();
+    public ObservableCollection<string> AccountStateRows { get; } = new();
 
     public ObservableCollection<string> AvailableForks { get; } = new()
     {
@@ -74,6 +79,24 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _centerEmptyHint =
         "Open a .sol/.hex file or paste bytecode above, then Run.";
     [ObservableProperty] private string _opSecLabel = "OPSEC: ON";
+
+    // Tx construction (auditor essentials)
+    [ObservableProperty] private string _txFrom = "0x0000000000000000000000000000000000000001";
+    [ObservableProperty] private string _txTo = "0x00000000000000000000000000000000000000aa";
+    [ObservableProperty] private string _txValueWei = "0";
+    [ObservableProperty] private string _callDataHex = "";
+    [ObservableProperty] private ulong _gasPriceGwei = 1;
+    [ObservableProperty] private bool _isTxParamsExpanded;
+
+    // Last-run outcome
+    [ObservableProperty] private bool _lastRunSuccess;
+    [ObservableProperty] private string _resultBanner = "No run yet";
+    [ObservableProperty] private string _resultBannerColor = "#A9A9A9";
+    [ObservableProperty] private string _returnDataHex = "0x";
+    [ObservableProperty] private string _errorText = "";
+    [ObservableProperty] private string _pcSearch = "";
+    [ObservableProperty] private string _lastCallerAddress = "";
+    [ObservableProperty] private string _lastContractAddress = "";
 
     /// <summary>
     /// Full brand mark as a soft center watermark. Stronger when empty, ghosted when code is up.
@@ -118,6 +141,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         _disposed = true;
         StopAutoPlay();
+        try { _runCts?.Cancel(); } catch { /* ignore */ }
+        _runCts?.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -254,6 +279,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private void ToggleBlockContext() => IsBlockContextExpanded = !IsBlockContextExpanded;
 
     [RelayCommand]
+    private void ToggleTxParams() => IsTxParamsExpanded = !IsTxParamsExpanded;
+
+    [RelayCommand]
     private void ToggleInspector() => IsInspectorExpanded = !IsInspectorExpanded;
 
     [RelayCommand]
@@ -361,8 +389,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         GasLimit = TxGasLimit,
         BlockGasLimit = BlockGasLimit,
         BaseFeeGwei = BaseFeeGwei,
+        GasPriceGwei = GasPriceGwei,
         ChainId = ChainId,
         CoinbaseHex = CoinbaseAddress,
+        CallerHex = TxFrom,
+        ContractHex = TxTo,
+        ValueWei = TxValueWei,
+        CallDataHex = CallDataHex,
         ForkLabel = SelectedFork
     };
 
@@ -376,31 +409,152 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
 
         StopAutoPlay();
-        IsRunning = true;
-        StatusMessage = $"Executing on live EVM (gas≤{TxGasLimit:N0}, chain {ChainId})...";
+        _runCts?.Cancel();
+        _runCts?.Dispose();
+        _runCts = new CancellationTokenSource();
+        var ct = _runCts.Token;
 
-        ExecutionResult? result;
+        IsRunning = true;
+        StatusMessage = $"Executing live EVM (gas≤{TxGasLimit:N0}, value={TxValueWei}, chain {ChainId})...";
+
         try
         {
-            result = await BytecodeExecutionService.RunAsync(BytecodeInput, BuildRunOptions());
+            var run = await BytecodeExecutionService.RunAsync(BytecodeInput, BuildRunOptions(), ct);
+            if (run is null)
+            {
+                StatusMessage = "Invalid hex (bytecode or calldata) — check input";
+                ResultBanner = "INVALID INPUT";
+                ResultBannerColor = "#FF4500";
+                return;
+            }
+
+            LastCallerAddress = run.CallerAddress;
+            LastContractAddress = run.ContractAddress;
+            AccountStateRows.Clear();
+            AccountStateRows.Add($"caller  {run.CallerAddress}");
+            AccountStateRows.Add($"  balance {run.CallerBalanceWei} wei");
+            AccountStateRows.Add($"contract {run.ContractAddress}");
+            AccountStateRows.Add($"  balance {run.ContractBalanceWei} wei");
+            AccountStateRows.Add($"code size {run.CodeSize} B | calldata {run.CallDataSize} B");
+
+            PopulateFromResult(run.Result, isBytecodeRun: true);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Run cancelled";
+            ResultBanner = "CANCELLED";
+            ResultBannerColor = "#FFD700";
         }
         catch (Exception ex)
         {
             StatusMessage = $"Run failed: {ex.Message}";
-            return;
+            ResultBanner = "INTERNAL ERROR";
+            ResultBannerColor = "#FF4500";
+            ErrorText = ex.Message;
         }
         finally
         {
             IsRunning = false;
         }
+    }
 
-        if (result is null)
+    [RelayCommand]
+    private void CancelRun()
+    {
+        if (!IsRunning)
         {
-            StatusMessage = "Invalid hex — check input";
+            StatusMessage = "No run in progress";
+            return;
+        }
+        _runCts?.Cancel();
+        StatusMessage = "Cancelling...";
+    }
+
+    [RelayCommand]
+    private void JumpToInstruction(InstructionViewModel? instr)
+    {
+        if (instr is null || instr.StepIndex < 0 || instr.StepIndex >= TotalSteps) return;
+        CurrentStepIndex = instr.StepIndex;
+    }
+
+    [RelayCommand]
+    private void JumpToPc()
+    {
+        if (_currentTrace.Count == 0)
+        {
+            StatusMessage = "No trace — run first";
             return;
         }
 
-        PopulateFromResult(result.Value, isBytecodeRun: true);
+        var raw = (PcSearch ?? "").Trim();
+        if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            raw = raw[2..];
+        if (!int.TryParse(raw, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var pc)
+            && !int.TryParse(PcSearch, NumberStyles.Integer, CultureInfo.InvariantCulture, out pc))
+        {
+            StatusMessage = "Enter PC as hex (e.g. 0x0a) or decimal";
+            return;
+        }
+
+        for (var i = 0; i < _currentTrace.Count; i++)
+        {
+            if (_currentTrace[i].Pc == pc)
+            {
+                CurrentStepIndex = i;
+                StatusMessage = $"Jumped to first step at PC 0x{pc:X}";
+                return;
+            }
+        }
+
+        StatusMessage = $"No step with PC 0x{pc:X}";
+    }
+
+    [RelayCommand]
+    private async Task ExportTraceJsonAsync()
+    {
+        if (_currentTrace.Count == 0)
+        {
+            StatusMessage = "No trace to export";
+            return;
+        }
+
+        var path = Path.Combine(Path.GetTempPath(), $"scrutor_trace_{DateTime.UtcNow:yyyyMMdd_HHmmss}.json");
+        await ExportTraceToPathAsync(path);
+    }
+
+    public async Task ExportTraceToPathAsync(string path)
+    {
+        var payload = new
+        {
+            format = "scrutor-structLog-v1",
+            forkLabel = SelectedFork,
+            chainId = ChainId,
+            success = LastRunSuccess,
+            returnData = ReturnDataHex,
+            error = ErrorText,
+            gasUsedBanner = ResultBanner,
+            caller = LastCallerAddress,
+            contract = LastContractAddress,
+            steps = _currentTrace.Select((s, i) => new
+            {
+                step = i,
+                pc = s.Pc,
+                op = s.Op,
+                gas = s.Gas,
+                gasCost = s.GasCost,
+                depth = s.Depth,
+                stack = s.Stack,
+                memory = s.Memory,
+                storage = s.Storage,
+                callType = s.CallType?.ToString(),
+                contract = s.ContractAddress,
+                caller = s.CallerAddress
+            })
+        };
+
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(path, json, Encoding.UTF8);
+        StatusMessage = $"Exported trace ({_currentTrace.Count} steps): {path}";
     }
 
     [RelayCommand]
@@ -408,6 +562,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     {
         StopAutoPlay();
         IsBytecodeMode = false;
+        AccountStateRows.Clear();
+        AccountStateRows.Add("(synthetic demo — no live balances)");
         var result = _syntheticService.RunFullTransaction();
         PopulateFromResult(result, isBytecodeRun: false);
         StatusMessage =
@@ -456,7 +612,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     // ---------- result plumbing ----------
 
-    private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun)
+    private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun, WorkbenchRunResult? runMeta = null)
     {
         _currentTrace = result.TraceSteps ?? new List<ExecutionTraceStep>();
         HasTrace = _currentTrace.Count > 0;
@@ -467,17 +623,55 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StorageRows.Clear();
         SecurityFindings.Clear();
         GasTreeNodes.Clear();
+        EventLogRows.Clear();
 
-        foreach (var step in _currentTrace)
+        LastRunSuccess = result.IsSuccess;
+        ReturnDataHex = BytecodeExecutionService.ToHex(result.ReturnData);
+        ErrorText = result.IsSuccess
+            ? ""
+            : $"{result.Error}" + (result.ReturnData is { Length: > 0 }
+                ? $" | ret={ReturnDataHex}"
+                : "");
+
+        if (result.IsSuccess)
         {
+            ResultBanner = $"SUCCESS · {result.GasUsed:N0} gas · {_currentTrace.Count} steps · refund {result.GasRefundCounter:N0}";
+            ResultBannerColor = "#00D4AA";
+        }
+        else
+        {
+            ResultBanner = $"{result.Error} · {result.GasUsed:N0} gas · {_currentTrace.Count} steps";
+            ResultBannerColor = "#FF4500";
+        }
+
+        for (var i = 0; i < _currentTrace.Count; i++)
+        {
+            var step = _currentTrace[i];
             var gas = ParseGasCost(step.GasCost);
             var desc = BytecodeExecutionService.DescribeOpcode(step.Op);
             Instructions.Add(new InstructionViewModel(
+                i,
                 step.Pc.ToString("X4"),
                 step.Op,
                 gas,
                 step.CallType?.ToString() ?? $"D{step.Depth}",
                 desc));
+        }
+
+        if (result.Logs is { Count: > 0 })
+        {
+            for (var i = 0; i < result.Logs.Count; i++)
+            {
+                var log = result.Logs[i];
+                var topics = log.Topics is { Count: > 0 }
+                    ? string.Join(", ", log.Topics.Take(4))
+                    : "(no topics)";
+                EventLogRows.Add($"[{i}] {log.Address} topics=[{topics}] data={log.Data}");
+            }
+        }
+        else
+        {
+            EventLogRows.Add("(no logs)");
         }
 
         var reentrancy = ReentrancyDetector.Analyze(_currentTrace);
@@ -524,9 +718,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         });
         GasTreeNodes.Add(new GasNodeViewModel
         {
+            DisplayText = $"├── msg.value: {TxValueWei} wei",
+            Indent = new(16, 2)
+        });
+        GasTreeNodes.Add(new GasNodeViewModel
+        {
             DisplayText = $"├── Steps: {_currentTrace.Count}",
             Indent = new(16, 2),
-            Color = "#FFAA00"
+            Color = "#FFD700"
         });
         GasTreeNodes.Add(new GasNodeViewModel
         {
@@ -534,6 +733,12 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             Indent = new(16, 2),
             Color = "#00D4AA"
         });
+
+        if (!isBytecodeRun)
+        {
+            AccountStateRows.Clear();
+            AccountStateRows.Add("(synthetic demo — no live balances)");
+        }
 
         TotalSteps = _currentTrace.Count;
         HasTrace = _currentTrace.Count > 0;
@@ -562,7 +767,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
 
         StatusMessage = isBytecodeRun
-            ? $"LIVE EVM [{SelectedFork} label]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"REVERT ({result.Error})")} | {gasUsed:N0} gas | refund {refund}"
+            ? $"LIVE EVM [{SelectedFork} label]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {gasUsed:N0} gas | refund {refund}"
             : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {gasUsed:N0} gas";
     }
 
@@ -591,10 +796,17 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         ComputeEelsSpecCitation(step);
         UpdateActiveLineForStep(value);
+        HighlightInstruction(value);
         NotifyStepProps();
 
         StatusMessage =
             $"Step {value + 1}/{TotalSteps} | {step.Op} | depth {step.Depth} | gas {step.Gas}";
+    }
+
+    private void HighlightInstruction(int stepIndex)
+    {
+        foreach (var instr in Instructions)
+            instr.IsActive = instr.StepIndex == stepIndex;
     }
 
     private void NotifyStepProps()
@@ -690,23 +902,34 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     }
 }
 
-public class InstructionViewModel
+public partial class InstructionViewModel : ObservableObject
 {
+    public int StepIndex { get; }
     public string PC { get; }
     public string Opcode { get; }
     public int GasCost { get; }
     public string CallType { get; }
     public string Description { get; }
+
+    [ObservableProperty] private bool _isActive;
+
     public string DisplayText => string.IsNullOrEmpty(Description)
         ? $"0x{PC}  {Opcode}  ({GasCost})"
         : $"0x{PC}  {Opcode}  ({GasCost})  {Description}";
 
-    public InstructionViewModel(string pc, string opcode, int gasCost, string callType, string description = "")
+    public InstructionViewModel(int stepIndex, string pc, string opcode, int gasCost, string callType, string description = "")
     {
+        StepIndex = stepIndex;
         PC = pc;
         Opcode = opcode;
         GasCost = gasCost;
         CallType = callType;
         Description = description;
+    }
+
+    // Back-compat for tests that used the 4-arg constructor
+    public InstructionViewModel(string pc, string opcode, int gasCost, string callType)
+        : this(0, pc, opcode, gasCost, callType)
+    {
     }
 }

@@ -89,9 +89,16 @@ public sealed class Transaction : IComparable<Transaction>
     public IReadOnlyList<AccessListEntry> AccessList { get; set; } = Array.Empty<AccessListEntry>();
 
     /// <summary>
-    /// Transaction type: 0 = legacy, 1 = EIP-2930, 2 = EIP-1559, 3 = EIP-4844.
+    /// Transaction type: 0 = legacy, 1 = EIP-2930, 2 = EIP-1559, 3 = EIP-4844, 4 = EIP-7702.
     /// </summary>
     public byte TxType { get; set; } = 0;
+
+    /// <summary>
+    /// EIP-7702 (type-4): authorization list. Empty for all other tx types.
+    /// Each entry designates a signer EOA whose code will be set to a delegation pointer.
+    /// </summary>
+    public IReadOnlyList<Eip7702Authorization> AuthorizationList { get; set; } =
+        Array.Empty<Eip7702Authorization>();
 
     /// <summary>
     /// EIP-4844 versioned blob hashes exposed to EVM execution by BLOBHASH.
@@ -371,4 +378,26 @@ public enum TransactionPriority
     Normal,
     High,
     Critical
+}
+
+/// <summary>
+/// EIP-7702 authorization tuple: one entry per authority in the authorization list.
+/// The fixture harness provides <see cref="Signer"/> directly (pre-recovered from signature).
+/// </summary>
+public sealed class Eip7702Authorization
+{
+    /// <summary>Chain ID that scopes this authorization (0 = any chain).</summary>
+    public ulong ChainId { get; init; }
+
+    /// <summary>Address of the contract that the signer delegates to.</summary>
+    public Address DelegateAddress { get; init; }
+
+    /// <summary>Expected nonce of the signer at the time of processing.</summary>
+    public ulong Nonce { get; init; }
+
+    /// <summary>Pre-recovered signer address (from fixture or ECDSA recovery).</summary>
+    public Address Signer { get; init; }
+
+    /// <summary>True when the authorization has been validated and should be applied.</summary>
+    public bool IsValid { get; init; } = true;
 }
