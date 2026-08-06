@@ -229,7 +229,8 @@ public sealed class StateTransition : IStateTransition
                     continue;
 
                 // Always warm the signer address on first encounter (EELS validate_authorization:
-                // message.accessed_addresses.add(authority) runs even before nonce/code checks)
+                // message.accessed_addresses.add(authority) runs even before nonce/code checks).
+                // This makes subsequent CALL to the signer charge WARM_ACCESS (100) not cold (2600).
                 accessTracker?.WarmAddress(auth.Signer);
 
                 var signerNonce = await txOverlay.GetNonceAsync(auth.Signer, ct);
@@ -740,7 +741,6 @@ public sealed class StateTransition : IStateTransition
             // CALL: Use code at To address
             code = tx.To.HasValue ? await overlay.GetCodeAsync(tx.To.Value, ct) : Array.Empty<byte>();
             contractAddress = tx.To ?? Address.Zero;
-
             // EIP-7702: if the callee has a delegation designator (0xEF0100 || addr),
             // resolve the actual code from the delegate address while keeping storage context.
             // Per EELS process_message_call(): top-level delegation resolution is free —
@@ -751,6 +751,8 @@ public sealed class StateTransition : IStateTransition
             {
                 var delegateAddr = new Address(code[3..]);
                 accessTracker ??= new AccessTracker();
+                // Warm the delegate address. The CALL opcode already charged the access cost
+                // via access_delegation() equivalent in SystemOpcodes.cs.
                 accessTracker.WarmAddress(delegateAddr);
                 code = await overlay.GetCodeAsync(delegateAddr, ct);
                 // contractAddress stays as tx.To (storage context of the EOA)

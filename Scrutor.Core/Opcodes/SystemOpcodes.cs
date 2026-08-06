@@ -180,7 +180,19 @@ public sealed class OpcodeCall : IOpcode
         var isWarm = context.Access.TouchAddress(toAddress);
         ulong accessCost = isWarm ? 100UL : 2600UL;
 
-        // Value-transfer cost: 9000 if value > 0 (EELS: transfer_gas_cost).
+        // EIP-7702: if the callee has a delegation designator (0xEF0100 || addr),
+        // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
+        // This is part of extra_gas charged from the caller, not the callee's budget.
+        if (context.Block?.Eip7702Enabled == true)
+        {
+            var calleeCode = await context.GlobalState.GetCodeAsync(toAddress, ct);
+            if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
+            {
+                var delegateAddr = new Address(calleeCode[3..]);
+                bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
+                accessCost += delegateIsWarm ? 100UL : 2600UL;
+            }
+        }
         ulong valueTransferCost = value.IsZero ? 0UL : 9000UL;
 
         // Gap 3: EIP-161 new-account surcharge – 25000 if callee is empty and value > 0.
