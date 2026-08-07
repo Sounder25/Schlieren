@@ -92,6 +92,7 @@ public interface IForkRules
     bool HasTloadTstore           { get; }  // Cancun+
     bool HasEip6780SelfdestructRestriction { get; }  // Cancun+: SELFDESTRUCT only deletes if created in same tx
     bool HasEip161ContractNonce            { get; }  // SpuriousDragon+: new contracts start at nonce 1
+    bool HasEip2565ModExpPricing           { get; }  // Berlin+: EIP-2565 ModExp gas formula (GQUADDIVISOR=3, word-count complexity)
 
     // ── Precompiles ──────────────────────────────────────────────────────────
     /// <summary>

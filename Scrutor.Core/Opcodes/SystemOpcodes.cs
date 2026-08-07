@@ -271,7 +271,7 @@ public sealed class OpcodeCall : IOpcode
         ExecutionResult result;
         if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit, context.Block.Rules.PrecompileCount);
+            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit, context.Block.Rules);
             if (result.IsSuccess && value > 0)
             {
                 var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
@@ -570,7 +570,7 @@ public sealed class OpcodeStaticCall : IOpcode
         ExecutionResult result;
         if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit, context.Block.Rules.PrecompileCount);
+            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit, context.Block.Rules);
         }
         else
         {
@@ -715,7 +715,7 @@ public sealed class OpcodeCallCode : IOpcode
         ExecutionResult result;
         if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit, context.Block.Rules.PrecompileCount);
+            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit, context.Block.Rules);
         }
         else
         {
@@ -832,7 +832,7 @@ public sealed class OpcodeDelegateCall : IOpcode
         ExecutionResult result;
         if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit, context.Block.Rules.PrecompileCount);
+            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit, context.Block.Rules);
         }
         else
         {

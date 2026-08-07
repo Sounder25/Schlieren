@@ -52,7 +52,18 @@ public static class Precompiles
         if (id < 1 || id > precompileCount) return (Array.Empty<byte>(), 0);
         bool kzgEnabled = precompileCount >= 10;
         bool blsEnabled = precompileCount >= 0x0b;
-        return Execute(address, input, gasLimit, kzgEnabled, blsEnabled);
+        bool eip2565 = precompileCount >= 9; // Berlin+ has 9 precompiles before Cancun adds 10
+        return Execute(address, input, gasLimit, kzgEnabled, blsEnabled, eip2565);
+    }
+
+    /// <summary>Execute with full IForkRules — preferred overload for fork-aware gas.</summary>
+    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, IForkRules rules)
+    {
+        var id = address.Bytes[19];
+        if (id < 1 || id > rules.PrecompileCount) return (Array.Empty<byte>(), 0);
+        bool kzgEnabled = rules.HasEip4844BlobTx;
+        bool blsEnabled = rules.HasEip7702SetCode; // Prague gated (BLS added with EIP-2537 in Prague)
+        return Execute(address, input, gasLimit, kzgEnabled, blsEnabled, rules.HasEip2565ModExpPricing);
     }
 
     public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, int precompileCount)
@@ -62,7 +73,14 @@ public static class Precompiles
         return ExecutionResult.Success(gasUsed, output);
     }
 
-    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true, bool blsEnabled = false)
+    public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, IForkRules rules)
+    {
+        var (output, gasUsed) = Execute(address, input, gasLimit, rules);
+        if (output == null) return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
+        return ExecutionResult.Success(gasUsed, output);
+    }
+
+    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true, bool blsEnabled = false, bool eip2565 = true)
     {
         var id = address.Bytes[19];
         return id switch
@@ -71,7 +89,7 @@ public static class Precompiles
             2 => Sha256Precompile(input, gasLimit),
             3 => Ripemd160Precompile(input, gasLimit),
             4 => Identity(input, gasLimit),
-            5 => ModExp(input, gasLimit),
+            5 => ModExp(input, gasLimit, eip2565),
             6 => BnAdd(input, gasLimit),
             7 => BnMul(input, gasLimit),
             8 => BnPairing(input, gasLimit),
@@ -161,7 +179,7 @@ public static class Precompiles
     // ══════════════════════════════════════════════════════════════════════════
     //  0x05: MODEXP  (EIP-198 / EIP-2565)
     // ══════════════════════════════════════════════════════════════════════════
-    private static (byte[]? output, ulong gasUsed) ModExp(byte[] input, ulong gasLimit)
+    private static (byte[]? output, ulong gasUsed) ModExp(byte[] input, ulong gasLimit, bool eip2565 = true)
     {
         var bSizeBig = ReadUint256(input, 0);
         var eSizeBig = ReadUint256(input, 32);
@@ -177,7 +195,7 @@ public static class Precompiles
         var eBytes = ReadPadded(input, ref pos, eLen);
         var mBytes = ReadPadded(input, ref pos, mLen);
 
-        var gas = ModExpGas(bLen, eLen, mLen, eBytes);
+        var gas = ModExpGas(bLen, eLen, mLen, eBytes, eip2565);
         if (gas > gasLimit) return (null, gasLimit);
 
         if (mLen == 0) return (Array.Empty<byte>(), gas);
@@ -204,18 +222,33 @@ public static class Precompiles
     }
 
     /// <summary>
-    /// EIP-2565 gas formula for MODEXP.
-    /// multiplication_complexity is a piecewise function of max(baseLen, modLen).
+    /// EIP-2565 gas formula for MODEXP (Berlin+): complexity = (ceil(maxLen/8))², divisor=3, floor=200.
+    /// EIP-198 gas formula for MODEXP (pre-Berlin): complexity = tiered piecewise, divisor=20, no floor.
     /// </summary>
-    private static ulong ModExpGas(int baseLen, int expLen, int modLen, byte[] expBytes)
+    private static ulong ModExpGas(int baseLen, int expLen, int modLen, byte[] expBytes, bool eip2565 = true)
     {
         long maxLen = Math.Max(baseLen, modLen);
 
-        // EIP-2565 multiplication complexity: ceil(max_length / 8) ^ 2
-        var words = (maxLen + 7) / 8;
-        BigInteger multComp = (BigInteger)words * words;
+        // Multiplication complexity
+        BigInteger multComp;
+        if (eip2565)
+        {
+            // EIP-2565 (Berlin+): complexity = ceil(maxLen / 8) ^ 2
+            var words = (maxLen + 7) / 8;
+            multComp = (BigInteger)words * words;
+        }
+        else
+        {
+            // EIP-198 (Byzantium–Istanbul): tiered piecewise complexity
+            if (maxLen <= 64)
+                multComp = (BigInteger)maxLen * maxLen;
+            else if (maxLen <= 1024)
+                multComp = (BigInteger)maxLen * maxLen / 4 + 96 * maxLen - 3072;
+            else
+                multComp = (BigInteger)maxLen * maxLen / 16 + 480 * maxLen - 199680;
+        }
 
-        // Adjusted exponent length (iterationCount)
+        // Adjusted exponent length (iterationCount) — same formula for both EIPs
         BigInteger iterCount;
         if (expLen == 0)
         {
@@ -240,9 +273,20 @@ public static class Precompiles
 
         if (iterCount < 1) iterCount = BigInteger.One;
 
-        var gasRaw = multComp * iterCount / 3;
-        if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
-        return Math.Max(200UL, (ulong)gasRaw);
+        if (eip2565)
+        {
+            // EIP-2565: divisor=3, floor=200
+            var gasRaw = multComp * iterCount / 3;
+            if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
+            return Math.Max(200UL, (ulong)gasRaw);
+        }
+        else
+        {
+            // EIP-198: divisor=20, no floor (minimum effectively 0 but gas call clamps to 0)
+            var gasRaw = multComp * iterCount / 20;
+            if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
+            return gasRaw.IsZero ? 0UL : (ulong)gasRaw;
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════

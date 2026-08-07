@@ -766,7 +766,7 @@ public sealed class StateTransition : IStateTransition
         // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).
         if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.Rules.PrecompileCount))
         {
-            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit, block.Rules.PrecompileCount);
+            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, executionGasLimit ?? 0UL, block.Rules);
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change

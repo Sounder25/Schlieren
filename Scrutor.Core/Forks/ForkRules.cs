@@ -71,6 +71,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasTloadTstore              => false;
     public virtual bool HasEip6780SelfdestructRestriction => false; // Pre-Cancun: always delete
     public virtual bool HasEip161ContractNonce            => false; // Pre-SpuriousDragon: new contracts nonce=0
+    public virtual bool HasEip2565ModExpPricing           => false; // Pre-Berlin: EIP-198 tiered formula, GQUADDIVISOR=20
 
     // Precompiles: Frontier = 0x01–0x04
     public virtual int PrecompileCount => 4;
@@ -219,6 +220,7 @@ public class BerlinRules : IstanbulRules
 
     public override bool  HasEip2929WarmCold     => true;
     public override bool  HasEip2930AccessLists   => true;
+    public override bool  HasEip2565ModExpPricing => true; // EIP-2565: new ModExp gas formula
     public override ulong SloadCost(bool isWarm)  => isWarm ? 100UL : 2_100UL;
     // EIP-2929: BALANCE/EXTCODESIZE/EXTCODECOPY/EXTCODEHASH use warm=100/cold=2600
     public override ulong ExtAccountCost(bool isWarm)  => isWarm ? 100UL : 2_600UL;
