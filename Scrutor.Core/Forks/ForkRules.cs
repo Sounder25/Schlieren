@@ -21,13 +21,18 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip2200Reentrancy => false;
     public virtual bool HasEip2929WarmCold   => false;
 
-    // Frontier SSTORE: SET=20000, RESET=5000, CLEAR gives 15000 refund
+    // Frontier SSTORE: SET=20000 (zero→nonzero), COLD_WRITE=5000 (everything else)
+    // Refund REFUND_STORAGE_CLEAR=15000 only when clearing a previously set (non-zero) slot.
     public virtual (ulong cost, long refundDelta) SstoreBaseCost(
         BigInteger originalValue, BigInteger currentValue, BigInteger newValue)
     {
-        if (newValue == currentValue) return (0, 0);
-        if (newValue != BigInteger.Zero) return (20_000, 0);
-        return (5_000, 15_000); // clearing → 5000 gas + 15000 refund
+        ulong cost = (newValue != BigInteger.Zero && currentValue == BigInteger.Zero)
+            ? 20_000UL   // STORAGE_SET
+            : 5_000UL;   // COLD_STORAGE_WRITE (all other cases)
+        long refund = (newValue == BigInteger.Zero && currentValue != BigInteger.Zero)
+            ? 15_000L    // REFUND_STORAGE_CLEAR
+            : 0L;
+        return (cost, refund);
     }
 
     public virtual ulong RefundQuotient => 2; // 50% before London
