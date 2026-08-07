@@ -199,9 +199,11 @@ public sealed class OpcodeCall : IOpcode
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
 
-        // EIP-2929: charge cold address surcharge (part of extra gas).
-        var isWarm = context.Access.TouchAddress(toAddress);
-        ulong accessCost = isWarm ? 100UL : 2600UL;
+        // EIP-2929 / pre-Berlin: CALL access cost = CallBaseCost + ExtAccountCost(isWarm)
+        // Berlin: CallBaseCost=0, ExtAccountCost=warm/cold
+        var rules = context.Block.Rules;
+        var isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(toAddress) : true;
+        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isWarm);
 
         // EIP-7702: if the callee has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
@@ -213,7 +215,7 @@ public sealed class OpcodeCall : IOpcode
             {
                 var delegateAddr = new Address(calleeCode[3..]);
                 bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
-                accessCost += delegateIsWarm ? 100UL : 2600UL;
+                accessCost += rules.ExtAccountCost(delegateIsWarm);
             }
         }
         ulong valueTransferCost = value.IsZero ? 0UL : 9000UL;
@@ -538,9 +540,10 @@ public sealed class OpcodeStaticCall : IOpcode
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
-        // EIP-2929: charge warm access or cold address access before forwarding.
-        var isWarm = context.Access.TouchAddress(toAddress);
-        ulong accessCost = isWarm ? 100UL : 2600UL;
+        // EIP-2929 / pre-Berlin: STATICCALL access cost = CallBaseCost + ExtAccountCost(isWarm)
+        var rules = context.Block.Rules;
+        var isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(toAddress) : true;
+        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isWarm);
 
         // EIP-7702: if the target has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
@@ -551,7 +554,7 @@ public sealed class OpcodeStaticCall : IOpcode
             {
                 var delegateAddr = new Address(calleeCode[3..]);
                 bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
-                accessCost += delegateIsWarm ? 100UL : 2600UL;
+                accessCost += rules.ExtAccountCost(delegateIsWarm);
             }
         }
 
@@ -656,9 +659,10 @@ public sealed class OpcodeCallCode : IOpcode
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
-        // EIP-2929: charge cold address surcharge (part of extra gas).
-        var isCodeWarm = context.Access.TouchAddress(codeAddress);
-        ulong accessCost = isCodeWarm ? 100UL : 2600UL;
+        // EIP-2929 / pre-Berlin: DELEGATECALL access cost = CallBaseCost + ExtAccountCost(isWarm)
+        var rules = context.Block.Rules;
+        var isCodeWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(codeAddress) : true;
+        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isCodeWarm);
 
         // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
@@ -670,7 +674,7 @@ public sealed class OpcodeCallCode : IOpcode
             {
                 var delegateAddr = new Address(calleeCode[3..]);
                 bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
-                accessCost += delegateIsWarm ? 100UL : 2600UL;
+                accessCost += rules.ExtAccountCost(delegateIsWarm);
             }
         }
 
@@ -798,9 +802,10 @@ public sealed class OpcodeDelegateCall : IOpcode
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
-        // EIP-2929: charge warm access or cold address access before forwarding.
-        var isCodeWarm = context.Access.TouchAddress(codeAddress);
-        ulong accessCost = isCodeWarm ? 100UL : 2600UL;
+        // EIP-2929 / pre-Berlin: CALLCODE access cost = CallBaseCost + ExtAccountCost(isWarm)
+        var rules = context.Block.Rules;
+        var isCodeWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(codeAddress) : true;
+        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isCodeWarm);
 
         // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
@@ -811,7 +816,7 @@ public sealed class OpcodeDelegateCall : IOpcode
             {
                 var delegateAddr = new Address(calleeCode[3..]);
                 bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
-                accessCost += delegateIsWarm ? 100UL : 2600UL;
+                accessCost += rules.ExtAccountCost(delegateIsWarm);
             }
         }
 

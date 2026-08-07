@@ -51,6 +51,9 @@ public abstract class ForkRules : IForkRules
     public virtual ulong ExtAccountCost(bool isWarm)  => 20;
     public virtual ulong ExtCodeHashCost(bool isWarm) => 20; // not available pre-Constantinople, but safe default
 
+    // CALL base cost: Frontier/Homestead = 40 flat
+    public virtual ulong CallBaseCost => 40;
+
     // Opcode availability
     public virtual bool HasDelegateCall             => false;
     public virtual bool HasRevert                   => false;
@@ -105,6 +108,8 @@ public class TangerineWhistleRules : HomesteadRules
     // EIP-150: BALANCE/EXTCODESIZE/EXTCODECOPY repriced from 20 → 700
     public override ulong ExtAccountCost(bool isWarm) => 700;
     public override ulong ExtCodeHashCost(bool isWarm) => 700;
+    // EIP-150: OPCODE_CALL_BASE repriced 40 → 700
+    public override ulong CallBaseCost => 700;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -215,6 +220,9 @@ public class BerlinRules : IstanbulRules
     // EIP-2929: BALANCE/EXTCODESIZE/EXTCODECOPY/EXTCODEHASH use warm=100/cold=2600
     public override ulong ExtAccountCost(bool isWarm)  => isWarm ? 100UL : 2_600UL;
     public override ulong ExtCodeHashCost(bool isWarm) => isWarm ? 100UL : 2_600UL;
+    // EIP-2929: CALL base cost is 0 — the warm/cold ACCESS cost is charged directly
+    // as accessCost=ExtAccountCost(isWarm), so CallBaseCost must be 0 to avoid double-charge.
+    public override ulong CallBaseCost => 0;
 
     // Berlin SSTORE: EIP-2200 base costs adjusted for warm/cold world
     // NOOP=100 (warm), RESET=2900 (=COLD_WRITE-COLD_READ), SET=20000 unchanged

@@ -68,6 +68,13 @@ public interface IForkRules
     /// <summary>Gas for EXTCODEHASH (Constantinople=400, Istanbul+=700, Berlin+=warm/cold).</summary>
     ulong ExtCodeHashCost(bool isWarm);
 
+    /// <summary>
+    /// Base gas for CALL/CALLCODE/DELEGATECALL/STATICCALL (the "extra_gas" before access surcharge).
+    /// Frontier/Homestead=40; TangerineWhistle+=700; Berlin+=0 (absorbed into AccessCost warm/cold).
+    /// Note: Berlin CALL charges ACCESS cost separately via ExtAccountCost(isWarm).
+    /// </summary>
+    ulong CallBaseCost { get; }
+
     // ── Opcodes ──────────────────────────────────────────────────────────────
     bool HasDelegateCall          { get; }  // Homestead+
     bool HasRevert                { get; }  // Byzantium+
