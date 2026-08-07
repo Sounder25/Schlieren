@@ -61,6 +61,12 @@ public sealed class OpcodeSstore : IOpcode
         if (context.IsStatic)
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1)).Result;
 
+        // EIP-2200 reentrancy guard: SSTORE is prohibited when gas_left <= CALL_STIPEND (2300).
+        // EELS sstore(): "if evm.gas_left <= GasCosts.CALL_STIPEND: raise OutOfGasError"
+        var gasRemaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+        if (gasRemaining <= 2300UL)
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, gasRemaining), context.ProgramCounter + 1)).Result;
+
         if (!context.Stack.TryPop(out var key) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1)).Result;
 
