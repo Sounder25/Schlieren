@@ -10,33 +10,32 @@ public sealed class OpcodeSload : IOpcode
     public byte Code => 0x54;
     public string Name => "SLOAD";
 
-    // [AI-EDIT 2026-01-10] EIP-2929: cold slot = 2100 gas, warm slot = 100 gas.
-    private const ulong ColdSlotCost = 2100;
-    private const ulong WarmSlotCost = 100;
-
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         if (!context.Stack.TryPop(out var key))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
+        var rules   = context.Block.Rules;
         var slotKey = (context.StorageAddress, key);
-        
-        // EIP-2929: first access to a slot within the tx is cold (2100), subsequent warm (100).
-        var isWarm = context.Access.TouchSlot(context.StorageAddress, key);
-        var gasCost = isWarm ? WarmSlotCost : ColdSlotCost;
+
+        // EIP-2929 (Berlin+): warm/cold slot tracking.  Pre-Berlin: always "warm" path,
+        // cost comes entirely from fork rules.
+        bool isWarm = rules.HasEip2929WarmCold
+            ? context.Access.TouchSlot(context.StorageAddress, key)
+            : true; // pre-Berlin: no warm/cold concept, flat cost via SloadCost
+
+        var gasCost = rules.SloadCost(isWarm);
 
         var value = await context.Storage.LoadAsync(key);
-        
-        // EIP-2200: Capture original value on first access to this slot in the transaction
-        if (!context.OriginalStorageValues.ContainsKey(slotKey))
-        {
+
+        // EIP-2200 (Istanbul+): capture original value for SSTORE tri-state metering.
+        if (rules.HasEip2200Reentrancy && !context.OriginalStorageValues.ContainsKey(slotKey))
             context.OriginalStorageValues[slotKey] = value;
-        }
-        
+
         context.TraceStorageRead(key, value);
-        
+
         if (!context.Stack.TryPush(value))
-             return (ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1);
+            return (ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1);
 
         return (ExecutionResult.Success(gasCost), context.ProgramCounter + 1);
     }
@@ -47,116 +46,47 @@ public sealed class OpcodeSstore : IOpcode
     public byte Code => 0x55;
     public string Name => "SSTORE";
 
-    // [AI-EDIT 2026-01-10] EIP-2929 + EIP-2200 SSTORE gas costs (Cancun rules, EIP-3529 caps refunds).
-    // Cold slot access surcharge per EIP-2929.
-    private const ulong ColdSlotSurcharge = 2100;
-    // EIP-2200 base SSTORE costs (applied after warm/cold determination):
-    private const ulong SstoreSetCost = 20000;   // 0 → non-zero
-    private const ulong SstoreResetCost = 2900;  // non-zero → non-zero (different value)
-    private const ulong SstoreWarmNoopCost = 100; // no-op (value unchanged)
-    private const ulong SstoreCleanupCost = 2900; // non-zero → 0 (with refund)
-
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         if (context.IsStatic)
-            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1)).Result;
+            return (ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1);
 
-        // EIP-2200 reentrancy guard: SSTORE is prohibited when gas_left <= CALL_STIPEND (2300).
-        // EELS sstore(): "if evm.gas_left <= GasCosts.CALL_STIPEND: raise OutOfGasError"
-        var gasRemaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
-        if (gasRemaining <= 2300UL)
-            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.OutOfGas, gasRemaining), context.ProgramCounter + 1)).Result;
+        var rules = context.Block.Rules;
+
+        // EIP-2200 (Istanbul+) reentrancy guard: SSTORE prohibited when gas_left ≤ CALL_STIPEND.
+        if (rules.HasEip2200Reentrancy)
+        {
+            var gasRemaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+            if (gasRemaining <= 2300UL)
+                return (ExecutionResult.Failure(EvmError.OutOfGas, gasRemaining), context.ProgramCounter + 1);
+        }
 
         if (!context.Stack.TryPop(out var key) || !context.Stack.TryPop(out var value))
-            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1)).Result;
+            return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
-        var slotKey = (context.StorageAddress, key);
+        var slotKey      = (context.StorageAddress, key);
         var currentValue = await context.Storage.LoadAsync(key);
-        
-        // EIP-2200: Capture original value on first access to this slot in the transaction
-        if (!context.OriginalStorageValues.ContainsKey(slotKey))
-        {
+
+        // Capture original value (Istanbul+ EIP-2200 tri-state metering).
+        if (rules.HasEip2200Reentrancy && !context.OriginalStorageValues.ContainsKey(slotKey))
             context.OriginalStorageValues[slotKey] = currentValue;
-        }
-        var originalValue = context.OriginalStorageValues[slotKey];
-        
-        // EIP-2929: Determine cold vs warm, charge cold surcharge if cold
-        var isWarm = context.Access.TouchSlot(context.StorageAddress, key);
-        ulong coldCost = isWarm ? 0 : ColdSlotSurcharge;
-        
-        // EIP-2200 + EIP-3529: Full (original, current, new) tri-state metering
-        ulong baseCost;
-        long refundDelta = 0;
-        
-        if (currentValue == value)
-        {
-            // No-op: value unchanged
-            baseCost = SstoreWarmNoopCost; // 100 gas
-        }
-        else if (originalValue == currentValue)
-        {
-            // First write to this slot in the transaction
-            if (originalValue == BigInteger.Zero)
-            {
-                // 0 → non-zero: setting a new slot
-                baseCost = SstoreSetCost; // 20,000 gas
-            }
-            else
-            {
-                // non-zero → different value
-                baseCost = SstoreResetCost; // 2,900 gas
-                
-                // If clearing the slot, grant refund
-                if (value == BigInteger.Zero)
-                {
-                    refundDelta = 4800; // EIP-3529 refund for clearing storage
-                }
-            }
-        }
-        else
-        {
-            // Subsequent write to a slot already modified in this transaction (dirty slot)
-            baseCost = SstoreWarmNoopCost; // 100 gas
-            
-            // EIP-2200 dirty-slot refund adjustments
-            if (originalValue != BigInteger.Zero)
-            {
-                // Original was non-zero: track zero-transitions for clear refund
-                if (currentValue == BigInteger.Zero)
-                {
-                    // Was cleared, now writing non-zero: remove prior refund
-                    refundDelta -= 4800;
-                }
-                if (value == BigInteger.Zero)
-                {
-                    // Now clearing: add refund
-                    refundDelta += 4800;
-                }
-            }
-            
-            // Restore-to-original refund (independent of clear refund)
-            if (value == originalValue)
-            {
-                if (originalValue == BigInteger.Zero)
-                {
-                    // Restoring to zero: reclaim the set cost
-                    refundDelta += (long)(SstoreSetCost - SstoreWarmNoopCost); // +19,900
-                }
-                else
-                {
-                    // Restoring to original non-zero: reclaim the reset cost
-                    refundDelta += (long)(SstoreResetCost - SstoreWarmNoopCost); // +2,800
-                }
-            }
-        }
-        
+
+        var originalValue = rules.HasEip2200Reentrancy
+            ? context.OriginalStorageValues[slotKey]
+            : currentValue; // pre-Istanbul: no tri-state, original = current
+
+        // EIP-2929 (Berlin+): cold surcharge on top of EIP-2200 base cost.
+        bool isWarm     = !rules.HasEip2929WarmCold || context.Access.TouchSlot(context.StorageAddress, key);
+        ulong coldCost  = (rules.HasEip2929WarmCold && !isWarm) ? 2_100UL : 0UL;
+
+        var (baseCost, refundDelta) = rules.SstoreBaseCost(originalValue, currentValue, value);
         ulong totalCost = coldCost + baseCost;
+
         context.GasRefundCounter += refundDelta;
-        
         context.Storage.Store(key, value);
         context.TraceStorageWrite(key, value);
 
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(totalCost), context.ProgramCounter + 1)).Result;
+        return (ExecutionResult.Success(totalCost), context.ProgramCounter + 1);
     }
 }
 

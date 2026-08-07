@@ -1,5 +1,6 @@
 using System.Numerics;
 using Scrutor.Core.Execution;
+using Scrutor.Core.Forks;
 using Scrutor.Core.Opcodes;
 using Scrutor.Core.Primitives;
 using Scrutor.Core.State;
@@ -43,8 +44,7 @@ public sealed class Eip7702BasicTest
         var block = new BlockContext
         {
             ChainId = 1, Number = 1, Timestamp = 1000, GasLimit = 30_000_000,
-            Coinbase = coinbase, BaseFeePerGas = 7, BlobHashEnabled = true,
-            Eip7623Enabled = true, Eip7702Enabled = true,
+            Coinbase = coinbase, BaseFeePerGas = 7, Rules = ForkRulesFactory.For("Prague"),
         };
 
         var tx = new Transaction

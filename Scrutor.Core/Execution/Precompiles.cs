@@ -2,31 +2,37 @@ using System.Numerics;
 using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Math.EC.Custom.Sec;
+using Scrutor.Core.Forks;
 using Scrutor.Core.Primitives;
 
 namespace Scrutor.Core.Execution;
 
 /// <summary>
-/// Ethereum precompiled contracts (addresses 0x01–0x09 for Cancun).
-/// This is the single authoritative path — all call-types (CALL, STATICCALL,
-/// CALLCODE, DELEGATECALL, and top-level StateTransition) must route here.
-///
-/// Each entry returns (output, gasUsed) on success or (null, gasLimit) to signal
-/// OOG / failure.  Gas formulas follow EIP-198, EIP-2565, EIP-152, EIP-196, EIP-197.
+/// Ethereum precompiled contracts.
+/// Precompile availability is determined by <see cref="IForkRules.PrecompileCount"/>.
 /// </summary>
 public static class Precompiles
 {
+    /// <summary>Returns true when <paramref name="address"/> is an active precompile for the given fork rules.</summary>
+    public static bool IsPrecompile(Address address, IForkRules rules)
+    {
+        var bytes = address.Bytes;
+        for (int i = 0; i < 19; i++)
+            if (bytes[i] != 0) return false;
+        var id = bytes[19];
+        return id >= 1 && id <= rules.PrecompileCount;
+    }
+
+    /// <summary>Legacy overload — kept for call sites not yet migrated.</summary>
     public static bool IsPrecompile(Address address, bool kzgEnabled = true, bool blsEnabled = false)
     {
         var bytes = address.Bytes;
         for (int i = 0; i < 19; i++)
             if (bytes[i] != 0) return false;
         var id = bytes[19];
-        
         if (id is >= 1 and <= 9) return true;
         if (id == 10) return kzgEnabled;
-        if (id is >= 0x0b and <= 0x11) return blsEnabled; // EIP-2537 BLS12-381 (Prague)
-        
+        if (id is >= 0x0b and <= 0x13) return blsEnabled;
         return false;
     }
 

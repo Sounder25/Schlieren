@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Nethereum.Signer;
+using Scrutor.Core.Forks;
 using Scrutor.Core.Primitives;
 using Scrutor.Core.State;
 
@@ -181,14 +182,15 @@ public sealed class EelsStateFixtureLoader
             GasLimit = EelsHex.ParseUlong(envNode.GetProperty("currentGasLimit").GetString()!),
             Coinbase = Address.FromHex(envNode.GetProperty("currentCoinbase").GetString()!),
             Difficulty = EelsHex.ParseQuantity(envNode.GetProperty("currentDifficulty").GetString()!),
-            BaseFeePerGas = EelsHex.ParseUlong(envNode.GetProperty("currentBaseFee").GetString()!),
-            BlobHashEnabled = ForkRank(forkName) >= ForkRank("Cancun"),
-            Eip7623Enabled = ForkRank(forkName) >= ForkRank("Prague"),
-            Eip7702Enabled = ForkRank(forkName) >= ForkRank("Prague"),
+            BaseFeePerGas = envNode.TryGetProperty("currentBaseFee", out var baseFeeNode)
+                ? EelsHex.ParseUlong(GetJsonText(baseFeeNode))
+                : 0UL,
+            Rules = ForkRulesFactory.For(forkName),
             ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
                 ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
                 : 0
         };
+
 
         var priorityFee = ResolvePriorityFee(txNode);
         var txType = DetectTxType(txNode, accessList);
@@ -307,13 +309,12 @@ public sealed class EelsStateFixtureLoader
             BaseFeePerGas = envNode.TryGetProperty("currentBaseFee", out var baseFeeNode)
                 ? EelsHex.ParseUlong(GetJsonText(baseFeeNode))
                 : 0,
-            BlobHashEnabled = ForkRank(forkName) >= ForkRank("Cancun"),
-            Eip7623Enabled = ForkRank(forkName) >= ForkRank("Prague"),
-            Eip7702Enabled = ForkRank(forkName) >= ForkRank("Prague"),
+            Rules = ForkRulesFactory.For(forkName),
             ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
                 ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
                 : 0
         };
+
 
         var cases = new List<EelsStateCase>();
         var variantNumber = 0;

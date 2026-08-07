@@ -1,5 +1,6 @@
 using System.Numerics;
 using Scrutor.Core.Execution;
+using Scrutor.Core.Forks;
 using Scrutor.Core.Opcodes;
 using Scrutor.Core.Primitives;
 using Scrutor.Core.State;
@@ -139,7 +140,7 @@ public static class BytecodeExecutionService
             GasLimit = options.BlockGasLimit,
             Coinbase = coinbase,
             BaseFeePerGas = baseFeeWei,
-            BlobHashEnabled = true
+            Rules = ForkRulesFactory.Latest
         };
 
         var gasLimit = Math.Min(options.GasLimit, options.BlockGasLimit);
