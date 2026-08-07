@@ -72,6 +72,9 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip6780SelfdestructRestriction => false; // Pre-Cancun: always delete
     public virtual bool HasEip161ContractNonce            => false; // Pre-SpuriousDragon: new contracts nonce=0
     public virtual bool HasEip2565ModExpPricing           => false; // Pre-Berlin: EIP-198 tiered formula, GQUADDIVISOR=20
+    // SELFDESTRUCT gas: Frontier/Homestead = 0 (free!); TangerineWhistle+ = 5000 base + 25000 new-account
+    public virtual ulong SelfdestructBaseCost       => 0;      // Frontier/Homestead: zero
+    public virtual ulong SelfdestructNewAccountCost => 0;      // Frontier/Homestead: zero
 
     // Precompiles: Frontier = 0x01–0x04
     public virtual int PrecompileCount => 4;
@@ -113,6 +116,9 @@ public class TangerineWhistleRules : HomesteadRules
     public override ulong ExtCodeHashCost(bool isWarm) => 700;
     // EIP-150: OPCODE_CALL_BASE repriced 40 → 700
     public override ulong CallBaseCost => 700;
+    // EIP-150: SELFDESTRUCT repriced from 0 → 5000 base + 25000 new-account
+    public override ulong SelfdestructBaseCost       => 5_000;
+    public override ulong SelfdestructNewAccountCost => 25_000;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -902,19 +902,16 @@ public sealed class OpcodeSelfDestruct : IOpcode
 
         var rules = context.Block.Rules;
 
-        // Pre-Berlin: SELFDESTRUCT costs 0 for beneficiary access (no warm/cold yet).
-        // Tangerine+: NEW_ACCOUNT surcharge 25000 already in base cost logic.
-        // Frontier/Homestead: base = 0 (no explicit opcode gas in original YP, charged in caller).
-        // For simplicity, keep 5000 base as per EELS (it's in all modern interpretations).
+        // SELFDESTRUCT gas: Frontier/Homestead = 0; TangerineWhistle+ = 5000 base.
+        // EIP-2929 (Berlin+): additionally charge cold/warm access for beneficiary.
         var beneficiaryIsWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(beneficiary) : true;
-        ulong gasCost = 5000UL + (beneficiaryIsWarm ? 0UL : 2600UL);
+        ulong gasCost = rules.SelfdestructBaseCost + (rules.HasEip2929WarmCold && !beneficiaryIsWarm ? 2_600UL : 0UL);
 
         var balance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
 
-        // EELS Cancun selfdestruct(): transferring a nonzero balance to an account
-        // that is not alive costs an additional 25,000 gas. An account is alive
-        // only when at least one of nonce, code, or balance is nonzero.
-        if (balance > 0)
+        // TangerineWhistle+: transferring balance to a non-existent account costs an extra 25,000.
+        // Frontier/Homestead: no new-account surcharge.
+        if (rules.SelfdestructNewAccountCost > 0 && balance > 0)
         {
             var beneficiaryNonce = await context.GlobalState.GetNonceAsync(beneficiary, ct);
             var beneficiaryCode = await context.GlobalState.GetCodeAsync(beneficiary, ct);
@@ -924,7 +921,7 @@ public sealed class OpcodeSelfDestruct : IOpcode
                 beneficiaryCode.Length != 0 ||
                 beneficiaryBalance != 0;
             if (!beneficiaryIsAlive)
-                gasCost += 25_000UL;
+                gasCost += rules.SelfdestructNewAccountCost;
         }
 
         var createdInTransaction =

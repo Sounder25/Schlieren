@@ -93,6 +93,11 @@ public interface IForkRules
     bool HasEip6780SelfdestructRestriction { get; }  // Cancun+: SELFDESTRUCT only deletes if created in same tx
     bool HasEip161ContractNonce            { get; }  // SpuriousDragon+: new contracts start at nonce 1
     bool HasEip2565ModExpPricing           { get; }  // Berlin+: EIP-2565 ModExp gas formula (GQUADDIVISOR=3, word-count complexity)
+    
+    /// <summary>Base gas for SELFDESTRUCT. Frontier/Homestead=0; TangerineWhistle+=5000.</summary>
+    ulong SelfdestructBaseCost { get; }
+    /// <summary>Extra gas for SELFDESTRUCT to a new (non-existent) account. Tangerine+=25000; Frontier/Homestead=0.</summary>
+    ulong SelfdestructNewAccountCost { get; }
 
     // ── Precompiles ──────────────────────────────────────────────────────────
     /// <summary>
