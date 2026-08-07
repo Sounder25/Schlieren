@@ -58,6 +58,16 @@ public interface IForkRules
     /// <summary>Cost per non-zero byte (Frontier=68, Istanbul+=16 via EIP-2028).</summary>
     ulong CalldataNonZeroByteCost { get; }
 
+    // ── External account/code opcode gas ────────────────────────────────────
+    /// <summary>
+    /// Gas for BALANCE, EXTCODESIZE, EXTCODECOPY (base), EXTCODEHASH.
+    /// Frontier=20, TangerineWhistle=700, Istanbul=700, Berlin+=warm/cold.
+    /// </summary>
+    ulong ExtAccountCost(bool isWarm);
+
+    /// <summary>Gas for EXTCODEHASH (Constantinople=400, Istanbul+=700, Berlin+=warm/cold).</summary>
+    ulong ExtCodeHashCost(bool isWarm);
+
     // ── Opcodes ──────────────────────────────────────────────────────────────
     bool HasDelegateCall          { get; }  // Homestead+
     bool HasRevert                { get; }  // Byzantium+

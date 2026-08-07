@@ -206,7 +206,7 @@ public sealed class OpcodeCall : IOpcode
         // EIP-7702: if the callee has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
         // This is part of extra_gas charged from the caller, not the callee's budget.
-        if (context.Block?.Eip7702Enabled == true)
+        if (context.Block?.Rules.HasEip7702SetCode == true)
         {
             var calleeCode = await context.GlobalState.GetCodeAsync(toAddress, ct);
             if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
@@ -267,9 +267,9 @@ public sealed class OpcodeCall : IOpcode
         var childGasLimit = forwardedGas + stipend;
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(toAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
+        if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
+            result = Precompiles.ExecuteAsResult(toAddress, input, childGasLimit, context.Block.Rules.PrecompileCount);
             if (result.IsSuccess && value > 0)
             {
                 var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
@@ -544,7 +544,7 @@ public sealed class OpcodeStaticCall : IOpcode
 
         // EIP-7702: if the target has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
-        if (context.Block?.Eip7702Enabled == true)
+        if (context.Block?.Rules.HasEip7702SetCode == true)
         {
             var calleeCode = await context.GlobalState.GetCodeAsync(toAddress, ct);
             if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
@@ -566,9 +566,9 @@ public sealed class OpcodeStaticCall : IOpcode
         context.ConsumeGas(gasLimit);
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(toAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
+        if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
+            result = Precompiles.ExecuteAsResult(toAddress, input, gasLimit, context.Block.Rules.PrecompileCount);
         }
         else
         {
@@ -663,7 +663,7 @@ public sealed class OpcodeCallCode : IOpcode
         // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
         // This is part of extra_gas charged from the caller, not the callee's budget.
-        if (context.Block?.Eip7702Enabled == true)
+        if (context.Block?.Rules.HasEip7702SetCode == true)
         {
             var calleeCode = await context.GlobalState.GetCodeAsync(codeAddress, ct);
             if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
@@ -710,9 +710,9 @@ public sealed class OpcodeCallCode : IOpcode
         var childGasLimit = forwardedGas + stipend;
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(codeAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
+        if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
+            result = Precompiles.ExecuteAsResult(codeAddress, input, childGasLimit, context.Block.Rules.PrecompileCount);
         }
         else
         {
@@ -804,7 +804,7 @@ public sealed class OpcodeDelegateCall : IOpcode
 
         // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
-        if (context.Block?.Eip7702Enabled == true)
+        if (context.Block?.Rules.HasEip7702SetCode == true)
         {
             var calleeCode = await context.GlobalState.GetCodeAsync(codeAddress, ct);
             if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
@@ -826,9 +826,9 @@ public sealed class OpcodeDelegateCall : IOpcode
         context.ConsumeGas(gasLimit);
 
         ExecutionResult result;
-        if (Precompiles.IsPrecompile(codeAddress, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled))
+        if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
         {
-            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit, context.Block.BlobHashEnabled, context.Block.Eip7702Enabled);
+            result = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit, context.Block.Rules.PrecompileCount);
         }
         else
         {

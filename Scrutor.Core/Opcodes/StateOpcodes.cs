@@ -90,17 +90,15 @@ public sealed class OpcodeExtCodeSize : IOpcode
     public byte Code => 0x3B;
     public string Name => "EXTCODESIZE";
 
-    private const ulong WarmCost = 100;
-    private const ulong ColdCost = 2600;
-
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         if (!context.Stack.TryPop(out var addr))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
-        var isWarm = context.Access.TouchAddress(address);
-        var gasCost = isWarm ? WarmCost : ColdCost;
+        var rules   = context.Block.Rules;
+        bool isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(address) : true;
+        var gasCost = rules.ExtAccountCost(isWarm);
 
         var code = await context.GlobalState.GetCodeAsync(address, ct);
         
@@ -130,9 +128,6 @@ public sealed class OpcodeExtCodeCopy : IOpcode
     public byte Code => 0x3C;
     public string Name => "EXTCODECOPY";
 
-    private const ulong WarmCost = 100;
-    private const ulong ColdCost = 2600;
-
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         if (!context.Stack.TryPop(out var addr) || !context.Stack.TryPop(out var destOffset) || 
@@ -140,18 +135,15 @@ public sealed class OpcodeExtCodeCopy : IOpcode
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
-        var isWarm = context.Access.TouchAddress(address);
-        var addressGas = isWarm ? WarmCost : ColdCost;
+        var rules   = context.Block.Rules;
+        bool isWarm  = rules.HasEip2929WarmCold ? context.Access.TouchAddress(address) : true;
+        var addressGas = rules.ExtAccountCost(isWarm);
 
-        // [CONSENSUS] Oversized operands result in OutOfGas, NOT InternalError.
-        // Zero-length operations are always valid regardless of offset.
         if (!OperandValidation.TryResolveMemoryRange(destOffset, length, out var destInt, out var lengthInt, out var endExclusive))
             return (ExecutionResult.Failure(EvmError.OutOfGas, context.GasLimit), context.ProgramCounter + 1);
 
         var code = await context.GlobalState.GetCodeAsync(address, ct);
-
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
-
         var expansionGas = context.Memory.CalculateGasCost((int)endExclusive);
         var copyGas = ((ulong)lengthInt + 31) / 32 * 3;
 
@@ -161,7 +153,6 @@ public sealed class OpcodeExtCodeCopy : IOpcode
             var remaining = Math.Min(lengthInt, code.Length - offsetInt);
             Array.Copy(code, offsetInt, data, 0, remaining);
         }
-
         context.Memory.Store(destInt, data);
 
         return (ExecutionResult.Success(addressGas + expansionGas + copyGas), context.ProgramCounter + 1);
@@ -347,22 +338,18 @@ public sealed class OpcodeExtCodeHash : IOpcode
     public byte Code => 0x3F;
     public string Name => "EXTCODEHASH";
 
-    private const ulong WarmCost = 100;
-    private const ulong ColdCost = 2600;
-
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         if (!context.Stack.TryPop(out var addr))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
-        var isWarm = context.Access.TouchAddress(address);
-        var gasCost = isWarm ? WarmCost : ColdCost;
+        var rules   = context.Block.Rules;
+        bool isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(address) : true;
+        var gasCost = rules.ExtCodeHashCost(isWarm);
         
         if (!await context.GlobalState.AccountExistsAsync(address, ct))
-        {
             context.Stack.TryPush(0);
-        }
         else
         {
             var code = await context.GlobalState.GetCodeAsync(address, ct);

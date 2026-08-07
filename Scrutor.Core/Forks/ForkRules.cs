@@ -46,6 +46,11 @@ public abstract class ForkRules : IForkRules
     public virtual ulong CalldataZeroByteCost       => 4;   // unchanged all forks
     public virtual ulong CalldataNonZeroByteCost    => 68;  // EIP-2028 (Istanbul) drops to 16
 
+    // External account/code opcode gas
+    // Frontier: BALANCE/EXTCODESIZE/EXTCODECOPY = 20 flat (no warm/cold)
+    public virtual ulong ExtAccountCost(bool isWarm)  => 20;
+    public virtual ulong ExtCodeHashCost(bool isWarm) => 20; // not available pre-Constantinople, but safe default
+
     // Opcode availability
     public virtual bool HasDelegateCall             => false;
     public virtual bool HasRevert                   => false;
@@ -97,6 +102,9 @@ public class TangerineWhistleRules : HomesteadRules
     public static new readonly TangerineWhistleRules Instance = new();
     public override Fork Fork => Fork.TangerineWhistle;
     public override ulong SloadCost(bool isWarm) => 200;
+    // EIP-150: BALANCE/EXTCODESIZE/EXTCODECOPY repriced from 20 → 700
+    public override ulong ExtAccountCost(bool isWarm) => 700;
+    public override ulong ExtCodeHashCost(bool isWarm) => 700;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -136,6 +144,8 @@ public class ConstantinopleRules : ByzantiumRules
     public override bool HasCreate2      => true;
     public override bool HasBitwiseShift => true;
     public override bool HasExtCodeHash  => true;
+    // EIP-1052: EXTCODEHASH added at 400 gas (Istanbul later raises to 700)
+    public override ulong ExtCodeHashCost(bool isWarm) => 400;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -155,6 +165,8 @@ public class IstanbulRules : ConstantinopleRules
     public override ulong CalldataNonZeroByteCost => 16; // EIP-2028
     public override bool  HasEip2200Reentrancy   => true;
     public override int   PrecompileCount        => 9;   // +BLAKE2F (0x09)
+    // EIP-1884: BALANCE/EXTCODESIZE/EXTCODECOPY repriced 700 (already inherited), EXTCODEHASH 700
+    public override ulong ExtCodeHashCost(bool isWarm) => 700;
 
     // EIP-2200 tri-state SSTORE metering (no warm/cold yet — Berlin adds that)
     public override (ulong cost, long refundDelta) SstoreBaseCost(
@@ -200,6 +212,9 @@ public class BerlinRules : IstanbulRules
     public override bool  HasEip2929WarmCold     => true;
     public override bool  HasEip2930AccessLists   => true;
     public override ulong SloadCost(bool isWarm)  => isWarm ? 100UL : 2_100UL;
+    // EIP-2929: BALANCE/EXTCODESIZE/EXTCODECOPY/EXTCODEHASH use warm=100/cold=2600
+    public override ulong ExtAccountCost(bool isWarm)  => isWarm ? 100UL : 2_600UL;
+    public override ulong ExtCodeHashCost(bool isWarm) => isWarm ? 100UL : 2_600UL;
 
     // Berlin SSTORE: EIP-2200 base costs adjusted for warm/cold world
     // NOOP=100 (warm), RESET=2900 (=COLD_WRITE-COLD_READ), SET=20000 unchanged

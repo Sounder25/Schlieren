@@ -23,6 +23,16 @@ public static class Precompiles
         return id >= 1 && id <= rules.PrecompileCount;
     }
 
+    /// <summary>Returns true when <paramref name="address"/> id is in [1, precompileCount].</summary>
+    public static bool IsPrecompile(Address address, int precompileCount)
+    {
+        var bytes = address.Bytes;
+        for (int i = 0; i < 19; i++)
+            if (bytes[i] != 0) return false;
+        var id = bytes[19];
+        return id >= 1 && id <= precompileCount;
+    }
+
     /// <summary>Legacy overload — kept for call sites not yet migrated.</summary>
     public static bool IsPrecompile(Address address, bool kzgEnabled = true, bool blsEnabled = false)
     {
@@ -34,6 +44,22 @@ public static class Precompiles
         if (id == 10) return kzgEnabled;
         if (id is >= 0x0b and <= 0x13) return blsEnabled;
         return false;
+    }
+
+    public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, int precompileCount)
+    {
+        var id = address.Bytes[19];
+        if (id < 1 || id > precompileCount) return (Array.Empty<byte>(), 0);
+        bool kzgEnabled = precompileCount >= 10;
+        bool blsEnabled = precompileCount >= 0x0b;
+        return Execute(address, input, gasLimit, kzgEnabled, blsEnabled);
+    }
+
+    public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, int precompileCount)
+    {
+        var (output, gasUsed) = Execute(address, input, gasLimit, precompileCount);
+        if (output == null) return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
+        return ExecutionResult.Success(gasUsed, output);
     }
 
     public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, bool kzgEnabled = true, bool blsEnabled = false)

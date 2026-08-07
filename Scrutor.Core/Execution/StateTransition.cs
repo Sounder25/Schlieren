@@ -60,22 +60,20 @@ public sealed class StateTransition : IStateTransition
 
         if (tx.Authorization != TransactionAuthorization.Internal)
         {
-            // EIP-3860: reject contract-creating transactions whose initcode exceeds
-            // 2 × MAX_CODE_SIZE (49152 bytes). This is a transaction-validity rule —
-            // the tx is never executed and produces no state change.
-            if (!tx.To.HasValue && tx.Data.Length > 2 * 24576)
+            // EIP-3860 (Shanghai+): reject contract-creating transactions whose initcode exceeds
+            // 2 × MAX_CODE_SIZE (49152 bytes). Pre-Shanghai: no limit.
+            if (!tx.To.HasValue && block.Rules.HasEip3860InitcodeLimit && tx.Data.Length > 2 * 24576)
                 return ExecutionResult.Failure(EvmError.InternalError, 0);
 
             // [AI-EDIT 2026-01-10] Intrinsic gas must be charged before EVM execution.
             // Yellow Paper §6.2 / EIP-2930: base 21000 + calldata bytes + access-list entries.
-            intrinsicGas = IntrinsicGas.Compute(tx);
+            intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
             
             if (tx.GasLimit < intrinsicGas)
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
 
-            // EIP-7623 (Prague): transaction validity — gasLimit must cover the calldata token floor.
-            // If gasLimit < floor = TX_BASE + tokens×10, the tx is intrinsically invalid.
-            if (block.Eip7623Enabled)
+            // EIP-7623 (Prague+): transaction validity — gasLimit must cover the calldata token floor.
+            if (block.Rules.HasEip7623CalldataFloor)
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
                 if (tx.GasLimit < tokenFloor)
@@ -242,24 +240,12 @@ public sealed class StateTransition : IStateTransition
             accessTracker.WarmAddress(tx.From);
             if (tx.To.HasValue) accessTracker.WarmAddress(tx.To.Value);
             if (topLevelCreation.HasValue) accessTracker.WarmAddress(topLevelCreation.Value);
-            // EIP-2929: precompile addresses 0x01–0x09 are pre-warmed.
-            // EIP-4844: precompile 0x0A is added and pre-warmed.
-            // EIP-2537: BLS12-381 precompiles 0x0b–0x11 pre-warmed when Prague-enabled.
-            int precompileCount = block.BlobHashEnabled ? 10 : 9;
-            for (int i = 1; i <= precompileCount; i++)
+            // EIP-2929: pre-warm all active precompile addresses + EIP-3651 coinbase
+            for (int i = 1; i <= block.Rules.PrecompileCount; i++)
             {
                 var precompileBytes = new byte[20];
                 precompileBytes[19] = (byte)i;
                 accessTracker.WarmAddress(new Address(precompileBytes));
-            }
-            if (block.Eip7702Enabled) // Prague = BLS also active
-            {
-                for (int i = 0x0b; i <= 0x11; i++)
-                {
-                    var precompileBytes = new byte[20];
-                    precompileBytes[19] = (byte)i;
-                    accessTracker.WarmAddress(new Address(precompileBytes));
-                }
             }
             // EIP-3651: pre-warm coinbase address so COINBASE access is always warm.
             if (!block.Coinbase.Equals(Address.Zero))
@@ -274,7 +260,7 @@ public sealed class StateTransition : IStateTransition
 
         // EIP-7702 authorization processing
         ulong authRefund = 0;
-        if (block.Eip7702Enabled && tx.TxType == 4 && tx.AuthorizationList.Count > 0)
+        if (block.Rules.HasEip7702SetCode && tx.TxType == 4 && tx.AuthorizationList.Count > 0)
         {
             foreach (var auth in tx.AuthorizationList)
             {
@@ -365,9 +351,8 @@ public sealed class StateTransition : IStateTransition
             else
             {
                 // EIP-3541 (London+): reject code whose first byte is 0xEF.
-                // InvalidContractPrefix is an ExceptionalHalt in EELS — ALL remaining
-                // execution gas is consumed (none returned to the sender).
-                if (result.ReturnData.Length > 0 && result.ReturnData[0] == 0xEF)
+                // InvalidContractPrefix is an ExceptionalHalt — ALL remaining gas consumed.
+                if (block.Rules.HasEip3541EfPrefix && result.ReturnData.Length > 0 && result.ReturnData[0] == 0xEF)
                 {
                     result = ExecutionResult.Failure(EvmError.InvalidOpcode, executionGasLimit);
                 }
@@ -423,18 +408,18 @@ public sealed class StateTransition : IStateTransition
             var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
             var totalGasUsed = intrinsicGas + evmGasUsed;
 
-            // EIP-3529: apply capped gas refund. Max refund = totalGasUsed / 5.
+            // EIP-3529 (London+): apply capped gas refund. Pre-London: max refund = gasUsed/2.
             if (result.GasRefundCounter > 0)
             {
-                var maxRefund = (long)(totalGasUsed / 5);
+                var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
                 var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
                 totalGasUsed -= (ulong)cappedRefund;
             }
 
-            // EIP-7623 (Prague): enforce calldata token floor.
+            // EIP-7623 (Prague+): enforce calldata token floor.
             // If actual gas consumed is below floor = TX_BASE + tokens×10, charge the floor instead.
             // Floor applies after EIP-3529 refund to prevent double-benefit.
-            if (block.Eip7623Enabled && tx.Authorization != TransactionAuthorization.Internal)
+            if (block.Rules.HasEip7623CalldataFloor && tx.Authorization != TransactionAuthorization.Internal)
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
                 if (totalGasUsed < tokenFloor)
@@ -559,9 +544,9 @@ public sealed class StateTransition : IStateTransition
 
         if (tx.Authorization != TransactionAuthorization.Internal)
         {
-            intrinsicGas = IntrinsicGas.Compute(tx);
+            intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
             if (tx.GasLimit < intrinsicGas) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
-            if (block.Eip7623Enabled)
+            if (block.Rules.HasEip7623CalldataFloor)
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
                 if (tx.GasLimit < tokenFloor) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
@@ -635,8 +620,8 @@ public sealed class StateTransition : IStateTransition
                 var maxRefund = (long)(totalGasUsed / 5);
                 totalGasUsed -= (ulong)Math.Min(result.GasRefundCounter, maxRefund);
             }
-            // EIP-7623 (Prague): enforce calldata token floor.
-            if (block.Eip7623Enabled && tx.Authorization != TransactionAuthorization.Internal)
+            // EIP-7623 (Prague+): enforce calldata token floor.
+            if (block.Rules.HasEip7623CalldataFloor && tx.Authorization != TransactionAuthorization.Internal)
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
                 if (totalGasUsed < tokenFloor)
@@ -765,9 +750,9 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
         // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).
-        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.BlobHashEnabled, block.Eip7702Enabled))
+        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.Rules.PrecompileCount))
         {
-            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit, block.BlobHashEnabled, block.Eip7702Enabled);
+            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, tx.GasLimit, block.Rules.PrecompileCount);
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change
@@ -810,7 +795,7 @@ public sealed class StateTransition : IStateTransition
             // resolve the actual code from the delegate address.
             // The CALLCODE/DELEGATECALL opcode already charged the access cost for the delegate
             // via access_delegation() equivalent in SystemOpcodes.cs.
-            if (block.Eip7702Enabled && code.Length == 23 &&
+            if (block.Rules.HasEip7702SetCode && code.Length == 23 &&
                 code[0] == 0xEF && code[1] == 0x01 && code[2] == 0x00)
             {
                 var delegateAddr = new Address(code[3..]);
@@ -832,7 +817,7 @@ public sealed class StateTransition : IStateTransition
             // Per EELS process_message_call(): top-level delegation resolution is free —
             // just warm the delegate address and redirect code. Sub-call delegation is
             // handled by the CALL opcode's own warm/cold account gas charge.
-            if (block.Eip7702Enabled && code.Length == 23 &&
+            if (block.Rules.HasEip7702SetCode && code.Length == 23 &&
                 code[0] == 0xEF && code[1] == 0x01 && code[2] == 0x00)
             {
                 var delegateAddr = new Address(code[3..]);

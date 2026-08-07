@@ -52,17 +52,15 @@ public sealed class OpcodeBalance : IOpcode
     public byte Code => 0x31;
     public string Name => "BALANCE";
 
-    private const ulong WarmCost = 100;
-    private const ulong ColdCost = 2600;
-
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
         if (!context.Stack.TryPop(out var addr))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
         var address = ToAddress(addr);
-        var isWarm = context.Access.TouchAddress(address);
-        var gasCost = isWarm ? WarmCost : ColdCost;
+        var rules   = context.Block.Rules;
+        bool isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(address) : true;
+        var gasCost = rules.ExtAccountCost(isWarm);
 
         var balance = await context.GlobalState.GetBalanceAsync(address, ct);
         if (!context.Stack.TryPush(balance))
@@ -134,7 +132,7 @@ public sealed class OpcodeBlobHash : IOpcode
         ExecutionContext context,
         CancellationToken ct = default)
     {
-        if (!context.Block.BlobHashEnabled)
+        if (!context.Block.Rules.HasBlobHash)
         {
             return ValueTask.FromResult(
                 (ExecutionResult.Failure(EvmError.InvalidOpcode),
