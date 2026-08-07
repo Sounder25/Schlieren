@@ -484,9 +484,14 @@ public sealed class StateTransition : IStateTransition
         if (commit)
         {
             txOverlay.Commit();
-            foreach (var addr in txOverlay.GetAccountsMarkedForDeletion())
+            // Only the top-level transaction should finalize account deletions.
+            // Internal sub-calls propagate deletion marks via Commit() → parent.MarkForDeletion()
+            // and must NOT call DeleteAccount here — doing so would immediately remove the account
+            // from GlobalState while the parent CREATE opcode still needs to reference or push it.
+            if (tx.Authorization != TransactionAuthorization.Internal)
             {
-                state.DeleteAccount(addr);
+                foreach (var addr in txOverlay.GetAccountsMarkedForDeletion())
+                    state.DeleteAccount(addr);
             }
         }
 

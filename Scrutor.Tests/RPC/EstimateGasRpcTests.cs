@@ -70,8 +70,10 @@ public class EstimateGasRpcTests
             JsonSerializer.Deserialize<JsonElement>($"{{\"from\":\"0x2000000000000000000000000000000000000002\",\"to\":\"{to}\",\"data\":\"0x0100\"}}")
         });
 
-        // 21000 + 16 (non-zero) + 4 (zero) = 21020
-        Assert.Equal("0x521c", result);
+        // data = 0x0100: 1 non-zero byte + 1 zero byte
+        // Standard intrinsic: 21000 + 16 + 4 = 21020
+        // EIP-7623 (Prague): tokens = 1×4 + 1×1 = 5; floor = 21000 + 5×10 = 21050 > 21020 → floor wins
+        Assert.Equal("0x523a", result);
     }
 
     [Fact]

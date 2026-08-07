@@ -927,7 +927,10 @@ public sealed class OpcodeSelfDestruct : IOpcode
         var createdInTransaction =
             context.GlobalState.WasCreatedInTransaction(context.ContractAddress);
 
-        if (balance > 0 && !beneficiary.Equals(context.ContractAddress))
+        // EELS: always transfer balance from originator to beneficiary,
+        // even when balance=0 (this "touches" the beneficiary, creating it).
+        // Self-destruct to self: balance stays (zero is fine).
+        if (!beneficiary.Equals(context.ContractAddress))
         {
             var benBalance = await context.GlobalState.GetBalanceAsync(beneficiary, ct);
             context.GlobalState.SetBalance(beneficiary, benBalance + balance);
@@ -935,8 +938,7 @@ public sealed class OpcodeSelfDestruct : IOpcode
         }
         else if (balance > 0 && createdInTransaction)
         {
-            // EIP-6780 burns the balance when a same-transaction creation
-            // selfdestructs to itself.
+            // EIP-6780: same-transaction creation selfdestructs to itself → burn balance.
             context.GlobalState.SetBalance(context.ContractAddress, 0);
         }
 

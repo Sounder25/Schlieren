@@ -88,20 +88,26 @@ public sealed class BlobHashOpcodeTests
         var root = Address.FromHex(
             "0x0000000000000000000000000000000000000020");
         var child = Address.FromHex(
-            "0x0000000000000000000000000000000000000010");
+            "0x0000000000000000000000000000000000000100"); // 0x100 — beyond all precompile ranges
         var observed = new List<IReadOnlyList<byte[]>>();
         state.SetCode(root,
         [
-            0xaa,
-            0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00,
-            0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xf1,
-            0x00
+            // Root contract: fire custom opcode, then CALL child with plenty of gas
+            0xaa,                                       // CaptureBlobHashesOpcode
+            0x60, 0x00, 0x60, 0x00, 0x60, 0x00,        // PUSH1 0 (retLen/retOff/argsLen)
+            0x60, 0x00,                                 // PUSH1 0 (argsOffset)
+            0x60, 0x00,                                 // PUSH1 0 (value)
+            0x61, 0x01, 0x00,                           // PUSH2 0x0100 (child address = 0x100)
+            0x61, 0xFF, 0xFF,                           // PUSH2 0xFFFF (gas — enough for Prague cold CALL)
+            0xf1,                                       // CALL
+            0x00                                        // STOP
         ]);
-        state.SetCode(child, [0xaa, 0x00]);
+        state.SetCode(child, [0xaa, 0x00]);             // CaptureBlobHashesOpcode + STOP
         var machine = new EvmMachine(
         [
             new CaptureBlobHashesOpcode(observed),
             new OpcodePush1(),
+            new OpcodePush2(),
             new OpcodeCall(),
             new OpcodeStop()
         ]);
@@ -135,7 +141,12 @@ public sealed class BlobHashOpcodeTests
         bool blobHashEnabled = true) => new()
     {
         BlobVersionedHashes = hashes,
-        Block = new BlockContext { BlobHashEnabled = blobHashEnabled }
+        Block = new BlockContext
+        {
+            Rules = blobHashEnabled
+                ? Scrutor.Core.Forks.ForkRulesFactory.Latest
+                : Scrutor.Core.Forks.ShanghaiRules.Instance   // pre-Cancun: no BLOBHASH
+        }
     };
 
     private static async ValueTask<(ExecutionResult Result, int NextPc)>
