@@ -108,6 +108,22 @@ for i, (s, g) in enumerate(zip(scrutor, geth)):
         break
 ```
 
+## Escalation: EELS Python Reference Tracer
+When the Scrutor structLog looks correct step-by-step but the delta accumulates
+across many nested frames (e.g. a recursive CALL loop), use the EELS Python
+reference tracer to get ground-truth gas at every opcode:
+
+```bash
+# Requires: pip install eth-keys  (in C:\projects\execution-specs env)
+cd C:\projects\execution-specs
+python C:\projects\Scrutor\tools\eels_loop_trace.py \
+  --fixture <path/to/fixture.json> \
+  --out TestResults/eels_trace.jsonl
+```
+
+Then align both traces by `(op, pc, depth)` anchor points and find the first
+step where `gas` values diverge. That step's opcode is the root cause.
+
 ## Workflow Integration
 ```
 eels-taxonomy-drill          ←── Find which category fails and what delta
@@ -115,6 +131,8 @@ eels-taxonomy-drill          ←── Find which category fails and what delta
 eels-fixture-diff            ←── Confirm exact mismatch for one case
        ↓
 eels-single-case-tracer      ←── Get structLog, find diverging opcode
+       ↓
+EELS Python reference tracer ←── Ground-truth trace when delta spans many frames
        ↓
 Fix in Scrutor.Core          ←── Edit gas schedule or opcode implementation
        ↓
