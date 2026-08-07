@@ -281,15 +281,18 @@ public sealed class StateTransition : IStateTransition
                 if (auth.ChainId != 0 && auth.ChainId != block.ChainId)
                     continue;
 
-                // Always warm the signer address on first encounter (EELS validate_authorization:
-                // message.accessed_addresses.add(authority) runs even before nonce/code checks).
-                // This makes subsequent CALL to the signer charge WARM_ACCESS (100) not cold (2600).
-                accessTracker?.WarmAddress(auth.Signer);
+                // EELS validate_authorization: nonce >= U64.MAX_VALUE → return None (before warm).
+                // When the fixture auth.nonce was ulong.MaxValue at load time, skip without warming.
+                if (auth.Nonce == ulong.MaxValue)
+                    continue;
 
-                // EELS recover_authority: invalid signature (bad r/s/v) → return None → skip.
-                // The authority is still warmed above, but no state mutation occurs.
+                // EELS recover_authority: invalid signature (bad r/s/v) → return None (before warm).
                 if (!auth.IsValid)
                     continue;
+
+                // EELS: message.accessed_addresses.add(authority) — warm AFTER all early-exit checks.
+                // This makes subsequent CALL to the signer charge WARM_ACCESS (100) not cold (2600).
+                accessTracker?.WarmAddress(auth.Signer);
 
                 var signerNonce = await txOverlay.GetNonceAsync(auth.Signer, ct);
                 if (signerNonce != auth.Nonce || signerNonce == ulong.MaxValue)
@@ -362,9 +365,11 @@ public sealed class StateTransition : IStateTransition
             else
             {
                 // EIP-3541 (London+): reject code whose first byte is 0xEF.
+                // InvalidContractPrefix is an ExceptionalHalt in EELS — ALL remaining
+                // execution gas is consumed (none returned to the sender).
                 if (result.ReturnData.Length > 0 && result.ReturnData[0] == 0xEF)
                 {
-                    result = ExecutionResult.Failure(EvmError.InvalidOpcode, result.GasUsed);
+                    result = ExecutionResult.Failure(EvmError.InvalidOpcode, executionGasLimit);
                 }
                 else
                 {
