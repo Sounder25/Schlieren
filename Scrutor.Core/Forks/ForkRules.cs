@@ -54,6 +54,9 @@ public abstract class ForkRules : IForkRules
     // CALL base cost: Frontier/Homestead = 40 flat
     public virtual ulong CallBaseCost => 40;
 
+    // Frontier/Homestead: parent pays the gas arg it forwards (pre-EIP-150 semantics)
+    public virtual bool HasPreEip150CallGas => true;
+
     // Opcode availability
     public virtual bool HasDelegateCall             => false;
     public virtual bool HasRevert                   => false;
@@ -116,6 +119,8 @@ public class TangerineWhistleRules : HomesteadRules
     public override ulong ExtCodeHashCost(bool isWarm) => 700;
     // EIP-150: OPCODE_CALL_BASE repriced 40 → 700
     public override ulong CallBaseCost => 700;
+    // EIP-150: parent no longer pays the gas arg; 63/64 rule replaces old semantics
+    public override bool HasPreEip150CallGas => false;
     // EIP-150: SELFDESTRUCT repriced from 0 → 5000 base + 25000 new-account
     public override ulong SelfdestructBaseCost       => 5_000;
     public override ulong SelfdestructNewAccountCost => 25_000;

@@ -75,6 +75,14 @@ public interface IForkRules
     /// </summary>
     ulong CallBaseCost { get; }
 
+    /// <summary>
+    /// True for Frontier/Homestead: CALL charges the gas argument to the parent
+    /// (parent pays CALL_BASE + gas_arg + extras; child receives gas_arg).
+    /// False from TangerineWhistle onwards (EIP-150 changed semantics: parent pays
+    /// access costs only; child receives min(gas_arg, 63/64 * remaining)).
+    /// </summary>
+    bool HasPreEip150CallGas { get; }
+
     // ── Opcodes ──────────────────────────────────────────────────────────────
     bool HasDelegateCall          { get; }  // Homestead+
     bool HasRevert                { get; }  // Byzantium+

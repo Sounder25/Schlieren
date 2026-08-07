@@ -233,6 +233,96 @@ public sealed class OpcodeCall : IOpcode
 
         ulong extraCost = accessCost + valueTransferCost + newAccountCost;
 
+        // ── Pre-EIP-150 (Frontier/Homestead) ────────────────────────────────
+        // Parent pays CALL_BASE + gas_arg + new_account_if_nonexistent + 9000_if_value.
+        // Child receives exactly gas_arg (+ stipend).  No 63/64 rule.
+        // New account cost applies when account doesn't exist (regardless of value).
+        if (rules.HasPreEip150CallGas)
+        {
+            // In Frontier the new-account surcharge is NOT gated on value > 0.
+            // Re-compute: account non-existence alone triggers the 25000 cost.
+            if (value.IsZero)
+            {
+                // Check existence regardless (Frontier yellow-paper §9.2)
+                var calleeBalance2 = await context.GlobalState.GetBalanceAsync(toAddress, ct);
+                var calleeCode2    = await context.GlobalState.GetCodeAsync(toAddress, ct);
+                var calleeNonce2   = await context.GlobalState.GetNonceAsync(toAddress, ct);
+                bool exists = calleeBalance2 > 0 || calleeCode2.Length > 0 || calleeNonce2 > 0;
+                if (!exists) newAccountCost = 25_000;
+            }
+
+            var requestedGasFrontier = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+            // Parent pays: base + gas_arg + value_cost + new_account_cost (no ExtAccountCost)
+            // In Frontier CallBaseCost=40 and ExtAccountCost is NOT part of CALL overhead.
+            ulong frontierCost = rules.CallBaseCost + requestedGasFrontier + valueTransferCost + newAccountCost;
+            context.ConsumeGas(frontierCost);
+            var stipendFrontier = value.IsZero ? 0UL : 2300UL;
+            var childGasLimitFrontier = requestedGasFrontier + stipendFrontier;
+
+            // Balance check
+            if (!value.IsZero)
+            {
+                var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                if (callerBalance < value)
+                {
+                    context.RefundGas(requestedGasFrontier + stipendFrontier);
+                    context.Stack.TryPush(0);
+                    return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+                }
+            }
+
+            ExecutionResult frontierResult;
+            if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
+            {
+                frontierResult = Precompiles.ExecuteAsResult(toAddress, input, childGasLimitFrontier, context.Block.Rules);
+                if (frontierResult.IsSuccess && value > 0)
+                {
+                    var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    if (callerBalance < value)
+                    {
+                        frontierResult = ExecutionResult.Failure(EvmError.InsufficientFunds);
+                    }
+                    else
+                    {
+                        var benBalance = await context.GlobalState.GetBalanceAsync(toAddress, ct);
+                        context.GlobalState.SetBalance(context.ContractAddress, callerBalance - value);
+                        context.GlobalState.SetBalance(toAddress, benBalance + value);
+                    }
+                }
+            }
+            else if (context.SubCall == null)
+            {
+                return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
+            }
+            else
+            {
+                var tx = new Transaction
+                {
+                    From = context.ContractAddress,
+                    To = toAddress,
+                    Value = value,
+                    Data = input,
+                    GasLimit = childGasLimitFrontier,
+                    GasPrice = context.GasPrice,
+                    Authorization = TransactionAuthorization.Internal,
+                    EnableTracing = context.CaptureTrace
+                };
+                frontierResult = await context.SubCall(tx, context.IsStatic, null, null);
+                if (frontierResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(frontierResult.TraceSteps);
+            }
+
+            var childUsedFrontier = frontierResult.GasUsed > childGasLimitFrontier ? childGasLimitFrontier : frontierResult.GasUsed;
+            var childRemainingFrontier = childGasLimitFrontier > childUsedFrontier ? childGasLimitFrontier - childUsedFrontier : 0UL;
+            context.RefundGas(childRemainingFrontier);
+            if (frontierResult.IsSuccess) context.GasRefundCounter += frontierResult.GasRefundCounter;
+            context.LastReturnData = frontierResult.ReturnData;
+            var copyLenF = Math.Min(retLengthInt, frontierResult.ReturnData.Length);
+            if (copyLenF > 0) context.Memory.Store(retOffsetInt, frontierResult.ReturnData[..copyLenF]);
+            context.Stack.TryPush(frontierResult.IsSuccess ? 1 : 0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // ── Post-EIP-150 (TangerineWhistle+): 63/64 gas forwarding ──────────
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas (after extra costs).
         // EELS: if gas_left < extra_gas + memory_cost → OOG path (charge_gas will throw).
