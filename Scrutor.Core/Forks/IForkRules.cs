@@ -91,6 +91,7 @@ public interface IForkRules
     bool HasBlobHash              { get; }  // Cancun+
     bool HasTloadTstore           { get; }  // Cancun+
     bool HasEip6780SelfdestructRestriction { get; }  // Cancun+: SELFDESTRUCT only deletes if created in same tx
+    bool HasEip161ContractNonce            { get; }  // SpuriousDragon+: new contracts start at nonce 1
 
     // ── Precompiles ──────────────────────────────────────────────────────────
     /// <summary>

@@ -102,8 +102,8 @@ public sealed class OpcodeCreate : IOpcode
             }
             else
             {
-                // EIP-3541: reject code starting with 0xEF (deployed as EF-prefixed → invalid).
-                if (runtimeCode.Length > 0 && runtimeCode[0] == 0xEF)
+                // EIP-3541 (London+): reject code starting with 0xEF (deployed as EF-prefixed → invalid).
+                if (context.Block.Rules.HasEip3541EfPrefix && runtimeCode.Length > 0 && runtimeCode[0] == 0xEF)
                 {
                     // Revert the value that was transferred to the new account during creation.
                     var newAccBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
@@ -454,16 +454,15 @@ public sealed class OpcodeCreate2 : IOpcode
             }
             else
             {
-                // EIP-3541: reject code starting with 0xEF (invalid contract prefix).
-                if (runtimeCode.Length > 0 && runtimeCode[0] == 0xEF)
+                // EIP-3541 (London+): reject code starting with 0xEF (invalid contract prefix).
+                if (context.Block.Rules.HasEip3541EfPrefix && runtimeCode.Length > 0 && runtimeCode[0] == 0xEF)
                 {
-                    // Revert value transferred to the new account during creation.
-                    var newAccBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
-                    if (newAccBal > 0)
+                    var newAccBal2 = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                    if (newAccBal2 > 0)
                     {
                         var callerBal = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
                         context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
-                        context.GlobalState.SetBalance(context.ContractAddress, callerBal + newAccBal);
+                        context.GlobalState.SetBalance(context.ContractAddress, callerBal + newAccBal2);
                     }
                     // Zero out nonce and code in overlay buffer to prevent them committing.
                     context.GlobalState.SetNonce(newAddress, 0);

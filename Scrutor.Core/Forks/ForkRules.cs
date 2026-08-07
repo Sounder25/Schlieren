@@ -70,6 +70,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasBlobHash                 => false;
     public virtual bool HasTloadTstore              => false;
     public virtual bool HasEip6780SelfdestructRestriction => false; // Pre-Cancun: always delete
+    public virtual bool HasEip161ContractNonce            => false; // Pre-SpuriousDragon: new contracts nonce=0
 
     // Precompiles: Frontier = 0x01–0x04
     public virtual int PrecompileCount => 4;
@@ -122,6 +123,7 @@ public class SpuriousDragonRules : TangerineWhistleRules
     public override Fork Fork => Fork.SpuriousDragon;
     public override bool HasEip161EmptyAccountDeletion => true;
     public override bool HasEip155ReplayProtection      => true;
+    public override bool HasEip161ContractNonce         => true; // EIP-161: new contracts start at nonce 1
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

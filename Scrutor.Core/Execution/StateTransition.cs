@@ -792,10 +792,10 @@ public sealed class StateTransition : IStateTransition
             code = tx.Data;
             contractAddress = creationAddress.Value;
 
-            // EIP-161: a newly created account starts at nonce 1 before its
-            // initialization code executes. Keep this mutation in the creation
-            // frame overlay so a failed creation rolls it back with the frame.
-            overlay.SetNonce(contractAddress, 1);
+            // EIP-161 (Spurious Dragon+): a newly created contract starts at nonce 1.
+            // Pre-Spurious Dragon (Frontier/Homestead/Tangerine): new contracts start at nonce 0.
+            if (block.Rules.HasEip161ContractNonce)
+                overlay.SetNonce(contractAddress, 1);
             
             // EIP-6780: Mark the account as created in this transaction
             overlay.MarkCreated(contractAddress);
