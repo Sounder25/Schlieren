@@ -141,6 +141,17 @@ public sealed class StateTransition : IStateTransition
                     return ExecutionResult.Failure(EvmError.InsufficientFunds);
             }
 
+            // EIP-7702: type-4 (SetCode) structural validity — EELS apply_transaction
+            // TransactionTypeContractCreationError: type-4 must have a target (not CREATE).
+            // EmptyAuthorizationListError: type-4 must have at least one authorization.
+            if (tx.TxType == 4)
+            {
+                if (!tx.To.HasValue)
+                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                if (tx.AuthorizationList.Count == 0)
+                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            }
+
             // Upfront balance sufficiency
             senderBalanceForDeduction = await state.GetBalanceAsync(tx.From, ct);
             maxGasCost = new BigInteger(tx.GasLimit) * (tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice);
@@ -155,6 +166,38 @@ public sealed class StateTransition : IStateTransition
         // recursive sub-calls that get their gas budget from the parent frame.
         if (!isInternal && !isSimulation)
         {
+            // EIP-7702: type-4 structural validity for Impersonated txs (Signed path checked above).
+            // EELS: TransactionTypeContractCreationError — type-4 must have a target.
+            // EELS: EmptyAuthorizationListError — type-4 must have at least one authorization
+            //       (counts all entries including invalid-signature ones per the wire format).
+            if (isImpersonated && tx.TxType == 4)
+            {
+                if (!tx.To.HasValue)
+                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                if (tx.AuthorizationList.Count == 0)
+                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            }
+
+            // EIP-1559 fee validations for Impersonated txs (Signed path checked above).
+            // EELS: InsufficientMaxFeePerGasError, PriorityFeeGreaterThanMaxFeeError.
+            if (isImpersonated && tx.TxType >= 2)
+            {
+                if (tx.MaxFeePerGas < baseFeePerGas)
+                    return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                if (tx.MaxPriorityFeePerGas > tx.MaxFeePerGas)
+                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            }
+
+            // EELS: InvalidSenderError — sender must be an EOA (empty code or delegation designator).
+            // Applies to ALL externally-submitted txs.
+            {
+                var senderCode = await state.GetCodeAsync(tx.From, ct);
+                bool isDelegation = senderCode.Length == 23 &&
+                                    senderCode[0] == 0xEF && senderCode[1] == 0x01 && senderCode[2] == 0x00;
+                if (senderCode.Length > 0 && !isDelegation)
+                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            }
+
             // For Impersonated txs we did not pre-fetch nonce/balance above,
             // so fetch them now (only one extra await when impersonated).
             if (isImpersonated)
@@ -243,6 +286,11 @@ public sealed class StateTransition : IStateTransition
                 // This makes subsequent CALL to the signer charge WARM_ACCESS (100) not cold (2600).
                 accessTracker?.WarmAddress(auth.Signer);
 
+                // EELS recover_authority: invalid signature (bad r/s/v) → return None → skip.
+                // The authority is still warmed above, but no state mutation occurs.
+                if (!auth.IsValid)
+                    continue;
+
                 var signerNonce = await txOverlay.GetNonceAsync(auth.Signer, ct);
                 if (signerNonce != auth.Nonce || signerNonce == ulong.MaxValue)
                     continue;
@@ -313,25 +361,33 @@ public sealed class StateTransition : IStateTransition
             }
             else
             {
-                // Code deposit: 200 gas per byte (Yellow Paper).
-                var depositGas = 200UL * (ulong)result.ReturnData.Length;
-                var remaining = executionGasLimit > result.GasUsed
-                    ? executionGasLimit - result.GasUsed
-                    : 0UL;
-                if (depositGas > remaining)
+                // EIP-3541 (London+): reject code whose first byte is 0xEF.
+                if (result.ReturnData.Length > 0 && result.ReturnData[0] == 0xEF)
                 {
-                    result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
+                    result = ExecutionResult.Failure(EvmError.InvalidOpcode, result.GasUsed);
                 }
                 else
                 {
-                    if (commit)
-                        txOverlay.SetCode(topLevelCreation.Value, result.ReturnData);
+                    // Code deposit: 200 gas per byte (Yellow Paper).
+                    var depositGas = 200UL * (ulong)result.ReturnData.Length;
+                    var remaining = executionGasLimit > result.GasUsed
+                        ? executionGasLimit - result.GasUsed
+                        : 0UL;
+                    if (depositGas > remaining)
+                    {
+                        result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
+                    }
+                    else
+                    {
+                        if (commit)
+                            txOverlay.SetCode(topLevelCreation.Value, result.ReturnData);
 
-                    result = ExecutionResult.Success(
-                        result.GasUsed + depositGas,
-                        result.ReturnData,
-                        result.Logs,
-                        result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
+                        result = ExecutionResult.Success(
+                            result.GasUsed + depositGas,
+                            result.ReturnData,
+                            result.Logs,
+                            result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
+                    }
                 }
             }
         }
@@ -745,6 +801,21 @@ public sealed class StateTransition : IStateTransition
             // CALLCODE/DELEGATECALL: execute external code in current contract context.
             code = await overlay.GetCodeAsync(codeAddress.Value, ct);
             contractAddress = tx.To ?? Address.Zero;
+            // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
+            // resolve the actual code from the delegate address.
+            // The CALLCODE/DELEGATECALL opcode already charged the access cost for the delegate
+            // via access_delegation() equivalent in SystemOpcodes.cs.
+            if (block.Eip7702Enabled && code.Length == 23 &&
+                code[0] == 0xEF && code[1] == 0x01 && code[2] == 0x00)
+            {
+                var delegateAddr = new Address(code[3..]);
+                accessTracker ??= new AccessTracker();
+                // Delegate access was already charged (warm/cold) by the opcode; just mark warm.
+                accessTracker.WarmAddress(delegateAddr);
+                code = await overlay.GetCodeAsync(delegateAddr, ct);
+                // contractAddress stays as tx.To (CALLCODE storage context = caller's address,
+                // DELEGATECALL storage context = current contract address — both set by opcode).
+            }
         }
         else
         {

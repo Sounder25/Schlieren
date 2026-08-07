@@ -824,6 +824,12 @@ public sealed class EelsStateFixtureLoader
             authListNode.ValueKind != JsonValueKind.Array)
             return Array.Empty<Eip7702Authorization>();
 
+        // SECP256K1 constants for EELS recover_authority validation
+        // r must be in (0, N), s must be in (0, N/2], y_parity must be 0 or 1
+        var SECP256K1N = System.Numerics.BigInteger.Parse(
+            "115792089237316195423570985008687907852837564279074904382605163141518161494337");
+        var SECP256K1N_OVER_2 = SECP256K1N / 2;
+
         var list = new List<Eip7702Authorization>();
         foreach (var authNode in authListNode.EnumerateArray())
         {
@@ -849,9 +855,50 @@ public sealed class EelsStateFixtureLoader
                 catch { nonce = ulong.MaxValue; } // ulong.MaxValue → always invalid
             }
 
-            // signer (pre-recovered from the fixture)
-            if (!authNode.TryGetProperty("signer", out var signerNode)) continue;
-            var signer = Address.FromHex(GetJsonText(signerNode));
+            // EELS recover_authority signature validation: check r, s, yParity ranges.
+            // Entries with invalid signatures are included as IsValid=false (the tx still
+            // executes; EELS warms the authority from the pre-recovered address if present,
+            // but does NOT write delegation code or bump nonce).
+            bool sigValid = true;
+            int yParity = -1;
+            if (authNode.TryGetProperty("yParity", out var ypNode) ||
+                authNode.TryGetProperty("v", out ypNode))
+            {
+                try
+                {
+                    var ypVal = EelsHex.ParseUlong(GetJsonText(ypNode));
+                    if (ypVal != 0 && ypVal != 1) sigValid = false;
+                    yParity = (int)ypVal;
+                }
+                catch { sigValid = false; }
+            }
+            if (authNode.TryGetProperty("r", out var rNode))
+            {
+                try
+                {
+                    var rBytes = EelsHex.ParseBytes(GetJsonText(rNode));
+                    var rBig = new System.Numerics.BigInteger(rBytes, isUnsigned: true, isBigEndian: true);
+                    if (rBig <= 0 || rBig >= SECP256K1N) sigValid = false;
+                }
+                catch { sigValid = false; }
+            }
+            if (authNode.TryGetProperty("s", out var sNode))
+            {
+                try
+                {
+                    var sBytes = EelsHex.ParseBytes(GetJsonText(sNode));
+                    var sBig = new System.Numerics.BigInteger(sBytes, isUnsigned: true, isBigEndian: true);
+                    if (sBig <= 0 || sBig > SECP256K1N_OVER_2) sigValid = false;
+                }
+                catch { sigValid = false; }
+            }
+
+            // signer (pre-recovered from the fixture); missing means signature is invalid
+            Address signer = Address.Zero;
+            if (authNode.TryGetProperty("signer", out var signerNode))
+                signer = Address.FromHex(GetJsonText(signerNode));
+            else
+                sigValid = false;
 
             list.Add(new Eip7702Authorization
             {
@@ -859,7 +906,7 @@ public sealed class EelsStateFixtureLoader
                 DelegateAddress = delegateAddress,
                 Nonce           = nonce,
                 Signer          = signer,
-                IsValid         = true,
+                IsValid         = sigValid,
             });
         }
         return list;

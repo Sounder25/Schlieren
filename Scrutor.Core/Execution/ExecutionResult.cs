@@ -16,7 +16,8 @@ public enum EvmError
     NonceTooHigh,
     InsufficientFunds,
     InternalError,
-    StaticModeViolation
+    StaticModeViolation,
+    InvalidTransaction
 }
 
 public readonly record struct ExecutionResult

@@ -102,19 +102,42 @@ public sealed class OpcodeCreate : IOpcode
             }
             else
             {
-                // Deduct code deposit cost from child's remaining gas.
-                childRemaining -= codeDepositCost;
+                // EIP-3541: reject code starting with 0xEF (deployed as EF-prefixed → invalid).
+                if (runtimeCode.Length > 0 && runtimeCode[0] == 0xEF)
+                {
+                    // Revert the value that was transferred to the new account during creation.
+                    var newAccBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                    if (newAccBal > 0)
+                    {
+                        var callerBal = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                        context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                        context.GlobalState.SetBalance(context.ContractAddress, callerBal + newAccBal);
+                    }
+                    // Also undo nonce=1 and code that may have been written to the overlay buffer
+                    // during create-frame setup. DeleteAccount clears GlobalState but not the overlay
+                    // buffer; explicitly zero these out so the buffer doesn't commit them.
+                    context.GlobalState.SetNonce(newAddress, 0);
+                    context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                    context.GlobalState.DeleteAccount(newAddress);
+                    context.Stack.TryPush(0);
+                    // Consume remaining child gas, do not refund.
+                }
+                else
+                {
+                    // Deduct code deposit cost from child's remaining gas.
+                    childRemaining -= codeDepositCost;
 
-                // Install runtime code.
-                context.GlobalState.SetCode(newAddress, runtimeCode);
+                    // Install runtime code.
+                    context.GlobalState.SetCode(newAddress, runtimeCode);
 
-                context.GasRefundCounter += result.GasRefundCounter;
+                    context.GasRefundCounter += result.GasRefundCounter;
 
-                // Refund remaining gas to parent.
-                context.RefundGas(childRemaining);
+                    // Refund remaining gas to parent.
+                    context.RefundGas(childRemaining);
 
-                // Push created address.
-                context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                    // Push created address.
+                    context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                }
             }
         }
         else
@@ -429,19 +452,40 @@ public sealed class OpcodeCreate2 : IOpcode
             }
             else
             {
-                // Deduct code deposit cost from child's remaining gas.
-                childRemaining -= codeDepositCost;
+                // EIP-3541: reject code starting with 0xEF (invalid contract prefix).
+                if (runtimeCode.Length > 0 && runtimeCode[0] == 0xEF)
+                {
+                    // Revert value transferred to the new account during creation.
+                    var newAccBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                    if (newAccBal > 0)
+                    {
+                        var callerBal = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                        context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                        context.GlobalState.SetBalance(context.ContractAddress, callerBal + newAccBal);
+                    }
+                    // Zero out nonce and code in overlay buffer to prevent them committing.
+                    context.GlobalState.SetNonce(newAddress, 0);
+                    context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                    context.GlobalState.DeleteAccount(newAddress);
+                    context.Stack.TryPush(0);
+                    // Consume remaining child gas, do not refund.
+                }
+                else
+                {
+                    // Deduct code deposit cost from child's remaining gas.
+                    childRemaining -= codeDepositCost;
 
-                // Install runtime code.
-                context.GlobalState.SetCode(newAddress, runtimeCode);
+                    // Install runtime code.
+                    context.GlobalState.SetCode(newAddress, runtimeCode);
 
-                context.GasRefundCounter += result.GasRefundCounter;
+                    context.GasRefundCounter += result.GasRefundCounter;
 
-                // Refund remaining gas to parent.
-                context.RefundGas(childRemaining);
+                    // Refund remaining gas to parent.
+                    context.RefundGas(childRemaining);
 
-                // Push created address.
-                context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                    // Push created address.
+                    context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                }
             }
         }
         else
@@ -497,6 +541,20 @@ public sealed class OpcodeStaticCall : IOpcode
         // EIP-2929: charge warm access or cold address access before forwarding.
         var isWarm = context.Access.TouchAddress(toAddress);
         ulong accessCost = isWarm ? 100UL : 2600UL;
+
+        // EIP-7702: if the target has a delegation designator (0xEF0100 || addr),
+        // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
+        if (context.Block?.Eip7702Enabled == true)
+        {
+            var calleeCode = await context.GlobalState.GetCodeAsync(toAddress, ct);
+            if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
+            {
+                var delegateAddr = new Address(calleeCode[3..]);
+                bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
+                accessCost += delegateIsWarm ? 100UL : 2600UL;
+            }
+        }
+
         context.ConsumeGas(accessCost);
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas.
@@ -601,6 +659,20 @@ public sealed class OpcodeCallCode : IOpcode
         // EIP-2929: charge cold address surcharge (part of extra gas).
         var isCodeWarm = context.Access.TouchAddress(codeAddress);
         ulong accessCost = isCodeWarm ? 100UL : 2600UL;
+
+        // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
+        // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
+        // This is part of extra_gas charged from the caller, not the callee's budget.
+        if (context.Block?.Eip7702Enabled == true)
+        {
+            var calleeCode = await context.GlobalState.GetCodeAsync(codeAddress, ct);
+            if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
+            {
+                var delegateAddr = new Address(calleeCode[3..]);
+                bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
+                accessCost += delegateIsWarm ? 100UL : 2600UL;
+            }
+        }
 
         // Value-transfer cost: 9000 if value > 0 (EELS: transfer_gas_cost).
         ulong valueTransferCost = value.IsZero ? 0UL : 9000UL;
@@ -729,6 +801,20 @@ public sealed class OpcodeDelegateCall : IOpcode
         // EIP-2929: charge warm access or cold address access before forwarding.
         var isCodeWarm = context.Access.TouchAddress(codeAddress);
         ulong accessCost = isCodeWarm ? 100UL : 2600UL;
+
+        // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
+        // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
+        if (context.Block?.Eip7702Enabled == true)
+        {
+            var calleeCode = await context.GlobalState.GetCodeAsync(codeAddress, ct);
+            if (calleeCode.Length == 23 && calleeCode[0] == 0xEF && calleeCode[1] == 0x01 && calleeCode[2] == 0x00)
+            {
+                var delegateAddr = new Address(calleeCode[3..]);
+                bool delegateIsWarm = context.Access.TouchAddress(delegateAddr);
+                accessCost += delegateIsWarm ? 100UL : 2600UL;
+            }
+        }
+
         context.ConsumeGas(accessCost);
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas.
