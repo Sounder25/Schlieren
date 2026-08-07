@@ -69,6 +69,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasMcopy                    => false;
     public virtual bool HasBlobHash                 => false;
     public virtual bool HasTloadTstore              => false;
+    public virtual bool HasEip6780SelfdestructRestriction => false; // Pre-Cancun: always delete
 
     // Precompiles: Frontier = 0x01–0x04
     public virtual int PrecompileCount => 4;
@@ -339,6 +340,7 @@ public class CancunRules : ShanghaiRules
     public override bool HasMcopy         => true;
     public override bool HasBlobHash      => true;
     public override bool HasEip4844BlobTx => true;
+    public override bool HasEip6780SelfdestructRestriction => true; // EIP-6780
     public override int  PrecompileCount  => 10; // +KZG point eval (0x0A)
 }
 

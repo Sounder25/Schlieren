@@ -901,9 +901,14 @@ public sealed class OpcodeSelfDestruct : IOpcode
         else Array.Copy(addressBytes, 0, padded, 20 - addressBytes.Length, addressBytes.Length);
         var beneficiary = new Address(padded);
 
-        // EIP-2929: charge cold address surcharge for the beneficiary.
-        var isWarm = context.Access.TouchAddress(beneficiary);
-        ulong gasCost = 5000UL + (isWarm ? 0UL : 2600UL);
+        var rules = context.Block.Rules;
+
+        // Pre-Berlin: SELFDESTRUCT costs 0 for beneficiary access (no warm/cold yet).
+        // Tangerine+: NEW_ACCOUNT surcharge 25000 already in base cost logic.
+        // Frontier/Homestead: base = 0 (no explicit opcode gas in original YP, charged in caller).
+        // For simplicity, keep 5000 base as per EELS (it's in all modern interpretations).
+        var beneficiaryIsWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(beneficiary) : true;
+        ulong gasCost = 5000UL + (beneficiaryIsWarm ? 0UL : 2600UL);
 
         var balance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
 
@@ -939,9 +944,12 @@ public sealed class OpcodeSelfDestruct : IOpcode
             context.GlobalState.SetBalance(context.ContractAddress, 0);
         }
 
-        // EIP-6780: account deletion is deferred to transaction finalization
-        // and applies only to contracts created during this transaction.
-        if (createdInTransaction)
+        // EIP-6780 (Shanghai+): account deletion only when created in same transaction.
+        // Pre-Shanghai: SELFDESTRUCT always marks the contract for deletion.
+        bool shouldDelete = rules.HasEip6780SelfdestructRestriction
+            ? createdInTransaction
+            : true;
+        if (shouldDelete)
             context.GlobalState.MarkForDeletion(context.ContractAddress);
 
         return (ExecutionResult.Success(gasCost), context.Code.Length);

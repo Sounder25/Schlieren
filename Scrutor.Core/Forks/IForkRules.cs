@@ -90,6 +90,7 @@ public interface IForkRules
     bool HasMcopy                 { get; }  // Cancun+
     bool HasBlobHash              { get; }  // Cancun+
     bool HasTloadTstore           { get; }  // Cancun+
+    bool HasEip6780SelfdestructRestriction { get; }  // Cancun+: SELFDESTRUCT only deletes if created in same tx
 
     // ── Precompiles ──────────────────────────────────────────────────────────
     /// <summary>

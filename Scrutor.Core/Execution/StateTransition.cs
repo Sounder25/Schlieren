@@ -35,10 +35,24 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
-        // [AI-EDIT 2026-01-10] Top-level tx accounting must happen unconditionally
-        // on the base state (not an overlay) so that nonce/balance always apply
-        // regardless of whether execution succeeds or fails (EIP-161 / Yellow Paper §6).
-        // When commit=false (e.g. eth_estimateGas probes), we validate only — no writes.
+        // [AI-EDIT 2026-08-07] Tx type gating: reject tx types not supported by this fork.
+        // type-1 (EIP-2930 access lists): Berlin+
+        // type-2 (EIP-1559): London+
+        // type-3 (EIP-4844 blobs): Cancun+
+        // type-4 (EIP-7702 set-code): Prague+
+        if (tx.Authorization != TransactionAuthorization.Internal &&
+            tx.Authorization != TransactionAuthorization.Simulation)
+        {
+            if (tx.TxType == 1 && !block.Rules.HasEip2930AccessLists)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            if (tx.TxType == 2 && !block.Rules.HasEip1559BaseFee)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            if (tx.TxType == 3 && !block.Rules.HasEip4844BlobTx)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+            if (tx.TxType == 4 && !block.Rules.HasEip7702SetCode)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+        }
+
         BigInteger maxGasCost = BigInteger.Zero;
         BigInteger blobFee = BigInteger.Zero;
         ulong intrinsicGas = 0;
