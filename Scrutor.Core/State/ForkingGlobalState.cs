@@ -155,6 +155,13 @@ public sealed class ForkingGlobalState : IGlobalState
         return await _localState.AccountExistsAsync(address, ct);
     }
 
+    public async ValueTask TouchAccountAsync(Address address, CancellationToken ct = default)
+    {
+        var exists = await AccountExistsAsync(address, ct);
+        if (!exists)
+            _localState.SetBalance(address, BigInteger.Zero);
+    }
+
     private Task EnsureAccountFetchedAsync(Address address, CancellationToken ct)
     {
         if (_forkProvider == null || _fetchedAccounts.ContainsKey(address)) return Task.CompletedTask;

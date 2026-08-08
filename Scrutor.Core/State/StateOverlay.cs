@@ -110,6 +110,23 @@ public sealed class StateOverlay : IGlobalState
         return await _parent.AccountExistsAsync(address, ct);
     }
 
+    /// <summary>
+    /// Ensure an account entry exists in the overlay (creating an empty one if needed).
+    /// Mirrors EELS touch_account(): in Frontier/Homestead any CALL creates the callee account
+    /// if it didn't previously exist.  Only call this on pre-EIP-161 forks — SpuriousDragon+
+    /// deletes such empty accounts at the end of the tx rather than creating them.
+    /// </summary>
+    public async ValueTask TouchAccountAsync(Address address, CancellationToken ct = default)
+    {
+        // Only touch if the account doesn't already exist — avoid overwriting real balances.
+        var exists = await AccountExistsAsync(address, ct);
+        if (!exists)
+        {
+            // SetBalance(0) creates the account in the overlay buffer so it propagates on Commit().
+            SetBalance(address, BigInteger.Zero);
+        }
+    }
+
     public void Reset()
     {
         _buffer.Clear();

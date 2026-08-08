@@ -26,6 +26,12 @@ public interface IGlobalState
 
     void Reset();
     ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default);
+
+    /// <summary>
+    /// Frontier/Homestead: touch an account (create empty if non-existent).
+    /// Mirrors EELS touch_account(). Only call on pre-EIP-161 forks.
+    /// </summary>
+    ValueTask TouchAccountAsync(Address address, CancellationToken ct = default);
     IDictionary<Address, Account> Snapshot();
 
     // EIP-6780 lifecycle tracking

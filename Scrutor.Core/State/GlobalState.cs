@@ -128,6 +128,14 @@ public sealed class GlobalState : IGlobalState
     public ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default)
         => new(_accounts.ContainsKey(address));
 
+    public ValueTask TouchAccountAsync(Address address, CancellationToken ct = default)
+    {
+        // GlobalState: create an empty account if it doesn't already exist.
+        if (!_accounts.ContainsKey(address))
+            SetBalance(address, BigInteger.Zero);
+        return ValueTask.CompletedTask;
+    }
+
     public IDictionary<Address, Account> Snapshot()
     {
         _snapshotGate.EnterWriteLock();

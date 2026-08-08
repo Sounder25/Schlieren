@@ -275,6 +275,9 @@ public sealed class OpcodeCall : IOpcode
             if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
             {
                 frontierResult = Precompiles.ExecuteAsResult(toAddress, input, childGasLimitFrontier, context.Block.Rules);
+                // Frontier: touch the precompile address (creates empty account if non-existent)
+                if (frontierResult.IsSuccess)
+                    await context.GlobalState.TouchAccountAsync(toAddress, ct);
                 if (frontierResult.IsSuccess && value > 0)
                 {
                     var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);

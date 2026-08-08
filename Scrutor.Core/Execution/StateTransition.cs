@@ -778,6 +778,10 @@ public sealed class StateTransition : IStateTransition
                 return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
             }
 
+            // EELS touch_account: Frontier/Homestead precompile calls still create the account.
+            if (!block.Rules.HasEip161EmptyAccountDeletion)
+                await overlay.TouchAccountAsync(tx.To.Value, ct);
+
             // Precompile succeeded — state commit handled here
             if (commit)
             {
@@ -852,6 +856,15 @@ public sealed class StateTransition : IStateTransition
         // [AI-EDIT 2026-01-10] Use the pre-computed execution gas limit (post-intrinsic deduction)
         // when provided; otherwise fall back to tx.GasLimit (e.g. for internal sub-calls).
         ulong gasForExecution = executionGasLimit ?? tx.GasLimit;
+
+        // EELS touch_account(): in Frontier/Homestead (pre-EIP-161), every CALL touches the
+        // callee address, creating an empty account if it didn't previously exist.
+        // SpuriousDragon+ deletes empty accounts at tx end — do NOT touch there.
+        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue
+            && !block.Rules.HasEip161EmptyAccountDeletion)
+        {
+            await overlay.TouchAccountAsync(tx.To.Value, ct);
+        }
 
         // Build a gas frame node for this call, appending to the parent's child list.
         GasFrameNode? thisFrame = null;
