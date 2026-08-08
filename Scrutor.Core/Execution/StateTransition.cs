@@ -475,6 +475,11 @@ public sealed class StateTransition : IStateTransition
                     var coinbaseBalance = await txOverlay.GetBalanceAsync(block.Coinbase, ct);
                     txOverlay.SetBalance(block.Coinbase, coinbaseBalance + minerFee);
                 }
+                else if (!block.Rules.HasEip161EmptyAccountDeletion)
+                {
+                    // Frontier/Homestead: touch coinbase even when fee=0 (EELS always calls touch_account(coinbase))
+                    await txOverlay.TouchAccountAsync(block.Coinbase, ct);
+                }
             }
 
             // Return a result that reflects the true total gas used to callers (e.g. eth_getReceipt).
@@ -662,6 +667,11 @@ public sealed class StateTransition : IStateTransition
                 {
                     var cb = await state.GetBalanceAsync(block.Coinbase, ct);
                     state.SetBalance(block.Coinbase, cb + minerFee);
+                }
+                else if (!block.Rules.HasEip161EmptyAccountDeletion)
+                {
+                    // Frontier/Homestead: touch coinbase even when fee=0
+                    await state.TouchAccountAsync(block.Coinbase, ct);
                 }
             }
             result = result with { GasUsed = totalGasUsed };
