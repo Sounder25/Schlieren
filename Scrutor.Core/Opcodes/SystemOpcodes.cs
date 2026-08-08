@@ -201,9 +201,13 @@ public sealed class OpcodeCall : IOpcode
 
         // EIP-2929 / pre-Berlin: CALL access cost = CallBaseCost + ExtAccountCost(isWarm)
         // Berlin: CallBaseCost=0, ExtAccountCost=warm/cold
+        // TangerineWhistle–Istanbul: CallBaseCost=700, ExtAccountCost NOT added (700 is all-in)
         var rules = context.Block.Rules;
         var isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(toAddress) : true;
-        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isWarm);
+        // Only add ExtAccountCost separately for Berlin+ (warm/cold world); pre-Berlin it's absorbed into CallBaseCost
+        ulong accessCost = rules.HasEip2929WarmCold
+            ? rules.CallBaseCost + rules.ExtAccountCost(isWarm)
+            : rules.CallBaseCost;
 
         // EIP-7702: if the callee has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
@@ -633,9 +637,12 @@ public sealed class OpcodeStaticCall : IOpcode
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
         // EIP-2929 / pre-Berlin: STATICCALL access cost = CallBaseCost + ExtAccountCost(isWarm)
+        // TangerineWhistle–Istanbul: CallBaseCost=700 is all-in; don't add ExtAccountCost
         var rules = context.Block.Rules;
         var isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(toAddress) : true;
-        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isWarm);
+        ulong accessCost = rules.HasEip2929WarmCold
+            ? rules.CallBaseCost + rules.ExtAccountCost(isWarm)
+            : rules.CallBaseCost;
 
         // EIP-7702: if the target has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
@@ -752,10 +759,12 @@ public sealed class OpcodeCallCode : IOpcode
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
         // EIP-2929 / pre-Berlin: DELEGATECALL access cost = CallBaseCost + ExtAccountCost(isWarm)
+        // TangerineWhistle–Istanbul: CallBaseCost=700 is all-in; don't add ExtAccountCost
         var rules = context.Block.Rules;
         var isCodeWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(codeAddress) : true;
-        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isCodeWarm);
-
+        ulong accessCost = rules.HasEip2929WarmCold
+            ? rules.CallBaseCost + rules.ExtAccountCost(isCodeWarm)
+            : rules.CallBaseCost;
         // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).
         // This is part of extra_gas charged from the caller, not the callee's budget.
@@ -895,9 +904,12 @@ public sealed class OpcodeDelegateCall : IOpcode
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
 
         // EIP-2929 / pre-Berlin: CALLCODE access cost = CallBaseCost + ExtAccountCost(isWarm)
+        // TangerineWhistle–Istanbul: CallBaseCost=700 is all-in; don't add ExtAccountCost
         var rules = context.Block.Rules;
         var isCodeWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(codeAddress) : true;
-        ulong accessCost = rules.CallBaseCost + rules.ExtAccountCost(isCodeWarm);
+        ulong accessCost = rules.HasEip2929WarmCold
+            ? rules.CallBaseCost + rules.ExtAccountCost(isCodeWarm)
+            : rules.CallBaseCost;
 
         // EIP-7702: if the code address has a delegation designator (0xEF0100 || addr),
         // charge warm/cold access for the DELEGATE address (EELS access_delegation()).

@@ -102,6 +102,16 @@ public interface IForkRules
     bool HasEip161ContractNonce            { get; }  // SpuriousDragon+: new contracts start at nonce 1
     bool HasEip2565ModExpPricing           { get; }  // Berlin+: EIP-2565 ModExp gas formula (GQUADDIVISOR=3, word-count complexity)
     
+    // ── Precompile gas (fork-dependent) ──────────────────────────────────────
+    /// <summary>Gas for BN254 Add (0x06). Byzantium=500, Istanbul+=150 (EIP-1108).</summary>
+    ulong BnAddGas { get; }
+    /// <summary>Gas for BN254 Scalar Mul (0x07). Byzantium=40000, Istanbul+=6000 (EIP-1108).</summary>
+    ulong BnMulGas { get; }
+    /// <summary>Base gas for BN254 Pairing (0x08). Byzantium=100000, Istanbul+=45000 (EIP-1108).</summary>
+    ulong BnPairingBaseGas { get; }
+    /// <summary>Per-point gas for BN254 Pairing (0x08). Byzantium=80000, Istanbul+=34000 (EIP-1108).</summary>
+    ulong BnPairingPerPointGas { get; }
+    
     /// <summary>Base gas for SELFDESTRUCT. Frontier/Homestead=0; TangerineWhistle+=5000.</summary>
     ulong SelfdestructBaseCost { get; }
     /// <summary>Extra gas for SELFDESTRUCT to a new (non-existent) account. Tangerine+=25000; Frontier/Homestead=0.</summary>

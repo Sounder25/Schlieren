@@ -61,9 +61,17 @@ public static class Precompiles
     {
         var id = address.Bytes[19];
         if (id < 1 || id > rules.PrecompileCount) return (Array.Empty<byte>(), 0);
-        bool kzgEnabled = rules.HasEip4844BlobTx;
-        bool blsEnabled = rules.HasEip7702SetCode; // Prague gated (BLS added with EIP-2537 in Prague)
-        return Execute(address, input, gasLimit, kzgEnabled, blsEnabled, rules.HasEip2565ModExpPricing);
+        // BN254 precompiles have fork-dependent gas (EIP-1108 changed Byzantium→Istanbul)
+        return id switch
+        {
+            6 => BnAdd(input, gasLimit, rules.BnAddGas),
+            7 => BnMul(input, gasLimit, rules.BnMulGas),
+            8 => BnPairing(input, gasLimit, rules.BnPairingBaseGas, rules.BnPairingPerPointGas),
+            _ => Execute(address, input, gasLimit,
+                         kzgEnabled: rules.HasEip4844BlobTx,
+                         blsEnabled: rules.HasEip7702SetCode,
+                         eip2565: rules.HasEip2565ModExpPricing)
+        };
     }
 
     public static ExecutionResult ExecuteAsResult(Address address, byte[] input, ulong gasLimit, int precompileCount)
@@ -290,11 +298,10 @@ public static class Precompiles
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  0x06: BN254 Add  (EIP-196, Istanbul gas = 150)
+    //  0x06: BN254 Add  (EIP-196, Istanbul gas = 150; Byzantium = 500)
     // ══════════════════════════════════════════════════════════════════════════
-    private static (byte[]? output, ulong gasUsed) BnAdd(byte[] input, ulong gasLimit)
+    private static (byte[]? output, ulong gasUsed) BnAdd(byte[] input, ulong gasLimit, ulong gas = 150)
     {
-        const ulong gas = 150;
         if (gasLimit < gas) return (null, gasLimit);
 
         try
@@ -313,11 +320,10 @@ public static class Precompiles
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  0x07: BN254 Scalar Mul  (EIP-196, Istanbul gas = 6000)
+    //  0x07: BN254 Scalar Mul  (EIP-196, Istanbul gas = 6000; Byzantium = 40000)
     // ══════════════════════════════════════════════════════════════════════════
-    private static (byte[]? output, ulong gasUsed) BnMul(byte[] input, ulong gasLimit)
+    private static (byte[]? output, ulong gasUsed) BnMul(byte[] input, ulong gasLimit, ulong gas = 6000)
     {
-        const ulong gas = 6000;
         if (gasLimit < gas) return (null, gasLimit);
 
         try
@@ -335,21 +341,22 @@ public static class Precompiles
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  0x08: BN254 Pairing  (EIP-197, Istanbul gas = 45000 + k*34000)
+    //  0x08: BN254 Pairing  (EIP-197, Istanbul gas = 45000 + k*34000;
+    //                         Byzantium gas = 100000 + k*80000)
     //
-    //  Gas: 45,000 base + 34,000 per pair.
+    //  Gas: baseGas + perPointGas per pair.
     //  Bad input length (not multiple of 192) → revert (null = OOG sentinel).
     //  Any G1/G2 decode failure → revert.
     //  k == 0 → success, output = 1  (empty product of pairings = 1 in GT).
     //  Otherwise: Ate pairing check; return 32-byte 1 if product = GT.1 else 0.
     // ══════════════════════════════════════════════════════════════════════════
-    private static (byte[]? output, ulong gasUsed) BnPairing(byte[] input, ulong gasLimit)
+    private static (byte[]? output, ulong gasUsed) BnPairing(byte[] input, ulong gasLimit, ulong baseGas = 45_000, ulong perPointGas = 34_000)
     {
         // Bad length → revert (null means "consume all gas / revert" in our convention)
         if (input.Length % 192 != 0) return (null, gasLimit);
 
         int k = input.Length / 192;
-        ulong gas = 45_000 + (ulong)k * 34_000;
+        ulong gas = baseGas + (ulong)k * perPointGas;
         if (gasLimit < gas) return (null, gasLimit);
 
         var output = Bn254Pairing.Run(input);

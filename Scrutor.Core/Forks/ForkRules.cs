@@ -84,6 +84,12 @@ public abstract class ForkRules : IForkRules
     public virtual ulong SelfdestructBaseCost       => 0;      // Frontier/Homestead: zero
     public virtual ulong SelfdestructNewAccountCost => 0;      // Frontier/Homestead: zero
 
+    // BN254 (alt_bn128) precompile gas — Byzantium defaults (EIP-1108 reduced in Istanbul)
+    public virtual ulong BnAddGas           => 500;     // Istanbul+=150
+    public virtual ulong BnMulGas           => 40_000;  // Istanbul+=6000
+    public virtual ulong BnPairingBaseGas   => 100_000; // Istanbul+=45000
+    public virtual ulong BnPairingPerPointGas => 80_000; // Istanbul+=34000
+
     // Precompiles: Frontier = 0x01–0x04
     public virtual int PrecompileCount => 4;
 
@@ -192,6 +198,11 @@ public class IstanbulRules : ConstantinopleRules
     public override int   PrecompileCount        => 9;   // +BLAKE2F (0x09)
     // EIP-1884: BALANCE/EXTCODESIZE/EXTCODECOPY repriced 700 (already inherited), EXTCODEHASH 700
     public override ulong ExtCodeHashCost(bool isWarm) => 700;
+    // EIP-1108: BN254 precompile gas reduction
+    public override ulong BnAddGas           => 150;    // was 500
+    public override ulong BnMulGas           => 6_000;  // was 40000
+    public override ulong BnPairingBaseGas   => 45_000; // was 100000
+    public override ulong BnPairingPerPointGas => 34_000; // was 80000
 
     // EIP-2200 tri-state SSTORE metering (no warm/cold yet — Berlin adds that)
     public override (ulong cost, long refundDelta) SstoreBaseCost(
