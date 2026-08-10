@@ -13,9 +13,19 @@ namespace Scrutor.Core.Execution;
 /// </summary>
 public static class Precompiles
 {
+    // ── EIP-7951: P256Verify address is 0x0100 (two-byte, not single-byte) ──
+    private static readonly byte[] P256VerifyAddressBytes =
+        new byte[] { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0 };
+
+    public static bool IsP256Verify(Address address)
+        => address.Bytes.AsSpan().SequenceEqual(P256VerifyAddressBytes);
+
     /// <summary>Returns true when <paramref name="address"/> is an active precompile for the given fork rules.</summary>
     public static bool IsPrecompile(Address address, IForkRules rules)
     {
+        // EIP-7951: P256Verify at 0x0100 (Osaka+)
+        if (rules.HasEip7951P256Verify && IsP256Verify(address)) return true;
+
         var bytes = address.Bytes;
         for (int i = 0; i < 19; i++)
             if (bytes[i] != 0) return false;
@@ -59,6 +69,10 @@ public static class Precompiles
     /// <summary>Execute with full IForkRules — preferred overload for fork-aware gas.</summary>
     public static (byte[]? output, ulong gasUsed) Execute(Address address, byte[] input, ulong gasLimit, IForkRules rules)
     {
+        // EIP-7951: P256Verify at 0x0100 (Osaka+) — check before single-byte dispatch
+        if (rules.HasEip7951P256Verify && IsP256Verify(address))
+            return P256Verify(input, gasLimit);
+
         var id = address.Bytes[19];
         if (id < 1 || id > rules.PrecompileCount) return (Array.Empty<byte>(), 0);
         // BN254 precompiles have fork-dependent gas (EIP-1108 changed Byzantium→Istanbul)
@@ -593,7 +607,11 @@ public static class Precompiles
         var curve = Bn254CurveParams.Curve;
         if (x.SignValue == 0 && y.SignValue == 0)
             return curve.Infinity;
-        return curve.CreatePoint(x, y);
+        var point = curve.CreatePoint(x, y);
+        // EIP-196: input point not on the curve → invalid input → throw so callers return empty
+        if (!point.IsValid())
+            throw new InvalidOperationException("BN254 point not on curve");
+        return point;
     }
 
     private static byte[] EncodePoint(Org.BouncyCastle.Math.EC.ECPoint p)
@@ -606,6 +624,100 @@ public static class Precompiles
         Array.Copy(x, 0, result, 32 - x.Length, x.Length);
         Array.Copy(y, 0, result, 64 - y.Length, y.Length);
         return result;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  0x0100: P256VERIFY  (EIP-7951, Osaka+)
+    //  secp256r1 / P-256 ECDSA signature verification
+    //  Input:  160 bytes — hash(32) | r(32) | s(32) | qx(32) | qy(32)
+    //  Output: 32-byte 1 on success, empty bytes on any failure
+    //  Gas:    6900 flat, consumed on success AND failure
+    // ══════════════════════════════════════════════════════════════════════════
+    private const ulong P256VerifyGas = 6_900;
+
+    // secp256r1 (P-256) curve order n
+    private static readonly BigInteger P256Order =
+        BigInteger.Parse("0115792089210356248762697446949407573529996955224135760342422259061068512044369",
+            System.Globalization.NumberStyles.Integer);
+
+    // secp256r1 field prime p
+    private static readonly BigInteger P256Prime =
+        BigInteger.Parse("0115792089210356248762697446949407573530086143415290314195533631308867097853951",
+            System.Globalization.NumberStyles.Integer);
+
+    private static (byte[]? output, ulong gasUsed) P256Verify(byte[] input, ulong gasLimit)
+    {
+        // EIP-7951: gas is always consumed — return empty on ANY failure
+        if (gasLimit < P256VerifyGas) return (null, gasLimit); // OOG
+
+        // 1. Input must be exactly 160 bytes
+        if (input.Length != 160)
+            return (Array.Empty<byte>(), P256VerifyGas);
+
+        var hash = input[0..32];
+        var r    = new BigInteger(input[32..64],  isBigEndian: true, isUnsigned: true);
+        var s    = new BigInteger(input[64..96],  isBigEndian: true, isUnsigned: true);
+        var qx   = new BigInteger(input[96..128], isBigEndian: true, isUnsigned: true);
+        var qy   = new BigInteger(input[128..160],isBigEndian: true, isUnsigned: true);
+
+        // 2. r, s must be in (0, n)
+        if (r <= BigInteger.Zero || r >= P256Order) return (Array.Empty<byte>(), P256VerifyGas);
+        if (s <= BigInteger.Zero || s >= P256Order) return (Array.Empty<byte>(), P256VerifyGas);
+
+        // 3. qx, qy must be in [0, p)
+        if (qx < BigInteger.Zero || qx >= P256Prime) return (Array.Empty<byte>(), P256VerifyGas);
+        if (qy < BigInteger.Zero || qy >= P256Prime) return (Array.Empty<byte>(), P256VerifyGas);
+
+        // 4. Point at infinity check
+        if (qx == BigInteger.Zero && qy == BigInteger.Zero) return (Array.Empty<byte>(), P256VerifyGas);
+
+        // 5. Verify using .NET's ECDsa (uses OS crypto — fast, constant-time)
+        try
+        {
+            // Build ECParameters for secp256r1
+            var ecParams = new ECParameters
+            {
+                Curve = ECCurve.NamedCurves.nistP256,
+                Q = new ECPoint
+                {
+                    X = PadTo32(qx),
+                    Y = PadTo32(qy)
+                }
+            };
+
+            using var ecdsa = ECDsa.Create(ecParams);
+
+            // Convert r, s to IEEE P1363 format (r || s, each 32 bytes)
+            var sig = new byte[64];
+            var rBytes = PadTo32(r);
+            var sBytes = PadTo32(s);
+            rBytes.CopyTo(sig, 0);
+            sBytes.CopyTo(sig, 32);
+
+            bool valid = ecdsa.VerifyHash(hash, sig, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+
+            if (valid)
+            {
+                var result = new byte[32];
+                result[31] = 1;
+                return (result, P256VerifyGas);
+            }
+            return (Array.Empty<byte>(), P256VerifyGas);
+        }
+        catch
+        {
+            // Invalid public key (not on curve, etc.) → return empty
+            return (Array.Empty<byte>(), P256VerifyGas);
+        }
+    }
+
+    private static byte[] PadTo32(BigInteger value)
+    {
+        var bytes = value.ToByteArray(isUnsigned: true, isBigEndian: true);
+        if (bytes.Length == 32) return bytes;
+        var padded = new byte[32];
+        Buffer.BlockCopy(bytes, 0, padded, 32 - bytes.Length, bytes.Length);
+        return padded;
     }
 }
 

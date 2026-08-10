@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Scrutor.UI.ViewModels"
+        xmlns:views="using:Scrutor.UI.Views"
         x:Class="Scrutor.UI.Views.MainWindow"
         x:Name="root"
         x:DataType="vm:WorkbenchViewModel"
@@ -8,48 +9,49 @@
         Icon="/Assets/scrutor-icon.png"
         Width="1440" Height="900"
         WindowStartupLocation="CenterScreen"
-        Background="#0D0D0D"
+        Background="{DynamicResource Scrutor.ShellBg}"
         FontFamily="Inter, Segoe UI, sans-serif">
 
     <Window.Styles>
         <Style Selector="TextBlock.header">
-            <Setter Property="Foreground" Value="#19D7E5"/>
+            <Setter Property="Foreground" Value="{DynamicResource Scrutor.AccentAlt}"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
         <Style Selector="Border.panel">
-            <Setter Property="Background" Value="#1A1A2E"/>
-            <Setter Property="BorderBrush" Value="#2D2D2D"/>
+            <Setter Property="Background" Value="{DynamicResource Scrutor.PanelBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Scrutor.Border}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="4"/>
         </Style>
         <Style Selector="TextBlock.code">
             <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#F0F4F8"/>
+            <Setter Property="Foreground" Value="{DynamicResource Scrutor.TextPrimary}"/>
         </Style>
         <Style Selector="TextBlock.linenumber">
-            <Setter Property="Foreground" Value="#19D7E5"/>
+            <Setter Property="Foreground" Value="{DynamicResource Scrutor.AccentAlt}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
         </Style>
         <Style Selector="Border.activeLine">
-            <Setter Property="Background" Value="#241B47"/>
-            <Setter Property="BorderBrush" Value="#19D7E5"/>
+            <Setter Property="Background" Value="{DynamicResource Scrutor.ActiveLineBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Scrutor.AccentAlt}"/>
             <Setter Property="BorderThickness" Value="2,0,0,0"/>
         </Style>
         <Style Selector="Border.vulnerableLine">
-            <Setter Property="Background" Value="#2E141B"/>
-            <Setter Property="BorderBrush" Value="#FF4500"/>
+            <Setter Property="Background" Value="{DynamicResource Scrutor.VulnerableLineBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Scrutor.Alert}"/>
             <Setter Property="BorderThickness" Value="2,0,0,0"/>
         </Style>
     </Window.Styles>
 
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
         <!-- MENU -->
-        <Menu Grid.Row="0" Background="#0C0D14" BorderBrush="#2D2D3D" BorderThickness="0,0,0,1" Height="26">
-            <MenuItem Header="_File" Foreground="#E0E0E0" FontSize="11">
+        <Menu Grid.Row="0" Background="{DynamicResource Scrutor.PanelDeep}"
+              BorderBrush="{DynamicResource Scrutor.BorderSubtle}" BorderThickness="0,0,0,1" Height="26">
+            <MenuItem Header="_File" FontSize="11">
                 <MenuItem Header="Open Contract File..." Click="OnOpenFileClick" InputGesture="Ctrl+O"/>
                 <MenuItem Header="Open Project Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O"/>
                 <Separator/>
@@ -57,27 +59,35 @@
                 <Separator/>
                 <MenuItem Header="Exit" Click="OnExitClick" InputGesture="Alt+F4"/>
             </MenuItem>
-            <MenuItem Header="_EVM Engine" Foreground="#E0E0E0" FontSize="11">
+            <MenuItem Header="_EVM Engine" FontSize="11">
                 <MenuItem Header="Run Bytecode (Live EVM)" Command="{Binding RunBytecodeCommand}" InputGesture="F5"/>
                 <MenuItem Header="Synthetic Detector Demo..." Command="{Binding RunSyntheticDemoCommand}"/>
             </MenuItem>
-            <MenuItem Header="_Tools" Foreground="#E0E0E0" FontSize="11">
+            <MenuItem Header="_View" FontSize="11" Name="ViewMenuRoot">
+                <MenuItem Header="Appearance" Name="AppearanceMenu">
+                    <!-- populated in code-behind from SkinCatalog -->
+                </MenuItem>
+            </MenuItem>
+            <MenuItem Header="_Tools" FontSize="11">
                 <MenuItem Header="Show Call Topology" Command="{Binding ShowCallGraphCommand}"/>
                 <MenuItem Header="Show Source" Command="{Binding ShowSourceCommand}"/>
                 <MenuItem Header="Toggle OpSec Lockout" Command="{Binding ToggleOpSecCommand}"/>
                 <MenuItem Header="Export Audit Report (.md)..." Click="OnExportReportClick"/>
             </MenuItem>
-            <MenuItem Header="_Help" Foreground="#E0E0E0" FontSize="11">
+            <MenuItem Header="_Help" FontSize="11">
                 <MenuItem Header="F5 Run · F10 Step · F11 Back · Space Play · Home/End"/>
+                <MenuItem Header="Skins: View → Appearance (Arctic Night is easiest on eyes)"/>
             </MenuItem>
         </Menu>
 
         <!-- TOP BAR (brand) -->
-        <Border Grid.Row="1" Background="#0C0D14" Padding="14,8" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1">
+        <Border Grid.Row="1" Background="{DynamicResource Scrutor.PanelDeep}" Padding="14,8"
+                BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Border Width="44" Height="44" CornerRadius="10" Background="#12131A"
-                            BorderBrush="#2D2D4D" BorderThickness="1" Padding="4"
+                    <Border Width="44" Height="44" CornerRadius="10"
+                            Background="{DynamicResource Scrutor.PanelElevated}"
+                            BorderBrush="{DynamicResource Scrutor.BorderSubtle}" BorderThickness="1" Padding="4"
                             VerticalAlignment="Center"
                             ToolTip.Tip="SCRUTOR — Precise · Verifiable · Traceable · Conformant">
                         <Image Source="/Assets/scrutor-icon.png"
@@ -87,25 +97,44 @@
                     </Border>
                     <StackPanel Spacing="1" VerticalAlignment="Center">
                         <TextBlock Text="SCRUTOR" FontWeight="Bold" FontSize="20"
-                                   Foreground="#F0F4F8" LetterSpacing="2"/>
+                                   Foreground="{DynamicResource Scrutor.TextPrimary}" LetterSpacing="2"/>
                         <TextBlock Text=".NET 8 Ethereum Execution &amp; Verification Engine"
-                                   FontSize="11" Foreground="#19D7E5"/>
+                                   FontSize="11" Foreground="{DynamicResource Scrutor.AccentAlt}"/>
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+                <!-- Workbench-only center chrome (hidden in Conformance mode) -->
+                <StackPanel x:Name="WorkbenchTopCenter" Grid.Column="1" Orientation="Horizontal"
+                            HorizontalAlignment="Center" Spacing="12">
                     <TextBlock Text="{Binding CurrentFileTitle}" Foreground="#888" FontSize="12" VerticalAlignment="Center"/>
                     <Border Background="#1E1E2E" Padding="6,2" CornerRadius="3" BorderBrush="#2D2D3D" BorderThickness="1"
-                            ToolTip.Tip="Report fork label only. Live runs use the unified modern opcode set. Block fields below ARE applied.">
+                            ToolTip.Tip="Workbench report fork only — labels bytecode runs. Does NOT select EELS suite fork. Use the FORK control inside the CONFORMANCE tab for fixtures.">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="REPORT FORK:" Foreground="#888" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <ComboBox ItemsSource="{Binding AvailableForks}" SelectedItem="{Binding SelectedFork}"
-                                      Background="#0D0D0D" Foreground="#19D7E5" FontWeight="Bold" FontSize="11" Height="24" Padding="6,2"/>
+                            <TextBlock Text="WORKBENCH FORK:" Foreground="#888" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="WorkbenchForkCombo"
+                                      ItemsSource="{Binding AvailableForks}" SelectedItem="{Binding SelectedFork}"
+                                      Background="#0D0D0D" Foreground="#19D7E5" FontWeight="Bold" FontSize="11" Height="24" Padding="6,2"
+                                      MinWidth="96"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <!-- Shown only while Conformance tab is active -->
+                <Border x:Name="ConformanceModeBadge" Grid.Column="1"
+                        IsVisible="False" HorizontalAlignment="Center"
+                        Background="#1A0A2E" BorderBrush="#4A00E0" BorderThickness="1"
+                        CornerRadius="6" Padding="14,6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="✅" FontSize="12" VerticalAlignment="Center"/>
+                        <TextBlock Text="CONFORMANCE MODE"
+                                   Foreground="#B794F6" FontWeight="Bold" FontSize="12"
+                                   VerticalAlignment="Center" LetterSpacing="1"/>
+                        <TextBlock Text="· suite fork is controlled inside this panel"
+                                   Foreground="#7a82a8" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel x:Name="WorkbenchTopActions" Grid.Column="2" Orientation="Horizontal" Spacing="8">
                     <Border Background="#1E1E2E" Padding="10,4" CornerRadius="3" BorderBrush="#2D2D3D" BorderThickness="1"
                             ToolTip.Tip="{Binding ForkNote}">
                         <TextBlock Text="{Binding ForkNote}" Foreground="#A0A0B0" FontSize="10" MaxWidth="280" TextTrimming="CharacterEllipsis"/>
@@ -159,9 +188,17 @@
                             PointerPressed="OnSourceClick" Cursor="Hand">
                         <TextBlock Text="SOURCE" Foreground="#19D7E5" FontWeight="Bold" FontSize="12"/>
                     </Border>
+                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="#1A0A2E" Margin="4,0,0,0"
+                            PointerPressed="OnConformanceClick" Cursor="Hand" Name="ConformanceTab"
+                            ToolTip.Tip="EELS fixture conformance runner">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="✅" FontSize="11" VerticalAlignment="Center"/>
+                            <TextBlock Text="CONFORMANCE" Foreground="#B794F6" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <StackPanel x:Name="WorkbenchTabActions" Grid.Column="1" Orientation="Horizontal" Spacing="6">
                     <Button Content="EXPORT TRACE" FontSize="10" FontWeight="SemiBold"
                             Background="#1E1E2E" Foreground="#FFD700" Padding="10,4" CornerRadius="3"
                             Click="OnExportTraceClick" ToolTip.Tip="Export structLog JSON"/>
@@ -173,7 +210,7 @@
         </Border>
 
         <!-- BYTECODE + TX + BLOCK CONTEXT -->
-        <Border Grid.Row="3" Background="#0F0F1A" Padding="12,8" BorderBrush="#2D2D4D" BorderThickness="0,0,0,1">
+        <Border x:Name="WorkbenchBytecodeBar" Grid.Row="3" Background="#0F0F1A" Padding="12,8" BorderBrush="#2D2D4D" BorderThickness="0,0,0,1">
             <StackPanel Spacing="6">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
                     <TextBlock Grid.Column="0" Text="BYTECODE" Foreground="#19D7E5" FontWeight="Bold" FontSize="11"
@@ -270,7 +307,7 @@
         </Border>
 
         <!-- MAIN -->
-        <Grid Grid.Row="4" ColumnDefinitions="220,*,300" Margin="8,8,8,0">
+        <Grid x:Name="MainWorkbenchGrid" Grid.Row="4" ColumnDefinitions="220,*,300" Margin="8,8,8,0">
             <!-- Explorer -->
             <Border Grid.Column="0" Classes="panel">
                 <Grid RowDefinitions="Auto,*">
@@ -531,8 +568,13 @@
             </Border>
         </Grid>
 
+        <!-- CONFORMANCE PANEL — overlays Row 4 when active -->
+        <views:ConformanceView x:Name="ConformancePanel"
+                               Grid.Row="4"
+                               IsVisible="False"/>
+
         <!-- FINDINGS -->
-        <Border Grid.Row="5" Background="#141414" BorderBrush="#2D2D2D" BorderThickness="0,1,0,0" MinHeight="48" MaxHeight="140">
+        <Border x:Name="WorkbenchFindingsBar" Grid.Row="5" Background="#141414" BorderBrush="#2D2D2D" BorderThickness="0,1,0,0" MinHeight="48" MaxHeight="140">
             <Grid RowDefinitions="Auto,*" Margin="16,8">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto">
                     <TextBlock Grid.Column="0" Text="SECURITY FINDINGS" Classes="header" VerticalAlignment="Center"/>

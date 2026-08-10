@@ -46,6 +46,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip4844BlobTx            => false;
     public virtual bool HasEip7623CalldataFloor     => false;
     public virtual bool HasEip7702SetCode           => false;
+    public virtual bool HasEip7951P256Verify        => false;  // Osaka+
 
     // Intrinsic gas calldata costs
     public virtual ulong CalldataZeroByteCost       => 4;   // unchanged all forks
@@ -389,12 +390,13 @@ public class PragueRules : CancunRules
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Osaka — placeholder; inherits all Prague rules
+//  Osaka — EIP-7951 P256Verify precompile at 0x0100
 // ═══════════════════════════════════════════════════════════════════════════
 public class OsakaRules : PragueRules
 {
     public static new readonly OsakaRules Instance = new();
     public override Fork Fork => Fork.Osaka;
+    public override bool HasEip7951P256Verify => true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

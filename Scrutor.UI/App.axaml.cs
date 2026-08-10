@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Scrutor.UI.Services;
 using Scrutor.UI.ViewModels;
 using Scrutor.UI.Views;
 
@@ -13,6 +14,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        SkinService.LoadAndApply();
     }
 
     public override void OnFrameworkInitializationCompleted()

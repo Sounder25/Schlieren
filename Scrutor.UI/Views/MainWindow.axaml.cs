@@ -90,14 +90,57 @@ public partial class MainWindow : Window
 
     private void OnCallGraphClick(object? sender, PointerPressedEventArgs e)
     {
+        SetConformanceMode(false);
         if (DataContext is WorkbenchViewModel vm)
             vm.ShowCallGraphCommand.Execute(null);
     }
 
     private void OnSourceClick(object? sender, PointerPressedEventArgs e)
     {
+        SetConformanceMode(false);
         if (DataContext is WorkbenchViewModel vm)
             vm.ShowSourceCommand.Execute(null);
+    }
+
+    private void OnConformanceClick(object? sender, PointerPressedEventArgs e)
+    {
+        var panel = this.FindControl<ConformanceView>("ConformancePanel");
+        if (panel is null) return;
+
+        // Toggle: open if closed, close if already open
+        SetConformanceMode(!panel.IsVisible);
+    }
+
+    /// <summary>
+    /// Conformance and workbench use different fork state. Hide workbench-only
+    /// controls (especially the top FORK combo) so they can't look "live" for the suite.
+    /// </summary>
+    private void SetConformanceMode(bool enabled)
+    {
+        if (this.FindControl<ConformanceView>("ConformancePanel") is { } panel)
+            panel.IsVisible = enabled;
+
+        if (this.FindControl<Grid>("MainWorkbenchGrid") is { } grid)
+            grid.IsVisible = !enabled;
+
+        SetVisible("WorkbenchTopCenter", !enabled);
+        SetVisible("WorkbenchTopActions", !enabled);
+        SetVisible("WorkbenchTabActions", !enabled);
+        SetVisible("WorkbenchBytecodeBar", !enabled);
+        SetVisible("WorkbenchFindingsBar", !enabled);
+        SetVisible("ConformanceModeBadge", enabled);
+
+        if (this.FindControl<Border>("ConformanceTab") is { } tab)
+        {
+            tab.Background = new Avalonia.Media.SolidColorBrush(
+                Avalonia.Media.Color.Parse(enabled ? "#2d0060" : "#1A0A2E"));
+        }
+    }
+
+    private void SetVisible(string name, bool visible)
+    {
+        if (this.FindControl<Control>(name) is { } c)
+            c.IsVisible = visible;
     }
 
     private void OnInstructionClick(object? sender, PointerPressedEventArgs e)

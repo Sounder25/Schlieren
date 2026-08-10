@@ -45,14 +45,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<string> AvailableForks { get; } = new()
     {
-        "Cancun", "Prague", "Shanghai", "London", "Berlin"
+        "Osaka", "Prague", "Cancun", "Shanghai", "Paris", "London", "Berlin", "Istanbul"
     };
 
     [ObservableProperty] private ProjectFileViewModel? _selectedFile;
     [ObservableProperty] private string _searchQuery = string.Empty;
     [ObservableProperty] private bool _isInspectorExpanded = true;
     [ObservableProperty] private bool _isCallGraphVisible;
-    [ObservableProperty] private string _selectedFork = "Cancun";
+    [ObservableProperty] private string _selectedFork = "Osaka";
     [ObservableProperty] private ulong _baseFeeGwei = 1;
     [ObservableProperty] private ulong _blockGasLimit = 30_000_000;
     [ObservableProperty] private ulong _txGasLimit = 10_000_000;
