@@ -807,11 +807,15 @@ public sealed class EelsStateFixtureLoader
         bool hasGasPrice = txNode.TryGetProperty("gasPrice", out _);
         bool hasBlobs = txNode.TryGetProperty("blobVersionedHashes", out _);
         bool hasAuthList = txNode.TryGetProperty("authorizationList", out _);
+        // Type-1 (EIP-2930) is signalled by the presence of the accessLists/accessList field,
+        // even when the list is empty — the txbytes encoding is 0x01-prefixed.
+        bool hasAccessListField = txNode.TryGetProperty("accessLists", out _)
+                               || txNode.TryGetProperty("accessList", out _);
 
         if (hasAuthList) return 4;
         if (hasBlobs) return 3;
         if (hasMaxFeePerGas && !hasGasPrice) return 2;
-        if (hasGasPrice && accessList.Count > 0) return 1;
+        if (hasGasPrice && hasAccessListField) return 1;
         return 0;
     }
 
