@@ -384,7 +384,9 @@ public sealed class OpcodeCall : IOpcode
             if (callerBalance < value)
             {
                 // The CALL extras remain charged; return the unused child allocation.
+                // EELS: evm.gas_left += message_call_gas.sub_call; evm.return_data = b""
                 context.RefundGas(forwardedGas + stipend);
+                context.LastReturnData = Array.Empty<byte>();
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
             }
@@ -841,9 +843,10 @@ public sealed class OpcodeCallCode : IOpcode
             if (callerBalance < value)
             {
                 // The CALLCODE extras (access + value-transfer cost) remain charged.
-                // Only return the unused child gas allocation (forwardedGas), not extraCost.
-                // EELS: evm.gas_left += message_call_gas.sub_call  (sub_call = forwardedGas only)
-                context.RefundGas(forwardedGas);
+                // EELS: evm.gas_left += message_call_gas.sub_call  (sub_call = forwardedGas + stipend)
+                var stipendEarly = 2300UL;
+                context.RefundGas(forwardedGas + stipendEarly);
+                context.LastReturnData = Array.Empty<byte>();
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
             }
