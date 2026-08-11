@@ -8,9 +8,13 @@ public sealed class ForkGasSchedule
 {
     private readonly IReadOnlyDictionary<GasRuleId, IGasRule> _rules;
 
-    internal ForkGasSchedule(Fork fork, IDictionary<GasRuleId, IGasRule> rules)
+    internal ForkGasSchedule(
+        Fork fork,
+        IDictionary<GasRuleId, IGasRule> rules,
+        GasCoverageManifest coverage)
     {
         Fork = fork;
+        Coverage = coverage;
         var snapshot = new Dictionary<GasRuleId, IGasRule>(rules);
         _rules = new ReadOnlyDictionary<GasRuleId, IGasRule>(snapshot);
         RuleIds = Array.AsReadOnly(snapshot.Keys
@@ -19,6 +23,7 @@ public sealed class ForkGasSchedule
     }
 
     public Fork Fork { get; }
+    public GasCoverageManifest Coverage { get; }
     public IReadOnlyCollection<GasRuleId> RuleIds { get; }
 
     public GasCalculation Calculate<TContext>(GasRuleId id, TContext context)

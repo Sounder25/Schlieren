@@ -36,5 +36,23 @@ public sealed class ForkGasScheduleBuilder
         return this;
     }
 
-    public ForkGasSchedule Build() => new(_fork, _rules);
+    public ForkGasSchedule Build() => Build(GasCoverageManifest.Empty);
+
+    public ForkGasSchedule Build(GasCoverageManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+
+        var missing = manifest.RequiredRuleIds
+            .Where(id => !_rules.ContainsKey(id))
+            .OrderBy(id => id.Value, StringComparer.Ordinal)
+            .ToArray();
+        if (missing.Length > 0)
+        {
+            throw new GasScheduleException(
+                $"Fork {_fork} is missing required gas rules: " +
+                string.Join(", ", missing.Select(id => id.Value)));
+        }
+
+        return new ForkGasSchedule(_fork, _rules, manifest);
+    }
 }
