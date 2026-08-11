@@ -208,8 +208,11 @@ public static class Precompiles
         var eSizeBig = ReadUint256(input, 32);
         var mSizeBig = ReadUint256(input, 64);
 
-        if (bSizeBig > 8192 || eSizeBig > 8192 || mSizeBig > 8192)
-            return (null, gasLimit);
+        // EIP-7823 (Osaka+): hard cap 1024 on each length field.
+        // Pre-Osaka EELS historically allowed larger declared lengths (up to 8192).
+        BigInteger maxDeclared = eip7883 ? 1024 : 8192;
+        if (bSizeBig > maxDeclared || eSizeBig > maxDeclared || mSizeBig > maxDeclared)
+            return (null, gasLimit); // ExceptionalHalt: consume all remaining gas
 
         int bLen = (int)bSizeBig, eLen = (int)eSizeBig, mLen = (int)mSizeBig;
 
@@ -220,6 +223,9 @@ public static class Precompiles
 
         var gas = ModExpGas(bLen, eLen, mLen, eBytes, eip2565, eip7883);
         if (gas > gasLimit) return (null, gasLimit);
+
+        // EELS Osaka: base_length == 0 and modulus_length == 0 → empty output (still charge gas).
+        if (bLen == 0 && mLen == 0) return (Array.Empty<byte>(), gas);
 
         if (mLen == 0) return (Array.Empty<byte>(), gas);
 
@@ -245,19 +251,36 @@ public static class Precompiles
     }
 
     /// <summary>
-    /// EIP-2565 gas formula for MODEXP (Berlin+): complexity = (ceil(maxLen/8))², divisor=3, floor=200.
-    /// EIP-198 gas formula for MODEXP (pre-Berlin): complexity = tiered piecewise, divisor=20, no floor.
+    /// MODEXP gas pricing:
+    /// <list type="bullet">
+    /// <item>EIP-198 (pre-Berlin): piecewise complexity, /20, no floor.</item>
+    /// <item>EIP-2565 (Berlin–Prague): complexity = words², /3, floor 200.</item>
+    /// <item>EIP-7883 (Osaka+): complexity = 16 if maxLen≤32 else 2·words²; no /3; floor 500;
+    ///       exp&gt;32 uses 16×(expLen−32) (was 8×).</item>
+    /// </list>
+    /// Matches EELS <c>ethereum/forks/osaka/vm/precompiled_contracts/modexp.py</c>.
     /// </summary>
-    private static ulong ModExpGas(int baseLen, int expLen, int modLen, byte[] expBytes, bool eip2565 = true, bool eip7883 = false)
+    internal static ulong ModExpGas(int baseLen, int expLen, int modLen, byte[] expBytes, bool eip2565 = true, bool eip7883 = false)
     {
         long maxLen = Math.Max(baseLen, modLen);
 
-        // EIP-7883: assume minimal base/modulus length of 32
-        if (eip7883 && maxLen < 32) maxLen = 32;
-
         // Multiplication complexity
         BigInteger multComp;
-        if (eip2565)
+        if (eip7883)
+        {
+            // EIP-7883 §3: min complexity 16; when max_length > 32 use 2 * words²
+            // (NOT words² alone — that was the undercharge on large base/modulus).
+            if (maxLen <= 32)
+            {
+                multComp = 16;
+            }
+            else
+            {
+                var words = (maxLen + 7) / 8;
+                multComp = (BigInteger)2 * words * words;
+            }
+        }
+        else if (eip2565)
         {
             // EIP-2565 (Berlin+): complexity = ceil(maxLen / 8) ^ 2
             var words = (maxLen + 7) / 8;
@@ -274,59 +297,64 @@ public static class Precompiles
                 multComp = (BigInteger)maxLen * maxLen / 16 + 480 * maxLen - 199680;
         }
 
-        // Adjusted exponent length (iterationCount) — same formula for both EIPs
+        // Iteration count (adjusted exponent length)
+        // EELS: bit_length(head) - 1 when head != 0  == MsBitIndex for BigInteger > 0
         BigInteger iterCount;
-        if (expLen == 0)
-        {
-            iterCount = BigInteger.Zero;
-        }
-        else if (expLen <= 32)
+        if (expLen <= 32)
         {
             var expVal = expBytes.Length > 0
                 ? new BigInteger(expBytes, isUnsigned: true, isBigEndian: true)
                 : BigInteger.Zero;
-            iterCount = expVal.IsZero ? BigInteger.Zero : MsBitIndex(expVal);
+            if (expVal.IsZero)
+                iterCount = BigInteger.Zero;
+            else
+                iterCount = MsBitIndex(expVal);
         }
         else
         {
+            // First 32 bytes of the exponent (big-endian head)
             var highBytes = expBytes.Length >= 32
-                ? expBytes[..32]
-                : PadRight(expBytes, 32);
+                ? expBytes.AsSpan(0, 32).ToArray()
+                : PadLeft(expBytes, 32);
             var expHead = new BigInteger(highBytes, isUnsigned: true, isBigEndian: true);
             var bitLen = expHead.IsZero ? 0 : MsBitIndex(expHead);
-            // EIP-7883: multiplier increased from 8 to 16 for exponents > 32 bytes
+            // EIP-7883: 16×(expLen−32); EIP-2565/198: 8×(expLen−32)
             int expMul = eip7883 ? 16 : 8;
             iterCount = (BigInteger)(expMul * (expLen - 32)) + bitLen;
         }
 
         if (iterCount < 1) iterCount = BigInteger.One;
 
+        if (eip7883)
+        {
+            // floor 500, no /3
+            var gasRaw = multComp * iterCount;
+            if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
+            return Math.Max(500UL, (ulong)gasRaw);
+        }
+
         if (eip2565)
         {
-            // EIP-7883: no division by 3, floor raised to 500
             // EIP-2565: divisor=3, floor=200
-            BigInteger gasRaw;
-            ulong floor;
-            if (eip7883)
-            {
-                gasRaw = multComp * iterCount; // no /3
-                floor = 500;
-            }
-            else
-            {
-                gasRaw = multComp * iterCount / 3;
-                floor = 200;
-            }
+            var gasRaw = multComp * iterCount / 3;
             if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
-            return Math.Max(floor, (ulong)gasRaw);
+            return Math.Max(200UL, (ulong)gasRaw);
         }
-        else
+
+        // EIP-198: divisor=20, no floor
         {
-            // EIP-198: divisor=20, no floor (minimum effectively 0 but gas call clamps to 0)
             var gasRaw = multComp * iterCount / 20;
             if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
             return gasRaw.IsZero ? 0UL : (ulong)gasRaw;
         }
+    }
+
+    private static byte[] PadLeft(byte[] src, int targetLen)
+    {
+        if (src.Length >= targetLen) return src;
+        var buf = new byte[targetLen];
+        Array.Copy(src, 0, buf, targetLen - src.Length, src.Length);
+        return buf;
     }
 
     // ══════════════════════════════════════════════════════════════════════════

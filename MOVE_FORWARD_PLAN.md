@@ -10,7 +10,7 @@ Close the remaining 416 Osaka failures.
 
 | Work Item | Est. Effort | Expected Cases Fixed |
 |---|---|---|
-| EIP-7883 ModExp formula — fix iteration count edge case | 2–4 hours | ~154 |
+| EIP-7883 ModExp formula ✅ | 2–4 hours | 168/168 suite green |
 | EIP-7825 Transaction Gas Limit Cap ✅ | 1 day | ~100+ (35/35 suite green) |
 | CREATE/EIP-7610 revert on non-empty storage | 1–2 days | ~100+ |
 | Trace remaining balance/nonce residuals | 1–2 days | ~60 |

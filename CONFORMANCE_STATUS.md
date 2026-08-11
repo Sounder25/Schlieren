@@ -27,7 +27,7 @@
 |---|---|---|---|
 | EIP-7951 | P256Verify Precompile (0x0100) | 397 | ✅ 100% |
 | EIP-7939 | CLZ Opcode (0x1E) | 579 | ✅ 100% |
-| EIP-7883 | ModExp Gas Increase | 154 | ⚠️ Partial (formula needs tuning) |
+| EIP-7883 | ModExp Gas Increase | 168 | ✅ 100% (complexity=16 / 2·words²; floor 500; no /3) |
 | EIP-7825 | Transaction Gas Limit Cap | — | ✅ Implemented (`tx.gas > 16_777_216` → invalid) |
 
 ---
