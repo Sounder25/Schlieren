@@ -70,6 +70,36 @@ public sealed class ForkGasScheduleTests
             ForkGasScheduleBuilder.From(parent, Fork.Istanbul));
     }
 
+    [Fact]
+    public void Set_RejectsRuleThatIsNotActiveYet()
+    {
+        var id = new GasRuleId("OP.PUSH0");
+
+        var ex = Assert.Throws<GasScheduleException>(() =>
+            ForkGasScheduleBuilder.Empty(Fork.London)
+                .Set(new ConstantRule(id, 2, Fork.Shanghai)));
+
+        Assert.Contains("Shanghai", ex.Message);
+        Assert.Contains("London", ex.Message);
+        Assert.Contains("OP.PUSH0", ex.Message);
+    }
+
+    [Fact]
+    public void FromParent_CanDisableInheritedRuleWithoutMutatingParent()
+    {
+        var id = new GasRuleId("OP.REMOVED");
+        var frontier = ForkGasScheduleBuilder.Empty(Fork.Frontier)
+            .Set(new ConstantRule(id, 3))
+            .Build();
+
+        var homestead = ForkGasScheduleBuilder.From(frontier, Fork.Homestead)
+            .Remove(id)
+            .Build();
+
+        Assert.Equal((ulong)3, frontier.Calculate(id, 0).ChargedGas);
+        Assert.Throws<GasScheduleException>(() => homestead.Calculate(id, 0));
+    }
+
     internal sealed class ConstantRule : IGasRule<int>
     {
         private readonly ulong _cost;

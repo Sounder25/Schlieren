@@ -32,7 +32,20 @@ public sealed class ForkGasScheduleBuilder
     public ForkGasScheduleBuilder Set(IGasRule rule)
     {
         ArgumentNullException.ThrowIfNull(rule);
+        if (rule.Metadata.ActivationFork > _fork)
+        {
+            throw new GasScheduleException(
+                $"Gas rule '{rule.Metadata.RuleId}' activates at {rule.Metadata.ActivationFork} " +
+                $"and cannot be registered for earlier fork {_fork}.");
+        }
+
         _rules[rule.Metadata.RuleId] = rule;
+        return this;
+    }
+
+    public ForkGasScheduleBuilder Remove(GasRuleId id)
+    {
+        _rules.Remove(id);
         return this;
     }
 
