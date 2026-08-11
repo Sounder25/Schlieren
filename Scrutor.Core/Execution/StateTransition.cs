@@ -348,19 +348,32 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
-        var result = await ExecuteInternalAsync(
-            tx,
-            txOverlay,
-            block,
-            tx.From,
-            topLevelCreation,
-            null,
-            false,
-            commit,
-            ct,
-            0,
-            executionGasLimit,
-            accessTracker: accessTracker);
+        ExecutionResult result;
+
+        // EELS process_message_call: top-level CREATE with non-deployable target
+        // (nonce/code/storage — EIP-7610) → AddressCollision, gas_left = 0 (all
+        // execution gas consumed). Sender nonce was already bumped above.
+        if (topLevelCreation.HasValue &&
+            !await AccountDeployability.IsDeployableAsync(txOverlay, topLevelCreation.Value, ct))
+        {
+            result = ExecutionResult.Failure(EvmError.InvalidTransaction, executionGasLimit);
+        }
+        else
+        {
+            result = await ExecuteInternalAsync(
+                tx,
+                txOverlay,
+                block,
+                tx.From,
+                topLevelCreation,
+                null,
+                false,
+                commit,
+                ct,
+                0,
+                executionGasLimit,
+                accessTracker: accessTracker);
+        }
 
         // Merge EIP-7702 authorization refund into result
         if (authRefund > 0)
@@ -623,9 +636,19 @@ public sealed class StateTransition : IStateTransition
             foreach (var entry in tx.AccessList) { accessTracker.WarmAddress(entry.Address); foreach (var slot in entry.StorageKeys) accessTracker.WarmSlot(entry.Address, slot); }
         }
 
-        var result = await ExecuteInternalAsync(
-            tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
-            executionGasLimit, accessTracker: accessTracker, parentGasFrame: rootFrame);
+        ExecutionResult result;
+        if (topLevelCreation.HasValue &&
+            !await AccountDeployability.IsDeployableAsync(state, topLevelCreation.Value, ct))
+        {
+            // EIP-7610 / AddressCollision: all execution gas consumed.
+            result = ExecutionResult.Failure(EvmError.InvalidTransaction, executionGasLimit);
+        }
+        else
+        {
+            result = await ExecuteInternalAsync(
+                tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
+                executionGasLimit, accessTracker: accessTracker, parentGasFrame: rootFrame);
+        }
 
         if (topLevelCreation.HasValue && result.IsSuccess)
         {

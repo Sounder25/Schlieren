@@ -94,13 +94,13 @@ Mismatch lines (not unique cases):
 **Delta since prior baseline (14,100 pass / 416 fail → 14,197 pass / 319 fail): +97 cases fixed.**
 
 Probable remaining root causes (from Layer 1–2):
-1. **CREATE / EIP-7610 collision** — High, 21× `struct_eip7610_collision` + create lifecycle
+1. ~~CREATE / EIP-7610 collision~~ — **fixed** (CREATE + top-level parity with CREATE2 `account_deployable`)
 2. **Tx applied when should reject** — High, 23× (validation gaps beyond plain 7825)
 3. **Gas residuals** — +199000 (32×), CALL_STIPEND 2300 (19×), +25000 new-account (25×)
 4. **Unexpected / empty-account** — Medium, EIP-161 touch/delete
 5. **Precompile invalid-success** — Certain on ecrecover folder (may still be noisy)
 
-EIP-7825 + EIP-7883 dedicated suites: **100%** (35 + 168 cases).
+Dedicated suites at 100%: EIP-7825 (35), EIP-7883 (168), EIP-7610 create_collision (50).
 
 ---
 

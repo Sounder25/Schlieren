@@ -12,7 +12,7 @@ Close the remaining **319** Osaka failures (was 416).
 |---|---|---|
 | EIP-7883 ModExp formula ✅ | 2–4 hours | 168/168 suite green |
 | EIP-7825 Transaction Gas Limit Cap ✅ | 1 day | ~100+ (35/35 suite green) |
-| CREATE/EIP-7610 revert on non-empty storage | 1–2 days | ~100+ |
+| CREATE/EIP-7610 revert on non-empty storage ✅ | 1–2 days | eip7610 suite 50/50; CREATE parity with CREATE2 |
 | Trace remaining balance/nonce residuals | 1–2 days | ~60 |
 
 **Gate:** 14,516 / 14,516 = 100% on `tests@v20.0.1` Osaka suite.

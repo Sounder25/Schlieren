@@ -59,6 +59,15 @@ public sealed class OpcodeCreate : IOpcode
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
 
+        // EELS account_deployable() / EIP-7610: CREATE collides when destination has
+        // nonzero nonce, existing code, or any storage. Message gas already reserved
+        // (EIP-150) remains consumed; creator nonce already bumped.
+        if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
+        {
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
         // Construct internal tx for creation
         var tx = new Transaction
         {
@@ -495,16 +504,9 @@ public sealed class OpcodeCreate2 : IOpcode
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
 
-        // EELS account_deployable(): CREATE2 collides when the destination has
-        // a nonzero nonce, existing code, or any storage. The EIP-150 message
-        // gas has already been reserved and remains consumed on collision.
-        var destinationNonce = await context.GlobalState.GetNonceAsync(newAddress, ct);
-        var destinationCode = await context.GlobalState.GetCodeAsync(newAddress, ct);
-        var destinationStorage =
-            await context.GlobalState.GetStoragePresenceAsync(newAddress, ct);
-        if (destinationNonce != 0 ||
-            destinationCode.Length != 0 ||
-            destinationStorage != StoragePresence.Empty)
+        // EELS account_deployable() / EIP-7610: CREATE2 collides when destination
+        // has nonzero nonce, existing code, or any storage. Message gas reserved.
+        if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
         {
             context.Stack.TryPush(0);
             return (ExecutionResult.Success(0), context.ProgramCounter + 1);
