@@ -74,6 +74,12 @@ public sealed class StateTransition : IStateTransition
 
         if (tx.Authorization != TransactionAuthorization.Internal)
         {
+            // EIP-7825 (Osaka+): pre-execution reject when tx.gas exceeds TX_MAX_GAS_LIMIT (2^24).
+            // EELS: TransactionGasLimitExceededError — transaction is invalid; no state mutation.
+            // Single-dimensional: entire tx.gas is compared (not Amsterdam exec/state split).
+            if (block.Rules.HasEip7825TxGasLimitCap && tx.GasLimit > block.Rules.TxMaxGasLimit)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction, 0);
+
             // EIP-3860 (Shanghai+): reject contract-creating transactions whose initcode exceeds
             // 2 × MAX_CODE_SIZE (49152 bytes). Pre-Shanghai: no limit.
             if (!tx.To.HasValue && block.Rules.HasEip3860InitcodeLimit && tx.Data.Length > 2 * 24576)

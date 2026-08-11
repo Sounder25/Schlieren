@@ -53,6 +53,14 @@ public interface IForkRules
     bool HasEip7702SetCode        { get; }  // Prague+
     bool HasEip7951P256Verify     { get; }  // Osaka+: P256VERIFY precompile at 0x0100
     bool HasEip7883ModExpIncrease  { get; }  // Osaka+: ModExp gas cost increase
+    /// <summary>
+    /// EIP-7825 (Osaka+): reject transactions whose gas limit exceeds
+    /// <see cref="TxMaxGasLimit"/> (16_777_216). Pre-execution validity only —
+    /// single-dimensional; not Amsterdam multi-dim reservoir.
+    /// </summary>
+    bool HasEip7825TxGasLimitCap  { get; }
+    /// <summary>EIP-7825 cap when <see cref="HasEip7825TxGasLimitCap"/> is true; otherwise unused.</summary>
+    ulong TxMaxGasLimit { get; }
 
     // ── Intrinsic gas ────────────────────────────────────────────────────────
     /// <summary>Cost per zero byte of calldata (Frontier–Istanbul=4, unchanged).</summary>
