@@ -1,7 +1,8 @@
 # Scrutor EELS Conformance Status
 **Last Updated:** 2026-08-11  
-**Commit:** `6548df4` "feat(diagnostics): Layer 1 — DivergenceDiagnostics engine"  
-**Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)
+**Baseline commit:** `a744e63` (EIP-7825 + EIP-7883)  
+**Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)  
+**Full Osaka report:** `Scrutor.EELS.Tests/TestResults/taxonomy_20260811_040812.md`
 
 ---
 
@@ -9,8 +10,8 @@
 
 | Suite | Fixture Version | Cases | Passing | Status |
 |---|---|---|---|---|
-| **Osaka** | tests@v20.0.1 | 14,516 | 14,100 | ✅ **97.1%** |
-| **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** |
+| **Osaka** | tests@v20.0.1 | 14,516 | **14,197** | ✅ **97.80%** (was 97.1% / 14,100) |
+| **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(not re-measured this run)* |
 | **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
 | **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
 | **Unit Tests** | — | 303 | 303 | ✅ **100%** |
@@ -52,7 +53,7 @@
 | 02 | SHA-256 | — | ✅ |
 | 03 | RIPEMD-160 | — | ✅ |
 | 04 | Identity | — | ✅ |
-| 05 | ModExp | EIP-198/2565/7883 | ✅ (Osaka gas partial) |
+| 05 | ModExp | EIP-198/2565/7883 | ✅ (Osaka EIP-7883 100%) |
 | 06 | BN254 ecAdd | EIP-196 | ✅ (+ invalid input fix) |
 | 07 | BN254 ecMul | EIP-196 | ✅ (+ invalid input fix) |
 | 08 | BN254 ecPairing | EIP-197 | ✅ (+ G2 subgroup check) |
@@ -77,20 +78,29 @@
 
 ---
 
-## Remaining Osaka Failures (416 cases)
+## Remaining Osaka Failures (**319 cases** — post 7825/7883)
 
-Classified by the taxonomy drill:
-- `nonce` — 716 mismatch lines
-- `code` — 634 mismatch lines
-- `storage` — 620 mismatch lines
-- `balance` — 523 mismatch lines
+Measured 2026-08-11 via `osaka_audit.runsettings` + `EelsTaxonomyDrill` (~3m 39s).
+
+Mismatch lines (not unique cases):
+- `storage` — 535
+- `balance` — 359
+- `nonce` — 93
+- `other` — 54
 - `receipt_status` — 24
-- `other` — 61
+- `code` — 22
+- `missing_account` — 7
 
-Probable root causes (2–3 bugs):
-1. **EIP-7825 Transaction Gas Limit Cap** — not implemented
-2. **ModExp EIP-7883 formula edge case** — iteration count for large exponents
-3. **CREATE/EIP-7610 edge cases** — revert on non-empty storage
+**Delta since prior baseline (14,100 pass / 416 fail → 14,197 pass / 319 fail): +97 cases fixed.**
+
+Probable remaining root causes (from Layer 1–2):
+1. **CREATE / EIP-7610 collision** — High, 21× `struct_eip7610_collision` + create lifecycle
+2. **Tx applied when should reject** — High, 23× (validation gaps beyond plain 7825)
+3. **Gas residuals** — +199000 (32×), CALL_STIPEND 2300 (19×), +25000 new-account (25×)
+4. **Unexpected / empty-account** — Medium, EIP-161 touch/delete
+5. **Precompile invalid-success** — Certain on ecrecover folder (may still be noisy)
+
+EIP-7825 + EIP-7883 dedicated suites: **100%** (35 + 168 cases).
 
 ---
 

@@ -1,12 +1,12 @@
 # Scrutor — Move Forward Plan
 **Date:** 2026-08-11  
-**Baseline:** Osaka 97.1%, Prague v20 93.6%, Layer 1 Diagnostics in place
+**Baseline:** Osaka **97.80%** (14,197 / 14,516) after EIP-7825 + EIP-7883 — report `taxonomy_20260811_040812.md`
 
 ---
 
 ## Phase 1 — Osaka 100% (Est. 1–2 weeks)
 
-Close the remaining 416 Osaka failures.
+Close the remaining **319** Osaka failures (was 416).
 
 | Work Item | Est. Effort | Expected Cases Fixed |
 |---|---|---|
@@ -97,7 +97,7 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 
 | Metric | Value |
 |---|---|
-| Osaka (tests@v20.0.1) | **97.1%** — 14,100 / 14,516 |
+| Osaka (tests@v20.0.1) | **97.80%** — 14,197 / 14,516 (post-7825/7883) |
 | Prague (v5.4.0 — public claim) | **100%** — 2,010 / 2,010 |
 | Cancun (v5.4.0 — public claim) | **100%** — 2,032 / 2,032 |
 | Cases fixed 2026-08-11 | **1,308** |
