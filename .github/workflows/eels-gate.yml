@@ -20,6 +20,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Download EELS fixtures (tests@v20.0.1)
+        run: |
+          mkdir -p fixtures
+          curl -L --retry 3 \
+            "https://github.com/ethereum/execution-specs/releases/download/tests%40v20.0.1/fixtures.tar.gz" \
+            -o fixtures/fixtures.tar.gz
+          tar -xzf fixtures/fixtures.tar.gz -C fixtures/
+          rm fixtures/fixtures.tar.gz
+          echo "Fixtures extracted:"
+          ls fixtures/
+
       - name: Build solution
         run: dotnet build Scrutor.sln -c Release
 
@@ -28,7 +39,7 @@ jobs:
 
       - name: Run EELS Cancun Conformance & Taxonomy Drill
         env:
-          EELS_FIXTURES_ROOT: ${{ github.workspace }}/fixtures/state_tests
+          EELS_FIXTURES_ROOT: ${{ github.workspace }}/fixtures/fixtures/state_tests
           EELS_REQUIRED_FORK: Cancun
           EELS_INCLUDE_SUBDIRS: "1"
           EELS_MAX_CASES: "99999"
