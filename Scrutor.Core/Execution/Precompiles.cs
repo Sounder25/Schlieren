@@ -156,9 +156,10 @@ public static class Precompiles
 
         try
         {
-            var recovered = CryptoUtils.RecoverAddress(hash, v, r, s);
+            var recovered = CryptoUtils.RecoverAddressForPrecompile(hash, v, r, s);
+            if (recovered is null) return (Array.Empty<byte>(), gas);
             var output = new byte[32];
-            Array.Copy(recovered.Bytes, 0, output, 12, 20);
+            Array.Copy(recovered.Value.Bytes, 0, output, 12, 20);
             return (output, gas);
         }
         catch

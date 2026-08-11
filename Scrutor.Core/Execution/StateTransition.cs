@@ -137,6 +137,8 @@ public sealed class StateTransition : IStateTransition
             if (tx.TxType >= 2)
             {
                 if (tx.MaxFeePerGas < baseFeePerGas) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                // EIP-1559: maxPriorityFeePerGas must not exceed maxFeePerGas
+                if (tx.MaxPriorityFeePerGas > tx.MaxFeePerGas) return ExecutionResult.Failure(EvmError.InvalidTransaction);
             }
             else
             {

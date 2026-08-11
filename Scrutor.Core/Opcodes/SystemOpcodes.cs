@@ -40,18 +40,24 @@ public sealed class OpcodeCreate : IOpcode
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
         var newAddress = CryptoUtils.DeriveContractAddress(context.ContractAddress, nonce);
         context.Access.WarmAddress(newAddress);
-        
-        // Increment nonce of creator
-        context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
-        // Sub-call for initialization
-        if (context.SubCall == null)
-             return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-
-        // EIP-150: forward at most 63/64 of remaining gas to child.
+        // EELS pre-checks (identical to the balance/nonce/depth guards in EELS create opcode):
+        //   • sender.balance < endowment
+        //   • sender.nonce == u64::MAX  (would overflow if bumped)
+        //   • depth exceeded
+        // On any of these: refund forwarded gas, push 0, no nonce bump.
+        var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         var parentGasBeforeChild = context.GasLimit - context.GasUsed;
         var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
-        var parentReserve = parentGasBeforeChild - forwardedGas;
+
+        if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
+        {
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // Increment nonce of creator (after guards pass)
+        context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
@@ -485,18 +491,24 @@ public sealed class OpcodeCreate2 : IOpcode
         // Derive address using salt
         var newAddress = CryptoUtils.DeriveContractAddress2(context.ContractAddress, paddedSalt, initCode);
         context.Access.WarmAddress(newAddress);
-        
-        // Increment nonce of creator
+
+        // EELS pre-checks before nonce bump (balance, nonce overflow, depth)
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
+        var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+        var parentGasBeforeChild = context.GasLimit - context.GasUsed;
+        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
+
+        if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
+        {
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // Increment nonce of creator (after guards pass)
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
         if (context.SubCall == null)
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-
-        // EIP-150: forward at most 63/64 of remaining gas to child.
-        var parentGasBeforeChild = context.GasLimit - context.GasUsed;
-        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
-        var parentReserve = parentGasBeforeChild - forwardedGas;
 
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
@@ -1128,9 +1140,14 @@ internal static class PrecompileExecutor
 
         try
         {
-            var recovered = CryptoUtils.RecoverAddress(hash, vInt, r, s);
+            var recovered = CryptoUtils.RecoverAddressForPrecompile(hash, vInt, r, s);
+            if (recovered is null)
+            {
+                // Invalid signature inputs return empty output while still charging gas.
+                return ExecutionResult.Success(gasCost, Array.Empty<byte>());
+            }
             var output = new byte[32];
-            Array.Copy(recovered.Bytes, 0, output, 12, 20);
+            Array.Copy(recovered.Value.Bytes, 0, output, 12, 20);
             return ExecutionResult.Success(gasCost, output);
         }
         catch
