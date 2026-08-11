@@ -39,13 +39,16 @@ public sealed class OpcodeCreate : IOpcode
         // Derive address
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
         var newAddress = CryptoUtils.DeriveContractAddress(context.ContractAddress, nonce);
-        context.Access.WarmAddress(newAddress);
 
         // EELS pre-checks (identical to the balance/nonce/depth guards in EELS create opcode):
         //   • sender.balance < endowment
         //   • sender.nonce == u64::MAX  (would overflow if bumped)
         //   • depth exceeded
         // On any of these: refund forwarded gas, push 0, no nonce bump.
+        // IMPORTANT: DO NOT warm contractAddress here — EELS only adds to accessed_addresses
+        // AFTER these checks pass (line 99 of generic_create). Warming before the check
+        // poisons the access list, causing downstream BALANCE/EXTCODE to use warm cost (100)
+        // instead of cold (2600), producing a 2500-gas delta.
         var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         var parentGasBeforeChild = context.GasLimit - context.GasUsed;
         var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
@@ -57,6 +60,9 @@ public sealed class OpcodeCreate : IOpcode
             context.Stack.TryPush(0);
             return (ExecutionResult.Success(0), context.ProgramCounter + 1);
         }
+
+        // EIP-2929: warm the contract address AFTER pre-checks pass (EELS generic_create line 99)
+        context.Access.WarmAddress(newAddress);
 
         // Increment nonce of creator (after guards pass)
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
@@ -505,9 +511,9 @@ public sealed class OpcodeCreate2 : IOpcode
 
         // Derive address using salt
         var newAddress = CryptoUtils.DeriveContractAddress2(context.ContractAddress, paddedSalt, initCode);
-        context.Access.WarmAddress(newAddress);
 
         // EELS pre-checks before nonce bump (balance, nonce overflow, depth)
+        // IMPORTANT: DO NOT warm contractAddress before these checks — same as CREATE.
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
         var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         var parentGasBeforeChild = context.GasLimit - context.GasUsed;
@@ -520,6 +526,9 @@ public sealed class OpcodeCreate2 : IOpcode
             context.Stack.TryPush(0);
             return (ExecutionResult.Success(0), context.ProgramCounter + 1);
         }
+
+        // EIP-2929: warm the contract address AFTER pre-checks pass (EELS generic_create line 99)
+        context.Access.WarmAddress(newAddress);
 
         // Increment nonce of creator (after guards pass)
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
