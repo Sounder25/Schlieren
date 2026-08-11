@@ -23,6 +23,8 @@ node_modules/
 
 # Downloaded EELS fixtures and local reference checkouts
 fixtures/
+fixtures.tar.gz
+fixtures.tar.gz.partial
 fixtures_stable.tar.gz
 fixtures_develop.tar.gz
 fixtures_static.tar.gz

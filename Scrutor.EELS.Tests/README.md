@@ -16,6 +16,17 @@ This project runs published EELS `state_test` fixtures against Scrutor.
 - `EELS_MAX_CASES`: max number of cases to load (default: `25`).
 - `EELS_INCLUDE_SUBDIRS`: `1`/`true` to recurse fixture folders.
 
+## Fixture setup (fresh clone)
+
+Fixtures are large (~400 MB compressed) and are **not** in git. Download and extract with:
+
+```powershell
+pwsh ./tools/fetch-fixtures.ps1
+```
+
+Default source: `ethereum/execution-specs` release `tests@v20.0.1` → `./fixtures`.
+Use `-Force` to re-download/re-extract. The archive stays local and gitignored.
+
 ## Running
 
 ```powershell

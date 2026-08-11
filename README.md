@@ -39,6 +39,12 @@ dotnet test Scrutor.Tests/Scrutor.Tests.csproj --no-build
 
 ### EELS Conformance & Debugging Suite
 
+Fixture JSON is **not** committed (too large for GitHub). On a fresh clone:
+
+```powershell
+pwsh ./tools/fetch-fixtures.ps1
+```
+
 Scrutor includes an automated 5-tool EELS debugging toolchain:
 
 ```powershell

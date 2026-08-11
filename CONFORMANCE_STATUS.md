@@ -100,7 +100,7 @@ Probable root causes (2–3 bugs):
 |---|---|
 | `ethereum/execution-spec-tests` (old) | **Archived** Jul 2, 2026. Final release: v5.4.0 |
 | `ethereum/execution-specs` (new) | **Active**. Latest: `tests@v20.0.1` (Jul 2, 2026) |
-| Download | `gh release download "tests@v20.0.1" --repo ethereum/execution-specs --pattern "*.tar.gz"` |
+| Download | `pwsh ./tools/fetch-fixtures.ps1` (or `gh release download "tests@v20.0.1" --repo ethereum/execution-specs --pattern "fixtures.tar.gz"`) |
 
 ---
 
