@@ -24,7 +24,8 @@ public static class AccountDeployability
             return false;
 
         var storage = await state.GetStoragePresenceAsync(address, ct);
-        // Empty or Unknown-without-writes: only NonEmpty blocks deployment.
-        return storage != StoragePresence.NonEmpty;
+        // Forked state cannot enumerate arbitrary remote storage. Fail closed
+        // unless storage is positively known to be empty.
+        return storage == StoragePresence.Empty;
     }
 }
