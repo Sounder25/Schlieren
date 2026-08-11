@@ -26,7 +26,7 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 | Work Item | Est. Effort | Status |
 |---|---|---|
 | Wire `DivergenceDiagnostics` into `EelsTaxonomyDrill` report output | 2 hours | ✅ Done — `Layer1DiagnosisBridge` + report section |
-| Wire into Conformance UI panel — show diagnosis per failure, not just raw diff | 1 day | ⬜ Next |
+| Wire into Conformance UI panel — show diagnosis per failure, not just raw diff | 1 day | ✅ Done — case inspector + failure list L1 strip |
 | Layer 2: Structural pattern rules (15–20 rules from hard-won knowledge) | 2 days | ⬜ |
 | Layer 3: Auto trace comparison (representative case per cluster) | 3–5 days | ⬜ |
 | Layer 4: Remediation advisor (fact/diagnosis/suggestion separation) | 2 days | ⬜ |

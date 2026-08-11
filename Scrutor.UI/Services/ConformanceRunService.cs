@@ -10,6 +10,17 @@ using Scrutor.EELS.Tests.Harness;
 namespace Scrutor.UI.Services;
 
 /// <summary>
+/// One Layer 1 diagnosis ready for UI binding (no Core enum leakage).
+/// </summary>
+public sealed record Layer1DiagnosisInfo(
+    string Confidence,
+    string Category,
+    string Summary,
+    string ProtocolRule,
+    string CodeBoundary,
+    string Evidence);
+
+/// <summary>
 /// One update fired per test case — drives the live conformance panel.
 /// </summary>
 public sealed record ConformanceProgress(
@@ -24,7 +35,8 @@ public sealed record ConformanceProgress(
     long GasRefundCounter,
     string PrimaryCategory,
     string EipCluster,
-    string ClusterKey);
+    string ClusterKey,
+    IReadOnlyList<Layer1DiagnosisInfo>? Layer1Diagnoses = null);
 
 /// <summary>
 /// Runs EELS state-test fixtures directly inside the UI process,
@@ -171,6 +183,17 @@ public static class ConformanceRunService
                     ? "state/receipt mismatch"
                     : string.Join("; ", mismatches.Take(2));
 
+                // Phase 2: Layer 1 DivergenceDiagnostics (Scrutor.Core) via EELS bridge.
+                var layer1 = Layer1DiagnosisBridge.DiagnoseCase(c, report)
+                    .Select(d => new Layer1DiagnosisInfo(
+                        Confidence: d.Confidence.ToString(),
+                        Category: d.Category,
+                        Summary: d.Summary,
+                        ProtocolRule: d.ProtocolRule,
+                        CodeBoundary: d.CodeBoundary,
+                        Evidence: d.Evidence))
+                    .ToList();
+
                 progress.Report(new ConformanceProgress(
                     p, f, total,
                     c.CaseId,
@@ -181,7 +204,8 @@ public static class ConformanceRunService
                     report.GasRefundCounter,
                     primary,
                     eip,
-                    cluster));
+                    cluster,
+                    layer1));
             }
             finally { semaphore.Release(); }
         }).ToList();

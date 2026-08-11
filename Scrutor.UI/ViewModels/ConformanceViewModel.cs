@@ -62,6 +62,9 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string  _clusterFilterLabel  = "All failures";
     [ObservableProperty] private bool    _hasClusters;
     [ObservableProperty] private string  _gasHint             = string.Empty;
+    [ObservableProperty] private bool    _hasLayer1Diagnosis;
+    [ObservableProperty] private string  _layer1Headline      = string.Empty;
+    [ObservableProperty] private string  _layer1Body          = string.Empty;
 
     public ObservableCollection<string>                  AvailableForks { get; } = new(ConformanceRunService.SupportedForks);
     public ObservableCollection<ConformanceFailureRow>   Failures       { get; } = new();
@@ -210,9 +213,14 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         SelectedFailure = row;
         HasSelectedFailure = true;
         DetailTitle = row.CaseId;
-        DetailSubtitle = $"{row.PrimaryCategory} · {row.EipCluster} · gas {row.GasUsed:N0}";
+        DetailSubtitle = row.HasLayer1
+            ? $"{row.PrimaryCategory} · {row.EipCluster} · {row.Layer1Headline}"
+            : $"{row.PrimaryCategory} · {row.EipCluster} · gas {row.GasUsed:N0}";
         DetailBody = row.BuildDetailBody();
         GasHint = row.BuildGasHint();
+        HasLayer1Diagnosis = row.HasLayer1;
+        Layer1Headline = row.Layer1Headline;
+        Layer1Body = row.Layer1Body;
     }
 
     [RelayCommand]
@@ -271,7 +279,8 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
                 ? ConformanceRunService.BuildClusterKey(
                     string.IsNullOrEmpty(p.PrimaryCategory) ? "other" : p.PrimaryCategory,
                     string.IsNullOrEmpty(p.EipCluster) ? "unknown" : p.EipCluster)
-                : p.ClusterKey);
+                : p.ClusterKey,
+            layer1Diagnoses: p.Layer1Diagnoses ?? Array.Empty<Layer1DiagnosisInfo>());
 
         _allFailures.Add(row);
         UpsertCluster(row);
@@ -334,9 +343,12 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         SelectedFailure = null;
         HasSelectedFailure = false;
         DetailTitle = "Select a failure";
-        DetailSubtitle = "Click any failure row for full mismatches, gas ledger clues, and cluster membership.";
+        DetailSubtitle = "Click any failure row for Layer 1 diagnoses, full mismatches, and cluster membership.";
         DetailBody = string.Empty;
         GasHint = string.Empty;
+        HasLayer1Diagnosis = false;
+        Layer1Headline = string.Empty;
+        Layer1Body = string.Empty;
     }
 
     private void UpdateDerived()
@@ -374,8 +386,37 @@ public sealed class ConformanceFailureRow
     public string PrimaryCategory { get; }
     public string EipCluster { get; }
     public string ClusterKey { get; }
+    public IReadOnlyList<Layer1DiagnosisInfo> Layer1Diagnoses { get; }
     public string CategoryBadge => PrimaryCategory.ToUpperInvariant();
     public string GasLine => $"gasUsed={GasUsed:N0}  refundCounter={GasRefundCounter:N0}";
+    public bool HasLayer1 => Layer1Diagnoses.Count > 0;
+    public string Layer1Headline => HasLayer1
+        ? $"[{Layer1Diagnoses[0].Confidence}] {Layer1Diagnoses[0].Summary}"
+        : string.Empty;
+    public string Layer1Body
+    {
+        get
+        {
+            if (!HasLayer1) return string.Empty;
+            var sb = new StringBuilder();
+            for (int i = 0; i < Layer1Diagnoses.Count; i++)
+            {
+                var d = Layer1Diagnoses[i];
+                if (i > 0) sb.AppendLine();
+                sb.AppendLine($"{i + 1}. [{d.Confidence}] {d.Category}");
+                sb.AppendLine($"   {d.Summary}");
+                sb.AppendLine($"   Protocol : {d.ProtocolRule}");
+                sb.AppendLine($"   Look in  : {d.CodeBoundary}");
+                sb.AppendLine($"   Evidence : {d.Evidence}");
+            }
+            return sb.ToString().TrimEnd();
+        }
+    }
+
+    /// <summary>One-line strip for the failures list (Layer 1 when present).</summary>
+    public string DiagnosisLine => HasLayer1
+        ? $"L1 [{Layer1Diagnoses[0].Confidence}] {Layer1Diagnoses[0].Category}: {Layer1Diagnoses[0].Summary}"
+        : string.Empty;
 
     public ConformanceFailureRow(
         string caseId,
@@ -386,7 +427,8 @@ public sealed class ConformanceFailureRow
         long gasRefundCounter,
         string primaryCategory,
         string eipCluster,
-        string clusterKey)
+        string clusterKey,
+        IReadOnlyList<Layer1DiagnosisInfo>? layer1Diagnoses = null)
     {
         CaseId = caseId;
         Summary = summary;
@@ -397,6 +439,7 @@ public sealed class ConformanceFailureRow
         PrimaryCategory = primaryCategory;
         EipCluster = eipCluster;
         ClusterKey = clusterKey;
+        Layer1Diagnoses = layer1Diagnoses ?? Array.Empty<Layer1DiagnosisInfo>();
     }
 
     public string BuildDetailBody()
@@ -414,6 +457,12 @@ public sealed class ConformanceFailureRow
             sb.AppendLine($"EIP-3529 CAP  min(refund, gasUsed/5) = {cappedRefund:N0}");
         }
         sb.AppendLine();
+        if (HasLayer1)
+        {
+            sb.AppendLine($"LAYER 1 DIAGNOSES ({Layer1Diagnoses.Count})");
+            sb.AppendLine(Layer1Body);
+            sb.AppendLine();
+        }
         sb.AppendLine("FIXTURE");
         sb.AppendLine(string.IsNullOrEmpty(FixturePath) ? "(unknown)" : FixturePath);
         sb.AppendLine();
