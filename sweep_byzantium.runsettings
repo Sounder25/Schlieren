@@ -6,7 +6,7 @@
       <EELS_INCLUDE_SUBDIRS>1</EELS_INCLUDE_SUBDIRS>
       <EELS_MAX_CASES>99999</EELS_MAX_CASES>
       <EELS_REQUIRED_FORK>Byzantium</EELS_REQUIRED_FORK>
-      <EELS_FIXTURES_ROOT>C:/Projects/Schlieren/fixtures/fixtures/state_tests/for_byzantium</EELS_FIXTURES_ROOT>
+      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests</EELS_FIXTURES_ROOT>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

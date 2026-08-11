@@ -5,7 +5,7 @@
       <EELS_ENFORCE_TRUTH>1</EELS_ENFORCE_TRUTH>
       <EELS_INCLUDE_SUBDIRS>1</EELS_INCLUDE_SUBDIRS>
       <EELS_MAX_CASES>300</EELS_MAX_CASES>
-      <EELS_FIXTURES_ROOT>C:/Projects/Schlieren/fixtures/fixtures/state_tests/for_prague/ported_static</EELS_FIXTURES_ROOT>
+      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/static/state_tests</EELS_FIXTURES_ROOT>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>
