@@ -27,13 +27,15 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 |---|---|---|
 | Wire `DivergenceDiagnostics` into `EelsTaxonomyDrill` report output | 2 hours | ✅ Done — `Layer1DiagnosisBridge` + report section |
 | Wire into Conformance UI panel — show diagnosis per failure, not just raw diff | 1 day | ✅ Done — case inspector + failure list L1 strip |
-| Layer 2: Structural pattern rules (15–20 rules from hard-won knowledge) | 2 days | ⬜ |
-| Layer 3: Auto trace comparison (representative case per cluster) | 3–5 days | ⬜ |
+| Layer 2: Structural pattern rules (15–20 rules from hard-won knowledge) | 2 days | ✅ Done — 20 rules in `StructuralPatternRules` |
+| Layer 3: Auto trace comparison (representative case per cluster) | 3–5 days | ⬜ Next |
 | Layer 4: Remediation advisor (fact/diagnosis/suggestion separation) | 2 days | ⬜ |
 
-**Gate:** The Conformance panel shows `Diagnosis` objects with confidence levels, not raw storage/balance diffs.
+**Gate:** The Conformance panel shows `Diagnosis` objects with confidence levels, not raw storage/balance diffs. ✅ (L1+L2)
 
-**Taxonomy path (live):** every failed case in `EelsTaxonomyDrill` runs `Layer1DiagnosisBridge.DiagnoseCase` → aggregated buckets → markdown section `## Layer 1 Diagnoses`.
+**Taxonomy path (live):** every failed case → `Layer1DiagnosisBridge.DiagnoseCase` (L1 gas constants + L2 structural) → aggregated buckets → `## Layer 1–2 Diagnoses`.
+
+**Layer 2 rules:** EIP-2200 stipend, EIP-3541 EF-prefix, EIP-7610 collision, EIP-7702 warm/nonce, EIP-7825 gas cap, EIP-7883 ModExp, EIP-3529 refund, EIP-2929 access, coinbase tip, EIP-161 empty, exceptional halt, EIP-7623, precompile gas, SELFDESTRUCT, CREATE/initcode, unexpected account, receipt OOG, Osaka feature gate, balance residual.
 
 ---
 

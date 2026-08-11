@@ -88,7 +88,7 @@ public sealed class Layer1DiagnosisBridgeTests
         Assert.Contains(diagnoses, d => d.Category == "create_not_executed");
     }
 
-    [Fact(DisplayName = "Layer1 — aggregate + RenderMarkdown includes Diagnosis section")]
+    [Fact(DisplayName = "Layer1+2 — aggregate + RenderMarkdown includes Diagnosis section")]
     public void AggregateAndRender_IncludesLayer1Section()
     {
         var dx = new DivergenceDiagnostics.Diagnosis(
@@ -126,11 +126,44 @@ public sealed class Layer1DiagnosisBridgeTests
 
         var md = EelsTaxonomyAnalyzer.RenderMarkdown(report);
 
-        Assert.Contains("## Layer 1 Diagnoses", md, StringComparison.Ordinal);
+        Assert.Contains("## Layer 1–2 Diagnoses", md, StringComparison.Ordinal);
         Assert.Contains("gas_constant_match", md, StringComparison.Ordinal);
         Assert.Contains("ECRECOVER", md, StringComparison.Ordinal);
         Assert.Contains("Layer 1 top hit", md, StringComparison.Ordinal);
         Assert.Contains("case-a", md, StringComparison.Ordinal);
+    }
+
+    [Fact(DisplayName = "Layer2 — CREATE cluster fires structural EIP-7610 rule")]
+    public void DiagnoseCase_CreateCluster_IncludesStructuralRule()
+    {
+        var sender = Address.FromHex("0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b");
+        var contract = Address.FromHex("0x00000000000000000000000000000000000000aa");
+        var testCase = MakeCase(sender, gasPrice: 1);
+        // Override fixture path via reflection-free: MakeCase already uses eip7951 path;
+        // build a custom case for 7610
+        testCase = testCase with
+        {
+            FixturePath = @"C:\fixtures\state_tests\osaka\eip7610_create_collision\test.json",
+            CaseId = "create-7610"
+        };
+        var report = new EelsCaseExecutionReport(
+            CaseId: "create-7610",
+            ExecutionSucceeded: true,
+            GasUsed: 50_000,
+            GasRefundCounter: 0,
+            StateMatches: false,
+            ReceiptStatusMatches: true,
+            Mismatches: new[]
+            {
+                $"missing account in actual state: {contract}",
+                $"nonce mismatch for {contract}: expected=1, actual=0",
+                $"code mismatch for {contract}"
+            });
+
+        var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
+
+        Assert.Contains(diagnoses, d => d.Category == "create_lifecycle");
+        Assert.Contains(diagnoses, d => d.Category == "struct_eip7610_collision");
     }
 
     private static EelsStateCase MakeCase(Address sender, int gasPrice)

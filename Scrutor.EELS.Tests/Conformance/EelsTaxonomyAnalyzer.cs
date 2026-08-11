@@ -239,14 +239,14 @@ public static class EelsTaxonomyAnalyzer
             sb.AppendLine("| (none) | — |");
         sb.AppendLine();
 
-        // Layer 1 — DivergenceDiagnostics (product engine in Scrutor.Core)
-        sb.AppendLine("## Layer 1 Diagnoses (`DivergenceDiagnostics`)");
+        // Layer 1–2 — DivergenceDiagnostics + StructuralPatternRules (Scrutor.Core)
+        sb.AppendLine("## Layer 1–2 Diagnoses (`DivergenceDiagnostics` + `StructuralPatternRules`)");
         sb.AppendLine();
-        sb.AppendLine("> Deterministic protocol hypotheses from observed deltas — not raw mismatch strings.");
+        sb.AppendLine("> Deterministic protocol hypotheses: gas-constant matching (L1) and multi-signal structural rules (L2).");
         sb.AppendLine();
         if (r.Layer1Diagnoses.Count == 0)
         {
-            sb.AppendLine("_No Layer 1 diagnoses fired on this run (no matching structural/gas patterns)._");
+            sb.AppendLine("_No Layer 1–2 diagnoses fired on this run (no matching structural/gas patterns)._");
             sb.AppendLine();
         }
         else

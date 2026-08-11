@@ -408,7 +408,7 @@
                           CornerRadius="6" Padding="10,10"
                           IsVisible="{Binding HasLayer1Diagnosis}">
                     <StackPanel Spacing="6">
-                      <TextBlock Classes="label" Text="LAYER 1 DIAGNOSIS"/>
+                      <TextBlock Classes="label" Text="LAYER 1–2 DIAGNOSIS"/>
                       <TextBlock Text="{Binding Layer1Headline}"
                                  FontSize="12" FontWeight="SemiBold"
                                  Foreground="{DynamicResource Scrutor.TextPrimary}"

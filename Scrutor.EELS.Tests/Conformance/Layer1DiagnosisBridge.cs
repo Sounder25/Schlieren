@@ -6,14 +6,18 @@ using Scrutor.EELS.Tests.Harness;
 namespace Scrutor.EELS.Tests.Conformance;
 
 /// <summary>
-/// Phase 2 bridge: feed EELS mismatch strings into <see cref="DivergenceDiagnostics"/> (Layer 1)
-/// and aggregate hits for taxonomy / product surfaces.
+/// Phase 2 bridge: feed EELS mismatch strings into Layer 1 (<see cref="DivergenceDiagnostics"/>)
+/// and Layer 2 (<see cref="StructuralPatternRules"/>) for taxonomy / UI / product surfaces.
 /// </summary>
 public static class Layer1DiagnosisBridge
 {
     /// <summary>
-    /// Run all Layer 1 rules against one failed case's mismatch list.
-    /// Returns zero or more diagnoses (may include duplicates of the same category).
+    /// Well-known EELS fixture coinbase used in many state tests.
+    /// </summary>
+    public const string EelsFixtureCoinbase = "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba";
+
+    /// <summary>
+    /// Run Layer 1 + Layer 2 rules against one failed case's mismatch list.
     /// </summary>
     public static IReadOnlyList<DivergenceDiagnostics.Diagnosis> DiagnoseCase(
         EelsStateCase testCase,
@@ -25,6 +29,7 @@ public static class Layer1DiagnosisBridge
 
         var mismatches = report.Mismatches;
         var gasPrice = ResolveEffectiveGasPrice(testCase);
+        var eipFolder = ExtractEipFolder(testCase.FixturePath);
 
         bool hasMissingAccount = mismatches.Any(m =>
             m.StartsWith("missing account", StringComparison.Ordinal));
@@ -32,32 +37,66 @@ public static class Layer1DiagnosisBridge
             m.StartsWith("nonce mismatch", StringComparison.Ordinal));
         bool hasCodeMismatch = mismatches.Any(m =>
             m.StartsWith("code mismatch", StringComparison.Ordinal));
+        bool hasBalanceMismatch = mismatches.Any(m =>
+            m.StartsWith("balance mismatch", StringComparison.Ordinal));
+        bool hasStorageMismatch = mismatches.Any(m =>
+            m.StartsWith("storage mismatch", StringComparison.Ordinal));
+        bool hasReceiptMismatch = mismatches.Any(m =>
+            m.StartsWith("receipt.status mismatch", StringComparison.Ordinal));
+        bool hasUnexpectedAccount = mismatches.Any(m =>
+            m.StartsWith("unexpected account", StringComparison.Ordinal));
         bool hasStorageWriteWhenExpectedEmpty = mismatches.Any(m =>
             m.StartsWith("storage mismatch", StringComparison.Ordinal) &&
             m.Contains("expected=0x0", StringComparison.OrdinalIgnoreCase));
+        bool hasStorageEmptyWhenExpectedNonZero = mismatches.Any(m =>
+            m.StartsWith("storage mismatch", StringComparison.Ordinal) &&
+            m.Contains("actual=0x0", StringComparison.OrdinalIgnoreCase) &&
+            !m.Contains("expected=0x0", StringComparison.OrdinalIgnoreCase));
 
-        // ── Balance deltas → gas-constant matching ──────────────────────────
+        // ── Layer 1: balance gas constants ──────────────────────────────────
         bool hasBalanceUndercharge = false;
+        bool hasBalanceOvercharge = false;
+        long? primaryDeltaGas = null;
+        bool touchesCoinbase = false;
+
         foreach (var line in mismatches)
         {
             if (!line.StartsWith("balance mismatch", StringComparison.Ordinal))
                 continue;
+
+            var addr = ExtractAddress(line);
+            if (addr is not null &&
+                addr.Equals(EelsFixtureCoinbase, StringComparison.OrdinalIgnoreCase))
+                touchesCoinbase = true;
 
             var (exp, act) = ParseExpectedActualBigInt(line);
             if (exp is null || act is null)
                 continue;
 
             var deltaWei = act.Value - exp.Value;
-            // actual < expected → account poorer than fixture → charged more gas / less refund
-            if (deltaWei < 0)
-                hasBalanceUndercharge = true;
+            if (deltaWei < 0) hasBalanceUndercharge = true;
+            if (deltaWei > 0) hasBalanceOvercharge = true;
 
             if (gasPrice > 0)
+            {
                 results.AddRange(DivergenceDiagnostics.DiagnoseBalanceDelta(deltaWei, gasPrice));
+                try
+                {
+                    var dg = (long)(deltaWei / gasPrice);
+                    // Prefer sender residual as primary when multiple balances diverge
+                    bool isSender = addr is not null &&
+                        addr.Equals(testCase.Sender.ToString(), StringComparison.OrdinalIgnoreCase);
+                    if (primaryDeltaGas is null || isSender)
+                        primaryDeltaGas = dg;
+                }
+                catch
+                {
+                    /* overflow — skip */
+                }
+            }
         }
 
-        // ── Precompile invalid-success structural pattern ───────────────────
-        var eipFolder = ExtractEipFolder(testCase.FixturePath);
+        // ── Layer 1: precompile invalid-success ─────────────────────────────
         var precompileDx = DivergenceDiagnostics.DiagnosePrecompileInvalidSuccess(
             hasStorageWriteWhenExpectedEmpty,
             hasBalanceUndercharge,
@@ -65,13 +104,14 @@ public static class Layer1DiagnosisBridge
         if (precompileDx is not null)
             results.Add(precompileDx);
 
-        // ── Receipt / fork-gate ─────────────────────────────────────────────
+        // ── Layer 1: receipt / fork-gate + Layer 2 receipt flags ────────────
+        bool receiptExpectedFailActualSuccess = false;
+        bool receiptExpectedSuccessActualFail = false;
         foreach (var line in mismatches)
         {
             if (!line.StartsWith("receipt.status mismatch", StringComparison.Ordinal))
                 continue;
 
-            // e.g. "receipt.status mismatch: expected=True, actual=False"
             var expM = Regex.Match(line, @"expected=(True|False)", RegexOptions.IgnoreCase);
             var actM = Regex.Match(line, @"actual=(True|False)", RegexOptions.IgnoreCase);
             if (!expM.Success || !actM.Success)
@@ -79,18 +119,21 @@ public static class Layer1DiagnosisBridge
 
             bool expectedSuccess = expM.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
             bool actualSuccess = actM.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
-            bool receiptExpectedFail = !expectedSuccess;
+            if (!expectedSuccess && actualSuccess) receiptExpectedFailActualSuccess = true;
+            if (expectedSuccess && !actualSuccess) receiptExpectedSuccessActualFail = true;
 
             var forkDx = DivergenceDiagnostics.DiagnoseMissingForkGate(
-                receiptExpectedFail,
-                actualSuccess,
+                receiptExpectedFail: !expectedSuccess,
+                receiptActualSuccess: actualSuccess,
                 testCase.ForkName,
                 testCase.FixturePath);
             if (forkDx is not null)
                 results.Add(forkDx);
         }
 
-        // ── Nonce deltas ────────────────────────────────────────────────────
+        // ── Layer 1: nonce deltas ───────────────────────────────────────────
+        bool senderNoncePlusOne = false;
+        bool contractNonceZeroWhenExpectedOne = false;
         foreach (var line in mismatches)
         {
             if (!line.StartsWith("nonce mismatch", StringComparison.Ordinal))
@@ -104,12 +147,17 @@ public static class Layer1DiagnosisBridge
             bool isSender = addr is not null &&
                 addr.Equals(testCase.Sender.ToString(), StringComparison.OrdinalIgnoreCase);
 
+            if (isSender && act.Value - exp.Value == 1)
+                senderNoncePlusOne = true;
+            if (!isSender && exp.Value == 1 && act.Value == 0)
+                contractNonceZeroWhenExpectedOne = true;
+
             var nonceDx = DivergenceDiagnostics.DiagnoseNonceDelta(exp.Value, act.Value, isSender);
             if (nonceDx is not null)
                 results.Add(nonceDx);
         }
 
-        // ── CREATE lifecycle cluster ────────────────────────────────────────
+        // ── Layer 1: CREATE lifecycle cluster ───────────────────────────────
         var createDx = DivergenceDiagnostics.DiagnoseCreateLifecycleFailure(
             hasMissingAccount,
             hasNonceMismatch,
@@ -117,8 +165,43 @@ public static class Layer1DiagnosisBridge
         if (createDx is not null)
             results.Add(createDx);
 
+        // ── Layer 2: multi-signal structural rules ──────────────────────────
+        var fork = testCase.ForkName ?? string.Empty;
+        var ctx = new MismatchContext(
+            ForkName: fork,
+            FixturePath: testCase.FixturePath ?? string.Empty,
+            EipFolder: eipFolder,
+            GasUsed: report.GasUsed,
+            GasRefundCounter: report.GasRefundCounter,
+            HasBalanceMismatch: hasBalanceMismatch,
+            HasStorageMismatch: hasStorageMismatch,
+            HasNonceMismatch: hasNonceMismatch,
+            HasCodeMismatch: hasCodeMismatch,
+            HasReceiptMismatch: hasReceiptMismatch,
+            HasMissingAccount: hasMissingAccount,
+            HasUnexpectedAccount: hasUnexpectedAccount,
+            StorageWriteWhenExpectedEmpty: hasStorageWriteWhenExpectedEmpty,
+            StorageEmptyWhenExpectedNonZero: hasStorageEmptyWhenExpectedNonZero,
+            BalanceActualBelowExpected: hasBalanceUndercharge,
+            BalanceActualAboveExpected: hasBalanceOvercharge,
+            PrimaryBalanceDeltaGas: primaryDeltaGas,
+            ReceiptExpectedFailActualSuccess: receiptExpectedFailActualSuccess,
+            ReceiptExpectedSuccessActualFail: receiptExpectedSuccessActualFail,
+            SenderNoncePlusOne: senderNoncePlusOne,
+            ContractNonceZeroWhenExpectedOne: contractNonceZeroWhenExpectedOne,
+            TouchesCoinbaseBalance: touchesCoinbase,
+            IsOsakaOrLater: IsForkAtLeast(fork, "Osaka"),
+            IsPragueOrLater: IsForkAtLeast(fork, "Prague") || IsForkAtLeast(fork, "Osaka"));
+
+        results.AddRange(StructuralPatternRules.Evaluate(ctx));
+
         return results;
     }
+
+    private static bool IsForkAtLeast(string fork, string name) =>
+        fork.Equals(name, StringComparison.OrdinalIgnoreCase)
+        || (name.Equals("Prague", StringComparison.OrdinalIgnoreCase) &&
+            fork.Equals("Osaka", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Aggregate diagnoses across many cases: group by category+summary, rank by frequency.

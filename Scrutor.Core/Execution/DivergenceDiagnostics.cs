@@ -114,11 +114,20 @@ public static class DivergenceDiagnostics
             }
         }
 
-        // Check for /3 pattern (EIP-7883 removes the /3 divisor)
+        // EIP-7883 removes the /3 divisor from ModExp gas. If we still divide by 3,
+        // charged gas is ~1/3 of correct → balance residual often related by factor 2 or 3.
         if (absDeltaGas > 200 && results.Count == 0)
         {
-            // If actual = expected * 3, the /3 divisor is still being applied
-            // The delta would be -2/3 of expected
+            if (absDeltaGas % 3 == 0)
+            {
+                results.Add(new Diagnosis(
+                    Category: "gas_modexp_div3_residue",
+                    Summary: "Gas residual divisible by 3 — possible ModExp /3 still applied (EIP-7883 removes it)",
+                    ProtocolRule: "EIP-7883",
+                    CodeBoundary: "Precompiles.cs → ModExpGas()",
+                    Confidence: Confidence.Low,
+                    Evidence: $"absDeltaGas={absDeltaGas} ≡ 0 (mod 3)"));
+            }
         }
 
         return results;
