@@ -381,7 +381,7 @@ public class CancunRules : ShanghaiRules
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Prague — EIP-7702: set-code tx, EIP-7623: calldata floor,
-//           EIP-2537: BLS12-381 precompiles (+0x0B–0x13)
+//           EIP-2537: BLS12-381 precompiles (0x0B–0x11 = 7 precompiles)
 // ═══════════════════════════════════════════════════════════════════════════
 public class PragueRules : CancunRules
 {
@@ -389,7 +389,10 @@ public class PragueRules : CancunRules
     public override Fork Fork => Fork.Prague;
     public override bool HasEip7702SetCode      => true;
     public override bool HasEip7623CalldataFloor => true;
-    public override int  PrecompileCount         => 19; // +9 BLS12-381
+    // EIP-2537 BLS12-381: 7 precompiles at 0x0b–0x11.
+    // 0x01–0x09 = 9, 0x0A = KZG = 10, 0x0b–0x11 = 7 BLS → total 17.
+    // NOTE: 0x12 and 0x13 are NOT defined precompiles in EIP-2537 (EELS confirms).
+    public override int  PrecompileCount         => 17; // 0x01–0x11
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -52,7 +52,7 @@ public static class Precompiles
         var id = bytes[19];
         if (id is >= 1 and <= 9) return true;
         if (id == 10) return kzgEnabled;
-        if (id is >= 0x0b and <= 0x13) return blsEnabled;
+        if (id is >= 0x0b and <= 0x11) return blsEnabled;  // EIP-2537: BLS ends at 0x11, NOT 0x13
         return false;
     }
 

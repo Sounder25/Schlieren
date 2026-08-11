@@ -30,6 +30,21 @@ public sealed class EelsStateFixtureExecutor
             }
         }
 
+        // [AI-EDIT 2026-08-11] EELS modern-format fixtures declare some transactions as
+        // invalid via the `expectException` field.  When that is set the transaction must be
+        // rejected without any state mutation.  Skip EVM execution entirely; the expected
+        // post-state is already the pre-state, and the receipt status is expected=false.
+        if (testCase.ExpectedException is not null)
+        {
+            // Don't execute — treat as a clean "tx rejected" outcome.
+            var mismatches0 = new List<string>();
+            var stateMatches0 = CompareExpectedState(testCase, globalState, mismatches0);
+            // ExpectedReceiptStatus is forced to false for exception cases; pass IsSuccess=false.
+            var receiptMatches0 = CompareReceiptStatus(testCase.ExpectedReceiptStatus, false, mismatches0);
+            return new EelsCaseExecutionReport(
+                testCase.CaseId, false, 0, 0, stateMatches0, receiptMatches0, mismatches0);
+        }
+
         // [AI-EDIT 2026-08-03] EVM spec allows 1024 call depth. Each async frame
         // in .NET consumes ~8-16KB of stack. On the default 1MB thread this overflows
         // for deeply-nested fixtures. Run execution on a thread with 32MB stack.

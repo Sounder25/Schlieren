@@ -110,7 +110,18 @@ public sealed class OpcodeCreate : IOpcode
                 // Exceptional halt: out of gas during code deposit.
                 // The child's remaining gas is consumed (not refunded to parent).
                 // EIP-161 / EELS: the creation frame's state must be fully reverted —
-                // the account (nonce=1, any balance credit) must not exist in final state.
+                // the account (nonce=1, any balance, storage) must not exist in final state.
+                // DeleteAccount alone doesn't zero overlay buffer writes (nonce=1, value credit).
+                // Explicitly reset nonce + code + balance so the overlay buffer doesn't commit them.
+                var depositOogBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                if (depositOogBal > 0)
+                {
+                    var callerBalOog = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                    context.GlobalState.SetBalance(context.ContractAddress, callerBalOog + depositOogBal);
+                }
+                context.GlobalState.SetNonce(newAddress, 0);
+                context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
                 context.GlobalState.DeleteAccount(newAddress);
                 context.Stack.TryPush(0);
                 // No RefundGas — child gas is consumed by exceptional halt.
@@ -558,7 +569,17 @@ public sealed class OpcodeCreate2 : IOpcode
             {
                 // Exceptional halt: out of gas during code deposit.
                 // EIP-161 / EELS: creation frame state must be fully reverted —
-                // the account (nonce=1, any balance credit) must not exist in final state.
+                // the account (nonce=1, any balance, storage) must not exist in final state.
+                // DeleteAccount alone doesn't zero overlay buffer writes (nonce=1, value credit).
+                var depositOogBal2 = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                if (depositOogBal2 > 0)
+                {
+                    var callerBalOog2 = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                    context.GlobalState.SetBalance(context.ContractAddress, callerBalOog2 + depositOogBal2);
+                }
+                context.GlobalState.SetNonce(newAddress, 0);
+                context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
                 context.GlobalState.DeleteAccount(newAddress);
                 context.Stack.TryPush(0);
                 // No RefundGas — child gas consumed by exceptional halt.
