@@ -329,7 +329,8 @@ public static class Precompiles
         }
         catch
         {
-            return (Array.Empty<byte>(), gas);
+            // EIP-196: invalid input → error, consume all provided gas
+            return (null, gasLimit);
         }
     }
 
@@ -350,7 +351,8 @@ public static class Precompiles
         }
         catch
         {
-            return (Array.Empty<byte>(), gas);
+            // EIP-196: invalid input → error, consume all provided gas
+            return (null, gasLimit);
         }
     }
 

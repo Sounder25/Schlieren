@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v20 Prague sweep — excludes ported_static (requires separate runner) -->
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
       <EELS_ENFORCE_TRUTH>1</EELS_ENFORCE_TRUTH>
       <EELS_INCLUDE_SUBDIRS>1</EELS_INCLUDE_SUBDIRS>
-      <EELS_MAX_CASES>99999</EELS_MAX_CASES>
+      <EELS_MAX_CASES>50</EELS_MAX_CASES>
       <EELS_REQUIRED_FORK>Prague</EELS_REQUIRED_FORK>
-      <EELS_FIXTURES_EXCLUDE>ported_static</EELS_FIXTURES_EXCLUDE>
-      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/for_prague</EELS_FIXTURES_ROOT>
+      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/for_prague/homestead</EELS_FIXTURES_ROOT>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

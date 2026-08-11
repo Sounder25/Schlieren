@@ -139,6 +139,12 @@ internal static class Bn254Pairing
         if (!lhs.Equals(rhs)) return false;
 
         pt = new G2(x, y, false);
+
+        // EIP-197 (updated): G2 point must be in the r-order subgroup.
+        // Verify: r * P == infinity (cofactor of G2 over Fp2 is 21888...- r).
+        // This catches points on the twist that are not in the correct subgroup.
+        if (!IsInG2Subgroup(pt)) return false;
+
         return true;
     }
 
@@ -380,6 +386,31 @@ internal static class Bn254Pairing
     }
 
     private static PG2 NegG2(PG2 p) => new(p.X, Fp2.Neg(p.Y), p.Z);
+
+    /// <summary>
+    /// G2 subgroup check: r * P must equal the point at infinity.
+    /// Uses double-and-add scalar multiplication on G2 with the curve order r.
+    /// </summary>
+    private static bool IsInG2Subgroup(G2 pt)
+    {
+        // r = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+        var result = ScalarMulG2(PG2.From(pt), R);
+        return result.IsInfinity;
+    }
+
+    private static PG2 ScalarMulG2(PG2 p, BigInteger scalar)
+    {
+        var result = PG2.Infinity;
+        var addend = p;
+        while (scalar > BigInteger.Zero)
+        {
+            if (!scalar.IsEven)
+                result = AddG2(result, addend);
+            addend = Dbl(addend);
+            scalar >>= 1;
+        }
+        return result;
+    }
 
     // ── Twist: lift G2 from Fp2 to Fp12 ──────────────────────────────────
     // In the Fp12 tower w⁶=ξ:  x' = x·w², y' = y·w³

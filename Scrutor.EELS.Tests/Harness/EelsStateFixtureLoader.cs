@@ -34,6 +34,9 @@ public sealed class EelsStateFixtureLoader
 
         var searchOption = options.IncludeSubdirectories ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var fixtureFiles = Directory.EnumerateFiles(options.FixturesRoot, "*.json", searchOption)
+            .Where(path => string.IsNullOrWhiteSpace(options.ExcludeFolder) ||
+                           !path.Replace('\\', '/').Contains($"/{options.ExcludeFolder}/",
+                               StringComparison.OrdinalIgnoreCase))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 

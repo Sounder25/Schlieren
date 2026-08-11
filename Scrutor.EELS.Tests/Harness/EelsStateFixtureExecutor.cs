@@ -124,7 +124,26 @@ public sealed class EelsStateFixtureExecutor
         {
             foreach (var work in _queue.GetConsumingEnumerable())
             {
-                work();
+                // Run each work item on its own fresh 32MB thread so a StackOverflowException
+                // in one item does not kill the shared worker loop.
+                Exception? workerEx = null;
+                var itemTcs = new TaskCompletionSource<bool>();
+                var itemThread = new Thread(() =>
+                {
+                    try { work(); itemTcs.TrySetResult(true); }
+                    catch (Exception ex) { workerEx = ex; itemTcs.TrySetResult(false); }
+                }, 32 * 1024 * 1024);
+                itemThread.IsBackground = true;
+                itemThread.Start();
+                // 120-second per-case timeout — if hit, mark the outer TCS as cancelled
+                if (!itemThread.Join(TimeSpan.FromSeconds(120)))
+                {
+                    itemThread.Interrupt();
+                    // Signal completion so the queue drains — the case TCS stays uncompleted
+                    // and the caller will get an OperationCanceledException from CancellationToken
+                }
+                if (workerEx != null)
+                    throw workerEx;
             }
         }
     }

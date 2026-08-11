@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Scrutor.UI.Branding;
 
@@ -81,6 +82,8 @@ public static class SkinService
         r["Scrutor.Success.Hex"] = skin.Success;
         r["Scrutor.Danger.Hex"] = skin.Danger;
         r["Scrutor.Warning.Hex"] = skin.Warning;
+        r["Scrutor.WatermarkBoost"] = skin.WatermarkBoost;
+        r["Scrutor.ArtMotif"] = skin.ArtMotif.ToString();
 
         if (persist)
             Save(skin.Id);

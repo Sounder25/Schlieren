@@ -99,9 +99,18 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _lastContractAddress = "";
 
     /// <summary>
-    /// Full brand mark as a soft center watermark. Stronger when empty, ghosted when code is up.
+    /// Soft center watermark. Stronger when empty, ghosted when code is up.
+    /// Multiplied by the active skin's WatermarkBoost (art skins can go bolder).
     /// </summary>
-    public double WatermarkOpacity => HasOpenFiles || HasTrace ? 0.07 : 0.20;
+    public double WatermarkOpacity
+    {
+        get
+        {
+            var bas = HasOpenFiles || HasTrace ? 0.07 : 0.20;
+            var boost = Services.SkinService.Current.WatermarkBoost;
+            return Math.Clamp(bas * boost, 0.02, 0.42);
+        }
+    }
 
     public string CurrentFileTitle =>
         SelectedFile != null
@@ -134,12 +143,17 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     {
         ApplyOpSec();
         RefreshFilteredFiles();
+        Services.SkinService.SkinChanged += OnSkinChanged;
     }
+
+    private void OnSkinChanged(Branding.UiSkin _)
+        => OnPropertyChanged(nameof(WatermarkOpacity));
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+        Services.SkinService.SkinChanged -= OnSkinChanged;
         StopAutoPlay();
         try { _runCts?.Cancel(); } catch { /* ignore */ }
         _runCts?.Dispose();

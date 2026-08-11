@@ -4,43 +4,43 @@
              x:Class="Scrutor.UI.Views.ConformanceView"
              x:Name="confRoot"
              x:DataType="vm:ConformanceViewModel"
-             Background="#07080f">
+             Background="{DynamicResource Scrutor.ShellBg}">
 
   <UserControl.Styles>
     <Style Selector="TextBlock.label">
       <Setter Property="FontSize" Value="10"/>
       <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="Foreground" Value="#7a82a8"/>
+      <Setter Property="Foreground" Value="{DynamicResource Scrutor.TextDim}"/>
       <Setter Property="LetterSpacing" Value="2"/>
     </Style>
     <Style Selector="ComboBox">
-      <Setter Property="Background" Value="#111428"/>
-      <Setter Property="BorderBrush" Value="#1e2240"/>
-      <Setter Property="Foreground" Value="#eef0f8"/>
+      <Setter Property="Background" Value="{DynamicResource Scrutor.PanelElevated}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Scrutor.Border}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Scrutor.TextPrimary}"/>
       <Setter Property="Height" Value="34"/>
     </Style>
     <Style Selector="TextBox">
-      <Setter Property="Background" Value="#0d0f1c"/>
-      <Setter Property="BorderBrush" Value="#1e2240"/>
-      <Setter Property="Foreground" Value="#eef0f8"/>
+      <Setter Property="Background" Value="{DynamicResource Scrutor.PanelDeep}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Scrutor.Border}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Scrutor.TextPrimary}"/>
       <Setter Property="Height" Value="34"/>
       <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
       <Setter Property="FontSize" Value="12"/>
     </Style>
     <Style Selector="Button.primary">
-      <Setter Property="Background" Value="#4A00E0"/>
-      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Background" Value="{DynamicResource Scrutor.Accent}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Scrutor.TextPrimary}"/>
       <Setter Property="FontWeight" Value="Bold"/>
       <Setter Property="Padding" Value="20,0"/>
       <Setter Property="Height" Value="36"/>
       <Setter Property="CornerRadius" Value="6"/>
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#3600aa"/>
+      <Setter Property="Background" Value="{DynamicResource Scrutor.AccentHover}"/>
     </Style>
     <Style Selector="Button.cancel">
-      <Setter Property="Background" Value="#1e2240"/>
-      <Setter Property="Foreground" Value="#7a82a8"/>
+      <Setter Property="Background" Value="{DynamicResource Scrutor.PanelElevated}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Scrutor.TextMuted}"/>
       <Setter Property="FontWeight" Value="Bold"/>
       <Setter Property="Padding" Value="16,0"/>
       <Setter Property="Height" Value="36"/>
@@ -56,11 +56,11 @@
       <Setter Property="Cursor" Value="Hand"/>
     </Style>
     <Style Selector="Button.row:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#1a1040"/>
+      <Setter Property="Background" Value="{DynamicResource Scrutor.SelectionBg}"/>
     </Style>
     <Style Selector="Button.link">
       <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Foreground" Value="#19D7E5"/>
+      <Setter Property="Foreground" Value="{DynamicResource Scrutor.AccentAlt}"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Padding" Value="6,2"/>
       <Setter Property="FontSize" Value="11"/>
@@ -71,8 +71,8 @@
   <Grid RowDefinitions="Auto,Auto,*" Margin="0">
 
     <!-- ── TOP BAR: controls ─────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#0d0f1c"
-            BorderBrush="#1e2240" BorderThickness="0,0,0,1"
+    <Border Grid.Row="0" Background="{DynamicResource Scrutor.PanelDeep}"
+            BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1"
             Padding="20,14">
       <Grid ColumnDefinitions="Auto,16,*,16,Auto,12,Auto,12,Auto">
 
@@ -109,7 +109,7 @@
         </Button>
 
         <!-- Elapsed -->
-        <Border Grid.Column="8" Background="#111428" BorderBrush="#1e2240"
+        <Border Grid.Column="8" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                 BorderThickness="1" CornerRadius="6" Padding="12,0"
                 VerticalAlignment="Bottom" Height="36">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -117,7 +117,7 @@
             <TextBlock Text="{Binding ElapsedText}"
                        FontFamily="Consolas, Cascadia Mono, monospace"
                        FontSize="14" FontWeight="Bold"
-                       Foreground="#eef0f8" VerticalAlignment="Center"/>
+                       Foreground="{DynamicResource Scrutor.TextPrimary}" VerticalAlignment="Center"/>
           </StackPanel>
         </Border>
 
@@ -125,15 +125,15 @@
     </Border>
 
     <!-- ── RESOLVED PATH + STATUS ────────────────────────────── -->
-    <Border Grid.Row="1" Background="#080b10"
-            BorderBrush="#1e2240" BorderThickness="0,0,0,1"
+    <Border Grid.Row="1" Background="{DynamicResource Scrutor.ShellBg}"
+            BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1"
             Padding="20,8">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <TextBlock Text="📁" FontSize="11" VerticalAlignment="Center"/>
           <TextBlock Text="{Binding ResolvedFixturePath}"
                      FontFamily="Consolas, Cascadia Mono, monospace"
-                     FontSize="11" Foreground="#4a5568"
+                     FontSize="11" Foreground="{DynamicResource Scrutor.TextDim}"
                      VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
         <TextBlock Grid.Column="1"
@@ -154,43 +154,43 @@
         <Grid Grid.Row="0" ColumnDefinitions="*,*,*,*" Margin="0,0,0,16">
 
           <!-- Passed -->
-          <Border Grid.Column="0" Background="#111428" BorderBrush="#1e2240"
+          <Border Grid.Column="0" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                   BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
             <StackPanel Spacing="4">
               <TextBlock Classes="label" Text="PASSED"/>
               <TextBlock Text="{Binding Passed, StringFormat=N0}"
                          FontSize="32" FontWeight="Black"
-                         Foreground="#22c55e"
+                         Foreground="{DynamicResource Scrutor.Success}"
                          FontFamily="Consolas, Cascadia Mono, monospace"/>
             </StackPanel>
           </Border>
 
           <!-- Failed -->
-          <Border Grid.Column="1" Background="#111428" BorderBrush="#1e2240"
+          <Border Grid.Column="1" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                   BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
             <StackPanel Spacing="4">
               <TextBlock Classes="label" Text="FAILED"/>
               <TextBlock Text="{Binding Failed, StringFormat=N0}"
                          FontSize="32" FontWeight="Black"
-                         Foreground="#ef4444"
+                         Foreground="{DynamicResource Scrutor.Danger}"
                          FontFamily="Consolas, Cascadia Mono, monospace"/>
             </StackPanel>
           </Border>
 
           <!-- Total -->
-          <Border Grid.Column="2" Background="#111428" BorderBrush="#1e2240"
+          <Border Grid.Column="2" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                   BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
             <StackPanel Spacing="4">
               <TextBlock Classes="label" Text="TOTAL CASES"/>
               <TextBlock Text="{Binding Total, StringFormat=N0}"
                          FontSize="32" FontWeight="Black"
-                         Foreground="#eef0f8"
+                         Foreground="{DynamicResource Scrutor.TextPrimary}"
                          FontFamily="Consolas, Cascadia Mono, monospace"/>
             </StackPanel>
           </Border>
 
           <!-- Pass Rate -->
-          <Border Grid.Column="3" Background="#111428" BorderBrush="#1e2240"
+          <Border Grid.Column="3" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                   BorderThickness="1" CornerRadius="8" Padding="16,12">
             <StackPanel Spacing="4">
               <TextBlock Classes="label" Text="PASS RATE"/>
@@ -204,7 +204,7 @@
         </Grid>
 
         <!-- Progress bar -->
-        <Border Grid.Row="1" Background="#111428" BorderBrush="#1e2240"
+        <Border Grid.Row="1" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                 BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,16">
           <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto">
@@ -212,37 +212,37 @@
               <TextBlock Grid.Column="1"
                          Text="{Binding ProgressText}"
                          FontFamily="Consolas, Cascadia Mono, monospace"
-                         FontSize="12" FontWeight="Bold" Foreground="#eef0f8"/>
+                         FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Scrutor.TextPrimary}"/>
             </Grid>
             <ProgressBar Minimum="0" Maximum="1"
                          Value="{Binding ProgressRatio}"
                          Height="12"
-                         Background="#1e2240"
-                         Foreground="#4A00E0"
+                         Background="{DynamicResource Scrutor.Border}"
+                         Foreground="{DynamicResource Scrutor.Accent}"
                          CornerRadius="6"/>
             <TextBlock Text="{Binding CurrentCase}"
                        FontFamily="Consolas, Cascadia Mono, monospace"
-                       FontSize="11" Foreground="#19D7E5"
+                       FontSize="11" Foreground="{DynamicResource Scrutor.AccentAlt}"
                        TextTrimming="CharacterEllipsis"/>
           </StackPanel>
         </Border>
 
         <!-- Failures list (clickable) -->
-        <Border Grid.Row="2" Background="#111428" BorderBrush="#1e2240"
+        <Border Grid.Row="2" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                 BorderThickness="1" CornerRadius="8" ClipToBounds="True">
           <DockPanel>
-            <Border DockPanel.Dock="Top" Background="#0d0f1c"
-                    BorderBrush="#1e2240" BorderThickness="0,0,0,1"
+            <Border DockPanel.Dock="Top" Background="{DynamicResource Scrutor.PanelDeep}"
+                    BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1"
                     Padding="16,8">
               <Grid ColumnDefinitions="*,Auto,Auto">
                 <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                   <TextBlock Classes="label" Text="FAILURES" VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding ClusterFilterLabel}"
-                             FontSize="11" Foreground="#B794F6" VerticalAlignment="Center"/>
+                             FontSize="11" Foreground="{DynamicResource Scrutor.AccentSoft}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Grid.Column="1"
                            Text="{Binding Failures.Count, StringFormat='{}{0} shown'}"
-                           FontSize="11" Foreground="#4a5568" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                           FontSize="11" Foreground="{DynamicResource Scrutor.TextDim}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <Button Grid.Column="2" Classes="link" Content="Clear filter"
                         Command="{Binding ClearClusterFilterCommand}"
                         VerticalAlignment="Center"/>
@@ -251,7 +251,7 @@
             <TextBlock DockPanel.Dock="Top"
                        Text="No failures yet — live results stream here. Click a row for full mismatch + gas clues."
                        IsVisible="{Binding ShowEmptyFailures}"
-                       Foreground="#4a5568" FontSize="12"
+                       Foreground="{DynamicResource Scrutor.TextDim}" FontSize="12"
                        Margin="16,20" TextWrapping="Wrap" TextAlignment="Center"/>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <ItemsControl ItemsSource="{Binding Failures}" Margin="0">
@@ -259,30 +259,30 @@
                   <DataTemplate x:DataType="vm:ConformanceFailureRow">
                     <Button Classes="row"
                             Click="OnFailureClick"
-                            BorderBrush="#1e2240" BorderThickness="0,0,0,1"
+                            BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1"
                             ToolTip.Tip="Click for full mismatches, gas ledger clues, and cluster">
                       <StackPanel Spacing="4">
                         <Grid ColumnDefinitions="Auto,*,Auto">
-                          <Border Background="#2d0060" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
+                          <Border Background="{DynamicResource Scrutor.SelectionBg}" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
                             <TextBlock Text="{Binding CategoryBadge}"
-                                       FontSize="9" FontWeight="Bold" Foreground="#B794F6"
+                                       FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Scrutor.AccentSoft}"
                                        FontFamily="Consolas, Cascadia Mono, monospace"/>
                           </Border>
                           <TextBlock Grid.Column="1" Text="{Binding CaseId}"
                                      FontFamily="Consolas, Cascadia Mono, monospace"
-                                     FontSize="12" Foreground="#ef4444"
+                                     FontSize="12" Foreground="{DynamicResource Scrutor.Danger}"
                                      FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                           <TextBlock Grid.Column="2" Text="{Binding EipCluster}"
-                                     FontSize="10" Foreground="#4a5568" Margin="8,0,0,0"
+                                     FontSize="10" Foreground="{DynamicResource Scrutor.TextDim}" Margin="8,0,0,0"
                                      FontFamily="Consolas, Cascadia Mono, monospace"/>
                         </Grid>
                         <TextBlock Text="{Binding Detail}"
                                    FontFamily="Consolas, Cascadia Mono, monospace"
-                                   FontSize="11" Foreground="#7a82a8"
+                                   FontSize="11" Foreground="{DynamicResource Scrutor.TextMuted}"
                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding GasLine}"
                                    FontFamily="Consolas, Cascadia Mono, monospace"
-                                   FontSize="10" Foreground="#4a5568"/>
+                                   FontSize="10" Foreground="{DynamicResource Scrutor.TextDim}"/>
                       </StackPanel>
                     </Button>
                   </DataTemplate>
@@ -295,50 +295,50 @@
       </Grid>
 
       <!-- Vertical divider -->
-      <Border Grid.Column="1" Background="#1e2240" Width="1"/>
+      <Border Grid.Column="1" Background="{DynamicResource Scrutor.Border}" Width="1"/>
 
       <!-- RIGHT: clusters + detail inspector -->
-      <Border Grid.Column="2" Background="#0d0f1c"
-              BorderBrush="#1e2240" BorderThickness="1,0,0,0"
+      <Border Grid.Column="2" Background="{DynamicResource Scrutor.PanelDeep}"
+              BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="1,0,0,0"
               Padding="12,10,12,8">
         <Grid RowDefinitions="Auto,Auto,*">
 
           <!-- Fork strip -->
-          <Border Grid.Row="0" Background="#111428" BorderBrush="#4A00E0"
+          <Border Grid.Row="0" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Accent}"
                   BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
             <StackPanel Spacing="4">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding SelectedFork}"
-                           FontSize="18" FontWeight="Black" Foreground="#eef0f8"/>
+                           FontSize="18" FontWeight="Black" Foreground="{DynamicResource Scrutor.TextPrimary}"/>
                 <Border Grid.Column="1" IsVisible="{Binding IsRunning}"
                         Background="#0d2a30" CornerRadius="4" Padding="8,3">
-                  <TextBlock Text="LIVE" FontSize="10" FontWeight="Bold" Foreground="#19D7E5"/>
+                  <TextBlock Text="LIVE" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Scrutor.AccentAlt}"/>
                 </Border>
               </Grid>
               <TextBlock Text="{Binding ReadySummary}"
-                         FontSize="11" Foreground="#B794F6" TextWrapping="Wrap"/>
+                         FontSize="11" Foreground="{DynamicResource Scrutor.AccentSoft}" TextWrapping="Wrap"/>
               <TextBlock Text="{Binding FixtureSuiteVersion}"
                          FontFamily="Consolas, Cascadia Mono, monospace"
-                         FontSize="11" Foreground="#4a5568"/>
+                         FontSize="11" Foreground="{DynamicResource Scrutor.TextDim}"/>
             </StackPanel>
           </Border>
 
           <!-- Failure clusters (capped height so inspector keeps room) -->
-          <Border Grid.Row="1" Background="#111428" BorderBrush="#1e2240"
+          <Border Grid.Row="1" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                   BorderThickness="1" CornerRadius="8" Margin="0,0,0,8" MaxHeight="140">
             <Grid RowDefinitions="Auto,*">
-              <Border Grid.Row="0" Padding="12,8" BorderBrush="#1e2240" BorderThickness="0,0,0,1">
+              <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Classes="label" Text="FAILURE CLUSTERS" VerticalAlignment="Center"
                              ToolTip.Tip="Grouped by mismatch category × EIP/feature folder — same idea as the EELS taxonomy drill"/>
                   <TextBlock Grid.Column="1" Text="{Binding Clusters.Count, StringFormat='{}{0}'}"
-                             FontSize="11" Foreground="#4a5568"/>
+                             FontSize="11" Foreground="{DynamicResource Scrutor.TextDim}"/>
                 </Grid>
               </Border>
               <TextBlock Grid.Row="1"
                          Text="Clusters appear as failures stream — click to filter."
                          IsVisible="{Binding !HasClusters}"
-                         Foreground="#4a5568" FontSize="11" Margin="12,10" TextWrapping="Wrap"/>
+                         Foreground="{DynamicResource Scrutor.TextDim}" FontSize="11" Margin="12,10" TextWrapping="Wrap"/>
               <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                             IsVisible="{Binding HasClusters}">
                 <ItemsControl ItemsSource="{Binding Clusters}">
@@ -346,22 +346,22 @@
                     <DataTemplate x:DataType="vm:ConformanceClusterRow">
                       <Button Classes="row"
                               Click="OnClusterClick"
-                              BorderBrush="#1e2240" BorderThickness="0,0,0,1"
+                              BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1"
                               ToolTip.Tip="Filter failures to this cluster">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                           <TextBlock Text="{Binding Count, StringFormat=N0}"
                                      FontFamily="Consolas, Cascadia Mono, monospace"
-                                     FontSize="13" FontWeight="Bold" Foreground="#f59e0b"
+                                     FontSize="13" FontWeight="Bold" Foreground="{DynamicResource Scrutor.Warning}"
                                      Width="40"/>
                           <StackPanel Grid.Column="1" Spacing="1">
                             <TextBlock Text="{Binding PrimaryCategory}"
-                                       FontSize="11" FontWeight="SemiBold" Foreground="#eef0f8"/>
+                                       FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Scrutor.TextPrimary}"/>
                             <TextBlock Text="{Binding EipCluster}"
-                                       FontSize="10" Foreground="#7a82a8"
+                                       FontSize="10" Foreground="{DynamicResource Scrutor.TextMuted}"
                                        FontFamily="Consolas, Cascadia Mono, monospace"
                                        TextTrimming="CharacterEllipsis"/>
                           </StackPanel>
-                          <TextBlock Grid.Column="2" Text="→" Foreground="#4A00E0" Margin="8,0,0,0"/>
+                          <TextBlock Grid.Column="2" Text="→" Foreground="{DynamicResource Scrutor.Accent}" Margin="8,0,0,0"/>
                         </Grid>
                       </Button>
                     </DataTemplate>
@@ -372,11 +372,11 @@
           </Border>
 
           <!-- Case inspector: takes remaining height; content fully scrollable -->
-          <Border Grid.Row="2" Background="#111428" BorderBrush="#1e2240"
+          <Border Grid.Row="2" Background="{DynamicResource Scrutor.PanelElevated}" BorderBrush="{DynamicResource Scrutor.Border}"
                   BorderThickness="1" CornerRadius="8" MinHeight="160">
             <Grid RowDefinitions="Auto,*">
-              <Border Grid.Row="0" Padding="12,8" BorderBrush="#1e2240" BorderThickness="0,0,0,1"
-                      Background="#0d0f1c">
+              <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource Scrutor.Border}" BorderThickness="0,0,0,1"
+                      Background="{DynamicResource Scrutor.PanelDeep}">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Classes="label" Text="CASE INSPECTOR" VerticalAlignment="Center"/>
                   <Button Grid.Column="1" Classes="link" Content="Clear"
@@ -393,32 +393,32 @@
                 <StackPanel Spacing="10" Margin="12,10,16,36">
                   <TextBlock Text="{Binding DetailTitle}"
                              FontFamily="Consolas, Cascadia Mono, monospace"
-                             FontSize="12" FontWeight="Bold" Foreground="#eef0f8"
+                             FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Scrutor.TextPrimary}"
                              TextWrapping="Wrap"/>
                   <TextBlock Text="{Binding DetailSubtitle}"
-                             FontSize="11" Foreground="#19D7E5" TextWrapping="Wrap"/>
-                  <Border Background="#0d0f1c" CornerRadius="6" Padding="10,8"
+                             FontSize="11" Foreground="{DynamicResource Scrutor.AccentAlt}" TextWrapping="Wrap"/>
+                  <Border Background="{DynamicResource Scrutor.PanelDeep}" CornerRadius="6" Padding="10,8"
                           IsVisible="{Binding HasSelectedFailure}">
                     <SelectableTextBlock Text="{Binding DetailBody}"
                                          FontFamily="Consolas, Cascadia Mono, monospace"
-                                         FontSize="11" Foreground="#c4c9e0"
+                                         FontSize="11" Foreground="{DynamicResource Scrutor.TextPrimary}"
                                          TextWrapping="Wrap"/>
                   </Border>
-                  <Border Background="#1a1040" BorderBrush="#4A00E0" BorderThickness="1"
+                  <Border Background="{DynamicResource Scrutor.SelectionBg}" BorderBrush="{DynamicResource Scrutor.Accent}" BorderThickness="1"
                           CornerRadius="6" Padding="10,10"
                           IsVisible="{Binding HasSelectedFailure}">
                     <StackPanel Spacing="4">
                       <TextBlock Classes="label" Text="GAS / ROOT-CAUSE HINT"/>
                       <TextBlock Text="{Binding GasHint}"
-                                 FontSize="11" Foreground="#B794F6" TextWrapping="Wrap"/>
+                                 FontSize="11" Foreground="{DynamicResource Scrutor.AccentSoft}" TextWrapping="Wrap"/>
                     </StackPanel>
                   </Border>
                   <TextBlock Text="{Binding DetailSubtitle}"
                              IsVisible="{Binding !HasSelectedFailure}"
-                             FontSize="11" Foreground="#4a5568" TextWrapping="Wrap"/>
+                             FontSize="11" Foreground="{DynamicResource Scrutor.TextDim}" TextWrapping="Wrap"/>
                   <TextBlock Text="{Binding FixtureSuiteSource}"
                              FontFamily="Consolas, Cascadia Mono, monospace"
-                             FontSize="10" Foreground="#4a5568"
+                             FontSize="10" Foreground="{DynamicResource Scrutor.TextDim}"
                              HorizontalAlignment="Center" Margin="0,8,0,0"/>
                 </StackPanel>
               </ScrollViewer>
