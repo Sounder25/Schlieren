@@ -52,6 +52,8 @@ public sealed class OpcodeCreate : IOpcode
 
         if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
         {
+            // EIP-211: Clear return data buffer even on early-exit pre-checks.
+            context.LastReturnData = Array.Empty<byte>();
             context.Stack.TryPush(0);
             return (ExecutionResult.Success(0), context.ProgramCounter + 1);
         }
@@ -511,6 +513,8 @@ public sealed class OpcodeCreate2 : IOpcode
 
         if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
         {
+            // EIP-211: Clear return data buffer even on early-exit pre-checks.
+            context.LastReturnData = Array.Empty<byte>();
             context.Stack.TryPush(0);
             return (ExecutionResult.Success(0), context.ProgramCounter + 1);
         }
