@@ -78,6 +78,7 @@ public static class Precompiles
         // BN254 precompiles have fork-dependent gas (EIP-1108 changed Byzantium→Istanbul)
         return id switch
         {
+            5 => ModExp(input, gasLimit, rules.HasEip2565ModExpPricing, rules.HasEip7883ModExpIncrease),
             6 => BnAdd(input, gasLimit, rules.BnAddGas),
             7 => BnMul(input, gasLimit, rules.BnMulGas),
             8 => BnPairing(input, gasLimit, rules.BnPairingBaseGas, rules.BnPairingPerPointGas),
@@ -201,7 +202,7 @@ public static class Precompiles
     // ══════════════════════════════════════════════════════════════════════════
     //  0x05: MODEXP  (EIP-198 / EIP-2565)
     // ══════════════════════════════════════════════════════════════════════════
-    private static (byte[]? output, ulong gasUsed) ModExp(byte[] input, ulong gasLimit, bool eip2565 = true)
+    private static (byte[]? output, ulong gasUsed) ModExp(byte[] input, ulong gasLimit, bool eip2565 = true, bool eip7883 = false)
     {
         var bSizeBig = ReadUint256(input, 0);
         var eSizeBig = ReadUint256(input, 32);
@@ -217,7 +218,7 @@ public static class Precompiles
         var eBytes = ReadPadded(input, ref pos, eLen);
         var mBytes = ReadPadded(input, ref pos, mLen);
 
-        var gas = ModExpGas(bLen, eLen, mLen, eBytes, eip2565);
+        var gas = ModExpGas(bLen, eLen, mLen, eBytes, eip2565, eip7883);
         if (gas > gasLimit) return (null, gasLimit);
 
         if (mLen == 0) return (Array.Empty<byte>(), gas);
@@ -247,9 +248,12 @@ public static class Precompiles
     /// EIP-2565 gas formula for MODEXP (Berlin+): complexity = (ceil(maxLen/8))², divisor=3, floor=200.
     /// EIP-198 gas formula for MODEXP (pre-Berlin): complexity = tiered piecewise, divisor=20, no floor.
     /// </summary>
-    private static ulong ModExpGas(int baseLen, int expLen, int modLen, byte[] expBytes, bool eip2565 = true)
+    private static ulong ModExpGas(int baseLen, int expLen, int modLen, byte[] expBytes, bool eip2565 = true, bool eip7883 = false)
     {
         long maxLen = Math.Max(baseLen, modLen);
+
+        // EIP-7883: assume minimal base/modulus length of 32
+        if (eip7883 && maxLen < 32) maxLen = 32;
 
         // Multiplication complexity
         BigInteger multComp;
@@ -290,17 +294,31 @@ public static class Precompiles
                 : PadRight(expBytes, 32);
             var expHead = new BigInteger(highBytes, isUnsigned: true, isBigEndian: true);
             var bitLen = expHead.IsZero ? 0 : MsBitIndex(expHead);
-            iterCount = (BigInteger)(8 * (expLen - 32)) + bitLen;
+            // EIP-7883: multiplier increased from 8 to 16 for exponents > 32 bytes
+            int expMul = eip7883 ? 16 : 8;
+            iterCount = (BigInteger)(expMul * (expLen - 32)) + bitLen;
         }
 
         if (iterCount < 1) iterCount = BigInteger.One;
 
         if (eip2565)
         {
+            // EIP-7883: no division by 3, floor raised to 500
             // EIP-2565: divisor=3, floor=200
-            var gasRaw = multComp * iterCount / 3;
+            BigInteger gasRaw;
+            ulong floor;
+            if (eip7883)
+            {
+                gasRaw = multComp * iterCount; // no /3
+                floor = 500;
+            }
+            else
+            {
+                gasRaw = multComp * iterCount / 3;
+                floor = 200;
+            }
             if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
-            return Math.Max(200UL, (ulong)gasRaw);
+            return Math.Max(floor, (ulong)gasRaw);
         }
         else
         {

@@ -52,6 +52,7 @@ public interface IForkRules
     bool HasEip7623CalldataFloor  { get; }  // Prague+
     bool HasEip7702SetCode        { get; }  // Prague+
     bool HasEip7951P256Verify     { get; }  // Osaka+: P256VERIFY precompile at 0x0100
+    bool HasEip7883ModExpIncrease  { get; }  // Osaka+: ModExp gas cost increase
 
     // ── Intrinsic gas ────────────────────────────────────────────────────────
     /// <summary>Cost per zero byte of calldata (Frontier–Istanbul=4, unchanged).</summary>

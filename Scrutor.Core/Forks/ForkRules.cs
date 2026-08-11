@@ -47,6 +47,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip7623CalldataFloor     => false;
     public virtual bool HasEip7702SetCode           => false;
     public virtual bool HasEip7951P256Verify        => false;  // Osaka+
+    public virtual bool HasEip7883ModExpIncrease    => false;  // Osaka+: ModExp gas increase
 
     // Intrinsic gas calldata costs
     public virtual ulong CalldataZeroByteCost       => 4;   // unchanged all forks
@@ -397,6 +398,7 @@ public class OsakaRules : PragueRules
     public static new readonly OsakaRules Instance = new();
     public override Fork Fork => Fork.Osaka;
     public override bool HasEip7951P256Verify => true;
+    public override bool HasEip7883ModExpIncrease => true;  // EIP-7883: ModExp gas increase
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
