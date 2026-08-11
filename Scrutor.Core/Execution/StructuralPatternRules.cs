@@ -66,11 +66,11 @@ public static class StructuralPatternRules
     /// <summary>EIP-3541: EF-prefixed runtime code → ExceptionalHalt (all execution gas).</summary>
     private static DivergenceDiagnostics.Diagnosis? RuleEip3541EfPrefixCreate(MismatchContext ctx)
     {
-        if (!FolderHas(ctx, "eip3541") && !FolderHas(ctx, "create") && !ctx.HasCodeMismatch)
-            return null;
-        if (!(ctx.HasCodeMismatch || ctx.HasMissingAccount || ctx.ContractNonceZeroWhenExpectedOne))
-            return null;
-        if (!ctx.ReceiptExpectedSuccessActualFail && !ctx.HasCodeMismatch)
+        // Require explicit EIP-3541 / EF-prefix signal — bare "create" floods false hits.
+        bool folderOk = FolderHas(ctx, "eip3541") || FolderHas(ctx, "ef_prefix") || FolderHas(ctx, "0xef");
+        if (!folderOk) return null;
+        if (!(ctx.HasCodeMismatch || ctx.HasMissingAccount || ctx.ContractNonceZeroWhenExpectedOne
+              || ctx.ReceiptExpectedSuccessActualFail))
             return null;
 
         return Dx(
@@ -85,21 +85,26 @@ public static class StructuralPatternRules
     /// <summary>EIP-7610: CREATE collision on non-empty storage.</summary>
     private static DivergenceDiagnostics.Diagnosis? RuleEip7610CreateCollision(MismatchContext ctx)
     {
-        if (!FolderHas(ctx, "7610") && !FolderHas(ctx, "create") && !FolderHas(ctx, "collision"))
+        bool folderOk = FolderHas(ctx, "7610") || FolderHas(ctx, "collision");
+        if (folderOk)
         {
-            // Still fire on classic CREATE signal cluster without folder name
+            if (!(ctx.HasMissingAccount || ctx.HasCodeMismatch || ctx.ContractNonceZeroWhenExpectedOne
+                  || ctx.HasNonceMismatch))
+                return null;
+        }
+        else
+        {
+            // Without folder: require full CREATE lifecycle triad (missing + nonce + code).
             if (!(ctx.HasMissingAccount && ctx.HasNonceMismatch && ctx.HasCodeMismatch))
                 return null;
         }
-        else if (!(ctx.HasMissingAccount || ctx.HasCodeMismatch || ctx.ContractNonceZeroWhenExpectedOne))
-            return null;
 
         return Dx(
             "struct_eip7610_collision",
             "CREATE/CREATE2 collision — possible EIP-7610 non-empty storage reject",
             "EIP-7610: account with storage is a collision even if nonce=0 and code empty",
             "SystemOpcodes.cs → OpcodeCreate collision check",
-            DivergenceDiagnostics.Confidence.High,
+            folderOk ? DivergenceDiagnostics.Confidence.High : DivergenceDiagnostics.Confidence.Medium,
             $"folder={ctx.EipFolder}; missing={ctx.HasMissingAccount} nonce={ctx.HasNonceMismatch} code={ctx.HasCodeMismatch}");
     }
 
@@ -163,19 +168,23 @@ public static class StructuralPatternRules
     /// <summary>EIP-7883: ModExp floor 500 and removal of /3.</summary>
     private static DivergenceDiagnostics.Diagnosis? RuleEip7883ModExpFloorOrDiv3(MismatchContext ctx)
     {
-        if (!FolderHas(ctx, "7883") && !FolderHas(ctx, "modexp") && !FolderHas(ctx, "eip198"))
+        // Only true ModExp suites — not every path containing "198" as a substring elsewhere.
+        if (!FolderHas(ctx, "7883") && !FolderHas(ctx, "modexp") && !FolderHas(ctx, "eip198_modexp"))
             return null;
-        if (!ctx.HasBalanceMismatch && ctx.PrimaryBalanceDeltaGas is null) return null;
+        if (!ctx.HasBalanceMismatch || ctx.PrimaryBalanceDeltaGas is null) return null;
 
-        long abs = Math.Abs(ctx.PrimaryBalanceDeltaGas ?? 0);
+        long abs = Math.Abs(ctx.PrimaryBalanceDeltaGas.Value);
+        // Require a gas residual that plausibly maps to ModExp formula change.
+        if (abs < 100) return null;
+
         string detail;
         DivergenceDiagnostics.Confidence conf;
-        if (abs == 500 || abs == 200 || abs == 300)
+        if (abs is 500 or 200 or 300 or 1500 or 2500)
         {
-            detail = $"deltaGas={abs} matches MODEXP floor delta (200→500) or related";
+            detail = $"deltaGas={abs} matches MODEXP floor/multiplier edge (200→500, /3 removal)";
             conf = DivergenceDiagnostics.Confidence.High;
         }
-        else if (abs > 0 && abs % 3 == 0)
+        else if (abs % 3 == 0 && abs >= 300)
         {
             detail = $"deltaGas={abs} divisible by 3 — possible lingering /3 divisor (EIP-7883 removes it)";
             conf = DivergenceDiagnostics.Confidence.Medium;
@@ -244,14 +253,23 @@ public static class StructuralPatternRules
     /// <summary>Coinbase balance: priority fee routing (EIP-1559).</summary>
     private static DivergenceDiagnostics.Diagnosis? RuleCoinbasePriorityFee(MismatchContext ctx)
     {
+        // Almost every gas bug also moves coinbase tip. Only surface when coinbase is
+        // involved and we lack stronger structural signals (CREATE/storage/code/nonce).
         if (!ctx.TouchesCoinbaseBalance || !ctx.HasBalanceMismatch) return null;
+        if (ctx.HasStorageMismatch || ctx.HasCodeMismatch || ctx.HasMissingAccount
+            || ctx.HasNonceMismatch || ctx.HasUnexpectedAccount)
+            return null;
+        // Precompile/ModExp suites: root cause is precompile gas, not tip routing.
+        if (DivergenceDiagnostics.IsPrecompileFixtureFolder(ctx.EipFolder)
+            || DivergenceDiagnostics.IsPrecompileFixtureFolder(ctx.FixturePath))
+            return null;
 
         return Dx(
             "struct_coinbase_priority_fee",
-            "Coinbase balance divergence — priority fee / tip routing (EIP-1559)",
+            "Coinbase balance divergence — priority fee / tip routing (EIP-1559) or gas residual side-effect",
             "EIP-1559: coinbase receives priority fee portion of gas payment",
             "StateTransition.cs → gas payment / coinbase credit",
-            DivergenceDiagnostics.Confidence.High,
+            DivergenceDiagnostics.Confidence.Medium,
             $"coinbase balance mismatched; deltaGas={ctx.PrimaryBalanceDeltaGas}");
     }
 
@@ -304,11 +322,12 @@ public static class StructuralPatternRules
     /// <summary>Precompile gas schedule (BN254 EIP-1108, P256, etc.).</summary>
     private static DivergenceDiagnostics.Diagnosis? RulePrecompileGasSchedule(MismatchContext ctx)
     {
-        if (!FolderHas(ctx, "precompile") && !FolderHas(ctx, "ecadd") && !FolderHas(ctx, "ecmul")
-            && !FolderHas(ctx, "pairing") && !FolderHas(ctx, "p256") && !FolderHas(ctx, "bls")
-            && !FolderHas(ctx, "modexp") && !FolderHas(ctx, "blake"))
+        if (!DivergenceDiagnostics.IsPrecompileFixtureFolder(ctx.EipFolder)
+            && !DivergenceDiagnostics.IsPrecompileFixtureFolder(ctx.FixturePath))
             return null;
-        if (!ctx.HasBalanceMismatch) return null;
+        if (!ctx.HasBalanceMismatch || ctx.PrimaryBalanceDeltaGas is null) return null;
+        // Skip tiny noise
+        if (Math.Abs(ctx.PrimaryBalanceDeltaGas.Value) < 50) return null;
 
         return Dx(
             "struct_precompile_gas",
@@ -355,16 +374,26 @@ public static class StructuralPatternRules
     /// <summary>CREATE initcode size / deployment gas without full lifecycle cluster.</summary>
     private static DivergenceDiagnostics.Diagnosis? RuleCreateInitcodeOrDeployment(MismatchContext ctx)
     {
-        if (!FolderHas(ctx, "3860") && !FolderHas(ctx, "initcode") && !FolderHas(ctx, "create"))
-            return null;
-        if (ctx.HasMissingAccount && ctx.HasCodeMismatch) return null; // covered by 7610/lifecycle
+        // "create" alone matches tstorage_create_contexts, eip2929 create gas, etc. — too broad.
+        bool folderOk = FolderHas(ctx, "3860") || FolderHas(ctx, "initcode")
+            || FolderHas(ctx, "eip3541") || FolderHas(ctx, "create2_collision");
+        if (!folderOk)
+        {
+            // Allow CREATE opcode suites only with code/missing account signal.
+            if (!(FolderHas(ctx, "create") && (ctx.HasCodeMismatch || ctx.HasMissingAccount
+                    || ctx.ContractNonceZeroWhenExpectedOne)))
+                return null;
+        }
+
+        if (ctx.HasMissingAccount && ctx.HasCodeMismatch && ctx.HasNonceMismatch)
+            return null; // covered by 7610 / create_lifecycle
 
         return Dx(
             "struct_create_initcode",
             "CREATE/initcode path divergence (EIP-3860 size limit or deploy gas)",
             "EIP-3860: initcode size limit; CREATE base 32000 + code deposit",
             "SystemOpcodes.cs → OpcodeCreate / IntrinsicGas",
-            DivergenceDiagnostics.Confidence.Medium,
+            folderOk ? DivergenceDiagnostics.Confidence.Medium : DivergenceDiagnostics.Confidence.Low,
             $"folder={ctx.EipFolder}; code={ctx.HasCodeMismatch} nonce={ctx.HasNonceMismatch}");
     }
 
@@ -423,13 +452,20 @@ public static class StructuralPatternRules
     private static DivergenceDiagnostics.Diagnosis? RuleBalanceOnlyGasResidual(MismatchContext ctx)
     {
         if (!ctx.HasBalanceMismatch) return null;
-        if (ctx.HasStorageMismatch || ctx.HasCodeMismatch || ctx.HasMissingAccount || ctx.HasNonceMismatch)
+        if (ctx.HasStorageMismatch || ctx.HasCodeMismatch || ctx.HasMissingAccount || ctx.HasNonceMismatch
+            || ctx.HasUnexpectedAccount || ctx.HasReceiptMismatch)
             return null;
         if (ctx.PrimaryBalanceDeltaGas is null) return null;
+        // Prefer specific suite rules (ModExp / precompiles) over catch-all residual.
+        if (DivergenceDiagnostics.IsPrecompileFixtureFolder(ctx.EipFolder)
+            || DivergenceDiagnostics.IsPrecompileFixtureFolder(ctx.FixturePath)
+            || FolderHas(ctx, "7883") || FolderHas(ctx, "modexp"))
+            return null;
         // Avoid duplicating more specific gas-constant rules when |delta| is a known constant
         long abs = Math.Abs(ctx.PrimaryBalanceDeltaGas.Value);
-        if (abs is 2100 or 2600 or 2300 or 3000 or 5000 or 25000 or 21000 or 100 or 500 or 200)
+        if (abs is 2100 or 2600 or 2300 or 3000 or 5000 or 25000 or 21000 or 100 or 500 or 200 or 6900)
             return null;
+        if (abs < 50) return null;
 
         return Dx(
             "struct_balance_gas_residual",

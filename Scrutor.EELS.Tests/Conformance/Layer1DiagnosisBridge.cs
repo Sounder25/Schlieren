@@ -230,11 +230,22 @@ public static class Layer1DiagnosisBridge
                     SampleEvidence: first.Evidence,
                     SampleCaseIds: caseIds);
             })
-            .OrderByDescending(b => b.Occurrences)
+            // Prefer stronger protocol hits for next-steps ranking, then volume.
+            .OrderByDescending(b => ConfidenceRank(b.Confidence))
+            .ThenByDescending(b => b.Occurrences)
             .ThenBy(b => b.Category, StringComparer.Ordinal)
             .Take(maxBuckets)
             .ToList();
     }
+
+    private static int ConfidenceRank(string confidence) => confidence switch
+    {
+        "Certain" => 4,
+        "High" => 3,
+        "Medium" => 2,
+        "Low" => 1,
+        _ => 0
+    };
 
     public static BigInteger ResolveEffectiveGasPrice(EelsStateCase testCase)
     {

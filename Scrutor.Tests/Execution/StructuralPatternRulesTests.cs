@@ -79,7 +79,24 @@ public sealed class StructuralPatternRulesTests
         };
 
         var hits = StructuralPatternRules.Evaluate(ctx);
-        Assert.Contains(hits, d => d.Category == "struct_coinbase_priority_fee");
+        Assert.Contains(hits, d => d.Category == "struct_coinbase_priority_fee"
+            && d.Confidence == DivergenceDiagnostics.Confidence.Medium);
+    }
+
+    [Fact]
+    public void CoinbasePriorityFee_SuppressedWhenCreateSignalsPresent()
+    {
+        var ctx = Base() with
+        {
+            HasBalanceMismatch = true,
+            TouchesCoinbaseBalance = true,
+            HasCodeMismatch = true,
+            HasMissingAccount = true,
+            PrimaryBalanceDeltaGas = 1000
+        };
+
+        var hits = StructuralPatternRules.Evaluate(ctx);
+        Assert.DoesNotContain(hits, d => d.Category == "struct_coinbase_priority_fee");
     }
 
     [Fact]

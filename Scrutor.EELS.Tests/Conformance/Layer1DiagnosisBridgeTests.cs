@@ -17,7 +17,7 @@ public sealed class Layer1DiagnosisBridgeTests
     {
         var sender = Address.FromHex("0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b");
         var testCase = MakeCase(sender, gasPrice: 10);
-        // actual = expected + 3000 * gasPrice  → +3000 gas (ECRECOVER constant)
+        // actual = expected + 3000 * gasPrice  → +3000 gas (ECRECOVER); higher balance ⇒ undercharged
         var expected = BigInteger.Parse("1000000");
         var actual = expected + (3000 * 10);
         var report = new EelsCaseExecutionReport(
@@ -36,8 +36,35 @@ public sealed class Layer1DiagnosisBridgeTests
 
         Assert.NotEmpty(diagnoses);
         Assert.Contains(diagnoses, d =>
-            d.Category is "gas_constant_match" or "gas_multiple_match" &&
-            d.Summary.Contains("ECRECOVER", StringComparison.OrdinalIgnoreCase));
+            d.Category == "gas_constant_match" &&
+            d.Summary.Contains("ECRECOVER", StringComparison.OrdinalIgnoreCase) &&
+            d.Summary.Contains("undercharged", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact(DisplayName = "Layer1 — precompile_invalid_success does NOT fire on CREATE folders")]
+    public void DiagnoseCase_CreateFolder_DoesNotClaimPrecompileInvalid()
+    {
+        var sender = Address.FromHex("0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b");
+        var testCase = MakeCase(sender, gasPrice: 1) with
+        {
+            FixturePath = @"C:\fixtures\state_tests\osaka\eip2929_gas_cost_increases\test_create.json"
+        };
+        var report = new EelsCaseExecutionReport(
+            CaseId: "create-fp",
+            ExecutionSucceeded: true,
+            GasUsed: 50_000,
+            GasRefundCounter: 0,
+            StateMatches: false,
+            ReceiptStatusMatches: true,
+            Mismatches: new[]
+            {
+                "storage mismatch for 0x00aa slot 0x0: expected=0x0, actual=0x1",
+                $"balance mismatch for {sender}: expected=0x1000, actual=0x900"
+            });
+
+        var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
+
+        Assert.DoesNotContain(diagnoses, d => d.Category == "precompile_invalid_success");
     }
 
     [Fact(DisplayName = "Layer1 — sender nonce +1 ⇒ tx applied when should reject")]

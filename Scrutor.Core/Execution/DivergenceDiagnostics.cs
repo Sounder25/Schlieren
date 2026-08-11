@@ -85,7 +85,8 @@ public static class DivergenceDiagnostics
         {
             if (absDeltaGas == gasUnits)
             {
-                string direction = deltaGas > 0 ? "overcharged" : "undercharged";
+                // actual balance > expected ⇒ under-charged gas (kept more wei)
+                string direction = deltaGas > 0 ? "undercharged" : "overcharged";
                 results.Add(new Diagnosis(
                     Category: "gas_constant_match",
                     Summary: $"Exactly {direction} by {name} ({gasUnits} gas) — {eip}",
@@ -96,13 +97,15 @@ public static class DivergenceDiagnostics
                 break;
             }
 
-            // Check multiples (per-item accounting)
-            if (absDeltaGas > gasUnits && absDeltaGas % gasUnits == 0)
+            // Multiples only for large protocol constants — small ones (3/4/16/100)
+            // produce combinatorial noise (e.g. 23×WARM_ACCESS = 2300).
+            if (gasUnits >= 500 && absDeltaGas > gasUnits && absDeltaGas % gasUnits == 0)
             {
                 int k = (int)(absDeltaGas / gasUnits);
-                if (k <= 100) // reasonable multiplier
+                if (k is >= 2 and <= 32)
                 {
-                    string direction = deltaGas > 0 ? "overcharged" : "undercharged";
+                    // deltaGas > 0 ⇒ actual balance higher ⇒ under-charged gas
+                    string direction = deltaGas > 0 ? "undercharged" : "overcharged";
                     results.Add(new Diagnosis(
                         Category: "gas_multiple_match",
                         Summary: $"{direction} by {k}×{name} ({k}×{gasUnits}={absDeltaGas} gas) — {eip}",
@@ -114,29 +117,13 @@ public static class DivergenceDiagnostics
             }
         }
 
-        // EIP-7883 removes the /3 divisor from ModExp gas. If we still divide by 3,
-        // charged gas is ~1/3 of correct → balance residual often related by factor 2 or 3.
-        if (absDeltaGas > 200 && results.Count == 0)
-        {
-            if (absDeltaGas % 3 == 0)
-            {
-                results.Add(new Diagnosis(
-                    Category: "gas_modexp_div3_residue",
-                    Summary: "Gas residual divisible by 3 — possible ModExp /3 still applied (EIP-7883 removes it)",
-                    ProtocolRule: "EIP-7883",
-                    CodeBoundary: "Precompiles.cs → ModExpGas()",
-                    Confidence: Confidence.Low,
-                    Evidence: $"absDeltaGas={absDeltaGas} ≡ 0 (mod 3)"));
-            }
-        }
-
         return results;
     }
 
     /// <summary>
     /// Structural pattern: precompile returning success on invalid input.
-    /// Detected when: storage written (actual != 0) where expected = 0,
-    /// AND balance undercharged.
+    /// Requires a precompile-related fixture folder — bare storage+balance is too common
+    /// on CREATE/SSTORE failures and was flooding Certain false positives.
     /// </summary>
     public static Diagnosis? DiagnosePrecompileInvalidSuccess(
         bool hasStorageWriteWhenExpectedEmpty,
@@ -146,23 +133,45 @@ public static class DivergenceDiagnostics
         if (!hasStorageWriteWhenExpectedEmpty || !hasBalanceUndercharge)
             return null;
 
-        string precompile = fixtureEipFolder switch
+        if (!IsPrecompileFixtureFolder(fixtureEipFolder))
+            return null;
+
+        string precompile = fixtureEipFolder.ToLowerInvariant() switch
         {
-            var f when f.Contains("ecadd") => "BnAdd (0x06)",
-            var f when f.Contains("ecmul") => "BnMul (0x07)",
+            var f when f.Contains("ecadd") || f.Contains("bnadd") => "BnAdd (0x06)",
+            var f when f.Contains("ecmul") || f.Contains("bnmul") => "BnMul (0x07)",
             var f when f.Contains("pairing") => "BnPairing (0x08)",
             var f when f.Contains("p256") => "P256Verify (0x0100)",
             var f when f.Contains("modexp") => "ModExp (0x05)",
-            _ => "Unknown precompile"
+            var f when f.Contains("bls") => "BLS12-381 precompile",
+            var f when f.Contains("blake") => "BLAKE2F (0x09)",
+            var f when f.Contains("ecrecover") => "ECRECOVER (0x01)",
+            var f when f.Contains("point_evaluation") || f.Contains("kzg") => "KZG Point Evaluation (0x0A)",
+            _ => "Precompile"
         };
 
         return new Diagnosis(
             Category: "precompile_invalid_success",
             Summary: $"{precompile} returning success on invalid input — should consume all gas and return empty",
-            ProtocolRule: "EIP-196/197: invalid point → revert",
-            CodeBoundary: "Precompiles.cs → catch block should return (null, gasLimit)",
+            ProtocolRule: "Precompile invalid input → empty return + all gas consumed",
+            CodeBoundary: "Precompiles.cs → catch/invalid path should return (null, gasLimit)",
             Confidence: Confidence.Certain,
-            Evidence: $"Storage slot written (precompile output stored) when fixture expects empty (call should fail)");
+            Evidence: $"folder={fixtureEipFolder}; storage written when expected empty + balance undercharge");
+    }
+
+    /// <summary>True when the fixture path/folder is clearly about a precompile suite.</summary>
+    public static bool IsPrecompileFixtureFolder(string fixtureEipFolder)
+    {
+        if (string.IsNullOrWhiteSpace(fixtureEipFolder)) return false;
+        var f = fixtureEipFolder.ToLowerInvariant();
+        return f.Contains("precompile")
+            || f.Contains("ecadd") || f.Contains("ecmul") || f.Contains("pairing")
+            || f.Contains("modexp") || f.Contains("p256") || f.Contains("bls")
+            || f.Contains("blake") || f.Contains("ecrecover") || f.Contains("bn254")
+            || f.Contains("bnadd") || f.Contains("bnmul")
+            || f.Contains("point_evaluation") || f.Contains("kzg")
+            || f.Contains("eip196") || f.Contains("eip197") || f.Contains("eip198")
+            || f.Contains("eip1108") || f.Contains("eip2537") || f.Contains("eip7951");
     }
 
     /// <summary>
