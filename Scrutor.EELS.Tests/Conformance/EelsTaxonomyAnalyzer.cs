@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Numerics;
 using System.Text;
+using Scrutor.Core.Execution;
 using Scrutor.EELS.Tests.Harness;
 
 namespace Scrutor.EELS.Tests.Conformance;
@@ -13,6 +14,7 @@ namespace Scrutor.EELS.Tests.Conformance;
 ///   • EIP category  (balance, storage, nonce, receipt, code, missing_account)
 ///   • Magnitude bucket  (exact same delta across N tests = single root cause)
 ///   • Address  (which account diverges most often)
+///   • Layer 1 diagnoses  (<see cref="DivergenceDiagnostics"/> protocol hypotheses)
 ///
 /// Typical usage via dotnet test --filter:
 ///
@@ -70,6 +72,7 @@ public static class EelsTaxonomyAnalyzer
         var cases  = loader.LoadCases(opts);
 
         var allReports = new ConcurrentBag<EelsCaseExecutionReport>();
+        var layer1Hits = new ConcurrentBag<(string CaseId, DivergenceDiagnostics.Diagnosis Diagnosis)>();
 
         // [AI-EDIT 2026-08-05] Parallel execution — each slot owns its own
         // EelsStateFixtureExecutor, which now carries an instance LargeStackWorker
@@ -90,10 +93,18 @@ public static class EelsTaxonomyAnalyzer
             var executor = new EelsStateFixtureExecutor();
             var r = await executor.ExecuteAsync(testCase, innerCt);
             allReports.Add(r);
+
+            // Phase 2: Layer 1 diagnostics on failures only.
+            if (!r.StateMatches || !r.ReceiptStatusMatches)
+            {
+                foreach (var dx in Layer1DiagnosisBridge.DiagnoseCase(testCase, r))
+                    layer1Hits.Add((r.CaseId, dx));
+            }
         });
 
         var reports = allReports.ToList();
         var failed  = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToList();
+        var layer1Buckets = Layer1DiagnosisBridge.Aggregate(layer1Hits);
 
         // ----------------------------------------------------------------
         // 1. Category taxonomy  (what field diverges)
@@ -155,7 +166,8 @@ public static class EelsTaxonomyAnalyzer
             CategoryBuckets: categoryBuckets,
             TopDeltaBuckets: topDeltas,
             AddressHotSpots: addressBuckets,
-            MaxCases: opts.MaxCases);
+            MaxCases: opts.MaxCases,
+            Layer1Diagnoses: layer1Buckets);
     }
 
     // ------------------------------------------------------------------
@@ -227,6 +239,46 @@ public static class EelsTaxonomyAnalyzer
             sb.AppendLine("| (none) | — |");
         sb.AppendLine();
 
+        // Layer 1 — DivergenceDiagnostics (product engine in Scrutor.Core)
+        sb.AppendLine("## Layer 1 Diagnoses (`DivergenceDiagnostics`)");
+        sb.AppendLine();
+        sb.AppendLine("> Deterministic protocol hypotheses from observed deltas — not raw mismatch strings.");
+        sb.AppendLine();
+        if (r.Layer1Diagnoses.Count == 0)
+        {
+            sb.AppendLine("_No Layer 1 diagnoses fired on this run (no matching structural/gas patterns)._");
+            sb.AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("| # | Conf | Category | Occurrences | Summary | Protocol | Code boundary | Sample case |");
+            sb.AppendLine("| -: | :--- | :------- | ----------: | :------ | :------- | :------------ | :---------- |");
+            int i = 1;
+            foreach (var d in r.Layer1Diagnoses)
+            {
+                var sample = d.SampleCaseIds.FirstOrDefault() ?? "";
+                if (sample.Length > 48) sample = sample[..48] + "…";
+                var summary = d.Summary.Length > 90 ? d.Summary[..90] + "…" : d.Summary;
+                sb.AppendLine(
+                    $"| {i} | `{d.Confidence}` | `{d.Category}` | {d.Occurrences} | {summary} | `{d.ProtocolRule}` | `{d.CodeBoundary}` | `{sample}` |");
+                i++;
+            }
+            sb.AppendLine();
+
+            sb.AppendLine("### Top diagnosis detail");
+            sb.AppendLine();
+            var top = r.Layer1Diagnoses[0];
+            sb.AppendLine($"- **Category** : `{top.Category}`");
+            sb.AppendLine($"- **Confidence**: `{top.Confidence}`");
+            sb.AppendLine($"- **Summary**  : {top.Summary}");
+            sb.AppendLine($"- **Protocol** : {top.ProtocolRule}");
+            sb.AppendLine($"- **Look in**  : `{top.CodeBoundary}`");
+            sb.AppendLine($"- **Evidence** : `{top.SampleEvidence}`");
+            if (top.SampleCaseIds.Count > 0)
+                sb.AppendLine($"- **Cases**    : `{string.Join("`, `", top.SampleCaseIds)}`");
+            sb.AppendLine();
+        }
+
         // Next steps
         sb.AppendLine("## Recommended Next Steps");
         sb.AppendLine();
@@ -236,19 +288,46 @@ public static class EelsTaxonomyAnalyzer
         }
         else
         {
-            var topCat = r.CategoryBuckets.FirstOrDefault();
-            sb.AppendLine($"1. Focus on `{topCat.Key}` ({topCat.Value.count} failures) — the dominant failure mode.");
+            int step = 1;
+            if (r.Layer1Diagnoses.Count > 0)
+            {
+                var topDx = r.Layer1Diagnoses[0];
+                sb.AppendLine($"{step}. **Layer 1 top hit** (`{topDx.Confidence}`): {topDx.Summary}");
+                sb.AppendLine($"   → Inspect `{topDx.CodeBoundary}` ({topDx.ProtocolRule}); {topDx.Occurrences} matching diagnoses.");
+                step++;
+                if (topDx.SampleCaseIds.Count > 0)
+                {
+                    sb.AppendLine($"{step}. Trace a representative case:");
+                    sb.AppendLine("   ```powershell");
+                    sb.AppendLine($"   $env:EELS_CASE_FILTER = \"{topDx.SampleCaseIds[0]}\"");
+                    sb.AppendLine("   dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter \"SingleCaseTrace\"");
+                    sb.AppendLine("   ```");
+                    step++;
+                }
+            }
+            else
+            {
+                var topCat = r.CategoryBuckets.FirstOrDefault();
+                sb.AppendLine($"{step}. Focus on `{topCat.Key}` ({topCat.Value.count} failures) — the dominant failure mode.");
+                step++;
+            }
+
             if (r.TopDeltaBuckets.Count > 0)
             {
                 var topDelta = r.TopDeltaBuckets.First();
-                sb.AppendLine($"2. Balance delta `{topDelta.Key:+#;-#;0}` appears in {topDelta.Value} cases — likely one root cause.");
+                sb.AppendLine($"{step}. Balance delta `{topDelta.Key:+#;-#;0}` appears in {topDelta.Value} cases — likely one root cause.");
                 sb.AppendLine($"   Hypothesis: {Hypothesize(topDelta.Key, r.Fork)}");
+                step++;
             }
-            sb.AppendLine("3. Use `eels-single-case-tracer` to drill into one failure case:");
-            sb.AppendLine("   ```powershell");
-            sb.AppendLine("   $env:EELS_CASE_FILTER = \"<paste case_id here>\"");
-            sb.AppendLine("   dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter \"SingleCaseTrace\"");
-            sb.AppendLine("   ```");
+
+            if (r.Layer1Diagnoses.Count == 0)
+            {
+                sb.AppendLine($"{step}. Use `eels-single-case-tracer` to drill into one failure case:");
+                sb.AppendLine("   ```powershell");
+                sb.AppendLine("   $env:EELS_CASE_FILTER = \"<paste case_id here>\"");
+                sb.AppendLine("   dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter \"SingleCaseTrace\"");
+                sb.AppendLine("   ```");
+            }
         }
 
         return sb.ToString();
@@ -382,4 +461,5 @@ public sealed record TaxonomyReport(
     IReadOnlyDictionary<string, (int count, List<string> examples)> CategoryBuckets,
     IReadOnlyList<KeyValuePair<BigInteger, int>> TopDeltaBuckets,
     IReadOnlyDictionary<string, int> AddressHotSpots,
-    int MaxCases);
+    int MaxCases,
+    IReadOnlyList<Layer1DiagnosisBucket> Layer1Diagnoses);
