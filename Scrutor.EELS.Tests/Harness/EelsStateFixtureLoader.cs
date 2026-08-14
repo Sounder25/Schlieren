@@ -467,12 +467,8 @@ public sealed class EelsStateFixtureLoader
             return null;
         }
 
-        var normalized = EelsHex.Normalize(raw);
-        if (normalized == "0x0")
-        {
-            return null;
-        }
-
+        // A present "to" field with address 0x0 is a valid CALL target (not a CREATE).
+        // Only return null for absent/null JSON values (handled above).
         return Address.FromHex(raw);
     }
 
