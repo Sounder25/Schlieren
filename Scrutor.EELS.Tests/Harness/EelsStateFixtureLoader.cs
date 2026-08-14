@@ -184,7 +184,9 @@ public sealed class EelsStateFixtureLoader
             Timestamp = EelsHex.ParseUlong(envNode.GetProperty("currentTimestamp").GetString()!),
             GasLimit = EelsHex.ParseUlong(envNode.GetProperty("currentGasLimit").GetString()!),
             Coinbase = Address.FromHex(envNode.GetProperty("currentCoinbase").GetString()!),
-            Difficulty = EelsHex.ParseQuantity(envNode.GetProperty("currentDifficulty").GetString()!),
+            Difficulty = envNode.TryGetProperty("currentRandom", out var randomNode)
+                ? EelsHex.ParseQuantity(GetJsonText(randomNode))  // Post-Paris: PREVRANDAO replaces DIFFICULTY
+                : EelsHex.ParseQuantity(envNode.GetProperty("currentDifficulty").GetString()!),
             BaseFeePerGas = envNode.TryGetProperty("currentBaseFee", out var baseFeeNode)
                 ? EelsHex.ParseUlong(GetJsonText(baseFeeNode))
                 : 0UL,
@@ -324,7 +326,9 @@ public sealed class EelsStateFixtureLoader
             Timestamp = EelsHex.ParseUlong(GetPropertyText(envNode, "currentTimestamp")),
             GasLimit = EelsHex.ParseUlong(GetPropertyText(envNode, "currentGasLimit")),
             Coinbase = Address.FromHex(GetPropertyText(envNode, "currentCoinbase")),
-            Difficulty = EelsHex.ParseQuantity(GetPropertyText(envNode, "currentDifficulty")),
+            Difficulty = envNode.TryGetProperty("currentRandom", out var randomNode2)
+                ? EelsHex.ParseQuantity(GetJsonText(randomNode2))
+                : EelsHex.ParseQuantity(GetPropertyText(envNode, "currentDifficulty")),
             BaseFeePerGas = envNode.TryGetProperty("currentBaseFee", out var baseFeeNode)
                 ? EelsHex.ParseUlong(GetJsonText(baseFeeNode))
                 : 0,
