@@ -14,6 +14,10 @@ public abstract class LogOpcodeBase : IOpcode
 
     public ValueTask<(ExecutionResult Result, int NextPc)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        // LOG is a state-modifying operation — forbidden in static context.
+        if (context.IsStatic)
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var offset) || !context.Stack.TryPop(out var length))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
