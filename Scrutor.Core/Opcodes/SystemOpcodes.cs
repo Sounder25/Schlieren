@@ -936,7 +936,9 @@ public sealed class OpcodeCallCode : IOpcode
                 EnableTracing = context.CaptureTrace
             };
 
-            result = await context.SubCall(tx, false, null, codeAddress);
+            // EELS: is_static = is_staticcall OR parent.is_static
+            // CALLCODE is NOT a staticcall, but inherits parent's static flag.
+            result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
         }
 
