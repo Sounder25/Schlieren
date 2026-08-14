@@ -29,6 +29,13 @@ public sealed class OpcodeCreate : IOpcode
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
         var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
+        // Memory expansion gas for reading initcode from memory.
+        if (lengthInt > 0)
+        {
+            var memExpGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
+            context.ConsumeGas(memExpGas);
+        }
+
         // EIP-3860 word gas: 2 per 32-byte word of init code, charged before execution.
         var initCodeWordGas = 2UL * ((ulong)(lengthInt + 31) / 32);
         // Base CREATE gas: 32000
@@ -113,7 +120,26 @@ public sealed class OpcodeCreate : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            if (childRemaining < codeDepositCost)
+            // EIP-170 (Spurious Dragon+): runtime code must not exceed MAX_CODE_SIZE (24576 bytes).
+            // Exceeding is an ExceptionalHalt (OutOfGasError) — all child gas consumed, state reverted.
+            const int maxCodeSize = 24576;
+            if (runtimeCode.Length > maxCodeSize)
+            {
+                // Revert creation: zero balance, nonce, code, delete account.
+                var codeSizeBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                if (codeSizeBal > 0)
+                {
+                    var callerBalCs = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                    context.GlobalState.SetBalance(context.ContractAddress, callerBalCs + codeSizeBal);
+                }
+                context.GlobalState.SetNonce(newAddress, 0);
+                context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                context.GlobalState.DeleteAccount(newAddress);
+                context.Stack.TryPush(0);
+                // No RefundGas — child gas is consumed by exceptional halt.
+            }
+            else if (childRemaining < codeDepositCost)
             {
                 // Exceptional halt: out of gas during code deposit.
                 // The child's remaining gas is consumed (not refunded to parent).
@@ -495,6 +521,13 @@ public sealed class OpcodeCreate2 : IOpcode
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
         var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
+        // Memory expansion gas for reading initcode from memory.
+        if (lengthInt > 0)
+        {
+            var memExpGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
+            context.ConsumeGas(memExpGas);
+        }
+
         // EIP-3860 word gas: 2 per 32-byte word of init code.
         var initCodeWordGas = 2UL * ((ulong)(lengthInt + 31) / 32);
         // Base CREATE2 gas: 32000 + hash gas (6 per word)
@@ -580,7 +613,26 @@ public sealed class OpcodeCreate2 : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            if (childRemaining < codeDepositCost)
+            // EIP-170 (Spurious Dragon+): runtime code must not exceed MAX_CODE_SIZE (24576 bytes).
+            // Exceeding is an ExceptionalHalt (OutOfGasError) — all child gas consumed, state reverted.
+            const int maxCodeSize = 24576;
+            if (runtimeCode.Length > maxCodeSize)
+            {
+                // Revert creation: zero balance, nonce, code, delete account.
+                var codeSizeBal2 = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                if (codeSizeBal2 > 0)
+                {
+                    var callerBalCs2 = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                    context.GlobalState.SetBalance(context.ContractAddress, callerBalCs2 + codeSizeBal2);
+                }
+                context.GlobalState.SetNonce(newAddress, 0);
+                context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                context.GlobalState.DeleteAccount(newAddress);
+                context.Stack.TryPush(0);
+                // No RefundGas — child gas consumed by exceptional halt.
+            }
+            else if (childRemaining < codeDepositCost)
             {
                 // Exceptional halt: out of gas during code deposit.
                 // EIP-161 / EELS: creation frame state must be fully reverted —

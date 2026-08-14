@@ -388,7 +388,8 @@ public sealed class StateTransition : IStateTransition
             const int maxCodeSize = 24576; // EIP-170
             if (result.ReturnData.Length > maxCodeSize)
             {
-                result = ExecutionResult.Failure(EvmError.OutOfGas, result.GasUsed);
+                // ExceptionalHalt: consume ALL execution gas (same as EELS OutOfGasError in CREATE).
+                result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
             }
             else
             {
@@ -656,7 +657,7 @@ public sealed class StateTransition : IStateTransition
         {
             const int maxCodeSize = 24576;
             if (result.ReturnData.Length > maxCodeSize)
-                result = ExecutionResult.Failure(EvmError.OutOfGas, result.GasUsed);
+                result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
             else
             {
                 var depositGas = 200UL * (ulong)result.ReturnData.Length;
