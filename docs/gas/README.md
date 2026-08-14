@@ -1,8 +1,8 @@
-# Scrutor Gas Diagnosis Foundation
+# Schlieren Gas Diagnosis Foundation
 
 ## Why This Work Exists
 
-Scrutor's Case Inspector is intended to identify the actual cause of an EVM mismatch, not merely report that observed gas differs from expected gas. Accurate diagnosis requires one authoritative, fork-aware description of every gas charge, refund, transfer, activation rule, exceptional burn, and settlement adjustment.
+Schlieren's Case Inspector is intended to identify the actual cause of an EVM mismatch, not merely report that observed gas differs from expected gas. Accurate diagnosis requires one authoritative, fork-aware description of every gas charge, refund, transfer, activation rule, exceptional burn, and settlement adjustment.
 
 The documents in this directory are the audited foundation for that model. They capture the discovery baseline committed as `806dd2d`; they are not yet the centralized gas-schedule implementation. Production fixes made after that checkpoint must be reconciled into the inventory and matrix as part of the implementation plan.
 
@@ -33,11 +33,11 @@ At the time this handoff was written:
 - Matrix IDs: 177
 - Missing, extra, or duplicate IDs: 0
 - Matrix cells: `D=13`, `I=148`, `O=24`, `N/A=416`, `S=1581`, `M=296`
-- Targeted test result before the documentation commit: 120 passed across `Scrutor.Tests` and `Scrutor.EELS.Tests`
-- Fresh full `Scrutor.Tests` result on 2026-08-14: 329 passed and 1 failed. The known failure is `ForkingGlobalState_UnfetchedRemoteStorage_ReturnsUnknownPresence`, whose expected storage-presence contract is Task 1 of the executable plan.
+- Targeted test result before the documentation commit: 120 passed across `Schlieren.Tests` and `Schlieren.EELS.Tests`
+- Fresh full `Schlieren.Tests` result on 2026-08-14: 329 passed and 1 failed. The known failure is `ForkingGlobalState_UnfetchedRemoteStorage_ReturnsUnknownPresence`, whose expected storage-presence contract is Task 1 of the executable plan.
 - No production or test code was changed by this documentation phase
 
-The inventory was derived from the local Scrutor implementation and supported-fork scope. Future agents must update both final documents when production gas behavior changes.
+The inventory was derived from the local Schlieren implementation and supported-fork scope. Future agents must update both final documents when production gas behavior changes.
 
 ## Current Branch History
 

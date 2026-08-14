@@ -7,6 +7,6 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Scrutor.UI\Scrutor.UI.csproj" />
+    <ProjectReference Include="..\..\Schlieren.UI\Schlieren.UI.csproj" />
   </ItemGroup>
 </Project>

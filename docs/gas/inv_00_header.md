@@ -1,8 +1,8 @@
-# Scrutor Gas Rule Inventory
+# Schlieren Gas Rule Inventory
 
 ## Method and Scope
 
-Produced by exhaustive read of every `.cs` file under `Scrutor.Core/` that contains gas-affecting logic.
+Produced by exhaustive read of every `.cs` file under `Schlieren.Core/` that contains gas-affecting logic.
 Each row records the exact current formula, all inputs, fork-dependent behavior, source path with line
 number, existing tests, and findings. No external EVM client was consulted. No production code was
 modified.
@@ -34,7 +34,7 @@ not executed during gas charging. `GasTree.cs` is reporting infrastructure. `Nod
 | 12 | Prague | EIP-2537/7623/7702: BLS12-381 precompiles, calldata floor, set-code tx |
 | 13 | Osaka | EIP-7825/7883/7939/7951: tx gas cap, ModExp increase, CLZ opcode, P256Verify |
 
-Source: `Scrutor.Core/Forks/Fork.cs:1-24`, `Scrutor.Core/Forks/ForkRules.cs:1-433`
+Source: `Schlieren.Core/Forks/Fork.cs:1-24`, `Schlieren.Core/Forks/ForkRules.cs:1-433`
 
 ## Inventory Summary
 

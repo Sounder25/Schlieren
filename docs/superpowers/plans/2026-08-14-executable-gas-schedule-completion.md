@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task.
 
-**Goal:** Replace Scrutor's scattered gas constants, duplicated transaction accounting, and heuristic gas diagnosis with one typed, executable, per-fork gas schedule that drives both execution and Case Inspector evidence.
+**Goal:** Replace Schlieren's scattered gas constants, duplicated transaction accounting, and heuristic gas diagnosis with one typed, executable, per-fork gas schedule that drives both execution and Case Inspector evidence.
 
-**Architecture:** Add an immutable `Scrutor.Core.Gas` subsystem containing stable rule IDs, typed calculation contexts, fork overlays, calculation results, journal sinks, and invariant validation. Migrate the current execution paths category by category while preserving their public behavior. Canonical transaction execution optionally emits the detailed journal; the gas tree and diagnostics become projections over that journal instead of recalculating gas independently.
+**Architecture:** Add an immutable `Schlieren.Core.Gas` subsystem containing stable rule IDs, typed calculation contexts, fork overlays, calculation results, journal sinks, and invariant validation. Migrate the current execution paths category by category while preserving their public behavior. Canonical transaction execution optionally emits the detailed journal; the gas tree and diagnostics become projections over that journal instead of recalculating gas independently.
 
 **Tech Stack:** C# 12 / .NET 8, xUnit, the existing EELS fixture harness, Roslyn analyzers, BenchmarkDotNet.
 
@@ -29,7 +29,7 @@ The workflow is currently at the handoff between discovery and implementation:
 - The design is approved in `docs/superpowers/specs/2026-08-11-executable-fork-gas-schedule-design.md`.
 - The discovery artifacts are committed in `806dd2d`: 168 protocol rules plus 9 diagnostic rules across Frontier through Osaka.
 - The original discovery checklist was not updated, but its intended inventory and matrix deliverables exist and their IDs reconcile 177-to-177.
-- Production still has no `Scrutor.Core.Gas` namespace, `GasRuleId`, `GasCalculation`, executable schedule, journal, or coverage validator.
+- Production still has no `Schlieren.Core.Gas` namespace, `GasRuleId`, `GasCalculation`, executable schedule, journal, or coverage validator.
 - Gas remains split among `IForkRules`, opcode literals, `IntrinsicGas`, `Precompiles`, `StateTransition`, and `ExecutionContext`.
 - `ApplyTransactionWithGasTreeAsync` is a second transaction evaluator and already differs from the canonical path, including legacy intrinsic-gas defaults and a hard-coded refund divisor.
 - `GasTreeBuilder` infers warmth and memory expansion from aggregate opcode costs; `DivergenceDiagnostics` maintains a second flat gas-constant catalog.
@@ -46,16 +46,16 @@ The workflow is currently at the handoff between discovery and implementation:
 - Modify: `docs/gas/GAS_RULE_INVENTORY.md`
 - Modify: `docs/gas/GAS_COVERAGE_MATRIX.md`
 - Modify: `Directory.Packages.props`
-- Modify: `Scrutor.sln`
-- Modify if canonical behavior requires it: `Scrutor.Core/State/AccountDeployability.cs`
-- Modify: `Scrutor.Tests/Execution/SelfDestructAccessTests.cs`
+- Modify: `Schlieren.sln`
+- Modify if canonical behavior requires it: `Schlieren.Core/State/AccountDeployability.cs`
+- Modify: `Schlieren.Tests/Execution/SelfDestructAccessTests.cs`
 - Modify: `two_ops_audit.runsettings`
-- Create: `Scrutor.Benchmarks/Scrutor.Benchmarks.csproj`
-- Create: `Scrutor.Benchmarks/GasScheduleBenchmarks.cs`
+- Create: `Schlieren.Benchmarks/Schlieren.Benchmarks.csproj`
+- Create: `Schlieren.Benchmarks/GasScheduleBenchmarks.cs`
 - Create: `docs/gas/GAS_SCHEDULE_BASELINE.md`
-- Test: `Scrutor.Tests/Lane1_CoreEvmTests.cs`
-- Test: `Scrutor.Tests/Lane2_CallSemanticsTests.cs`
-- Test: `Scrutor.Tests/Execution/PrecompileGasScheduleTests.cs`
+- Test: `Schlieren.Tests/Lane1_CoreEvmTests.cs`
+- Test: `Schlieren.Tests/Lane2_CallSemanticsTests.cs`
+- Test: `Schlieren.Tests/Execution/PrecompileGasScheduleTests.cs`
 
 - [ ] **Step 1: Reconcile the one failing unit-test contract**
 
@@ -66,11 +66,11 @@ Reconcile `AccountDeployability.IsDeployableAsync` with the existing inventory f
 Run:
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~ArithmeticOpcodeTests|FullyQualifiedName~CallGasForwardingTests|FullyQualifiedName~PrecompileGasScheduleTests" --nologo
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --settings two_ops_audit.runsettings --filter "FullyQualifiedName~BENCHMARK_TaxonomySnapshot_AlwaysReportsCurrentMismatchCounts" --nologo
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~ArithmeticOpcodeTests|FullyQualifiedName~CallGasForwardingTests|FullyQualifiedName~PrecompileGasScheduleTests" --nologo
+dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --settings two_ops_audit.runsettings --filter "FullyQualifiedName~BENCHMARK_TaxonomySnapshot_AlwaysReportsCurrentMismatchCounts" --nologo
 ```
 
-Before running the sweep, change `two_ops_audit.runsettings` to use `EELS_FIXTURES_ROOT=C:/projects/Scrutor/fixtures/state_tests/for_osaka/ported_static/vmArithmeticTest/two_ops`, `EELS_REQUIRED_FORK=Osaka`, and `EELS_INCLUDE_SUBDIRS=1`; remove the ignored `EELS_CASE_FILTER`. Expected: SDIV/MOD tests and all 609 `two_ops` cases pass. The CALLCODE test must agree with canonical EELS behavior: CALLCODE itself does not reject non-zero value in a static parent, while the child message inherits the parent's static flag.
+Before running the sweep, change `two_ops_audit.runsettings` to use `EELS_FIXTURES_ROOT=C:/projects/Schlieren/fixtures/state_tests/for_osaka/ported_static/vmArithmeticTest/two_ops`, `EELS_REQUIRED_FORK=Osaka`, and `EELS_INCLUDE_SUBDIRS=1`; remove the ignored `EELS_CASE_FILTER`. Expected: SDIV/MOD tests and all 609 `two_ops` cases pass. The CALLCODE test must agree with canonical EELS behavior: CALLCODE itself does not reject non-zero value in a static parent, while the child message inherits the parent's static flag.
 
 - [ ] **Step 3: Repair the discovery record**
 
@@ -80,10 +80,10 @@ Record the Osaka conformance checkpoint explicitly: `Total=14,516; Passed=14,471
 
 - [ ] **Step 4: Capture a pre-migration performance baseline**
 
-Add a small BenchmarkDotNet project with fixed-opcode, memory/copy, SSTORE-heavy, nested-call, precompile, and transaction-settlement workloads. Add the central `BenchmarkDotNet` package version, include the project in `Scrutor.sln`, run Release benchmarks with no schedule/journal code present, and record runtime, allocation, machine, runtime, and commit hash in `GAS_SCHEDULE_BASELINE.md`.
+Add a small BenchmarkDotNet project with fixed-opcode, memory/copy, SSTORE-heavy, nested-call, precompile, and transaction-settlement workloads. Add the central `BenchmarkDotNet` package version, include the project in `Schlieren.sln`, run Release benchmarks with no schedule/journal code present, and record runtime, allocation, machine, runtime, and commit hash in `GAS_SCHEDULE_BASELINE.md`.
 
 ```powershell
-dotnet run -c Release --project Scrutor.Benchmarks/Scrutor.Benchmarks.csproj -- --filter "*GasSchedule*"
+dotnet run -c Release --project Schlieren.Benchmarks/Schlieren.Benchmarks.csproj -- --filter "*GasSchedule*"
 ```
 
 - [ ] **Step 5: Establish the correctness baseline gate**
@@ -91,8 +91,8 @@ dotnet run -c Release --project Scrutor.Benchmarks/Scrutor.Benchmarks.csproj -- 
 Run:
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --nologo
-dotnet build Scrutor.sln --nologo
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --nologo
+dotnet build Schlieren.sln --nologo
 ```
 
 Expected: zero failed unit tests and a successful solution build. If another `testhost` holds an EELS output DLL, wait for that run to finish instead of killing an unrelated process.
@@ -100,7 +100,7 @@ Expected: zero failed unit tests and a successful solution build. If another `te
 - [ ] **Step 6: Commit the checkpoint**
 
 ```powershell
-git add docs/superpowers/plans/2026-08-11-gas-rule-inventory-and-coverage.md docs/gas/GAS_RULE_INVENTORY.md docs/gas/GAS_COVERAGE_MATRIX.md docs/gas/GAS_SCHEDULE_BASELINE.md Directory.Packages.props Scrutor.sln Scrutor.Benchmarks Scrutor.Core/State/AccountDeployability.cs Scrutor.Tests/Execution/SelfDestructAccessTests.cs two_ops_audit.runsettings
+git add docs/superpowers/plans/2026-08-11-gas-rule-inventory-and-coverage.md docs/gas/GAS_RULE_INVENTORY.md docs/gas/GAS_COVERAGE_MATRIX.md docs/gas/GAS_SCHEDULE_BASELINE.md Directory.Packages.props Schlieren.sln Schlieren.Benchmarks Schlieren.Core/State/AccountDeployability.cs Schlieren.Tests/Execution/SelfDestructAccessTests.cs two_ops_audit.runsettings
 git commit -m "docs(gas): close inventory phase and pin migration baseline"
 ```
 
@@ -108,14 +108,14 @@ git commit -m "docs(gas): close inventory phase and pin migration baseline"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/GasRuleId.cs`
-- Create: `Scrutor.Core/Gas/GasRuleMetadata.cs`
-- Create: `Scrutor.Core/Gas/GasCalculation.cs`
-- Create: `Scrutor.Core/Gas/GasContexts.cs`
-- Create: `Scrutor.Core/Gas/IGasRule.cs`
-- Create: `Scrutor.Core/Gas/GasMath.cs`
-- Test: `Scrutor.Tests/Gas/GasCalculationTests.cs`
-- Test: `Scrutor.Tests/Gas/GasMathTests.cs`
+- Create: `Schlieren.Core/Gas/GasRuleId.cs`
+- Create: `Schlieren.Core/Gas/GasRuleMetadata.cs`
+- Create: `Schlieren.Core/Gas/GasCalculation.cs`
+- Create: `Schlieren.Core/Gas/GasContexts.cs`
+- Create: `Schlieren.Core/Gas/IGasRule.cs`
+- Create: `Schlieren.Core/Gas/GasMath.cs`
+- Test: `Schlieren.Tests/Gas/GasCalculationTests.cs`
+- Test: `Schlieren.Tests/Gas/GasMathTests.cs`
 
 - [ ] **Step 1: Write failing value-object and arithmetic tests**
 
@@ -135,7 +135,7 @@ public readonly record struct GasCalculation(
 - [ ] **Step 2: Run the new tests and confirm they fail to compile**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~Scrutor.Tests.Gas" --nologo
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~Schlieren.Tests.Gas" --nologo
 ```
 
 - [ ] **Step 3: Implement the minimum typed model**
@@ -160,8 +160,8 @@ Add contexts for transaction entry, memory, access, SSTORE, call, create, precom
 - [ ] **Step 4: Run focused tests and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~Scrutor.Tests.Gas" --nologo
-git add Scrutor.Core/Gas Scrutor.Tests/Gas
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~Schlieren.Tests.Gas" --nologo
+git add Schlieren.Core/Gas Schlieren.Tests/Gas
 git commit -m "feat(gas): add typed calculations and checked arithmetic"
 ```
 
@@ -169,15 +169,15 @@ git commit -m "feat(gas): add typed calculations and checked arithmetic"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/GasRuleCatalog.cs`
-- Create: `Scrutor.Core/Gas/GasCoverageManifest.cs`
-- Create: `Scrutor.Core/Gas/ForkGasSchedule.cs`
-- Create: `Scrutor.Core/Gas/ForkGasScheduleBuilder.cs`
-- Create: `Scrutor.Core/Gas/ForkGasSchedules.cs`
-- Modify: `Scrutor.Core/Forks/IForkRules.cs`
-- Modify: `Scrutor.Core/Forks/ForkRules.cs`
-- Test: `Scrutor.Tests/Gas/ForkGasScheduleTests.cs`
-- Test: `Scrutor.Tests/Gas/GasCoverageManifestTests.cs`
+- Create: `Schlieren.Core/Gas/GasRuleCatalog.cs`
+- Create: `Schlieren.Core/Gas/GasCoverageManifest.cs`
+- Create: `Schlieren.Core/Gas/ForkGasSchedule.cs`
+- Create: `Schlieren.Core/Gas/ForkGasScheduleBuilder.cs`
+- Create: `Schlieren.Core/Gas/ForkGasSchedules.cs`
+- Modify: `Schlieren.Core/Forks/IForkRules.cs`
+- Modify: `Schlieren.Core/Forks/ForkRules.cs`
+- Test: `Schlieren.Tests/Gas/ForkGasScheduleTests.cs`
+- Test: `Schlieren.Tests/Gas/GasCoverageManifestTests.cs`
 
 - [ ] **Step 1: Encode the inventory IDs once**
 
@@ -207,8 +207,8 @@ public interface IForkRules
 - [ ] **Step 5: Run tests and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~ForkGasScheduleTests|FullyQualifiedName~GasCoverageManifestTests" --nologo
-git add Scrutor.Core/Gas Scrutor.Core/Forks Scrutor.Tests/Gas
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~ForkGasScheduleTests|FullyQualifiedName~GasCoverageManifestTests" --nologo
+git add Schlieren.Core/Gas Schlieren.Core/Forks Schlieren.Tests/Gas
 git commit -m "feat(gas): add validated per-fork schedules"
 ```
 
@@ -216,26 +216,26 @@ git commit -m "feat(gas): add validated per-fork schedules"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/Rules/TransactionGasRules.cs`
-- Create: `Scrutor.Core/Gas/Rules/OpcodeGasRules.cs`
-- Create: `Scrutor.Core/Gas/Rules/MemoryGasRules.cs`
-- Modify: `Scrutor.Core/Execution/IntrinsicGas.cs`
-- Modify: `Scrutor.Core/Execution/EvmMemory.cs`
-- Modify: `Scrutor.Core/Execution/EvmMachine.cs`
-- Modify: `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/BitwiseOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/ComparisonOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/ExecutionOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/LoggingOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/MemoryCopyOpcode.cs`
-- Modify: `Scrutor.Core/Opcodes/MemoryOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/StackOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/StateOpcodes.cs`
-- Test: `Scrutor.Tests/Gas/TransactionGasRuleTests.cs`
-- Test: `Scrutor.Tests/Gas/OpcodeGasRuleTests.cs`
-- Test: `Scrutor.Tests/Gas/MemoryGasRuleTests.cs`
-- Test: `Scrutor.EELS.Tests/Conformance/CancunOpcodeGasConformanceTests.cs`
+- Create: `Schlieren.Core/Gas/Rules/TransactionGasRules.cs`
+- Create: `Schlieren.Core/Gas/Rules/OpcodeGasRules.cs`
+- Create: `Schlieren.Core/Gas/Rules/MemoryGasRules.cs`
+- Modify: `Schlieren.Core/Execution/IntrinsicGas.cs`
+- Modify: `Schlieren.Core/Execution/EvmMemory.cs`
+- Modify: `Schlieren.Core/Execution/EvmMachine.cs`
+- Modify: `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/BitwiseOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/ComparisonOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/ExecutionOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/LoggingOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/MemoryCopyOpcode.cs`
+- Modify: `Schlieren.Core/Opcodes/MemoryOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/StackOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/StateOpcodes.cs`
+- Test: `Schlieren.Tests/Gas/TransactionGasRuleTests.cs`
+- Test: `Schlieren.Tests/Gas/OpcodeGasRuleTests.cs`
+- Test: `Schlieren.Tests/Gas/MemoryGasRuleTests.cs`
+- Test: `Schlieren.EELS.Tests/Conformance/CancunOpcodeGasConformanceTests.cs`
 
 - [ ] **Step 1: Add boundary vectors before moving formulas**
 
@@ -252,14 +252,14 @@ Retain `IOpcode.ExecuteAsync` during this slice, but replace literals/formulas w
 - [ ] **Step 4: Run focused and conformance tests**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~TransactionGasRuleTests|FullyQualifiedName~OpcodeGasRuleTests|FullyQualifiedName~MemoryGasRuleTests|FullyQualifiedName~IntrinsicGasScheduleTests" --nologo
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "FullyQualifiedName~CancunOpcodeGasConformanceTests" --nologo
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~TransactionGasRuleTests|FullyQualifiedName~OpcodeGasRuleTests|FullyQualifiedName~MemoryGasRuleTests|FullyQualifiedName~IntrinsicGasScheduleTests" --nologo
+dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "FullyQualifiedName~CancunOpcodeGasConformanceTests" --nologo
 ```
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add Scrutor.Core/Gas/Rules Scrutor.Core/Execution Scrutor.Core/Opcodes Scrutor.Tests/Gas Scrutor.EELS.Tests/Conformance/CancunOpcodeGasConformanceTests.cs
+git add Schlieren.Core/Gas/Rules Schlieren.Core/Execution Schlieren.Core/Opcodes Schlieren.Tests/Gas Schlieren.EELS.Tests/Conformance/CancunOpcodeGasConformanceTests.cs
 git commit -m "refactor(gas): migrate intrinsic opcode and memory formulas"
 ```
 
@@ -267,15 +267,15 @@ git commit -m "refactor(gas): migrate intrinsic opcode and memory formulas"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/Rules/AccessGasRules.cs`
-- Create: `Scrutor.Core/Gas/Rules/StorageGasRules.cs`
-- Modify: `Scrutor.Core/Opcodes/ExecutionOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/StateOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/StorageOpcodes.cs`
-- Modify: `Scrutor.Core/Forks/IForkRules.cs`
-- Modify: `Scrutor.Core/Forks/ForkRules.cs`
-- Test: `Scrutor.Tests/Gas/AccessGasRuleTests.cs`
-- Test: `Scrutor.Tests/Gas/SstoreGasRuleTests.cs`
+- Create: `Schlieren.Core/Gas/Rules/AccessGasRules.cs`
+- Create: `Schlieren.Core/Gas/Rules/StorageGasRules.cs`
+- Modify: `Schlieren.Core/Opcodes/ExecutionOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/StateOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/StorageOpcodes.cs`
+- Modify: `Schlieren.Core/Forks/IForkRules.cs`
+- Modify: `Schlieren.Core/Forks/ForkRules.cs`
+- Test: `Schlieren.Tests/Gas/AccessGasRuleTests.cs`
+- Test: `Schlieren.Tests/Gas/SstoreGasRuleTests.cs`
 
 - [ ] **Step 1: Add the complete SSTORE era matrix**
 
@@ -292,8 +292,8 @@ Keep obsolete wrappers temporarily, mark them `[Obsolete]`, and assert no produc
 - [ ] **Step 4: Run tests and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~AccessGasRuleTests|FullyQualifiedName~SstoreGasRuleTests|FullyQualifiedName~SelfDestructAccessTests" --nologo
-git add Scrutor.Core/Gas/Rules Scrutor.Core/Opcodes Scrutor.Core/Forks Scrutor.Tests/Gas
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~AccessGasRuleTests|FullyQualifiedName~SstoreGasRuleTests|FullyQualifiedName~SelfDestructAccessTests" --nologo
+git add Schlieren.Core/Gas/Rules Schlieren.Core/Opcodes Schlieren.Core/Forks Schlieren.Tests/Gas
 git commit -m "refactor(gas): migrate access and storage schedules"
 ```
 
@@ -301,19 +301,19 @@ git commit -m "refactor(gas): migrate access and storage schedules"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/Rules/CallGasRules.cs`
-- Create: `Scrutor.Core/Gas/Rules/CreateGasRules.cs`
-- Create: `Scrutor.Core/Gas/Rules/SelfDestructGasRules.cs`
-- Create: `Scrutor.Core/Gas/GasMovement.cs`
-- Modify: `Scrutor.Core/Opcodes/SystemOpcodes.cs`
-- Modify: `Scrutor.Core/Execution/ExecutionContext.cs`
-- Modify: `Scrutor.Core/Execution/ExecutionResult.cs`
-- Test: `Scrutor.Tests/Gas/CallGasRuleTests.cs`
-- Test: `Scrutor.Tests/Gas/CreateGasRuleTests.cs`
-- Test: `Scrutor.Tests/Gas/FrameMovementTests.cs`
-- Test: `Scrutor.Tests/Lane2_CallSemanticsTests.cs`
-- Test: `Scrutor.Tests/Execution/ContractCreationLifecycleTests.cs`
-- Test: `Scrutor.Tests/Execution/ExceptionalChildGasTests.cs`
+- Create: `Schlieren.Core/Gas/Rules/CallGasRules.cs`
+- Create: `Schlieren.Core/Gas/Rules/CreateGasRules.cs`
+- Create: `Schlieren.Core/Gas/Rules/SelfDestructGasRules.cs`
+- Create: `Schlieren.Core/Gas/GasMovement.cs`
+- Modify: `Schlieren.Core/Opcodes/SystemOpcodes.cs`
+- Modify: `Schlieren.Core/Execution/ExecutionContext.cs`
+- Modify: `Schlieren.Core/Execution/ExecutionResult.cs`
+- Test: `Schlieren.Tests/Gas/CallGasRuleTests.cs`
+- Test: `Schlieren.Tests/Gas/CreateGasRuleTests.cs`
+- Test: `Schlieren.Tests/Gas/FrameMovementTests.cs`
+- Test: `Schlieren.Tests/Lane2_CallSemanticsTests.cs`
+- Test: `Schlieren.Tests/Execution/ContractCreationLifecycleTests.cs`
+- Test: `Schlieren.Tests/Execution/ExceptionalChildGasTests.cs`
 
 - [ ] **Step 1: Write vectors for every early exit and fork branch**
 
@@ -330,8 +330,8 @@ Build one `CallGasContext` from CALL/CALLCODE/DELEGATECALL/STATICCALL operands, 
 - [ ] **Step 4: Run focused tests and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~CallGasRuleTests|FullyQualifiedName~CreateGasRuleTests|FullyQualifiedName~FrameMovementTests|FullyQualifiedName~CallGasForwardingTests|FullyQualifiedName~ContractCreationLifecycleTests|FullyQualifiedName~ExceptionalChildGasTests" --nologo
-git add Scrutor.Core/Gas Scrutor.Core/Opcodes/SystemOpcodes.cs Scrutor.Core/Execution Scrutor.Tests
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~CallGasRuleTests|FullyQualifiedName~CreateGasRuleTests|FullyQualifiedName~FrameMovementTests|FullyQualifiedName~CallGasForwardingTests|FullyQualifiedName~ContractCreationLifecycleTests|FullyQualifiedName~ExceptionalChildGasTests" --nologo
+git add Schlieren.Core/Gas Schlieren.Core/Opcodes/SystemOpcodes.cs Schlieren.Core/Execution Schlieren.Tests
 git commit -m "refactor(gas): model call create and frame gas movements"
 ```
 
@@ -339,15 +339,15 @@ git commit -m "refactor(gas): model call create and frame gas movements"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/Rules/PrecompileGasRules.cs`
-- Modify: `Scrutor.Core/Execution/Precompiles.cs`
-- Modify: `Scrutor.Core/Execution/Bls12381Precompiles.cs`
-- Modify: `Scrutor.Core/Execution/Bn254Pairing.cs`
-- Modify: `Scrutor.Core/Opcodes/SystemOpcodes.cs`
-- Modify: `Scrutor.Core/Execution/StateTransition.cs`
-- Test: `Scrutor.Tests/Gas/PrecompileGasRuleTests.cs`
-- Test: `Scrutor.Tests/Execution/PrecompileGasScheduleTests.cs`
-- Test: `Scrutor.Tests/Execution/Eip7883ModExpGasTests.cs`
+- Create: `Schlieren.Core/Gas/Rules/PrecompileGasRules.cs`
+- Modify: `Schlieren.Core/Execution/Precompiles.cs`
+- Modify: `Schlieren.Core/Execution/Bls12381Precompiles.cs`
+- Modify: `Schlieren.Core/Execution/Bn254Pairing.cs`
+- Modify: `Schlieren.Core/Opcodes/SystemOpcodes.cs`
+- Modify: `Schlieren.Core/Execution/StateTransition.cs`
+- Test: `Schlieren.Tests/Gas/PrecompileGasRuleTests.cs`
+- Test: `Schlieren.Tests/Execution/PrecompileGasScheduleTests.cs`
+- Test: `Schlieren.Tests/Execution/Eip7883ModExpGasTests.cs`
 
 - [ ] **Step 1: Pin formula and invalid-input vectors**
 
@@ -364,8 +364,8 @@ Remove any separate gas path from `StateTransition` or `PrecompileExecutor`; bot
 - [ ] **Step 4: Run tests and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~PrecompileGasRuleTests|FullyQualifiedName~PrecompileGasScheduleTests|FullyQualifiedName~Eip7883ModExpGasTests" --nologo
-git add Scrutor.Core/Gas/Rules/PrecompileGasRules.cs Scrutor.Core/Execution Scrutor.Core/Opcodes/SystemOpcodes.cs Scrutor.Tests
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~PrecompileGasRuleTests|FullyQualifiedName~PrecompileGasScheduleTests|FullyQualifiedName~Eip7883ModExpGasTests" --nologo
+git add Schlieren.Core/Gas/Rules/PrecompileGasRules.cs Schlieren.Core/Execution Schlieren.Core/Opcodes/SystemOpcodes.cs Schlieren.Tests
 git commit -m "refactor(gas): migrate precompile gas schedules"
 ```
 
@@ -373,13 +373,13 @@ git commit -m "refactor(gas): migrate precompile gas schedules"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/Rules/SettlementGasRules.cs`
-- Create: `Scrutor.Core/Gas/TransactionGasLedger.cs`
-- Modify: `Scrutor.Core/Execution/StateTransition.cs`
-- Modify: `Scrutor.Core/Execution/ExecutionResult.cs`
-- Test: `Scrutor.Tests/Gas/SettlementGasRuleTests.cs`
-- Test: `Scrutor.Tests/Execution/TransactionValueJournalingTests.cs`
-- Test: `Scrutor.Tests/Execution/BlobTransactionFeeTests.cs`
+- Create: `Schlieren.Core/Gas/Rules/SettlementGasRules.cs`
+- Create: `Schlieren.Core/Gas/TransactionGasLedger.cs`
+- Modify: `Schlieren.Core/Execution/StateTransition.cs`
+- Modify: `Schlieren.Core/Execution/ExecutionResult.cs`
+- Test: `Schlieren.Tests/Gas/SettlementGasRuleTests.cs`
+- Test: `Schlieren.Tests/Execution/TransactionValueJournalingTests.cs`
+- Test: `Schlieren.Tests/Execution/BlobTransactionFeeTests.cs`
 
 - [ ] **Step 1: Write a complete settlement matrix**
 
@@ -396,8 +396,8 @@ Refactor `ApplyTransactionWithGasTreeAsync` to call the canonical evaluator with
 - [ ] **Step 4: Assert value conservation and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~SettlementGasRuleTests|FullyQualifiedName~TransactionValueJournalingTests|FullyQualifiedName~BlobTransactionFeeTests" --nologo
-git add Scrutor.Core/Gas Scrutor.Core/Execution Scrutor.Tests
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~SettlementGasRuleTests|FullyQualifiedName~TransactionValueJournalingTests|FullyQualifiedName~BlobTransactionFeeTests" --nologo
+git add Schlieren.Core/Gas Schlieren.Core/Execution Schlieren.Tests
 git commit -m "refactor(gas): unify transaction settlement ledger"
 ```
 
@@ -405,16 +405,16 @@ git commit -m "refactor(gas): unify transaction settlement ledger"
 
 **Files:**
 
-- Create: `Scrutor.Core/Gas/Journal/IGasJournalSink.cs`
-- Create: `Scrutor.Core/Gas/Journal/NullGasJournalSink.cs`
-- Create: `Scrutor.Core/Gas/Journal/RecordingGasJournalSink.cs`
-- Create: `Scrutor.Core/Gas/Journal/GasJournalEntry.cs`
-- Create: `Scrutor.Core/Gas/Journal/GasJournalValidator.cs`
-- Modify: `Scrutor.Core/Execution/ExecutionContext.cs`
-- Modify: `Scrutor.Core/Execution/EvmMachine.cs`
-- Modify: `Scrutor.Core/Execution/StateTransition.cs`
-- Test: `Scrutor.Tests/Gas/GasJournalTests.cs`
-- Test: `Scrutor.Tests/Gas/GasConservationTests.cs`
+- Create: `Schlieren.Core/Gas/Journal/IGasJournalSink.cs`
+- Create: `Schlieren.Core/Gas/Journal/NullGasJournalSink.cs`
+- Create: `Schlieren.Core/Gas/Journal/RecordingGasJournalSink.cs`
+- Create: `Schlieren.Core/Gas/Journal/GasJournalEntry.cs`
+- Create: `Schlieren.Core/Gas/Journal/GasJournalValidator.cs`
+- Modify: `Schlieren.Core/Execution/ExecutionContext.cs`
+- Modify: `Schlieren.Core/Execution/EvmMachine.cs`
+- Modify: `Schlieren.Core/Execution/StateTransition.cs`
+- Test: `Schlieren.Tests/Gas/GasJournalTests.cs`
+- Test: `Schlieren.Tests/Gas/GasConservationTests.cs`
 
 - [ ] **Step 1: Write failing journal schema tests**
 
@@ -435,8 +435,8 @@ Check component sums, gas-before/after, paired transfers, child return bounds, f
 - [ ] **Step 5: Run nested-frame tests and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~GasJournalTests|FullyQualifiedName~GasConservationTests|FullyQualifiedName~DeepCallRecursionTests|FullyQualifiedName~ChildRefundJournalTests" --nologo
-git add Scrutor.Core/Gas/Journal Scrutor.Core/Execution Scrutor.Tests/Gas
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~GasJournalTests|FullyQualifiedName~GasConservationTests|FullyQualifiedName~DeepCallRecursionTests|FullyQualifiedName~ChildRefundJournalTests" --nologo
+git add Schlieren.Core/Gas/Journal Schlieren.Core/Execution Schlieren.Tests/Gas
 git commit -m "feat(gas): journal exact movements and enforce conservation"
 ```
 
@@ -444,20 +444,20 @@ git commit -m "feat(gas): journal exact movements and enforce conservation"
 
 **Files:**
 
-- Modify: `Scrutor.Core/Execution/GasTree.cs`
-- Create: `Scrutor.Core/Gas/Diagnostics/GasDiagnosis.cs`
-- Create: `Scrutor.Core/Gas/Diagnostics/GasJournalAnalyzer.cs`
-- Create: `Scrutor.Core/Gas/Diagnostics/GasCounterfactualAnalyzer.cs`
-- Modify: `Scrutor.Core/Execution/DivergenceDiagnostics.cs`
-- Modify: `Scrutor.Core/Execution/StructuralPatternRules.cs`
-- Modify: `Scrutor.EELS.Tests/Conformance/Layer1DiagnosisBridge.cs`
-- Modify: `Scrutor.EELS.Tests/Conformance/EelsTaxonomyAnalyzer.cs`
-- Modify: `Scrutor.UI/ViewModels/WorkbenchViewModel.cs`
-- Modify: `Scrutor.UI/Views/MainWindow.axaml`
-- Modify: `Scrutor.UI/Views/ConformanceView.axaml`
-- Test: `Scrutor.Tests/Gas/GasJournalAnalyzerTests.cs`
-- Test: `Scrutor.Tests/Execution/StructuralPatternRulesTests.cs`
-- Test: `Scrutor.EELS.Tests/Conformance/Layer1DiagnosisBridgeTests.cs`
+- Modify: `Schlieren.Core/Execution/GasTree.cs`
+- Create: `Schlieren.Core/Gas/Diagnostics/GasDiagnosis.cs`
+- Create: `Schlieren.Core/Gas/Diagnostics/GasJournalAnalyzer.cs`
+- Create: `Schlieren.Core/Gas/Diagnostics/GasCounterfactualAnalyzer.cs`
+- Modify: `Schlieren.Core/Execution/DivergenceDiagnostics.cs`
+- Modify: `Schlieren.Core/Execution/StructuralPatternRules.cs`
+- Modify: `Schlieren.EELS.Tests/Conformance/Layer1DiagnosisBridge.cs`
+- Modify: `Schlieren.EELS.Tests/Conformance/EelsTaxonomyAnalyzer.cs`
+- Modify: `Schlieren.UI/ViewModels/WorkbenchViewModel.cs`
+- Modify: `Schlieren.UI/Views/MainWindow.axaml`
+- Modify: `Schlieren.UI/Views/ConformanceView.axaml`
+- Test: `Schlieren.Tests/Gas/GasJournalAnalyzerTests.cs`
+- Test: `Schlieren.Tests/Execution/StructuralPatternRulesTests.cs`
+- Test: `Schlieren.EELS.Tests/Conformance/Layer1DiagnosisBridgeTests.cs`
 
 - [ ] **Step 1: Write diagnosis-order and false-positive tests**
 
@@ -478,9 +478,9 @@ Delete `KnownGasConstants` and folder-based `Certain` diagnoses. Structural patt
 - [ ] **Step 5: Wire Case Inspector and commit**
 
 ```powershell
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~GasJournalAnalyzerTests|FullyQualifiedName~StructuralPatternRulesTests" --nologo
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "FullyQualifiedName~Layer1DiagnosisBridgeTests" --nologo
-git add Scrutor.Core Scrutor.EELS.Tests/Conformance Scrutor.UI Scrutor.Tests
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~GasJournalAnalyzerTests|FullyQualifiedName~StructuralPatternRulesTests" --nologo
+dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "FullyQualifiedName~Layer1DiagnosisBridgeTests" --nologo
+git add Schlieren.Core Schlieren.EELS.Tests/Conformance Schlieren.UI Schlieren.Tests
 git commit -m "feat(inspector): diagnose gas failures from execution journal"
 ```
 
@@ -488,21 +488,21 @@ git commit -m "feat(inspector): diagnose gas failures from execution journal"
 
 **Files:**
 
-- Create: `Scrutor.Analyzers/Scrutor.Analyzers.csproj`
-- Create: `Scrutor.Analyzers/GasLiteralAnalyzer.cs`
-- Create: `Scrutor.Analyzers/GasLiteralCodeFixProvider.cs`
+- Create: `Schlieren.Analyzers/Schlieren.Analyzers.csproj`
+- Create: `Schlieren.Analyzers/GasLiteralAnalyzer.cs`
+- Create: `Schlieren.Analyzers/GasLiteralCodeFixProvider.cs`
 - Modify: `Directory.Packages.props`
-- Modify: `Scrutor.sln`
-- Modify: `Scrutor.Core/Scrutor.Core.csproj`
-- Modify: `Scrutor.Core/Forks/IForkRules.cs`
-- Modify: `Scrutor.Core/Forks/ForkRules.cs`
-- Modify: `Scrutor.Core/Execution/IntrinsicGas.cs`
-- Modify: `Scrutor.Core/Execution/DivergenceDiagnostics.cs`
-- Test: `Scrutor.Tests/Gas/GasAuthorityTests.cs`
+- Modify: `Schlieren.sln`
+- Modify: `Schlieren.Core/Schlieren.Core.csproj`
+- Modify: `Schlieren.Core/Forks/IForkRules.cs`
+- Modify: `Schlieren.Core/Forks/ForkRules.cs`
+- Modify: `Schlieren.Core/Execution/IntrinsicGas.cs`
+- Modify: `Schlieren.Core/Execution/DivergenceDiagnostics.cs`
+- Test: `Schlieren.Tests/Gas/GasAuthorityTests.cs`
 
 - [ ] **Step 1: Write a failing authority test**
 
-Scan production syntax for gas-affecting numeric literals and direct gas arithmetic outside `Scrutor.Core/Gas`. Allow only named non-gas constants and tests through a reviewed allowlist with file/line/reason.
+Scan production syntax for gas-affecting numeric literals and direct gas arithmetic outside `Schlieren.Core/Gas`. Allow only named non-gas constants and tests through a reviewed allowlist with file/line/reason.
 
 - [ ] **Step 2: Add the Roslyn analyzer in warning mode**
 
@@ -515,9 +515,9 @@ Delete migrated members such as `SloadCost`, `SstoreBaseCost`, gas-price propert
 - [ ] **Step 4: Promote analyzer diagnostics to errors and commit**
 
 ```powershell
-dotnet build Scrutor.sln --nologo
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~GasAuthorityTests|FullyQualifiedName~GasCoverageManifestTests" --nologo
-git add Scrutor.Analyzers Directory.Packages.props Scrutor.sln Scrutor.Core Scrutor.Tests/Gas
+dotnet build Schlieren.sln --nologo
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~GasAuthorityTests|FullyQualifiedName~GasCoverageManifestTests" --nologo
+git add Schlieren.Analyzers Directory.Packages.props Schlieren.sln Schlieren.Core Schlieren.Tests/Gas
 git commit -m "build(gas): enforce schedule as the only gas authority"
 ```
 
@@ -525,10 +525,10 @@ git commit -m "build(gas): enforce schedule as the only gas authority"
 
 **Files:**
 
-- Modify: `Scrutor.Benchmarks/GasScheduleBenchmarks.cs`
-- Create: `Scrutor.Tests/Gas/GasScheduleMutationTests.cs`
+- Modify: `Schlieren.Benchmarks/GasScheduleBenchmarks.cs`
+- Create: `Schlieren.Tests/Gas/GasScheduleMutationTests.cs`
 - Modify: `Directory.Packages.props`
-- Modify: `Scrutor.sln`
+- Modify: `Schlieren.sln`
 - Modify: `docs/gas/GAS_COVERAGE_MATRIX.md`
 - Create: `docs/gas/GAS_SCHEDULE_VERIFICATION.md`
 
@@ -543,10 +543,10 @@ Run the same fixed-opcode, memory/copy, SSTORE-heavy, nested-call, precompile, a
 - [ ] **Step 3: Run the complete verification ladder**
 
 ```powershell
-dotnet build Scrutor.sln -c Release --nologo
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj -c Release --nologo
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj -c Release --filter "FullyQualifiedName~CancunOpcodeGasConformanceTests|FullyQualifiedName~Layer1DiagnosisBridgeTests" --nologo
-dotnet run -c Release --project Scrutor.Benchmarks/Scrutor.Benchmarks.csproj -- --filter "*GasSchedule*"
+dotnet build Schlieren.sln -c Release --nologo
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj -c Release --nologo
+dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj -c Release --filter "FullyQualifiedName~CancunOpcodeGasConformanceTests|FullyQualifiedName~Layer1DiagnosisBridgeTests" --nologo
+dotnet run -c Release --project Schlieren.Benchmarks/Schlieren.Benchmarks.csproj -- --filter "*GasSchedule*"
 ```
 
 Then run the existing per-fork EELS sweep settings from Frontier through Osaka. Record fixture version, case totals, pass/fail deltas, known non-gas failures, and benchmark ratios.
@@ -572,7 +572,7 @@ Do not call the migration complete until:
 Change every matrix cell from discovery status to final implemented/overridden/inactive/diagnostic-only status and link each rule to its formula tests.
 
 ```powershell
-git add Scrutor.Benchmarks Scrutor.Tests/Gas Directory.Packages.props Scrutor.sln docs/gas
+git add Schlieren.Benchmarks Schlieren.Tests/Gas Directory.Packages.props Schlieren.sln docs/gas
 git commit -m "test(gas): verify conformance conservation and performance"
 ```
 

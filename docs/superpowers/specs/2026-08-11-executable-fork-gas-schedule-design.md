@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Scrutor's Case Inspector must determine where gas accounting went wrong, not infer a likely EIP from a final balance delta. The foundation will be a complete internal model of every gas-affecting rule and formula for every supported fork. Execution will use that model to charge gas, and diagnostic runs will retain the model's inputs, branch decisions, components, and gas movements as evidence.
+Schlieren's Case Inspector must determine where gas accounting went wrong, not infer a likely EIP from a final balance delta. The foundation will be a complete internal model of every gas-affecting rule and formula for every supported fork. Execution will use that model to charge gas, and diagnostic runs will retain the model's inputs, branch decisions, components, and gas movements as evidence.
 
 This design replaces heuristic-first gas diagnosis with formula-first accounting. Heuristics may summarize evidence, but they may not claim a root cause without a reconciled gas ledger or a violated accounting invariant.
 
@@ -239,7 +239,7 @@ An invariant failure is itself a determined implementation defect and includes t
 
 ### Expected ledger reconstruction
 
-For conformance cases, Scrutor reconstructs the expected transaction ledger from fixture pre-state, expected post-state, transaction value, sender, recipient, coinbase, fee fields, and expected receipt outcome. Account roles are explicit. Sender gas cost is not conflated with coinbase priority fee or recipient value movement.
+For conformance cases, Schlieren reconstructs the expected transaction ledger from fixture pre-state, expected post-state, transaction value, sender, recipient, coinbase, fee fields, and expected receipt outcome. Account roles are explicit. Sender gas cost is not conflated with coinbase priority fee or recipient value movement.
 
 If gas price is zero or account changes do not uniquely determine expected gas, the expected ledger is marked partial. Partial evidence may still expose internal conservation failures, but it cannot support a certain end-to-end gas determination.
 

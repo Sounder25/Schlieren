@@ -2,8 +2,8 @@
 """
 eels-fixture-diff — First Divergence & End-to-End Step-Trace Finder
 ====================================================================
-Runs a fixture case through Scrutor.EELS.Tests and captures full mismatch
-context. With `--step-trace`, it runs the SingleCaseTracer to emit Scrutor's
+Runs a fixture case through Schlieren.EELS.Tests and captures full mismatch
+context. With `--step-trace`, it runs the SingleCaseTracer to emit Schlieren's
 structLog, generates the EELS Python reference trace, and invokes eels_trace_compare.py
 to pinpoint the exact step, PC, opcode, and gas delta in one command!
 
@@ -12,7 +12,7 @@ Usage:
 
 Outputs:
     • Pre-state & tx summary
-    • Scrutor execution result (via dotnet test --filter)
+    • Schlieren execution result (via dotnet test --filter)
     • Mismatch table: account / slot / field → expected vs actual
     • Gas accounting: intrinsic + EVM + refund + coinbase + sender delta
     • Step-by-step structLog divergence diff (when --step-trace is specified)
@@ -149,10 +149,10 @@ def print_pre_state(data: dict):
 
 
 # ---------------------------------------------------------------------------
-# Run Scrutor via dotnet test --filter
+# Run Schlieren via dotnet test --filter
 # ---------------------------------------------------------------------------
 
-def run_scrutor(fixture_path: str, case_id: str, fork: str, project_root: str, step_trace: bool = False) -> tuple[int, str]:
+def run_schlieren(fixture_path: str, case_id: str, fork: str, project_root: str, step_trace: bool = False) -> tuple[int, str]:
     """Run EELS harness for a single case via dotnet test."""
     env = os.environ.copy()
     env["EELS_FIXTURES_ROOT"] = str(Path(fixture_path).resolve().parent)
@@ -163,17 +163,17 @@ def run_scrutor(fixture_path: str, case_id: str, fork: str, project_root: str, s
     filter_expr = "SingleCaseTrace" if step_trace else "BENCHMARK_TaxonomySnapshot"
     if step_trace:
         env["EELS_CASE_FILTER"] = case_id
-        env["EELS_STRUCT_LOG_OUT"] = str((Path(project_root) / "TestResults" / "struct_log_scrutor.json").resolve())
+        env["EELS_STRUCT_LOG_OUT"] = str((Path(project_root) / "TestResults" / "struct_log_schlieren.json").resolve())
 
     cmd = [
         "dotnet", "test",
-        str(Path(project_root) / "Scrutor.EELS.Tests" / "Scrutor.EELS.Tests.csproj"),
+        str(Path(project_root) / "Schlieren.EELS.Tests" / "Schlieren.EELS.Tests.csproj"),
         "--filter", filter_expr,
         "--no-build",
         "--logger", "console;verbosity=detailed",
     ]
 
-    print("── RUNNING SCRUTOR ──────────────────────────────────────────────────")
+    print("── RUNNING SCHLIEREN ──────────────────────────────────────────────────")
     print(f"  cmd: {' '.join(cmd)}")
     print(f"  EELS_FIXTURES_ROOT={env['EELS_FIXTURES_ROOT']}")
     print()
@@ -204,19 +204,19 @@ def parse_mismatches(output: str) -> list[dict]:
 
 
 def run_step_trace_diff(fixture_path: str, project_root: str):
-    """Run eels_trace_compare.py to diff Scrutor's structLog vs EELS Python reference trace."""
-    scrutor_trace = Path(project_root) / "Scrutor.EELS.Tests" / "TestResults" / "struct_log_scrutor.json"
-    if not scrutor_trace.exists():
-        scrutor_trace = Path(project_root) / "TestResults" / "struct_log_scrutor.json"
+    """Run eels_trace_compare.py to diff Schlieren's structLog vs EELS Python reference trace."""
+    schlieren_trace = Path(project_root) / "Schlieren.EELS.Tests" / "TestResults" / "struct_log_schlieren.json"
+    if not schlieren_trace.exists():
+        schlieren_trace = Path(project_root) / "TestResults" / "struct_log_schlieren.json"
 
     trace_compare_script = Path(project_root) / "tools" / "eels_trace_compare.py"
 
     cmd = [
         sys.executable,
         str(trace_compare_script),
-        str(scrutor_trace),
+        str(schlieren_trace),
         "--eels-fixture", str(fixture_path),
-        "--label1", "Scrutor",
+        "--label1", "Schlieren",
         "--label2", "EELS Spec"
     ]
 
@@ -230,9 +230,9 @@ def run_diff(fixture_path: str, case_id: str, fork: str, project_root: str, step
     data = load_fixture(fixture_path, case_id, fork)
     print_pre_state(data)
 
-    exit_code, output = run_scrutor(fixture_path, case_id, fork, project_root, step_trace)
+    exit_code, output = run_schlieren(fixture_path, case_id, fork, project_root, step_trace)
 
-    print("── SCRUTOR OUTPUT ───────────────────────────────────────────────────")
+    print("── SCHLIEREN OUTPUT ───────────────────────────────────────────────────")
     lines = output.strip().splitlines()
     for line in lines[-60:]:
         print(" ", line)
@@ -267,13 +267,13 @@ def run_diff(fixture_path: str, case_id: str, fork: str, project_root: str, step
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Diff a single EELS fixture case against Scrutor execution output."
+        description="Diff a single EELS fixture case against Schlieren execution output."
     )
     parser.add_argument("fixture",  help="Path to the fixture .json file")
     parser.add_argument("case_id",  help="Top-level key inside the fixture JSON (e.g. 'callBasic_d0g0v0')")
     parser.add_argument("--fork",   default="Cancun", help="Fork name (default: Cancun)")
     parser.add_argument("--step-trace", action="store_true", help="Generate structLog and run step-by-step diff against EELS reference trace")
-    parser.add_argument("--root",   default=None, help="Scrutor project root (default: parent of 'tools/' directory)")
+    parser.add_argument("--root",   default=None, help="Schlieren project root (default: parent of 'tools/' directory)")
     args = parser.parse_args()
 
     project_root = args.root

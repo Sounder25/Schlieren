@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24  
 **Auditor:** Hermes Agent (Self-Audit per User Request)  
-**Scope:** `Scrutor.Core/Opcodes/SystemOpcodes.cs` commits d796496, 6a9734c, 538a218
+**Scope:** `Schlieren.Core/Opcodes/SystemOpcodes.cs` commits d796496, 6a9734c, 538a218
 
 ---
 
@@ -178,7 +178,7 @@ dotnet test --filter "FullyQualifiedName~<exact_test_name>" -- \
   -v detailed
 ```
 
-Compare Scrutor's execution trace against EELS/Geth trace for the same input.
+Compare Schlieren's execution trace against EELS/Geth trace for the same input.
 
 ### 3. Verify EIP-150 Parent Reserve Semantics (MEDIUM PRIORITY)
 
@@ -187,9 +187,9 @@ The original "7,453 gas case3 discrepancy" hypothesis:
 
 is **theoretically sound** per EVM semantics. However, before treating it as a fixture error:
 1. Run the exact case3 bytecode through Geth locally
-2. Verify Geth's sender balance matches Scrutor or the fixture
-3. If Geth matches fixture: Scrutor is non-conformant
-4. If Geth matches Scrutor: Fixture is incorrect or based on different client behavior
+2. Verify Geth's sender balance matches Schlieren or the fixture
+3. If Geth matches fixture: Schlieren is non-conformant
+4. If Geth matches Schlieren: Fixture is incorrect or based on different client behavior
 
 ### 4. Document Transaction-Level Gas Accounting (LOW PRIORITY)
 
@@ -214,7 +214,7 @@ is applied correctly and that `evmGasUsed` comes from `ExecutionResult.GasUsed`,
 **The test results do not match claims.** The current state shows broader failure than the "4/5 modexp cases passing" claim. This requires immediate investigation to determine:
 1. Whether the test harness is misconfigured
 2. Whether fixture expectations are correct
-3. Whether Scrutor's implementation matches the EELS reference and production clients
+3. Whether Schlieren's implementation matches the EELS reference and production clients
 
 **Next action:** Run case3 fixture through EELS Python reference and Geth to establish ground truth, then compare line-by-line execution traces.
 
@@ -223,7 +223,7 @@ is applied correctly and that `evmGasUsed` comes from `ExecutionResult.GasUsed`,
 ## Audit Trail
 
 **Files Reviewed:**
-- `Scrutor.Core/Opcodes/SystemOpcodes.cs` (lines 1-996)
+- `Schlieren.Core/Opcodes/SystemOpcodes.cs` (lines 1-996)
 - Git diff HEAD~3..HEAD showing changes (45 insertions, 9 deletions)
 
 **Methods:**

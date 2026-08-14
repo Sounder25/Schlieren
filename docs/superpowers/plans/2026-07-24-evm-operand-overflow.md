@@ -4,9 +4,9 @@
 
 **Goal:** Convert oversized consensus-visible EVM memory operands into fork-correct exceptional halts without disguising interpreter defects as EVM results.
 
-**Architecture:** `OperandValidation.TryResolveMemoryRange` is the single boundary between 256-bit EVM operands and Scrutor's `int`-indexed `EvmMemory`. The seven affected opcode implementations use it before gas calculation, host allocation, or memory access; source-data offsets retain their opcode-specific zero-padding or bounds semantics. MODEXP keeps a separate wide-integer decode/gas/allocation path.
+**Architecture:** `OperandValidation.TryResolveMemoryRange` is the single boundary between 256-bit EVM operands and Schlieren's `int`-indexed `EvmMemory`. The seven affected opcode implementations use it before gas calculation, host allocation, or memory access; source-data offsets retain their opcode-specific zero-padding or bounds semantics. MODEXP keeps a separate wide-integer decode/gas/allocation path.
 
-**Tech Stack:** C# 12, .NET 8, xUnit, Scrutor.Core EVM interpreter
+**Tech Stack:** C# 12, .NET 8, xUnit, Schlieren.Core EVM interpreter
 
 ## Global Constraints
 
@@ -21,11 +21,11 @@
 ### Task 1: Pin Down the Shared Range Contract
 
 **Files:**
-- Modify: `Scrutor.Core/Execution/OperandValidation.cs`
-- Create: `Scrutor.Tests/Opcodes/OperandOverflowTests.cs`
+- Modify: `Schlieren.Core/Execution/OperandValidation.cs`
+- Create: `Schlieren.Tests/Opcodes/OperandOverflowTests.cs`
 
 **Interfaces:**
-- Consumes: `UInt256`, Scrutor's `int`-indexed `EvmMemory`
+- Consumes: `UInt256`, Schlieren's `int`-indexed `EvmMemory`
 - Produces: `internal static bool TryResolveMemoryRange(UInt256 offset, UInt256 length, out int offsetInt, out int lengthInt, out ulong endExclusive)`
 
 - [ ] **Step 1: Write failing theory tests for the full offset/length matrix**
@@ -34,7 +34,7 @@ Cover `0`, `Int32.MaxValue`, `Int32.MaxValue + 1`, and `UInt256.MaxValue` offset
 
 - [ ] **Step 2: Run the focused helper tests and verify the current implementation's visibility or contract failures**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
 
 Expected: FAIL before exposing the internal helper to the test assembly and before all matrix expectations are represented.
 
@@ -44,18 +44,18 @@ Keep zero-length handling first, reject operands above `Int32.MaxValue`, compute
 
 - [ ] **Step 4: Run the focused tests**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
 
 Expected: PASS.
 
 ### Task 2: Apply the Contract to the Seven Memory-Range Opcodes
 
 **Files:**
-- Modify: `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/ExecutionOpcodes.cs`
-- Modify: `Scrutor.Core/Opcodes/MemoryCopyOpcode.cs`
-- Modify: `Scrutor.Core/Opcodes/StateOpcodes.cs`
-- Modify: `Scrutor.Tests/Opcodes/OperandOverflowTests.cs`
+- Modify: `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/ExecutionOpcodes.cs`
+- Modify: `Schlieren.Core/Opcodes/MemoryCopyOpcode.cs`
+- Modify: `Schlieren.Core/Opcodes/StateOpcodes.cs`
+- Modify: `Schlieren.Tests/Opcodes/OperandOverflowTests.cs`
 
 **Interfaces:**
 - Consumes: `OperandValidation.TryResolveMemoryRange`
@@ -67,7 +67,7 @@ Execute each affected opcode across the required operand matrix. Assert fork-cor
 
 - [ ] **Step 2: Run the focused opcode tests and verify expected failures**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
 
 Expected: FAIL on duplicated guards, unchecked range sums, source-offset handling, or return-data edge semantics.
 
@@ -77,15 +77,15 @@ Use `endExclusive` for memory gas calculation. Preserve opcode-specific base gas
 
 - [ ] **Step 4: Run the focused tests**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
 
 Expected: PASS.
 
 ### Task 3: Preserve Nested CALL Failure Semantics and Internal Diagnostics
 
 **Files:**
-- Modify: `Scrutor.Core/Execution/EvmMachine.cs`
-- Modify: `Scrutor.Tests/Opcodes/OperandOverflowTests.cs`
+- Modify: `Schlieren.Core/Execution/EvmMachine.cs`
+- Modify: `Schlieren.Tests/Opcodes/OperandOverflowTests.cs`
 
 **Interfaces:**
 - Consumes: child `ExecutionResult.Failure(EvmError.OutOfGas)`
@@ -97,7 +97,7 @@ Execute a parent CALL whose child performs an oversized nonzero memory operation
 
 - [ ] **Step 2: Run the focused tests and verify expected failures**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
 
 Expected: FAIL because the interpreter catch-all currently converts unexpected exceptions into `InvalidOpcode`.
 
@@ -107,15 +107,15 @@ Keep `EvmOutOfGasException` as the explicit consensus mapping and `OperationCanc
 
 - [ ] **Step 4: Run the focused tests**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~OperandOverflowTests`
 
 Expected: PASS.
 
 ### Task 4: Review MODEXP Independently and Verify the Repository
 
 **Files:**
-- Modify: `Scrutor.Core/Opcodes/SystemOpcodes.cs`
-- Modify: `Scrutor.Tests/Opcodes/OperandOverflowTests.cs`
+- Modify: `Schlieren.Core/Opcodes/SystemOpcodes.cs`
+- Modify: `Schlieren.Tests/Opcodes/OperandOverflowTests.cs`
 
 **Interfaces:**
 - Consumes: three 256-bit MODEXP length words and available precompile gas
@@ -127,7 +127,7 @@ Assert no `OverflowException` or `OutOfMemoryException`, correct output padding 
 
 - [ ] **Step 2: Run MODEXP-focused tests and verify expected failures**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter FullyQualifiedName~ModExp`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~ModExp`
 
 Expected: FAIL where 256-bit length decoding is currently truncated to `ulong` or host bounds are checked before a wide gas decision.
 
@@ -137,8 +137,8 @@ Decode all 32 bytes into a wide unsigned integer, compute the fork gas formula w
 
 - [ ] **Step 4: Run focused and full verification**
 
-Run: `dotnet test Scrutor.Tests/Scrutor.Tests.csproj --filter "FullyQualifiedName~OperandOverflowTests|FullyQualifiedName~ModExp"`
+Run: `dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter "FullyQualifiedName~OperandOverflowTests|FullyQualifiedName~ModExp"`
 
-Run: `dotnet test Scrutor.sln`
+Run: `dotnet test Schlieren.sln`
 
 Expected: PASS with zero failures.

@@ -1,0 +1,663 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Schlieren.UI.ViewModels"
+        xmlns:views="using:Schlieren.UI.Views"
+        x:Class="Schlieren.UI.Views.MainWindow"
+        x:Name="root"
+        x:DataType="vm:WorkbenchViewModel"
+        Title="SCHLIEREN — .NET 8 Ethereum Execution &amp; Verification Engine"
+        Icon="/Assets/schlieren-icon.png"
+        Width="1440" Height="900"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Schlieren.ShellBg}"
+        FontFamily="Inter, Segoe UI, sans-serif">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.header">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style Selector="Border.panel">
+            <Setter Property="Background" Value="{DynamicResource Schlieren.PanelBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="TextBlock.code">
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+        </Style>
+        <Style Selector="TextBlock.linenumber">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
+        </Style>
+        <Style Selector="Border.activeLine">
+            <Setter Property="Background" Value="{DynamicResource Schlieren.ActiveLineBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.AccentAlt}"/>
+            <Setter Property="BorderThickness" Value="2,0,0,0"/>
+        </Style>
+        <Style Selector="Border.vulnerableLine">
+            <Setter Property="Background" Value="{DynamicResource Schlieren.VulnerableLineBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Alert}"/>
+            <Setter Property="BorderThickness" Value="2,0,0,0"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+        <!-- MENU -->
+        <Menu Grid.Row="0" Background="{DynamicResource Schlieren.PanelDeep}"
+              BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,0,0,1" Height="26">
+            <MenuItem Header="_File" FontSize="11">
+                <MenuItem Header="Open Contract File..." Click="OnOpenFileClick" InputGesture="Ctrl+O"/>
+                <MenuItem Header="Open Project Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O"/>
+                <Separator/>
+                <MenuItem Header="Export Security Audit Report (.md)..." Click="OnExportReportClick"/>
+                <Separator/>
+                <MenuItem Header="Exit" Click="OnExitClick" InputGesture="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="_EVM Engine" FontSize="11">
+                <MenuItem Header="Run Bytecode (Live EVM)" Command="{Binding RunBytecodeCommand}" InputGesture="F5"/>
+                <MenuItem Header="Synthetic Detector Demo..." Command="{Binding RunSyntheticDemoCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_View" FontSize="11" Name="ViewMenuRoot">
+                <MenuItem Header="Appearance" Name="AppearanceMenu">
+                    <!-- populated in code-behind from SkinCatalog -->
+                </MenuItem>
+            </MenuItem>
+            <MenuItem Header="_Tools" FontSize="11">
+                <MenuItem Header="Show Call Topology" Command="{Binding ShowCallGraphCommand}"/>
+                <MenuItem Header="Show Source" Command="{Binding ShowSourceCommand}"/>
+                <MenuItem Header="Toggle OpSec Lockout" Command="{Binding ToggleOpSecCommand}"/>
+                <MenuItem Header="Export Audit Report (.md)..." Click="OnExportReportClick"/>
+            </MenuItem>
+            <MenuItem Header="_Help" FontSize="11">
+                <MenuItem Header="F5 Run · F10 Step · F11 Back · Space Play · Home/End"/>
+                <MenuItem Header="Skins: View → Appearance (Arctic Night is easiest on eyes)"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- TOP BAR (brand) -->
+        <Border Grid.Row="1" Background="{DynamicResource Schlieren.PanelDeep}" Padding="14,8"
+                BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Border Width="44" Height="44" CornerRadius="10"
+                            Background="{DynamicResource Schlieren.PanelElevated}"
+                            BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" Padding="4"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="SCHLIEREN — Precise · Verifiable · Traceable · Conformant">
+                        <Image Source="/Assets/schlieren-icon.png"
+                               Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="SCHLIEREN" FontWeight="Bold" FontSize="20"
+                                   Foreground="{DynamicResource Schlieren.TextPrimary}" LetterSpacing="2"/>
+                        <TextBlock Text=".NET 8 Ethereum Execution &amp; Verification Engine"
+                                   FontSize="11" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Workbench-only center chrome (hidden in Conformance mode) -->
+                <StackPanel x:Name="WorkbenchTopCenter" Grid.Column="1" Orientation="Horizontal"
+                            HorizontalAlignment="Center" Spacing="12">
+                    <TextBlock Text="{Binding CurrentFileTitle}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="12" VerticalAlignment="Center"/>
+                    <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="6,2" CornerRadius="3" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1"
+                            ToolTip.Tip="Workbench report fork only — labels bytecode runs. Does NOT select EELS suite fork. Use the FORK control inside the CONFORMANCE tab for fixtures.">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="WORKBENCH FORK:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="WorkbenchForkCombo"
+                                      ItemsSource="{Binding AvailableForks}" SelectedItem="{Binding SelectedFork}"
+                                      Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11" Height="24" Padding="6,2"
+                                      MinWidth="96"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Shown only while Conformance tab is active -->
+                <Border x:Name="ConformanceModeBadge" Grid.Column="1"
+                        IsVisible="False" HorizontalAlignment="Center"
+                        Background="{DynamicResource Schlieren.PanelBg}" BorderBrush="#4A00E0" BorderThickness="1"
+                        CornerRadius="6" Padding="14,6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="✅" FontSize="12" VerticalAlignment="Center"/>
+                        <TextBlock Text="CONFORMANCE MODE"
+                                   Foreground="{DynamicResource Schlieren.AccentSoft}" FontWeight="Bold" FontSize="12"
+                                   VerticalAlignment="Center" LetterSpacing="1"/>
+                        <TextBlock Text="· suite fork is controlled inside this panel"
+                                   Foreground="#7a82a8" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel x:Name="WorkbenchTopActions" Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="10,4" CornerRadius="3" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1"
+                            ToolTip.Tip="{Binding ForkNote}">
+                        <TextBlock Text="{Binding ForkNote}" Foreground="{DynamicResource Schlieren.TextMuted}" FontSize="10" MaxWidth="280" TextTrimming="CharacterEllipsis"/>
+                    </Border>
+                    <Button Content="{Binding OpSecLabel}" Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11"
+                            Padding="10,4" CornerRadius="3" Command="{Binding ToggleOpSecCommand}"/>
+                    <Button Classes="brand-primary" Content="RUN BYTECODE"
+                            Padding="16,6" FontSize="12"
+                            Command="{Binding RunBytecodeCommand}"
+                            IsEnabled="{Binding !IsRunning}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- TABS -->
+        <Border Grid.Row="2" Background="{DynamicResource Schlieren.PanelDeep}" Padding="16,6" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                    <ItemsControl ItemsSource="{Binding ProjectFiles}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="0"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProjectFileViewModel">
+                                <Border Padding="10,6" CornerRadius="4,4,0,0"
+                                        Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                                        PointerPressed="OnTabClick"
+                                        Cursor="Hand" Margin="0,0,2,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding FileName}"
+                                                   Foreground="{Binding IsSelected, Converter={x:Static vm:BoolToFGConverter.Instance}}"
+                                                   FontWeight="{Binding IsSelected, Converter={x:Static vm:BoolToFontWeightConverter.Instance}}"
+                                                   FontSize="12"/>
+                                        <Button Content="×" FontSize="10" Foreground="{DynamicResource Schlieren.TextDim}" Background="Transparent" Padding="2,0" Margin="4,0,0,0"
+                                                Command="{Binding #root.DataContext.CloseTabCommand}" CommandParameter="{Binding}"
+                                                x:CompileBindings="False" ToolTip.Tip="Close tab"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Width="1" Height="16" Background="#2D2D2D" Margin="12,0,12,0" VerticalAlignment="Center"/>
+                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelElevated}"
+                            PointerPressed="OnCallGraphClick" Cursor="Hand">
+                        <TextBlock Text="CALL GRAPH" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="12"/>
+                    </Border>
+                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelElevated}" Margin="4,0,0,0"
+                            PointerPressed="OnSourceClick" Cursor="Hand">
+                        <TextBlock Text="SOURCE" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="12"/>
+                    </Border>
+                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelBg}" Margin="4,0,0,0"
+                            PointerPressed="OnConformanceClick" Cursor="Hand" Name="ConformanceTab"
+                            ToolTip.Tip="EELS fixture conformance runner">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="✅" FontSize="11" VerticalAlignment="Center"/>
+                            <TextBlock Text="CONFORMANCE" Foreground="{DynamicResource Schlieren.AccentSoft}" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel x:Name="WorkbenchTabActions" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <Button Content="EXPORT TRACE" FontSize="10" FontWeight="SemiBold"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" Padding="10,4" CornerRadius="3"
+                            Click="OnExportTraceClick" ToolTip.Tip="Export structLog JSON"/>
+                    <Button Content="BLOCK" FontSize="10" FontWeight="SemiBold"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3"
+                            Command="{Binding ToggleBlockContextCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- BYTECODE + TX + BLOCK CONTEXT -->
+        <Border x:Name="WorkbenchBytecodeBar" Grid.Row="3" Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,8" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,0,0,1">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
+                    <TextBlock Grid.Column="0" Text="BYTECODE" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding BytecodeInput}"
+                             Watermark="Paste hex bytecode (0x optional) e.g. 600560030160005260206000f3"
+                             Background="#1A1C23" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                             BorderBrush="#4A00E0" BorderThickness="1"
+                             FontFamily="Consolas, Menlo, monospace" FontSize="12"
+                             Padding="8,4" CornerRadius="3" Margin="0,0,8,0"/>
+                    <Button Grid.Column="2" Content="ADD" ToolTip.Tip="PUSH1 5 + PUSH1 3 + ADD + RETURN"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="add"/>
+                    <Button Grid.Column="3" Content="LOOP"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="loop"/>
+                    <Button Grid.Column="4" Content="TSTORE"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#00D4AA" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="tstore"/>
+                    <Button Grid.Column="5" Content="KECCAK"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontSize="10" FontWeight="Bold"
+                            Padding="8,4" CornerRadius="3" Margin="0,0,8,0"
+                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="keccak"/>
+                    <Button Grid.Column="6"
+                            Content="{Binding IsRunning, Converter={x:Static vm:BoolToRunLabelConverter.Instance}}"
+                            Background="#4A00E0" Foreground="White"
+                            FontWeight="Bold" FontSize="12" Padding="14,6" CornerRadius="4" Margin="0,0,4,0"
+                            Command="{Binding RunBytecodeCommand}"
+                            IsEnabled="{Binding !IsRunning}"/>
+                    <Button Grid.Column="7" Content="STOP" ToolTip.Tip="Cancel in-flight run"
+                            Background="#3D1414" Foreground="#FF4500" FontWeight="Bold" FontSize="11"
+                            Padding="12,6" CornerRadius="4"
+                            Command="{Binding CancelRunCommand}"
+                            IsEnabled="{Binding IsRunning}"/>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,Auto,*">
+                    <Button Grid.Column="0" Content="TX PARAMS" FontSize="10" FontWeight="SemiBold"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3" Margin="0,0,6,0"
+                            Command="{Binding ToggleTxParamsCommand}"
+                            ToolTip.Tip="from / to / value / calldata / gas price"/>
+                    <Button Grid.Column="1" Content="BLOCK CONTEXT" FontSize="10" FontWeight="SemiBold"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3"
+                            Command="{Binding ToggleBlockContextCommand}"/>
+                    <Border Grid.Column="2" Background="#12131A" CornerRadius="3" Padding="10,4" Margin="8,0,0,0"
+                            BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1">
+                        <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
+                                   FontSize="11" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                    </Border>
+                </Grid>
+
+                <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
+                        IsVisible="{Binding IsTxParamsExpanded}">
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,*,Auto,*">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="From:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,4"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding TxFrom}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}"
+                                 FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,12,4"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="To (code):" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,4"/>
+                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding TxTo}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.Warning}"
+                                 FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,12,4"/>
+                        <TextBlock Grid.Row="0" Grid.Column="4" Text="Value wei:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,4"/>
+                        <TextBox Grid.Row="0" Grid.Column="5" Text="{Binding TxValueWei}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                 FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,0,4"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Calldata:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding CallDataHex}"
+                                 Watermark="0x… optional call data"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="4" Text="GasPrice gwei:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="5" Text="{Binding GasPriceGwei}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}"
+                                 FontFamily="Consolas" FontSize="10" Padding="6,2"/>
+                    </Grid>
+                </Border>
+
+                <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
+                        IsVisible="{Binding IsBlockContextExpanded}">
+                    <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*,Auto,*,Auto,*">
+                        <TextBlock Grid.Column="0" Text="Tx Gas:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="1" Text="{Binding TxGasLimit}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="Block Gas:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="3" Text="{Binding BlockGasLimit}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="4" Text="BaseFee Gwei:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="5" Text="{Binding BaseFeeGwei}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="6" Text="ChainId:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="7" Text="{Binding ChainId}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="8" Text="Coinbase:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Grid.Column="9" Text="{Binding CoinbaseAddress}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="#FFAA00" FontSize="10" FontFamily="Consolas" Padding="6,2"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- MAIN -->
+        <Grid x:Name="MainWorkbenchGrid" Grid.Row="4" ColumnDefinitions="220,*,300" Margin="8,8,8,0">
+            <!-- Explorer -->
+            <Border Grid.Column="0" Classes="panel">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="12,12,12,0">
+                        <TextBlock Grid.Column="0" Text="EXPLORER" Classes="header" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="Open" Padding="6,2" FontSize="11" Background="{DynamicResource Schlieren.PanelElevated}" CornerRadius="3" Margin="0,0,4,0"
+                                Click="OnOpenFileClick"/>
+                        <Button Grid.Column="2" Content="Folder" Padding="6,2" FontSize="11" Background="{DynamicResource Schlieren.PanelElevated}" CornerRadius="3"
+                                Click="OnOpenFolderClick"/>
+                    </Grid>
+                    <ScrollViewer Grid.Row="1">
+                        <StackPanel Margin="12,8">
+                            <TextBox Watermark="Search files or code..."
+                                     Text="{Binding SearchQuery}"
+                                     Background="{DynamicResource Schlieren.ShellBg}" BorderBrush="{DynamicResource Schlieren.Border}"
+                                     Foreground="{DynamicResource Schlieren.TextPrimary}" Padding="8,6" Margin="0,0,0,12"/>
+                            <ItemsControl ItemsSource="{Binding FilteredProjectFiles}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ProjectFileViewModel">
+                                        <Border Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                                                Padding="8,6" Margin="0,2" CornerRadius="3"
+                                                PointerPressed="OnFileClick" Cursor="Hand">
+                                            <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="12"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="No open files" Foreground="#666" FontSize="11" Margin="0,8,0,0"
+                                       IsVisible="{Binding !HasOpenFiles}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Center: source / empty / call graph -->
+            <Border Grid.Column="1" Classes="panel" Margin="4,0,4,0">
+                <Grid>
+                    <!-- Source (when not call graph) -->
+                    <Grid IsVisible="{Binding !IsCallGraphVisible}">
+                        <!-- Skin-driven watermark art (behind code, never steals clicks) -->
+                        <Grid x:Name="WatermarkHost"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              IsHitTestVisible="False"
+                              Opacity="{Binding WatermarkOpacity}">
+                            <!-- Schlieren brand mark -->
+                            <Image x:Name="WatermarkSchlieren"
+                                   Source="/Assets/schlieren-watermark.png"
+                                   Width="300" Height="300" Stretch="Uniform"/>
+                            <!-- Ethereum diamond -->
+                            <Viewbox x:Name="WatermarkEth" Width="280" Height="280" IsVisible="False">
+                                <Canvas Width="100" Height="160">
+                                    <Path Fill="{DynamicResource Schlieren.Accent}" Opacity="0.9"
+                                          Data="M50,0 L0,80 L50,110 L100,80 Z"/>
+                                    <Path Fill="{DynamicResource Schlieren.AccentAlt}" Opacity="0.55"
+                                          Data="M50,120 L0,90 L50,160 L100,90 Z"/>
+                                    <Path Fill="{DynamicResource Schlieren.AccentSoft}" Opacity="0.35"
+                                          Data="M50,0 L50,110 L100,80 Z"/>
+                                </Canvas>
+                            </Viewbox>
+                            <!-- Sounder field sigil: target + blaze ring -->
+                            <Viewbox x:Name="WatermarkSounder" Width="300" Height="300" IsVisible="False">
+                                <Canvas Width="200" Height="200">
+                                    <Ellipse Canvas.Left="20" Canvas.Top="20" Width="160" Height="160"
+                                             Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="6" Opacity="0.7"/>
+                                    <Ellipse Canvas.Left="45" Canvas.Top="45" Width="110" Height="110"
+                                             Stroke="{DynamicResource Schlieren.AccentAlt}" StrokeThickness="4" Opacity="0.55"/>
+                                    <Ellipse Canvas.Left="80" Canvas.Top="80" Width="40" Height="40"
+                                             Fill="{DynamicResource Schlieren.Accent}" Opacity="0.8"/>
+                                    <Line StartPoint="100,10" EndPoint="100,50"
+                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
+                                    <Line StartPoint="100,150" EndPoint="100,190"
+                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
+                                    <Line StartPoint="10,100" EndPoint="50,100"
+                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
+                                    <Line StartPoint="150,100" EndPoint="190,100"
+                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
+                                </Canvas>
+                            </Viewbox>
+                            <!-- Void crystal sigil -->
+                            <Viewbox x:Name="WatermarkVoid" Width="320" Height="320" IsVisible="False">
+                                <Canvas Width="200" Height="200">
+                                    <Ellipse Canvas.Left="30" Canvas.Top="30" Width="140" Height="140"
+                                             Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="2" Opacity="0.5"/>
+                                    <Ellipse Canvas.Left="50" Canvas.Top="50" Width="100" Height="100"
+                                             Stroke="{DynamicResource Schlieren.AccentAlt}" StrokeThickness="2" Opacity="0.45"/>
+                                    <Path Fill="{DynamicResource Schlieren.Accent}" Opacity="0.55"
+                                          Data="M100,20 L130,100 L100,180 L70,100 Z"/>
+                                    <Path Fill="{DynamicResource Schlieren.AccentAlt}" Opacity="0.4"
+                                          Data="M20,100 L100,70 L180,100 L100,130 Z"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+
+                        <!-- Code on top of watermark -->
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{Binding ActiveCodeLines}" Margin="12,8">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CodeLineViewModel">
+                                        <Grid ColumnDefinitions="20,40,*" Margin="0,0,0,2">
+                                            <TextBlock Grid.Column="0" Text=">" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding IsActiveLine}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding LineNumber}" Classes="linenumber" VerticalAlignment="Center"/>
+                                            <Border Grid.Column="2" Padding="8,2" CornerRadius="2"
+                                                    Classes.activeLine="{Binding IsActiveLine}"
+                                                    Classes.vulnerableLine="{Binding IsVulnerableLine}">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Text}" Classes="code" TextWrapping="NoWrap"/>
+                                                    <Border Grid.Column="1" Background="#1E143B" BorderBrush="#19D7E5" BorderThickness="1"
+                                                            CornerRadius="3" Padding="6,1" Margin="6,0"
+                                                            IsVisible="{Binding HasGasBadge}">
+                                                        <TextBlock Text="{Binding GasBadgeText}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="10" FontWeight="Bold"/>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Empty-state hints only (logo is watermark, not a blocking overlay) -->
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                    Margin="0,0,0,28" Spacing="6"
+                                    IsVisible="{Binding !HasOpenFiles}"
+                                    IsHitTestVisible="False">
+                            <TextBlock Text="Precise · Verifiable · Traceable · Conformant"
+                                       Foreground="{DynamicResource Schlieren.TextMuted}" FontSize="12" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding CenterEmptyHint}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="12"
+                                       TextWrapping="Wrap" MaxWidth="380" TextAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Call graph -->
+                    <Grid IsVisible="{Binding IsCallGraphVisible}" RowDefinitions="Auto,*">
+                        <Border Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,6" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
+                            <TextBlock Text="{Binding CallTopology.EmptyHint}" Foreground="#FFAA00" FontWeight="Bold" FontSize="12"/>
+                        </Border>
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <Canvas Width="900" Height="600" Background="{DynamicResource Schlieren.ShellBg}">
+                                <ItemsControl ItemsSource="{Binding CallTopology.Nodes}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <!-- Position the item containers on the canvas -->
+                                    <ItemsControl.Styles>
+                                        <Style Selector="ContentPresenter" x:DataType="vm:CallNodeViewModel">
+                                            <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                            <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                        </Style>
+                                    </ItemsControl.Styles>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:CallNodeViewModel">
+                                            <Border Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{Binding Color}" BorderThickness="2"
+                                                    Padding="12,8" CornerRadius="8" MinWidth="120">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" Foreground="{Binding Color}" FontWeight="Bold" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Address}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Canvas>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Inspector -->
+            <Border Grid.Column="2" Classes="panel">
+                <ScrollViewer>
+                    <StackPanel Margin="12">
+                        <TextBlock Text="EVM INSPECTOR" Classes="header"/>
+
+                        <TextBlock Text="STEP (F10 / F11 / Space)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,8,0,4"/>
+                        <Grid>
+                            <TextBlock Text="{Binding StepProgress}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="13"/>
+                            <TextBlock Text="{Binding StepPercentage}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Slider Minimum="0" Maximum="{Binding MaxStepIndex}" Value="{Binding CurrentStepIndex}"
+                                IsEnabled="{Binding HasTrace}" Margin="0,6,0,0"/>
+                        <Grid ColumnDefinitions="*,*,*,*,*" Margin="0,8,0,0">
+                            <Button Grid.Column="0" Content="|◀" Height="28" Command="{Binding JumpToStartCommand}"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
+                            <Button Grid.Column="1" Content="◀" Height="28" Command="{Binding StepBackCommand}"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
+                            <Button Grid.Column="2"
+                                    Content="{Binding IsAutoPlaying, Converter={x:Static vm:BoolToPlayLabelConverter.Instance}}"
+                                    Height="28" Command="{Binding ToggleAutoPlayCommand}"
+                                    Background="#4A00E0" Foreground="White" FontWeight="Bold"/>
+                            <Button Grid.Column="3" Content="▶" Height="28" Command="{Binding StepForwardCommand}"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
+                            <Button Grid.Column="4" Content="▶|" Height="28" Command="{Binding JumpToEndCommand}"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Border Background="#12131A" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0" Padding="10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="OPCODE NOTES (reference)" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="10"/>
+                                <TextBlock Text="{Binding CurrentOpcodeSpec}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding CurrentGasFormulaBreakdown}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="10" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding CurrentStepDetail}" Foreground="#888888" FontSize="10"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="RETURN DATA" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <TextBox Text="{Binding ReturnDataHex}" IsReadOnly="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="#00D4AA" FontFamily="Consolas" FontSize="10"
+                                 TextWrapping="Wrap" MaxHeight="64" AcceptsReturn="True"/>
+                        <TextBlock Text="{Binding ErrorText}" Foreground="#FF4500" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Grid.Column="0" Text="DISASSEMBLY (click step)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <TextBox Width="64" Text="{Binding PcSearch}" Watermark="PC"
+                                         Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontFamily="Consolas" FontSize="10" Padding="4,2"/>
+                                <Button Content="GO" FontSize="10" Padding="8,2" Command="{Binding JumpToPcCommand}"
+                                        Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                            </StackPanel>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Instructions}" MaxHeight="180">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:InstructionViewModel">
+                                    <Border Padding="6,2" Margin="0,1" CornerRadius="2" Cursor="Hand"
+                                            Background="{Binding IsActive, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                                            PointerPressed="OnInstructionClick">
+                                        <TextBlock Text="{Binding DisplayText}" FontFamily="Consolas" FontSize="10"
+                                                   Foreground="{Binding IsActive, Converter={x:Static vm:BoolToFGConverter.Instance}}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="STACK" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding StackRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="8,4" Margin="0,1" CornerRadius="2">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="MEMORY" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding MemoryRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="8,4" Margin="0,1" CornerRadius="2">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="STORAGE" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding StorageRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="8,4" Margin="0,1" CornerRadius="2">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource Schlieren.Warning}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="ACCOUNTS (post-run)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding AccountStateRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource Schlieren.TextMuted}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="LOGS" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding EventLogRows}" MaxHeight="100">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="6,3" Margin="0,1" CornerRadius="2">
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="9" Foreground="{DynamicResource Schlieren.TextPrimary}" TextWrapping="Wrap"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="GAS" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <ItemsControl ItemsSource="{Binding GasTreeNodes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GasNodeViewModel">
+                                    <TextBlock Text="{Binding DisplayText}" FontFamily="Consolas" FontSize="11"
+                                               Foreground="{Binding Color}" Margin="{Binding Indent}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- CONFORMANCE PANEL — overlays Row 4 when active -->
+        <views:ConformanceView x:Name="ConformancePanel"
+                               Grid.Row="4"
+                               IsVisible="False"/>
+
+        <!-- FINDINGS -->
+        <Border x:Name="WorkbenchFindingsBar" Grid.Row="5" Background="{DynamicResource Schlieren.PanelDeep}" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,1,0,0" MinHeight="48" MaxHeight="140">
+            <Grid RowDefinitions="Auto,*" Margin="16,8">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Grid.Column="0" Text="SECURITY FINDINGS" Classes="header" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="EXPORT TRACE" Margin="0,0,6,0"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="10"
+                            Padding="10,4" CornerRadius="3" Click="OnExportTraceClick"/>
+                    <Button Grid.Column="2" Content="EXPORT AUDIT (.MD)"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="10"
+                            Padding="10,4" CornerRadius="3" Click="OnExportReportClick"/>
+                </Grid>
+                <ScrollViewer Grid.Row="1">
+                    <ItemsControl ItemsSource="{Binding SecurityFindings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SecurityFindingViewModel">
+                                <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="12,8" Margin="0,0,0,4" CornerRadius="3">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding SeverityEmoji}" FontSize="14" Margin="0,0,12,0"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Description}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="12"/>
+                                            <TextBlock Text="{Binding Details}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="JUMP" Background="#4A00E0" Foreground="#0D0D0D"
+                                                FontWeight="Bold" FontSize="11" Padding="12,6" CornerRadius="3"
+                                                Command="{Binding #root.DataContext.JumpToFindingCommand}"
+                                                CommandParameter="{Binding}"
+                                                x:CompileBindings="False"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- STATUS -->
+        <Border Grid.Row="6" Background="{DynamicResource Schlieren.PanelDeep}" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,1,0,0" Padding="12,6">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource Schlieren.TextMuted}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+        </Border>
+    </Grid>
+</Window>

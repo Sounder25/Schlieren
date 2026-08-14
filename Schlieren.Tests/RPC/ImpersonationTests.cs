@@ -1,0 +1,210 @@
+using System.Numerics;
+using Moq;
+using Schlieren.Core.Configuration;
+using Schlieren.Core.Execution;
+using Schlieren.Core.Models;
+using Schlieren.Core.Primitives;
+using Schlieren.Core.State;
+using Schlieren.RPC;
+using Schlieren.RPC.Handlers;
+using Schlieren.RPC.Models;
+using Xunit;
+
+namespace Schlieren.Tests.RPC;
+
+public class ImpersonationTests
+{
+    private readonly EthHandlers _handlers;
+    private readonly IGlobalState _globalState;
+    private readonly ITxMempool _mempool;
+    private readonly IChainState _chainState;
+    private readonly IImpersonationService _impersonation;
+    private readonly IAccountManager _accountManager;
+    private readonly Address _managedAddress;
+
+    public ImpersonationTests()
+    {
+        _globalState = new GlobalState();
+        _mempool = new TxMempool();
+        _chainState = new ChainState(1, new BlockStore());
+        var stateTransition = new StateTransition(new EvmMachine(new List<IOpcode>()));
+        var miningService = new Mock<IMiningService>();
+        _impersonation = new ImpersonationService();
+        _accountManager = new AccountManager();
+        _accountManager.Initialize(1, "test test test test test test test test test test test junk");
+        _managedAddress = _accountManager.GetAddresses()[0];
+        var stateManager = new Mock<IStateManager>();
+        _handlers = new EthHandlers(_globalState, _mempool, _chainState, stateTransition, miningService.Object, _impersonation, _accountManager, new NodeConfiguration { Accounts = 0 }, stateManager.Object);
+    }
+
+    [Fact]
+    public async Task SendTransaction_RejectsIfNotImpersonated()
+    {
+        // Arrange
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"value\": \"0x100\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<RpcException>(() => _handlers.HandleSendTransaction(parameters));
+        Assert.Contains("not impersonated or unlocked", ex.Message);
+    }
+
+    [Fact]
+    public async Task SendTransaction_SucceedsIfImpersonated()
+    {
+        // Arrange
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        _impersonation.Impersonate(address);
+        
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"value\": \"0x100\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        // Act
+        var hash = await _handlers.HandleSendTransaction(parameters);
+
+        // Assert
+        Assert.NotNull(hash);
+        Assert.Equal(1, _mempool.Count);
+        var tx = _mempool.PopBest();
+        Assert.NotNull(tx);
+        Assert.Equal(TransactionAuthorization.Impersonated, tx.Authorization);
+        Assert.Equal(address, tx.From);
+    }
+
+    [Fact]
+    public async Task SendTransaction_SucceedsForManagedAccount_WithoutImpersonation()
+    {
+        var txJson = "{\"from\": \"" + _managedAddress.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"value\": \"0x100\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        var hash = await _handlers.HandleSendTransaction(parameters);
+
+        Assert.NotNull(hash);
+        Assert.Equal(1, _mempool.Count);
+        var tx = _mempool.PopBest();
+        Assert.NotNull(tx);
+        Assert.Equal(TransactionAuthorization.Impersonated, tx.Authorization);
+        Assert.Equal(_managedAddress, tx.From);
+    }
+
+    [Fact]
+    public async Task SendTransaction_RejectsMixedLegacyAndEip1559FeeFields()
+    {
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        _impersonation.Impersonate(address);
+
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"gasPrice\": \"0x1\", \"maxFeePerGas\": \"0x2\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        var ex = await Assert.ThrowsAsync<RpcException>(() => _handlers.HandleSendTransaction(parameters));
+        Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
+        Assert.Contains("Cannot specify both gasPrice and EIP-1559 fee fields", ex.Message);
+    }
+
+    [Fact]
+    public async Task SendTransaction_RejectsMaxPriorityWithoutMaxFee()
+    {
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        _impersonation.Impersonate(address);
+
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"maxPriorityFeePerGas\": \"0x2\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        var ex = await Assert.ThrowsAsync<RpcException>(() => _handlers.HandleSendTransaction(parameters));
+        Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
+        Assert.Contains("requires maxFeePerGas", ex.Message);
+    }
+
+    [Fact]
+    public async Task SendTransaction_RejectsMaxPriorityGreaterThanMaxFee()
+    {
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        _impersonation.Impersonate(address);
+
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"maxFeePerGas\": \"0x2\", \"maxPriorityFeePerGas\": \"0x3\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        var ex = await Assert.ThrowsAsync<RpcException>(() => _handlers.HandleSendTransaction(parameters));
+        Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
+        Assert.Contains("cannot exceed", ex.Message);
+    }
+
+    [Fact]
+    public async Task SendTransaction_AcceptsEip1559FeeFields()
+    {
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        _impersonation.Impersonate(address);
+
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"maxFeePerGas\": \"0x64\", \"maxPriorityFeePerGas\": \"0x1\"}";
+        var parameters = new object[] { System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson) };
+
+        _ = await _handlers.HandleSendTransaction(parameters);
+
+        var tx = _mempool.PopBest();
+        Assert.NotNull(tx);
+        Assert.Equal(new System.Numerics.BigInteger(100), tx.GasPrice);
+    }
+
+    [Fact]
+    public async Task SendRawTransaction_AlwaysRequiresSignature_EvenIfImpersonated()
+    {
+        // Arrange
+        var address = Address.FromHex("0x71562b71999873DB5b280dFEEf2c2015d7AF40c5");
+        _impersonation.Impersonate(address);
+
+        // Invalid signature (bad r/s/v for this hash)
+        // [nonce, gasPrice, gasLimit, to, value, data, v, r, s]
+        var rawTx = Nethereum.RLP.RLP.EncodeList(
+            Nethereum.RLP.RLP.EncodeElement(CryptoUtils.ToBytesForRLP(0)),
+            Nethereum.RLP.RLP.EncodeElement(CryptoUtils.ToBytesForRLP(1000000000)),
+            Nethereum.RLP.RLP.EncodeElement(CryptoUtils.ToBytesForRLP(21000)),
+            Nethereum.RLP.RLP.EncodeElement(new byte[20]),
+            Nethereum.RLP.RLP.EncodeElement(CryptoUtils.ToBytesForRLP(0)),
+            Nethereum.RLP.RLP.EncodeElement(Array.Empty<byte>()),
+            Nethereum.RLP.RLP.EncodeElement(CryptoUtils.ToBytesForRLP(27)),
+            Nethereum.RLP.RLP.EncodeElement(new byte[32]), // bad r
+            Nethereum.RLP.RLP.EncodeElement(new byte[32])  // bad s
+        );
+        var hex = "0x" + Convert.ToHexString(rawTx);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<RpcException>(() => _handlers.HandleSendRawTransaction(new object[] { hex }));
+        Assert.Equal(Schlieren.RPC.Models.JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
+        Assert.Contains("Invalid transaction signature", ex.Message);
+    }
+
+    [Fact]
+    public async Task GetNextNonce_UnderParallelSubmission_IsDeterministic()
+    {
+        // Arrange
+        var address = Address.FromHex("0x1234567890123456789012345678901234567890");
+        _impersonation.Impersonate(address);
+        _globalState.SetNonce(address, 10);
+
+        var txJson = "{\"from\": \"" + address.ToString() + "\", \"to\": \"0x0000000000000000000000000000000000000001\", \"value\": \"0x100\"}";
+        var element = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(txJson);
+        var parameters = new object[] { element };
+
+        // Act - Submit 20 transactions in parallel
+        var tasks = new List<Task<string>>();
+        for (int i = 0; i < 20; i++)
+        {
+            tasks.Add(_handlers.HandleSendTransaction(parameters));
+        }
+
+        await Task.WhenAll(tasks);
+
+        // Assert
+        Assert.Equal(20, _mempool.Count);
+        var nonces = new List<ulong>();
+        while (_mempool.Count > 0)
+        {
+            nonces.Add(_mempool.PopBest()!.Nonce);
+        }
+
+        var expectedNonces = Enumerable.Range(10, 20).Select(n => (ulong)n).ToList();
+        nonces.Sort();
+        Assert.Equal(expectedNonces, nonces);
+    }
+}

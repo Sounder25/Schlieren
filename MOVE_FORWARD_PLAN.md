@@ -1,4 +1,4 @@
-# Scrutor — Move Forward Plan
+# Schlieren — Move Forward Plan
 **Date:** 2026-08-11  
 **Baseline:** Osaka **97.80%** (14,197 / 14,516) after EIP-7825 + EIP-7883 — report `taxonomy_20260811_040812.md`
 
@@ -49,7 +49,7 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 | Wire `DivergenceDiagnostics` into `debug_whyNot` RPC endpoint | 1 day |
 | Export conformance report as structured Markdown (with diagnoses) | 1 day |
 
-**Gate:** `dotnet run --project Scrutor.UI` launches, Conformance tab runs live, diagnoses appear.
+**Gate:** `dotnet run --project Schlieren.UI` launches, Conformance tab runs live, diagnoses appear.
 
 ---
 
@@ -57,14 +57,14 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 
 | Work Item | Est. Effort |
 |---|---|
-| Dockerize Scrutor.RPC as standalone execution API | 2–3 days |
+| Dockerize Schlieren.RPC as standalone execution API | 2–3 days |
 | Deploy to AWS EC2 (r6i.2xlarge) with ALB | 1–2 days |
 | Add API key authentication layer | 1 day |
 | Fork-from-mainnet: hot cache of recent Ethereum state | 1–2 weeks |
 | Conformance CI: run 14,516 Osaka cases on every push (CodeBuild) | 1–2 days |
 | Web workbench UI (browser-based, backed by JSON-RPC) | 2–3 weeks |
 
-**Gate:** External users can call Scrutor over HTTPS, execute transactions, and get traced results with diagnoses.
+**Gate:** External users can call Schlieren over HTTPS, execute transactions, and get traced results with diagnoses.
 
 ---
 
@@ -88,7 +88,7 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 | Exclude `ported_static` from v20 Prague sweep | 2,135 deep-recursion tests hang the 32MB stack worker. Need separate non-async runner. |
 | Per-item thread in LargeStackWorker | Prevents one StackOverflow from killing the shared worker loop |
 | P256Verify at two-byte address (0x0100) | First precompile outside the single-byte id space. Required new `IsPrecompile` routing. |
-| `DivergenceDiagnostics` in `Scrutor.Core` (not Tests) | It's a product feature, not a test utility. Ships with the engine. |
+| `DivergenceDiagnostics` in `Schlieren.Core` (not Tests) | It's a product feature, not a test utility. Ships with the engine. |
 | Fork-gate pattern: `IForkRules.HasEipXXXX` | One new bool per EIP, override in the fork class. No scattered conditionals. |
 
 ---
@@ -104,7 +104,7 @@ Wire Layer 1 into the conformance panel and make it the default output format.
 | New EIPs implemented | 3 (P256Verify, CLZ, ModExp repricing) |
 | New precompiles | 1 (P256Verify at 0x0100 — 20th precompile) |
 | Conformance UI | Built, needs xmlns fix to compile |
-| Diagnostics engine | Layer 1 complete, compiles, in Scrutor.Core |
-| Public repo | live at github.com/Sounder25/scrutor-evm |
-| Landing page | live at sounder25.github.io/scrutor-evm |
+| Diagnostics engine | Layer 1 complete, compiles, in Schlieren.Core |
+| Public repo | live at github.com/Sounder25/schlieren-evm |
+| Landing page | live at sounder25.github.io/schlieren-evm |
 | Contact form | delivering to e.turner@soundersolution.com |

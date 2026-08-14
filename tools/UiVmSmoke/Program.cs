@@ -1,6 +1,6 @@
 using System;
 using System.Diagnostics;
-using Scrutor.UI.ViewModels;
+using Schlieren.UI.ViewModels;
 class T {
   static void Main() {
     Console.WriteLine("start " + DateTime.Now);

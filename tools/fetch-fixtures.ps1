@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Download and extract official EELS execution-spec fixtures for Scrutor.
+  Download and extract official EELS execution-spec fixtures for Schlieren.
 
 .DESCRIPTION
   Fetches fixtures.tar.gz from ethereum/execution-specs (default: tests@v20.0.1)
@@ -50,7 +50,7 @@ function Test-HasFixtureJson([string] $dir) {
     return $null -ne $probe
 }
 
-Write-Host "Scrutor fixture setup" -ForegroundColor Green
+Write-Host "Schlieren fixture setup" -ForegroundColor Green
 Write-Host "  Repo root : $RepoRoot"
 Write-Host "  Release   : $Repo @ $Tag"
 Write-Host "  Asset     : $AssetName"
@@ -85,7 +85,7 @@ if ((Test-HasFixtureJson $fixturesDir) -and -not $Force) {
                 $handler = [System.Net.Http.HttpClientHandler]::new()
                 $client = [System.Net.Http.HttpClient]::new($handler)
                 $client.Timeout = [TimeSpan]::FromHours(2)
-                $client.DefaultRequestHeaders.UserAgent.ParseAdd("Scrutor-fetch-fixtures/1.0")
+                $client.DefaultRequestHeaders.UserAgent.ParseAdd("Schlieren-fetch-fixtures/1.0")
                 try {
                     $response = $client.GetAsync($downloadUrl, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
                     if (-not $response.IsSuccessStatusCode) {
@@ -171,6 +171,6 @@ Write-Host "  `$env:EELS_INCLUDE_SUBDIRS = `"1`""
 Write-Host "  `$env:EELS_REQUIRED_FORK = `"Osaka`""
 Write-Host "  `$env:EELS_MAX_CASES = `"9999`""
 Write-Host ""
-Write-Host "  dotnet test .\Scrutor.EELS.Tests\Scrutor.EELS.Tests.csproj --nologo"
+Write-Host "  dotnet test .\Schlieren.EELS.Tests\Schlieren.EELS.Tests.csproj --nologo"
 Write-Host ""
 Write-Host "Note: fixtures/ and $AssetName stay local (gitignored). Do not commit them."

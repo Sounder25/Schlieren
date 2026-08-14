@@ -1,4 +1,4 @@
-# Scrutor Full System Sweep Report
+# Schlieren Full System Sweep Report
 
 **Generated:** 2026-08-03
 **Engine Target:** Cancun (hardwired)
@@ -20,7 +20,7 @@
 
 ## Test Results
 
-### Unit Tests (Scrutor.Tests)
+### Unit Tests (Schlieren.Tests)
 
 | Category | Tests | Status |
 |----------|-------|--------|
@@ -34,7 +34,7 @@
 | Deep Call Recursion | 2 | ✅ PASSED |
 | **TOTAL** | **265** | **✅ ALL PASSED** |
 
-### EELS Conformance Tests (Scrutor.EELS.Tests)
+### EELS Conformance Tests (Schlieren.EELS.Tests)
 
 | Category | Tests | Status |
 |----------|-------|--------|
@@ -99,13 +99,13 @@
 ## Architecture
 
 ```
-Scrutor.sln
-├── Scrutor.Core/        # EVM execution engine (12,000 LoC)
-├── Scrutor.CLI/         # Command-line interface
-├── Scrutor.RPC/         # JSON-RPC server
-├── Scrutor.Tests/       # Unit tests (265 tests)
-├── Scrutor.EELS.Tests/  # EELS conformance harness
-├── Scrutor.UI/          # WPF UI (minimal, 680 LoC)
+Schlieren.sln
+├── Schlieren.Core/        # EVM execution engine (12,000 LoC)
+├── Schlieren.CLI/         # Command-line interface
+├── Schlieren.RPC/         # JSON-RPC server
+├── Schlieren.Tests/       # Unit tests (265 tests)
+├── Schlieren.EELS.Tests/  # EELS conformance harness
+├── Schlieren.UI/          # WPF UI (minimal, 680 LoC)
 └── muscle/              # Hardhat contract testing
 ```
 
@@ -149,8 +149,8 @@ Not implemented:
 ```yaml
 Jobs:
   - build (windows-latest, .NET 8.0)
-  - test-unit (Scrutor.Tests)
-  - test-eels (Scrutor.EELS.Tests)
+  - test-unit (Schlieren.Tests)
+  - test-eels (Schlieren.EELS.Tests)
 ```
 
 **Status:** ✅ Pipeline committed, ready for activation on push
@@ -194,7 +194,7 @@ Jobs:
 ## Repository Status
 
 - **Branch:** main
-- **Remote:** https://github.com/Sounder25/Scrutor.git
+- **Remote:** https://github.com/Sounder25/Schlieren.git
 - **Last Commit:** `822f746 feat: add BN254 pairing and deep recursion tests, organize docs`
 - **Working Tree:** Clean
 

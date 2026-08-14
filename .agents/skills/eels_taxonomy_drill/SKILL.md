@@ -20,8 +20,8 @@ Runs parallel fixture sweeps, groups test failures into single-root-cause bucket
 ## Usage
 
 ```powershell
-$env:EELS_FIXTURES_ROOT  = "C:/projects/Scrutor/fixtures/state_tests/cancun"
+$env:EELS_FIXTURES_ROOT  = "C:/projects/Schlieren/fixtures/state_tests/cancun"
 $env:EELS_INCLUDE_SUBDIRS = "1"
 $env:EELS_MAX_CASES      = "9999"
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "EelsTaxonomyDrill"
+dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "EelsTaxonomyDrill"
 ```

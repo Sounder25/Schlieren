@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-03
 **Purpose:** Inventory every hardcoded gas constant in the EVM, its fork of
-introduction, and the pre-fork value. This is the checklist for making Scrutor
+introduction, and the pre-fork value. This is the checklist for making Schlieren
 fork-aware (Frontier through Cancun) and for diagnosing the remaining
 `test_all_opcodes` and `test_precompiles` fixture failures.
 
@@ -77,7 +77,7 @@ Memory expansion formula `3w + w²/512` is unchanged across all forks.
 
 ### Files to touch for opcode fork-awareness
 
-`Scrutor.Core/Opcodes/*.cs` — replace `const` costs with lookups from a
+`Schlieren.Core/Opcodes/*.cs` — replace `const` costs with lookups from a
 `GasSchedule` instance available on `ExecutionContext`. The EIP-2929 opcodes
 (EXTCODESIZE/COPY/HASH, BALANCE, SLOAD, CALL family) and EXP are the highest
 divergence points.

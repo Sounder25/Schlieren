@@ -15,7 +15,7 @@
     <PackageVersion Include="Nethereum.Signer" Version="5.8.0" />
     <PackageVersion Include="Nethereum.Util" Version="5.8.0" />
     <PackageVersion Include="Nethermind.Crypto.Bls" Version="1.0.0" />
-    <PackageVersion Include="Scrutor" Version="7.0.0" />
+    <PackageVersion Include="Schlieren" Version="7.0.0" />
     <PackageVersion Include="Tomlyn" Version="0.17.0" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />

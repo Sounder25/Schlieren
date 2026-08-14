@@ -137,10 +137,10 @@ def encode_tx(tx_data: dict, chain_id: int = 1) -> bytes:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fixture", default=(
-        "C:/projects/Scrutor/fixtures/state_tests/prague/"
+        "C:/projects/Schlieren/fixtures/state_tests/prague/"
         "eip7702_set_code_tx/test_pointer_contract_pointer_loop.json"))
     ap.add_argument("--out", default=(
-        "C:/projects/Scrutor/TestResults/eels_loop_trace.jsonl"))
+        "C:/projects/Schlieren/TestResults/eels_loop_trace.jsonl"))
     ap.add_argument("--chain-id", type=int, default=1)
     args = ap.parse_args()
 

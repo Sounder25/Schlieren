@@ -1,8 +1,8 @@
-# Scrutor EELS Conformance Status
+# Schlieren EELS Conformance Status
 **Last Updated:** 2026-08-11  
 **Baseline commit:** `a744e63` (EIP-7825 + EIP-7883)  
 **Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)  
-**Full Osaka report:** `Scrutor.EELS.Tests/TestResults/taxonomy_20260811_040812.md`
+**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260811_040812.md`
 
 ---
 
@@ -118,19 +118,19 @@ Dedicated suites at 100%: EIP-7825 (35), EIP-7883 (168), EIP-7610 create_collisi
 
 ```sh
 # Full Osaka sweep (14,516 cases)
-dotnet test Scrutor.EELS.Tests --settings osaka_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings osaka_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
 # Prague v20 (6,811 cases, excl. ported_static)
-dotnet test Scrutor.EELS.Tests --settings prague_v20_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings prague_v20_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
 # Original Prague v5.4.0 (2,010 cases — the 100% baseline)
-dotnet test Scrutor.EELS.Tests --settings prague_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings prague_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
 # Targeted EIP subsets
-dotnet test Scrutor.EELS.Tests --settings p256verify_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
-dotnet test Scrutor.EELS.Tests --settings clz_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
-dotnet test Scrutor.EELS.Tests --settings modexp7883_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings p256verify_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings clz_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings modexp7883_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
 # Taxonomy analysis (generates failure cluster report)
-dotnet test Scrutor.EELS.Tests --settings osaka_audit.runsettings --filter "EelsTaxonomyDrill"
+dotnet test Schlieren.EELS.Tests --settings osaka_audit.runsettings --filter "EelsTaxonomyDrill"
 ```

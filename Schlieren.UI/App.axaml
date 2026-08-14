@@ -1,0 +1,63 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Schlieren.UI.App"
+             Name="SCHLIEREN"
+             RequestedThemeVariant="Dark">
+    <!-- Colors come from SkinService DynamicResource keys (see Branding/SkinCatalog). -->
+    <Application.Resources>
+        <!-- Fallbacks before SkinService.LoadAndApply runs -->
+        <SolidColorBrush x:Key="Schlieren.ShellBg" Color="#0B0E14"/>
+        <SolidColorBrush x:Key="Schlieren.PanelDeep" Color="#0D1117"/>
+        <SolidColorBrush x:Key="Schlieren.PanelBg" Color="#151B23"/>
+        <SolidColorBrush x:Key="Schlieren.PanelElevated" Color="#1C2430"/>
+        <SolidColorBrush x:Key="Schlieren.Border" Color="#2A3441"/>
+        <SolidColorBrush x:Key="Schlieren.BorderSubtle" Color="#232B36"/>
+        <SolidColorBrush x:Key="Schlieren.TextPrimary" Color="#E6EDF3"/>
+        <SolidColorBrush x:Key="Schlieren.TextMuted" Color="#9AA7B5"/>
+        <SolidColorBrush x:Key="Schlieren.TextDim" Color="#6B7785"/>
+        <SolidColorBrush x:Key="Schlieren.Accent" Color="#6C9EFF"/>
+        <SolidColorBrush x:Key="Schlieren.AccentAlt" Color="#7FDBCA"/>
+        <SolidColorBrush x:Key="Schlieren.AccentHover" Color="#8FB4FF"/>
+        <SolidColorBrush x:Key="Schlieren.AccentSoft" Color="#A8B4FF"/>
+        <SolidColorBrush x:Key="Schlieren.Success" Color="#3DDC97"/>
+        <SolidColorBrush x:Key="Schlieren.Danger" Color="#FF6B7A"/>
+        <SolidColorBrush x:Key="Schlieren.Warning" Color="#E6C07B"/>
+        <SolidColorBrush x:Key="Schlieren.Alert" Color="#FF8A65"/>
+        <SolidColorBrush x:Key="Schlieren.ActiveLineBg" Color="#1A2740"/>
+        <SolidColorBrush x:Key="Schlieren.VulnerableLineBg" Color="#2A1818"/>
+        <SolidColorBrush x:Key="Schlieren.SelectionBg" Color="#243044"/>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme />
+        <Style Selector="Button.brand-primary">
+            <Setter Property="Background" Value="{DynamicResource Schlieren.Accent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="Button.brand-primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Schlieren.AccentHover}"/>
+        </Style>
+        <Style Selector="TextBlock.brand-aqua">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
+        </Style>
+        <Style Selector="TextBlock.brand-white">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+        </Style>
+        <Style Selector="TextBlock.brand-muted">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextMuted}"/>
+        </Style>
+        <Style Selector="TextBlock.brand-alert">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.Alert}"/>
+        </Style>
+        <Style Selector="TextBlock.brand-warm">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.Warning}"/>
+        </Style>
+        <Style Selector="Menu">
+            <Setter Property="Background" Value="{DynamicResource Schlieren.PanelDeep}"/>
+        </Style>
+        <Style Selector="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+        </Style>
+    </Application.Styles>
+</Application>

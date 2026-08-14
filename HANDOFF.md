@@ -1,10 +1,10 @@
-# Scrutor — Project Status & Handoff
+# Schlieren — Project Status & Handoff
 **Last Updated:** 2026-08-07  
 **Current Baseline:** `bac7046` "feat(prague): 99.95% → 100% — EIP-2200 SSTORE reentrancy guard (CALL_STIPEND)"
 
 ---
 
-## What Scrutor Is
+## What Schlieren Is
 
 A .NET 8 Ethereum execution client — EVM + JSON-RPC + CLI + UI — targeting full
 Prague conformance against the EELS (Ethereum Execution Layer Specification)
@@ -13,12 +13,12 @@ state-test fixture suite.
 **Projects:**
 | Project | Purpose |
 |---|---|
-| `Scrutor.Core` | EVM, opcodes, precompiles, state transitions, chain state |
-| `Scrutor.RPC` | JSON-RPC server (eth_*, debug_*) |
-| `Scrutor.CLI` | Command-line host |
-| `Scrutor.UI` | WPF desktop application |
-| `Scrutor.Tests` | Unit + integration tests (303 tests) |
-| `Scrutor.EELS.Tests` | EELS state-test fixture harness |
+| `Schlieren.Core` | EVM, opcodes, precompiles, state transitions, chain state |
+| `Schlieren.RPC` | JSON-RPC server (eth_*, debug_*) |
+| `Schlieren.CLI` | Command-line host |
+| `Schlieren.UI` | WPF desktop application |
+| `Schlieren.Tests` | Unit + integration tests (303 tests) |
+| `Schlieren.EELS.Tests` | EELS state-test fixture harness |
 
 ---
 
@@ -36,19 +36,19 @@ state-test fixture suite.
 
 ```sh
 # Build
-dotnet build Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj -v q
+dotnet build Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj -v q
 
 # Unit tests (303 cases)
-dotnet test Scrutor.Tests/Scrutor.Tests.csproj
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj
 
 # Full Prague sweep (2,010 cases) — the conformance gate
-dotnet test Scrutor.EELS.Tests --settings prague_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings prague_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
 # EIP-7702 only (546 cases)
-dotnet test Scrutor.EELS.Tests --settings eip7702_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings eip7702_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
 # Single case trace (set EELS_CASE_FILTER env in runsettings)
-dotnet test Scrutor.EELS.Tests --settings <foo>.runsettings --filter "SingleCaseTrace"
+dotnet test Schlieren.EELS.Tests --settings <foo>.runsettings --filter "SingleCaseTrace"
 ```
 
 ---
@@ -73,7 +73,7 @@ dotnet test Scrutor.EELS.Tests --settings <foo>.runsettings --filter "SingleCase
 ## EELS Reference Tracer
 
 `tools/eels_loop_trace.py` — runs any fixture through EELS Prague Python and emits a JSONL
-gas trace (one `{op, pc, depth, gas}` per opcode). Used to diff against Scrutor's structLog
+gas trace (one `{op, pc, depth, gas}` per opcode). Used to diff against Schlieren's structLog
 to find the exact opcode/frame where gas diverges.
 
 ```sh
@@ -90,14 +90,14 @@ for broader fixture diffing and two-trace comparison.
 ## Key Files
 
 ```
-Scrutor.Core/Execution/StateTransition.cs            # Full tx lifecycle, EIP-7702 auth loop
-Scrutor.Core/Execution/Precompiles.cs                # 0x01–0x13 precompile dispatch
-Scrutor.Core/Opcodes/SystemOpcodes.cs                # CALL/CREATE/DELEGATECALL/STATICCALL/SELFDESTRUCT + EIP-3541/7702
-Scrutor.Core/Opcodes/StorageOpcodes.cs               # SLOAD/SSTORE (EIP-2200 guard) / TLOAD/TSTORE
-Scrutor.Core/Execution/Bn254Pairing.cs               # BN254 Ate pairing (EIP-197)
-Scrutor.EELS.Tests/Harness/EelsStateFixtureExecutor.cs  # LargeStackWorker (32MB stack)
-Scrutor.EELS.Tests/Harness/EelsStateFixtureLoader.cs    # Fixture JSON parser + auth IsValid marking
-Scrutor.EELS.Tests/Suites/PublishedRequiredStateTests.cs # BENCHMARK_TaxonomySnapshot gate
+Schlieren.Core/Execution/StateTransition.cs            # Full tx lifecycle, EIP-7702 auth loop
+Schlieren.Core/Execution/Precompiles.cs                # 0x01–0x13 precompile dispatch
+Schlieren.Core/Opcodes/SystemOpcodes.cs                # CALL/CREATE/DELEGATECALL/STATICCALL/SELFDESTRUCT + EIP-3541/7702
+Schlieren.Core/Opcodes/StorageOpcodes.cs               # SLOAD/SSTORE (EIP-2200 guard) / TLOAD/TSTORE
+Schlieren.Core/Execution/Bn254Pairing.cs               # BN254 Ate pairing (EIP-197)
+Schlieren.EELS.Tests/Harness/EelsStateFixtureExecutor.cs  # LargeStackWorker (32MB stack)
+Schlieren.EELS.Tests/Harness/EelsStateFixtureLoader.cs    # Fixture JSON parser + auth IsValid marking
+Schlieren.EELS.Tests/Suites/PublishedRequiredStateTests.cs # BENCHMARK_TaxonomySnapshot gate
 EELs-NotebookLM/fork-prague.md                       # EELS spec reference (full Prague source)
 C:\projects\execution-specs\src\ethereum\forks\prague\ # Live EELS Python implementation
 tools/eels_loop_trace.py                             # EELS reference tracer

@@ -1,4 +1,4 @@
-# Scrutor Per-Fork Gas Coverage Matrix
+# Schlieren Per-Fork Gas Coverage Matrix
 
 ## Legend
 
@@ -15,106 +15,106 @@
 
 | Rule ID | Category | Frontier | Homestead | TangerineWhistle | SpuriousDragon | Byzantium | Constantinople | Istanbul | Berlin | London | Paris | Shanghai | Cancun | Prague | Osaka | Evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| TX.BASE | Transaction Entry/Intrinsic | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:13,59` - constant `TxBase = 21_000`. |
-| TX.CREATE_SURCHARGE | Transaction Entry/Intrinsic | M | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:14,62-64` - hardcoded 32,000 whenever `tx.To == null`; the required Homestead activation gate is absent, so Frontier is overcharged. |
-| TX.CALLDATA_ZERO | Transaction Entry/Intrinsic | D | I | I | I | I | I | I | I | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:55`; `Scrutor.Core/Execution/IntrinsicGas.cs:71-72` - schedule property is defined as 4 and inherited unchanged. |
-| TX.CALLDATA_NONZERO | Transaction Entry/Intrinsic | D | I | I | I | I | I | O | I | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:56,200`; `Scrutor.Core/Execution/IntrinsicGas.cs:71-72` - base 68, overridden to 16 in Istanbul. |
-| TX.ACCESS_LIST_ADDRESS | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:17,74-80` - hardcoded 2,400, gated by `HasEip2930AccessLists`. |
-| TX.ACCESS_LIST_STORAGE_KEY | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:18,75-80` - hardcoded 1,900 per key, gated by `HasEip2930AccessLists`. |
-| TX.INITCODE_WORD | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:65-67` - hardcoded 2 per word behind `HasEip3860InitcodeLimit`. |
-| TX.AUTHORIZATION_COST | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:21,84-86` - hardcoded 25,000 per type-4 authorization behind the Prague flag. |
-| TX.AUTHORIZATION_REFUND | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | `Scrutor.Core/Execution/StateTransition.cs:290-350,380-382` - main path adds 12,500, but existing-empty accounts are misclassified and the gas-tree path omits authorization processing/refund. |
-| TX.CALLDATA_FLOOR | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/IntrinsicGas.cs:24-39`; `Scrutor.Core/Execution/StateTransition.cs:95-101,461-469` - shared formula with separate pre-execution and settlement enforcement sites. |
-| TX.MAX_GAS_LIMIT | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | `Scrutor.Core/Execution/StateTransition.cs:75-81`; `Scrutor.Core/Forks/ForkRules.cs:51-52,407` - the main Osaka path validates the cap, but the gas-tree transaction path omits it. |
-| OP.STOP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:15` |
-| OP.JUMPDEST | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:87` |
-| OP.ADD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:21` |
-| OP.SUB | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:56` |
-| OP.MUL | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:38` |
-| OP.DIV | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:77` |
-| OP.SDIV | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:155` |
-| OP.MOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:98` |
-| OP.SMOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:192` |
-| OP.ADDMOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:215` |
-| OP.MULMOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:238` |
-| OP.SIGNEXTEND | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:311` |
-| OP.LT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ComparisonOpcodes.cs:21` |
-| OP.GT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ComparisonOpcodes.cs:36` |
-| OP.SLT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ComparisonOpcodes.cs:54` |
-| OP.SGT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ComparisonOpcodes.cs:72` |
-| OP.EQ | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ComparisonOpcodes.cs:87` |
-| OP.ISZERO | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ComparisonOpcodes.cs:102` |
-| OP.AND | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:21` |
-| OP.OR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:38` |
-| OP.XOR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:55` |
-| OP.NOT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:74` |
-| OP.BYTE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:101` |
-| OP.SHL | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:126` |
-| OP.SHR | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:149` |
-| OP.SAR | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:183` |
-| OP.CLZ | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | M | M | M | S | No schedule flag; price at `Scrutor.Core/Opcodes/BitwiseOpcodes.cs:216` |
-| OP.POP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StackOpcodes.cs:22` |
-| OP.PUSH0 | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | S | S | S | S | Unused `HasPush0`; price at `Scrutor.Core/Opcodes/StackOpcodes.cs:39` |
-| OP.PUSH1_32 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StackOpcodes.cs:77` |
-| OP.DUP1_16 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StackOpcodes.cs:126` |
-| OP.SWAP1_16 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StackOpcodes.cs:162` |
-| OP.ADDRESS | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:42` |
-| OP.ORIGIN | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:23` |
-| OP.CALLER | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:189` |
-| OP.CALLVALUE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:207` |
-| OP.CALLDATALOAD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:237` |
-| OP.CALLDATASIZE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:255` |
-| OP.CODESIZE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:309` |
-| OP.GASPRICE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:96` |
-| OP.RETURNDATASIZE | Fixed Opcode Gas | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasReturnDataOps`; `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:353-363` |
-| OP.BLOBHASH | Fixed Opcode Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | Gate at `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:135-140`; hardcoded price at `:169-170` |
-| OP.GAS | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:111-118` |
-| OP.BLOCKHASH | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:201` |
-| OP.COINBASE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:220` |
-| OP.TIMESTAMP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:238` |
-| OP.NUMBER | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:256` |
-| OP.DIFFICULTY | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:274` |
-| OP.GASLIMIT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:292` |
-| OP.CHAINID | Fixed Opcode Gas | M | M | M | M | M | M | S | S | S | S | S | S | S | S | Unused `HasChainId`; `Scrutor.Core/Opcodes/StateOpcodes.cs:47-57` |
-| OP.SELFBALANCE | Fixed Opcode Gas | M | M | M | M | M | M | S | S | S | S | S | S | S | S | Unused `HasSelfBalance`; hardcoded price at `Scrutor.Core/Opcodes/StateOpcodes.cs:80` |
-| OP.BASEFEE | Fixed Opcode Gas | M | M | M | M | M | M | M | M | S | S | S | S | S | S | Missing pre-London gate; `Scrutor.Core/Opcodes/StateOpcodes.cs:300-310` |
-| OP.BLOBBASEFEE | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Missing pre-Cancun gate; `Scrutor.Core/Opcodes/StateOpcodes.cs:318-328` |
-| OP.JUMP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:37` |
-| OP.JUMPI | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:52,62` |
-| OP.PC | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:76` |
-| OP.MSIZE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/MemoryOpcodes.cs:103` |
-| MEMORY.EXPANSION | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Formula and host cap at `Scrutor.Core/Execution/EvmMemory.cs:8,51-86` |
-| OP.EXP | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | S | S | S | S | S | S | S | S | S | S | S | Missing 10-per-byte era; hardcoded 50-per-byte at `Scrutor.Core/Opcodes/ArithmeticOpcodes.cs:253-265` |
-| OP.MLOAD | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/MemoryOpcodes.cs:20-23` |
-| OP.MSTORE | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/MemoryOpcodes.cs:47-50` |
-| OP.MSTORE8 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/MemoryOpcodes.cs:81-84` |
-| OP.MCOPY | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasMcopy`; `Scrutor.Core/Opcodes/MemoryCopyOpcode.cs:12-56` |
-| OP.CALLDATACOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:270-291` |
-| OP.CODECOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:324-345` |
-| OP.RETURNDATACOPY | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasReturnDataOps`; `Scrutor.Core/Opcodes/ExecutionOpcodes.cs:371-403` |
-| OP.EXTCODECOPY | Dynamic Opcode/Memory/Copy/Hash/Log | D | I | O | I | I | I | I | O | I | I | I | I | I | I | Access schedule at `Scrutor.Core/Forks/ForkRules.cs:60,133,257`; invariant copy logic at `Scrutor.Core/Opcodes/StateOpcodes.cs:131-158` |
-| OP.KECCAK256 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/StateOpcodes.cs:27-39` |
-| OP.LOG0 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Scrutor.Core/Opcodes/LoggingOpcodes.cs:15-49` |
-| OP.LOG1 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Scrutor.Core/Opcodes/LoggingOpcodes.cs:15-54` |
-| OP.LOG2 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Scrutor.Core/Opcodes/LoggingOpcodes.cs:15-55` |
-| OP.LOG3 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Scrutor.Core/Opcodes/LoggingOpcodes.cs:15-56` |
-| OP.LOG4 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Scrutor.Core/Opcodes/LoggingOpcodes.cs:15-57` |
-| OP.RETURN | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:98-108` |
-| OP.REVERT | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasRevert`; `Scrutor.Core/Opcodes/ControlFlowOpcodes.cs:111-128` |
-| ACCESS.INITIAL_WARM_SET | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | S | M | M | M | Primary and duplicate initialization paths: `Scrutor.Core/Execution/StateTransition.cs:247-287`; fork counts at `Scrutor.Core/Forks/ForkRules.cs:98,167,202,379,395,405` |
-| ACCESS.EIP7702_AUTHORITY_WARM | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | I | Gate and warm transition at `Scrutor.Core/Execution/StateTransition.cs:290-321`; `Scrutor.Core/Forks/ForkRules.cs:48,391` |
-| ACCESS.BALANCE | Account and Storage Access | D | I | M | M | M | M | I | O | I | I | I | I | I | I | Wrong shared Tangerine price at `Scrutor.Core/Forks/ForkRules.cs:60,133`; Berlin override at `:257` |
-| ACCESS.EXTCODESIZE | Account and Storage Access | D | I | O | I | I | I | I | O | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:60,133,257`; use at `Scrutor.Core/Opcodes/StateOpcodes.cs:100-101` |
-| ACCESS.EXTCODEHASH | Account and Storage Access | M | M | M | M | M | O | O | O | I | I | I | I | I | I | Missing pre-Constantinople gate; pricing overrides at `Scrutor.Core/Forks/ForkRules.cs:183,204,258` |
-| ACCESS.SLOAD | Account and Storage Access | D | I | O | I | I | I | O | O | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:18,131,197,255`; use at `Scrutor.Core/Opcodes/StorageOpcodes.cs:19-27` |
-| ACCESS.TLOAD | Account and Storage Access | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasTloadTstore`; hardcoded price at `Scrutor.Core/Opcodes/StorageOpcodes.cs:93-107` |
-| SSTORE.REENTRANCY_GUARD | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | O | I | I | I | I | I | I | I | Activation at `Scrutor.Core/Forks/ForkRules.cs:21,201`; threshold at `Scrutor.Core/Opcodes/StorageOpcodes.cs:56-62` |
-| SSTORE.COLD_SURCHARGE | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | Fork flag at `Scrutor.Core/Forks/ForkRules.cs:22,252`; hardcoded 2100 at `Scrutor.Core/Opcodes/StorageOpcodes.cs:78-83` |
-| SSTORE.FORMULA_FRONTIER | SSTORE | D | I | I | I | I | I | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Scrutor.Core/Forks/ForkRules.cs:26-36` |
-| SSTORE.FORMULA_ISTANBUL | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | O | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Scrutor.Core/Forks/ForkRules.cs:211-241` |
-| SSTORE.FORMULA_BERLIN | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | N/A | N/A | N/A | N/A | N/A | N/A | `Scrutor.Core/Forks/ForkRules.cs:266-295` |
-| SSTORE.FORMULA_LONDON | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:311-340` |
-| SSTORE.TSTORE | SSTORE | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasTloadTstore`; hardcoded price at `Scrutor.Core/Opcodes/StorageOpcodes.cs:111-125` |
+| TX.BASE | Transaction Entry/Intrinsic | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:13,59` - constant `TxBase = 21_000`. |
+| TX.CREATE_SURCHARGE | Transaction Entry/Intrinsic | M | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:14,62-64` - hardcoded 32,000 whenever `tx.To == null`; the required Homestead activation gate is absent, so Frontier is overcharged. |
+| TX.CALLDATA_ZERO | Transaction Entry/Intrinsic | D | I | I | I | I | I | I | I | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:55`; `Schlieren.Core/Execution/IntrinsicGas.cs:71-72` - schedule property is defined as 4 and inherited unchanged. |
+| TX.CALLDATA_NONZERO | Transaction Entry/Intrinsic | D | I | I | I | I | I | O | I | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:56,200`; `Schlieren.Core/Execution/IntrinsicGas.cs:71-72` - base 68, overridden to 16 in Istanbul. |
+| TX.ACCESS_LIST_ADDRESS | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:17,74-80` - hardcoded 2,400, gated by `HasEip2930AccessLists`. |
+| TX.ACCESS_LIST_STORAGE_KEY | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:18,75-80` - hardcoded 1,900 per key, gated by `HasEip2930AccessLists`. |
+| TX.INITCODE_WORD | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:65-67` - hardcoded 2 per word behind `HasEip3860InitcodeLimit`. |
+| TX.AUTHORIZATION_COST | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:21,84-86` - hardcoded 25,000 per type-4 authorization behind the Prague flag. |
+| TX.AUTHORIZATION_REFUND | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | `Schlieren.Core/Execution/StateTransition.cs:290-350,380-382` - main path adds 12,500, but existing-empty accounts are misclassified and the gas-tree path omits authorization processing/refund. |
+| TX.CALLDATA_FLOOR | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:24-39`; `Schlieren.Core/Execution/StateTransition.cs:95-101,461-469` - shared formula with separate pre-execution and settlement enforcement sites. |
+| TX.MAX_GAS_LIMIT | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | `Schlieren.Core/Execution/StateTransition.cs:75-81`; `Schlieren.Core/Forks/ForkRules.cs:51-52,407` - the main Osaka path validates the cap, but the gas-tree transaction path omits it. |
+| OP.STOP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:15` |
+| OP.JUMPDEST | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:87` |
+| OP.ADD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:21` |
+| OP.SUB | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:56` |
+| OP.MUL | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:38` |
+| OP.DIV | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:77` |
+| OP.SDIV | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:155` |
+| OP.MOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:98` |
+| OP.SMOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:192` |
+| OP.ADDMOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:215` |
+| OP.MULMOD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:238` |
+| OP.SIGNEXTEND | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:311` |
+| OP.LT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ComparisonOpcodes.cs:21` |
+| OP.GT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ComparisonOpcodes.cs:36` |
+| OP.SLT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ComparisonOpcodes.cs:54` |
+| OP.SGT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ComparisonOpcodes.cs:72` |
+| OP.EQ | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ComparisonOpcodes.cs:87` |
+| OP.ISZERO | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ComparisonOpcodes.cs:102` |
+| OP.AND | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:21` |
+| OP.OR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:38` |
+| OP.XOR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:55` |
+| OP.NOT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:74` |
+| OP.BYTE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:101` |
+| OP.SHL | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:126` |
+| OP.SHR | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:149` |
+| OP.SAR | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:183` |
+| OP.CLZ | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | M | M | M | S | No schedule flag; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:216` |
+| OP.POP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:22` |
+| OP.PUSH0 | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | S | S | S | S | Unused `HasPush0`; price at `Schlieren.Core/Opcodes/StackOpcodes.cs:39` |
+| OP.PUSH1_32 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:77` |
+| OP.DUP1_16 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:126` |
+| OP.SWAP1_16 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:162` |
+| OP.ADDRESS | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:42` |
+| OP.ORIGIN | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:23` |
+| OP.CALLER | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:189` |
+| OP.CALLVALUE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:207` |
+| OP.CALLDATALOAD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:237` |
+| OP.CALLDATASIZE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:255` |
+| OP.CODESIZE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:309` |
+| OP.GASPRICE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:96` |
+| OP.RETURNDATASIZE | Fixed Opcode Gas | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasReturnDataOps`; `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:353-363` |
+| OP.BLOBHASH | Fixed Opcode Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | Gate at `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:135-140`; hardcoded price at `:169-170` |
+| OP.GAS | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:111-118` |
+| OP.BLOCKHASH | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:201` |
+| OP.COINBASE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:220` |
+| OP.TIMESTAMP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:238` |
+| OP.NUMBER | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:256` |
+| OP.DIFFICULTY | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:274` |
+| OP.GASLIMIT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:292` |
+| OP.CHAINID | Fixed Opcode Gas | M | M | M | M | M | M | S | S | S | S | S | S | S | S | Unused `HasChainId`; `Schlieren.Core/Opcodes/StateOpcodes.cs:47-57` |
+| OP.SELFBALANCE | Fixed Opcode Gas | M | M | M | M | M | M | S | S | S | S | S | S | S | S | Unused `HasSelfBalance`; hardcoded price at `Schlieren.Core/Opcodes/StateOpcodes.cs:80` |
+| OP.BASEFEE | Fixed Opcode Gas | M | M | M | M | M | M | M | M | S | S | S | S | S | S | Missing pre-London gate; `Schlieren.Core/Opcodes/StateOpcodes.cs:300-310` |
+| OP.BLOBBASEFEE | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Missing pre-Cancun gate; `Schlieren.Core/Opcodes/StateOpcodes.cs:318-328` |
+| OP.JUMP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:37` |
+| OP.JUMPI | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:52,62` |
+| OP.PC | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:76` |
+| OP.MSIZE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:103` |
+| MEMORY.EXPANSION | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Formula and host cap at `Schlieren.Core/Execution/EvmMemory.cs:8,51-86` |
+| OP.EXP | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | S | S | S | S | S | S | S | S | S | S | S | Missing 10-per-byte era; hardcoded 50-per-byte at `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:253-265` |
+| OP.MLOAD | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:20-23` |
+| OP.MSTORE | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:47-50` |
+| OP.MSTORE8 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:81-84` |
+| OP.MCOPY | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasMcopy`; `Schlieren.Core/Opcodes/MemoryCopyOpcode.cs:12-56` |
+| OP.CALLDATACOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:270-291` |
+| OP.CODECOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:324-345` |
+| OP.RETURNDATACOPY | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasReturnDataOps`; `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:371-403` |
+| OP.EXTCODECOPY | Dynamic Opcode/Memory/Copy/Hash/Log | D | I | O | I | I | I | I | O | I | I | I | I | I | I | Access schedule at `Schlieren.Core/Forks/ForkRules.cs:60,133,257`; invariant copy logic at `Schlieren.Core/Opcodes/StateOpcodes.cs:131-158` |
+| OP.KECCAK256 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:27-39` |
+| OP.LOG0 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-49` |
+| OP.LOG1 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-54` |
+| OP.LOG2 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-55` |
+| OP.LOG3 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-56` |
+| OP.LOG4 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-57` |
+| OP.RETURN | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:98-108` |
+| OP.REVERT | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasRevert`; `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:111-128` |
+| ACCESS.INITIAL_WARM_SET | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | S | M | M | M | Primary and duplicate initialization paths: `Schlieren.Core/Execution/StateTransition.cs:247-287`; fork counts at `Schlieren.Core/Forks/ForkRules.cs:98,167,202,379,395,405` |
+| ACCESS.EIP7702_AUTHORITY_WARM | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | I | Gate and warm transition at `Schlieren.Core/Execution/StateTransition.cs:290-321`; `Schlieren.Core/Forks/ForkRules.cs:48,391` |
+| ACCESS.BALANCE | Account and Storage Access | D | I | M | M | M | M | I | O | I | I | I | I | I | I | Wrong shared Tangerine price at `Schlieren.Core/Forks/ForkRules.cs:60,133`; Berlin override at `:257` |
+| ACCESS.EXTCODESIZE | Account and Storage Access | D | I | O | I | I | I | I | O | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:60,133,257`; use at `Schlieren.Core/Opcodes/StateOpcodes.cs:100-101` |
+| ACCESS.EXTCODEHASH | Account and Storage Access | M | M | M | M | M | O | O | O | I | I | I | I | I | I | Missing pre-Constantinople gate; pricing overrides at `Schlieren.Core/Forks/ForkRules.cs:183,204,258` |
+| ACCESS.SLOAD | Account and Storage Access | D | I | O | I | I | I | O | O | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:18,131,197,255`; use at `Schlieren.Core/Opcodes/StorageOpcodes.cs:19-27` |
+| ACCESS.TLOAD | Account and Storage Access | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasTloadTstore`; hardcoded price at `Schlieren.Core/Opcodes/StorageOpcodes.cs:93-107` |
+| SSTORE.REENTRANCY_GUARD | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | O | I | I | I | I | I | I | I | Activation at `Schlieren.Core/Forks/ForkRules.cs:21,201`; threshold at `Schlieren.Core/Opcodes/StorageOpcodes.cs:56-62` |
+| SSTORE.COLD_SURCHARGE | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | Fork flag at `Schlieren.Core/Forks/ForkRules.cs:22,252`; hardcoded 2100 at `Schlieren.Core/Opcodes/StorageOpcodes.cs:78-83` |
+| SSTORE.FORMULA_FRONTIER | SSTORE | D | I | I | I | I | I | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Forks/ForkRules.cs:26-36` |
+| SSTORE.FORMULA_ISTANBUL | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | O | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Forks/ForkRules.cs:211-241` |
+| SSTORE.FORMULA_BERLIN | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Forks/ForkRules.cs:266-295` |
+| SSTORE.FORMULA_LONDON | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:311-340` |
+| SSTORE.TSTORE | SSTORE | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasTloadTstore`; hardcoded price at `Schlieren.Core/Opcodes/StorageOpcodes.cs:111-125` |
 | CALL.MEMORY_EXPANSION | CALL-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `SystemOpcodes.cs:222-230,679-685,801-807,947-953` |
 | CALL.DEPTH_LIMIT | CALL-Family | M | M | M | M | M | M | M | M | M | M | M | M | M | M | Off-by-one recursion gate: `StateTransition.cs:775-806,953,978-996` |
 | CALL.ACCESS_COST | CALL-Family | D | I | O | I | I | I | I | O | I | I | I | I | I | I | `ForkRules.cs:64,136,257-261`; opcode composition in `SystemOpcodes.cs:239-244,691-695,814-817,960-963` |
@@ -150,28 +150,28 @@
 | SELFDESTRUCT.NEW_ACCOUNT | SELFDESTRUCT | N/A | N/A | M | S | S | S | S | S | S | S | S | S | S | S | Direct constant `ForkRules.cs:89,141`; Tangerine predicate defect `SystemOpcodes.cs:1066-1081` |
 | SELFDESTRUCT.COLD_ACCESS | SELFDESTRUCT | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | Hardcoded 2600 and Berlin flag at `SystemOpcodes.cs:1063-1064`; `ForkRules.cs:252` |
 | SELFDESTRUCT.REFUND | SELFDESTRUCT | M | M | M | M | M | M | M | M | N/A | N/A | N/A | N/A | N/A | N/A | No production credit or schedule property; scoped opcode `SystemOpcodes.cs:1040-1110` |
-| PRECOMPILE.DISPATCH_BUDGET | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/StateTransition.cs:243-245,818-842`; `Scrutor.Core/Opcodes/SystemOpcodes.cs:313-318,405-421,721-723,869-872,989-991` - top-level and nested budget handling is split across dispatch paths. |
-| PRECOMPILE.ECRECOVER | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/Precompiles.cs:139-168` - hardcoded 3,000; active from Frontier through `PrecompileCount`. |
-| PRECOMPILE.SHA256 | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/Precompiles.cs:172-177` - hardcoded `60 + 12 * ceil(len/32)`. |
-| PRECOMPILE.RIPEMD160 | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/Precompiles.cs:180-193` - hardcoded `600 + 120 * ceil(len/32)`. |
-| PRECOMPILE.IDENTITY | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/Precompiles.cs:196-201` - hardcoded `15 + 3 * ceil(len/32)`. |
-| PRECOMPILE.MODEXP_EIP198 | Precompile Gas | N/A | N/A | N/A | N/A | M | M | M | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Scrutor.Core/Execution/Precompiles.cs:264-350`; `Scrutor.Core/Forks/ForkRules.cs:167` - the EIP-198 branch has a non-protocol 10,000,000,000 saturation that can undercharge accepted inputs. |
-| PRECOMPILE.MODEXP_EIP2565 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | M | M | M | N/A | `Scrutor.Core/Execution/Precompiles.cs:284-289,301-349`; `Scrutor.Core/Forks/ForkRules.cs:254` - the EIP-2565 branch has the same reachable non-protocol gas saturation. |
-| PRECOMPILE.MODEXP_EIP7883 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | `Scrutor.Core/Execution/Precompiles.cs:270-283,322-335`; `Scrutor.Core/Forks/ForkRules.cs:406` - hardcoded Osaka formula and 500 floor. |
-| PRECOMPILE.MODEXP_LENGTH_LIMIT | Precompile Gas | N/A | N/A | N/A | N/A | M | M | M | M | M | M | M | M | M | S | `Scrutor.Core/Execution/Precompiles.cs:212-218` - non-protocol 8,192-byte cap is present before Osaka; Osaka's EIP-7823 1,024-byte limit is implemented. |
-| PRECOMPILE.BN254_ADD | Precompile Gas | N/A | N/A | N/A | N/A | D | I | O | I | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:92,206`; `Scrutor.Core/Execution/Precompiles.cs:82,364-382` - 500 base schedule, overridden to 150 in Istanbul. |
-| PRECOMPILE.BN254_MUL | Precompile Gas | N/A | N/A | N/A | N/A | D | I | O | I | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:93,207`; `Scrutor.Core/Execution/Precompiles.cs:83,387-404` - 40,000 base schedule, overridden to 6,000 in Istanbul. |
-| PRECOMPILE.BN254_PAIRING | Precompile Gas | N/A | N/A | N/A | N/A | D | I | O | I | I | I | I | I | I | I | `Scrutor.Core/Forks/ForkRules.cs:94-95,208-209`; `Scrutor.Core/Execution/Precompiles.cs:84,416-429` - base/per-pair values are overridden in Istanbul. |
-| PRECOMPILE.BLAKE2F | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | S | `Scrutor.Core/Execution/Precompiles.cs:434-465`; `Scrutor.Core/Forks/ForkRules.cs:202` - rounds-based gas and validation are hardcoded; activation is by count. |
-| PRECOMPILE.KZG_POINT_EVAL | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | `Scrutor.Core/Execution/Precompiles.cs:495-542`; `Scrutor.Core/Forks/ForkRules.cs:379` - gas and proof checks are hardcoded; trusted-setup load failure escapes as a host exception instead of the required budget-burning result. |
-| PRECOMPILE.BLS_G1ADD | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:19,85-98`; `Scrutor.Core/Forks/ForkRules.cs:392-395` - hardcoded 375. |
-| PRECOMPILE.BLS_G1MSM | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:20,30-40,51-53,104-140` - hardcoded multiplier, discount table/cap, and floor division. |
-| PRECOMPILE.BLS_G2ADD | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:22,144-157`; `Scrutor.Core/Forks/ForkRules.cs:392-395` - hardcoded 600. |
-| PRECOMPILE.BLS_G2MSM | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:23,41-53,163-198` - hardcoded multiplier, discount table/cap, and floor division. |
-| PRECOMPILE.BLS_PAIRING | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:26-28,202-245` - hardcoded `37,700 + 32,600*k`; empty input is rejected before the identity branch. |
-| PRECOMPILE.BLS_MAP_FP_G1 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:21,249-264` - hardcoded 5,500. |
-| PRECOMPILE.BLS_MAP_FP2_G2 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Scrutor.Core/Execution/Bls12381Precompiles.cs:24,268-284` - hardcoded 23,800. |
-| PRECOMPILE.P256VERIFY | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | `Scrutor.Core/Execution/Precompiles.cs:16-27,69-74,685-759`; `Scrutor.Core/Forks/ForkRules.cs:405` - separate address 0x0100, hardcoded 6,900. |
+| PRECOMPILE.DISPATCH_BUDGET | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/StateTransition.cs:243-245,818-842`; `Schlieren.Core/Opcodes/SystemOpcodes.cs:313-318,405-421,721-723,869-872,989-991` - top-level and nested budget handling is split across dispatch paths. |
+| PRECOMPILE.ECRECOVER | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/Precompiles.cs:139-168` - hardcoded 3,000; active from Frontier through `PrecompileCount`. |
+| PRECOMPILE.SHA256 | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/Precompiles.cs:172-177` - hardcoded `60 + 12 * ceil(len/32)`. |
+| PRECOMPILE.RIPEMD160 | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/Precompiles.cs:180-193` - hardcoded `600 + 120 * ceil(len/32)`. |
+| PRECOMPILE.IDENTITY | Precompile Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/Precompiles.cs:196-201` - hardcoded `15 + 3 * ceil(len/32)`. |
+| PRECOMPILE.MODEXP_EIP198 | Precompile Gas | N/A | N/A | N/A | N/A | M | M | M | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Execution/Precompiles.cs:264-350`; `Schlieren.Core/Forks/ForkRules.cs:167` - the EIP-198 branch has a non-protocol 10,000,000,000 saturation that can undercharge accepted inputs. |
+| PRECOMPILE.MODEXP_EIP2565 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | M | M | M | N/A | `Schlieren.Core/Execution/Precompiles.cs:284-289,301-349`; `Schlieren.Core/Forks/ForkRules.cs:254` - the EIP-2565 branch has the same reachable non-protocol gas saturation. |
+| PRECOMPILE.MODEXP_EIP7883 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | `Schlieren.Core/Execution/Precompiles.cs:270-283,322-335`; `Schlieren.Core/Forks/ForkRules.cs:406` - hardcoded Osaka formula and 500 floor. |
+| PRECOMPILE.MODEXP_LENGTH_LIMIT | Precompile Gas | N/A | N/A | N/A | N/A | M | M | M | M | M | M | M | M | M | S | `Schlieren.Core/Execution/Precompiles.cs:212-218` - non-protocol 8,192-byte cap is present before Osaka; Osaka's EIP-7823 1,024-byte limit is implemented. |
+| PRECOMPILE.BN254_ADD | Precompile Gas | N/A | N/A | N/A | N/A | D | I | O | I | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:92,206`; `Schlieren.Core/Execution/Precompiles.cs:82,364-382` - 500 base schedule, overridden to 150 in Istanbul. |
+| PRECOMPILE.BN254_MUL | Precompile Gas | N/A | N/A | N/A | N/A | D | I | O | I | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:93,207`; `Schlieren.Core/Execution/Precompiles.cs:83,387-404` - 40,000 base schedule, overridden to 6,000 in Istanbul. |
+| PRECOMPILE.BN254_PAIRING | Precompile Gas | N/A | N/A | N/A | N/A | D | I | O | I | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:94-95,208-209`; `Schlieren.Core/Execution/Precompiles.cs:84,416-429` - base/per-pair values are overridden in Istanbul. |
+| PRECOMPILE.BLAKE2F | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | S | `Schlieren.Core/Execution/Precompiles.cs:434-465`; `Schlieren.Core/Forks/ForkRules.cs:202` - rounds-based gas and validation are hardcoded; activation is by count. |
+| PRECOMPILE.KZG_POINT_EVAL | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | `Schlieren.Core/Execution/Precompiles.cs:495-542`; `Schlieren.Core/Forks/ForkRules.cs:379` - gas and proof checks are hardcoded; trusted-setup load failure escapes as a host exception instead of the required budget-burning result. |
+| PRECOMPILE.BLS_G1ADD | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:19,85-98`; `Schlieren.Core/Forks/ForkRules.cs:392-395` - hardcoded 375. |
+| PRECOMPILE.BLS_G1MSM | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:20,30-40,51-53,104-140` - hardcoded multiplier, discount table/cap, and floor division. |
+| PRECOMPILE.BLS_G2ADD | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:22,144-157`; `Schlieren.Core/Forks/ForkRules.cs:392-395` - hardcoded 600. |
+| PRECOMPILE.BLS_G2MSM | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:23,41-53,163-198` - hardcoded multiplier, discount table/cap, and floor division. |
+| PRECOMPILE.BLS_PAIRING | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:26-28,202-245` - hardcoded `37,700 + 32,600*k`; empty input is rejected before the identity branch. |
+| PRECOMPILE.BLS_MAP_FP_G1 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:21,249-264` - hardcoded 5,500. |
+| PRECOMPILE.BLS_MAP_FP2_G2 | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/Bls12381Precompiles.cs:24,268-284` - hardcoded 23,800. |
+| PRECOMPILE.P256VERIFY | Precompile Gas | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | `Schlieren.Core/Execution/Precompiles.cs:16-27,69-74,685-759`; `Schlieren.Core/Forks/ForkRules.cs:405` - separate address 0x0100, hardcoded 6,900. |
 | HALT.OPCODE_ACTIVATION | Exceptional Halt | M | M | M | M | M | M | M | M | M | M | M | M | M | M | Global registration and ungated dispatch: `ServiceCollectionExtensions.cs:95-105`; `EvmMachine.cs:34-79` |
 | HALT.OOG_BURN | Exceptional Halt | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `EvmMachine.cs:63-79,89-97` |
 | HALT.REVERT_RETURN | Exceptional Halt | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | S | S | S | `EvmMachine.cs:69-79`; missing preactivation dispatch is represented by `HALT.OPCODE_ACTIVATION` |

@@ -1,7 +1,7 @@
 # Single-Case Execution Ledger — EELS Fixture Gas Accounting
 
 **Generated:** 2026-07-24  
-**Purpose:** Isolate exactly where Scrutor's gas accounting diverges from EELS fixtures
+**Purpose:** Isolate exactly where Schlieren's gas accounting diverges from EELS fixtures
 
 ---
 
@@ -24,7 +24,7 @@ Coinbase gets:  500,000 gas × 3 = 1,500,000 wei (priority fee portion)
 BaseFee burned: 500,000 gas × 7 = 3,500,000 wei
 ```
 
-**Scrutor Result:**
+**Schlieren Result:**
 ```
 Sender pays:    492,547 gas × 10 = 4,925,470 wei
 Coinbase gets:  492,547 gas × 3 = 1,477,641 wei
@@ -40,7 +40,7 @@ Total discrepancy:    7,453 gas (the EIP-150 parent reserve)
 
 **Execution Status:** FAILED (initcode OOG)
 
-**Hypothesis:** Scrutor correctly preserves the EIP-150 1/64 parent reserve (7,453 gas) after CREATE child fails. The wrapper contract's STOP opcode completes normally, leaving the reserve unspent and refundable. Fixture expects all 500K gas consumed.
+**Hypothesis:** Schlieren correctly preserves the EIP-150 1/64 parent reserve (7,453 gas) after CREATE child fails. The wrapper contract's STOP opcode completes normally, leaving the reserve unspent and refundable. Fixture expects all 500K gas consumed.
 
 **Resolution Status:** ⏸️ DEFERRED — Needs EELS Python reference execution and Geth trace comparison to establish ground truth
 
@@ -64,7 +64,7 @@ Sender pays:    43,519 gas × 10 = 435,190 wei
 Coinbase gets:  43,519 gas × 3 = 130,557 wei
 ```
 
-**Scrutor Result:**
+**Schlieren Result:**
 ```
 Sender pays:    56,515 gas × 10 = 565,150 wei
 Coinbase gets:  56,515 gas × 3 = 169,545 wei
@@ -72,7 +72,7 @@ Coinbase gets:  56,515 gas × 3 = 169,545 wei
 
 **Discrepancy:**
 ```
-Scrutor OVER-charged by: 12,996 gas
+Schlieren OVER-charged by: 12,996 gas
 ```
 
 **Execution Status:** SUCCESS
@@ -104,7 +104,7 @@ Sender pays:    53,925 gas × 10 = 539,250 wei
 Coinbase gets:  53,925 gas × 3 = 161,775 wei
 ```
 
-**Scrutor Result:**
+**Schlieren Result:**
 ```
 Sender pays:    77,292 gas × 10 = 772,920 wei
 Coinbase gets:  77,292 gas × 3 = 231,876 wei
@@ -112,7 +112,7 @@ Coinbase gets:  77,292 gas × 3 = 231,876 wei
 
 **Discrepancy:**
 ```
-Scrutor OVER-charged by: 23,367 gas
+Schlieren OVER-charged by: 23,367 gas
 ```
 
 **Execution Status:** SUCCESS
@@ -141,7 +141,7 @@ Sender pays:    78,358 gas × 10 = 783,580 wei
 Coinbase gets:  78,358 gas × 3 = 235,074 wei
 ```
 
-**Scrutor Result:**
+**Schlieren Result:**
 ```
 Sender pays:    78,356 gas × 10 = 783,560 wei
 Coinbase gets:  78,356 gas × 3 = 235,068 wei
@@ -149,12 +149,12 @@ Coinbase gets:  78,356 gas × 3 = 235,068 wei
 
 **Discrepancy:**
 ```
-Scrutor UNDER-charged by: 2 gas
+Schlieren UNDER-charged by: 2 gas
 ```
 
 **Execution Status:** SUCCESS
 
-**Hypothesis:** Tiny discrepancy suggests base opcode cost off by 1-3 gas (e.g., CALLCODE should be 700 gas but Scrutor charges 697 or 703)
+**Hypothesis:** Tiny discrepancy suggests base opcode cost off by 1-3 gas (e.g., CALLCODE should be 700 gas but Schlieren charges 697 or 703)
 
 **Resolution Status:** 🟡 MINOR — Check CALLCODE base cost in EVM interpreter
 
@@ -178,7 +178,7 @@ Sender pays:    39,358 gas × 10 = 393,580 wei
 Coinbase gets:  39,358 gas × 3 = 118,074 wei
 ```
 
-**Scrutor Result:**
+**Schlieren Result:**
 ```
 Sender pays:    44,155 gas × 10 = 441,550 wei
 Coinbase gets:  44,155 gas × 3 = 132,465 wei
@@ -186,7 +186,7 @@ Coinbase gets:  44,155 gas × 3 = 132,465 wei
 
 **Discrepancy:**
 ```
-Scrutor OVER-charged by: 4,797 gas
+Schlieren OVER-charged by: 4,797 gas
 ```
 
 **Execution Status:** SUCCESS
@@ -236,7 +236,7 @@ Scrutor OVER-charged by: 4,797 gas
 
 **Check:**
 ```bash
-rg -n "TLOAD|TSTORE|EIP.*1153" Scrutor.Core/Opcodes/
+rg -n "TLOAD|TSTORE|EIP.*1153" Schlieren.Core/Opcodes/
 ```
 
 **Expected costs (EIP-1153):**
@@ -247,7 +247,7 @@ rg -n "TLOAD|TSTORE|EIP.*1153" Scrutor.Core/Opcodes/
 ### 2. Run Single Isolated Test with Full Trace
 
 ```bash
-dotnet test Scrutor.EELS.Tests \
+dotnet test Schlieren.EELS.Tests \
   --filter "FullyQualifiedName~test_basic_tload_after_store" \
   --logger "console;verbosity=detailed" \
   -- \
@@ -307,7 +307,7 @@ All 5 test cases use legacy tx (TxType: 0), so:
 - `baseFee = 7`
 - `priorityFee = 3`
 
-**Scrutor's accounting internally appears consistent** (sender + coinbase always match within ±1 gas due to rounding). The discrepancy is in **total gas consumed**, not in fee distribution.
+**Schlieren's accounting internally appears consistent** (sender + coinbase always match within ±1 gas due to rounding). The discrepancy is in **total gas consumed**, not in fee distribution.
 
 ---
 

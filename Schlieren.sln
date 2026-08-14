@@ -1,0 +1,52 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.Core", "Schlieren.Core\Schlieren.Core.csproj", "{E5A2E013-4A1D-4B10-9C39-A4D8F8D9B861}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.RPC", "Schlieren.RPC\Schlieren.RPC.csproj", "{F45E5B22-CA0E-4295-9E04-2E04E8F41F94}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.CLI", "Schlieren.CLI\Schlieren.CLI.csproj", "{A21292A9-6E43-4E9F-A61A-8AD7C656CB18}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.Tests", "Schlieren.Tests\Schlieren.Tests.csproj", "{B2636AD4-2A5A-45CC-B85D-F795637AC41A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.UI", "Schlieren.UI\Schlieren.UI.csproj", "{F73B745F-3F91-4E9B-B402-74312EADF1B9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.EELS.Tests", "Schlieren.EELS.Tests\Schlieren.EELS.Tests.csproj", "{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E5A2E013-4A1D-4B10-9C39-A4D8F8D9B861}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E5A2E013-4A1D-4B10-9C39-A4D8F8D9B861}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E5A2E013-4A1D-4B10-9C39-A4D8F8D9B861}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E5A2E013-4A1D-4B10-9C39-A4D8F8D9B861}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F45E5B22-CA0E-4295-9E04-2E04E8F41F94}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F45E5B22-CA0E-4295-9E04-2E04E8F41F94}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F45E5B22-CA0E-4295-9E04-2E04E8F41F94}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F45E5B22-CA0E-4295-9E04-2E04E8F41F94}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A21292A9-6E43-4E9F-A61A-8AD7C656CB18}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A21292A9-6E43-4E9F-A61A-8AD7C656CB18}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A21292A9-6E43-4E9F-A61A-8AD7C656CB18}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A21292A9-6E43-4E9F-A61A-8AD7C656CB18}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

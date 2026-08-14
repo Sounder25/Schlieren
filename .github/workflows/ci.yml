@@ -25,15 +25,15 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Debug
 
-    - name: Test (Scrutor.Tests)
-      run: dotnet test Scrutor.Tests/Scrutor.Tests.csproj --no-build --configuration Debug --logger "trx;LogFileName=test-results.trx"
+    - name: Test (Schlieren.Tests)
+      run: dotnet test Schlieren.Tests/Schlieren.Tests.csproj --no-build --configuration Debug --logger "trx;LogFileName=test-results.trx"
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results
-        path: Scrutor.Tests/TestResults/*.trx
+        path: Schlieren.Tests/TestResults/*.trx
 
   lint:
     runs-on: windows-latest
@@ -99,7 +99,7 @@ jobs:
         EELS_INCLUDE_SUBDIRS: "1"
       run: |
         if (Test-Path $env:EELS_FIXTURES_ROOT) {
-          dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "BENCHMARK_TaxonomySnapshot" --logger "trx"
+          dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "BENCHMARK_TaxonomySnapshot" --logger "trx"
         } else {
           Write-Host "EELS fixtures not available - skipping conformance test"
         }

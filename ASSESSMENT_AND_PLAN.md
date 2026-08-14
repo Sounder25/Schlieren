@@ -1,4 +1,4 @@
-# Scrutor EVM Project Assessment
+# Schlieren EVM Project Assessment
 **Senior Developer Review — 2026-08-03**
 **Assessment by:** Hermes Agent
 
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Scrutor is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC, CLI, and WPF UI frontends. The project has achieved **Cancun fork conformance** against the EELS state-test fixture suite with strong test coverage (265 unit tests, 1,127 fixture cases passing). However, several structural and organizational issues impede production readiness.
+Schlieren is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC, CLI, and WPF UI frontends. The project has achieved **Cancun fork conformance** against the EELS state-test fixture suite with strong test coverage (265 unit tests, 1,127 fixture cases passing). However, several structural and organizational issues impede production readiness.
 
 ### Key Metrics
 
@@ -28,19 +28,19 @@ Scrutor is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC
 
 | Project | Lines | Purpose | Status |
 |---------|-------|---------|--------|
-| `Scrutor.Core` | 9,699 | EVM engine, opcodes, state transitions, precompiles | ✅ Core — production quality |
-| `Scrutor.CLI` | 2,440 | Command-line host, scripting | ✅ Functional |
-| `Scrutor.RPC` | 2,798 | JSON-RPC server (eth_*, debug_*) | ✅ Functional |
-| `Scrutor.Tests` | 6,336 | Unit + integration tests | ✅ Comprehensive |
-| `Scrutor.EELS.Tests` | 2,425 | EELS fixture harness | ✅ Active development |
-| `Scrutor.UI` | 680 | WPF desktop app | 🟡 Minimal implementation |
+| `Schlieren.Core` | 9,699 | EVM engine, opcodes, state transitions, precompiles | ✅ Core — production quality |
+| `Schlieren.CLI` | 2,440 | Command-line host, scripting | ✅ Functional |
+| `Schlieren.RPC` | 2,798 | JSON-RPC server (eth_*, debug_*) | ✅ Functional |
+| `Schlieren.Tests` | 6,336 | Unit + integration tests | ✅ Comprehensive |
+| `Schlieren.EELS.Tests` | 2,425 | EELS fixture harness | ✅ Active development |
+| `Schlieren.UI` | 680 | WPF desktop app | 🟡 Minimal implementation |
 
 ### Orphaned Projects (NOT in Solution)
 
 | Project | Lines | Purpose | Recommendation |
 |---------|-------|---------|----------------|
-| `Scrutor.Burst` | 160 | Burst load testing tool | 🗑️ **Delete** — dev scratch, unused |
-| `Scrutor.BurstClient` | 198 | Duplicate of Burst | 🗑️ **Delete** — exact duplicate |
+| `Schlieren.Burst` | 160 | Burst load testing tool | 🗑️ **Delete** — dev scratch, unused |
+| `Schlieren.BurstClient` | 198 | Duplicate of Burst | 🗑️ **Delete** — exact duplicate |
 
 ---
 
@@ -102,7 +102,7 @@ Scrutor is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC
 
 1. **Delete Orphaned Projects**
    ```bash
-   rm -rf Scrutor.Burst Scrutor.BurstClient
+   rm -rf Schlieren.Burst Schlieren.BurstClient
    ```
 
 2. **Externalize EELS Backup**
@@ -130,7 +130,7 @@ Scrutor is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC
    ```yaml
    # .github/workflows/ci.yml
    - Build (dotnet build)
-   - Test (Scrutor.Tests)
+   - Test (Schlieren.Tests)
    - EELS conformance sweep (optional, on schedule)
    - Code coverage report
    ```
@@ -184,10 +184,10 @@ Scrutor is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC
 
 | Target | Location | Reason | Action |
 |--------|----------|--------|--------|
-| Burst projects | `./Scrutor.Burst/`, `./Scrutor.BurstClient/` | Duplicate, orphaned | Delete |
+| Burst projects | `./Schlieren.Burst/`, `./Schlieren.BurstClient/` | Duplicate, orphaned | Delete |
 | EELS backup | `./_eels_full_repo_backup/` | External reference, large | Remove |
 | Node modules | `./muscle/node_modules/` | Should be gitignored | Add to .gitignore, remove from disk |
-| Diagnostics | `./Scrutor.EELS.Tests/Diagnostics/` | Already deleted in staged changes | Confirm deletion |
+| Diagnostics | `./Schlieren.EELS.Tests/Diagnostics/` | Already deleted in staged changes | Confirm deletion |
 | Scratch experiments | `.gitignore mentions: scratch/, CkzgTest/, DebugBalance.cs` | Dev artifacts | Delete if exist |
 
 ### Documentation Consolidation
@@ -204,7 +204,7 @@ Scrutor is a .NET 8 Ethereum execution client implementing the EVM with JSON-RPC
 ### Directory Structure Target
 
 ```
-C:\projects\Scrutor\
+C:\projects\Schlieren\
 ├── .github/
 │   └── workflows/
 │       └── ci.yml
@@ -216,18 +216,18 @@ C:\projects\Scrutor\
 │   │   └── GAS_LEDGER.md
 │   └── transcripts/
 │       └── WORKLOG-2026-07-27.md
-├── Scrutor.Core/
-├── Scrutor.CLI/
-├── Scrutor.RPC/
-├── Scrutor.Tests/
-├── Scrutor.EELS.Tests/
-├── Scrutor.UI/                # Evaluate: keep or remove
+├── Schlieren.Core/
+├── Schlieren.CLI/
+├── Schlieren.RPC/
+├── Schlieren.Tests/
+├── Schlieren.EELS.Tests/
+├── Schlieren.UI/                # Evaluate: keep or remove
 ├── tools/                     # Build/dev tools
 ├── .editorconfig              # Enhanced rules
 ├── .gitignore                 # Cleaned
 ├── Directory.Build.props
 ├── Directory.Packages.props
-├── Scrutor.sln
+├── Schlieren.sln
 ├── HANDOFF.md                 # Active session doc
 ├── CONFORMANCE_STATUS.md      # Live status
 ├── README.md                  # Project README
@@ -242,7 +242,7 @@ C:\projects\Scrutor\
 
 ```bash
 # Delete orphaned Burst projects
-rm -rf Scrutor.Burst Scrutor.BurstClient
+rm -rf Schlieren.Burst Schlieren.BurstClient
 
 # Remove EELS backup (external reference preferred)
 rm -rf _eels_full_repo_backup
@@ -263,12 +263,12 @@ EOF
 
 ```bash
 # Stage deletions
-git rm -r Scrutor.Burst Scrutor.BurstClient _eels_full_repo_backup
+git rm -r Schlieren.Burst Schlieren.BurstClient _eels_full_repo_backup
 
 # Commit cleanup
 git commit -m "chore: remove orphaned burst projects and EELS backup
 
-- Delete Scrutor.Burst and Scrutor.BurstClient (orphaned dev tools)
+- Delete Schlieren.Burst and Schlieren.BurstClient (orphaned dev tools)
 - Remove _eels_full_repo_backup (external reference preferred)
 - Clean up repository structure for production readiness"
 ```
@@ -316,8 +316,8 @@ git commit -m "chore: remove orphaned burst projects and EELS backup
 
 ## Conclusion
 
-Scrutor is a well-architected EVM implementation with excellent test coverage and successful Cancun conformance. The core engine is production-quality. The primary blockers for production readiness are organizational: orphaned projects, missing CI/CD, and scattered documentation. 
+Schlieren is a well-architected EVM implementation with excellent test coverage and successful Cancun conformance. The core engine is production-quality. The primary blockers for production readiness are organizational: orphaned projects, missing CI/CD, and scattered documentation. 
 
-The cleanup plan above will transform Scrutor into a clean, production-grade repository within 2-3 weeks of focused effort. The secondary cleanup (dead code removal) can be executed immediately with minimal risk.
+The cleanup plan above will transform Schlieren into a clean, production-grade repository within 2-3 weeks of focused effort. The secondary cleanup (dead code removal) can be executed immediately with minimal risk.
 
 **Priority:** Execute secondary cleanup first (safe deletions), then proceed with CI/CD setup and documentation consolidation.

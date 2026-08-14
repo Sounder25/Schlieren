@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce an exhaustive, reviewable inventory of Scrutor's current gas constants, formulas, fork gates, accounting movements, and test coverage so the executable per-fork schedule can be implemented without omissions.
+**Goal:** Produce an exhaustive, reviewable inventory of Schlieren's current gas constants, formulas, fork gates, accounting movements, and test coverage so the executable per-fork schedule can be implemented without omissions.
 
 **Architecture:** This workstream is discovery-only and owns documentation files, not production code. It maps every current gas-affecting path to a proposed stable rule identifier, formula, fork behavior, source boundary, and tests, then provides a per-fork coverage matrix and migration-risk report for the schedule implementer.
 
@@ -11,10 +11,10 @@
 ## Global Constraints
 
 - Read `docs/superpowers/specs/2026-08-11-executable-fork-gas-schedule-design.md` completely before beginning.
-- Do not modify `Scrutor.Core`, `Scrutor.UI`, `Scrutor.RPC`, `Scrutor.CLI`, or any test project in this workstream.
+- Do not modify `Schlieren.Core`, `Schlieren.UI`, `Schlieren.RPC`, `Schlieren.CLI`, or any test project in this workstream.
 - Do not use an external EVM client or runtime comparison tool.
 - Treat `IForkRules` as a useful partial source, not as proof of complete coverage.
-- Include every supported fork from `Scrutor.Core/Forks/Fork.cs`; do not silently group forks whose schedules differ.
+- Include every supported fork from `Schlieren.Core/Forks/Fork.cs`; do not silently group forks whose schedules differ.
 - Record formulas exactly as implemented, including suspicious or duplicated behavior. Do not correct production logic.
 - Use repository-relative source paths and 1-based line numbers.
 - Use no `TBD`, `TODO`, unnamed catch-all rows, or unsupported claims.
@@ -26,9 +26,9 @@
 
 **Files:**
 - Read: `docs/superpowers/specs/2026-08-11-executable-fork-gas-schedule-design.md`
-- Read: `Scrutor.Core/Forks/Fork.cs`
-- Read: `Scrutor.Core/Forks/IForkRules.cs`
-- Read: `Scrutor.Core/Forks/ForkRules.cs`
+- Read: `Schlieren.Core/Forks/Fork.cs`
+- Read: `Schlieren.Core/Forks/IForkRules.cs`
+- Read: `Schlieren.Core/Forks/ForkRules.cs`
 - Create later: `docs/gas/GAS_RULE_INVENTORY.md`
 - Create later: `docs/gas/GAS_COVERAGE_MATRIX.md`
 
@@ -53,9 +53,9 @@ Run:
 
 ```powershell
 Get-Content -Raw docs/superpowers/specs/2026-08-11-executable-fork-gas-schedule-design.md
-Get-Content -Raw Scrutor.Core/Forks/Fork.cs
-Get-Content -Raw Scrutor.Core/Forks/IForkRules.cs
-Get-Content -Raw Scrutor.Core/Forks/ForkRules.cs
+Get-Content -Raw Schlieren.Core/Forks/Fork.cs
+Get-Content -Raw Schlieren.Core/Forks/IForkRules.cs
+Get-Content -Raw Schlieren.Core/Forks/ForkRules.cs
 ```
 
 Expected: the fork order, existing gas API, and design requirements are available before inventory begins.
@@ -65,8 +65,8 @@ Expected: the fork order, existing gas API, and design requirements are availabl
 Run:
 
 ```powershell
-rg --files Scrutor.Core | Sort-Object
-rg --files Scrutor.Tests Scrutor.EELS.Tests | Sort-Object
+rg --files Schlieren.Core | Sort-Object
+rg --files Schlieren.Tests Schlieren.EELS.Tests | Sort-Object
 ```
 
 Expected: all C# production and test paths are visible. Exclude generated `bin` and `obj` content from every later search.
@@ -75,8 +75,8 @@ Expected: all C# production and test paths are visible. Exclude generated `bin` 
 
 **Files:**
 - Create: `docs/gas/GAS_RULE_INVENTORY.md`
-- Read: all `Scrutor.Core/**/*.cs`
-- Read: relevant `Scrutor.Tests/**/*.cs` and `Scrutor.EELS.Tests/**/*.cs`
+- Read: all `Schlieren.Core/**/*.cs`
+- Read: relevant `Schlieren.Tests/**/*.cs` and `Schlieren.EELS.Tests/**/*.cs`
 
 **Interfaces:**
 - Consumes: Supported-fork list and approved formula categories.
@@ -87,9 +87,9 @@ Expected: all C# production and test paths are visible. Exclude generated `bin` 
 Run all searches; do not rely on only one keyword:
 
 ```powershell
-rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "Gas|gas|Refund|refund|Stipend|stipend|Warm|Cold|warm|cold" Scrutor.Core
-rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "ConsumeGas|RefundGas|GasUsed|GasLimit|GasRefundCounter|CalculateGasCost|ComputeIntrinsicGas" Scrutor.Core
-rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "[0-9]_[0-9]|[0-9]{2,}" Scrutor.Core/Forks Scrutor.Core/Execution Scrutor.Core/Opcodes
+rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "Gas|gas|Refund|refund|Stipend|stipend|Warm|Cold|warm|cold" Schlieren.Core
+rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "ConsumeGas|RefundGas|GasUsed|GasLimit|GasRefundCounter|CalculateGasCost|ComputeIntrinsicGas" Schlieren.Core
+rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "[0-9]_[0-9]|[0-9]{2,}" Schlieren.Core/Forks Schlieren.Core/Execution Schlieren.Core/Opcodes
 ```
 
 Expected: overlapping candidate sets covering constants, formulas, transfers, refunds, and settlement. Manually inspect every candidate before including or excluding it.
@@ -99,7 +99,7 @@ Expected: overlapping candidate sets covering constants, formulas, transfers, re
 Create `docs/gas/GAS_RULE_INVENTORY.md` with these sections in this order:
 
 ```markdown
-# Scrutor Gas Rule Inventory
+# Schlieren Gas Rule Inventory
 
 ## Method and Scope
 ## Supported Forks
@@ -168,7 +168,7 @@ Expected: forwarded gas is never represented as consumed gas, and every parent/c
 Run:
 
 ```powershell
-rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "Gas|Refund|Sstore|Call|Create|Precompile|Memory|Intrinsic" Scrutor.Tests Scrutor.EELS.Tests
+rg -n --glob '*.cs' --glob '!**/bin/**' --glob '!**/obj/**' "Gas|Refund|Sstore|Call|Create|Precompile|Memory|Intrinsic" Schlieren.Tests Schlieren.EELS.Tests
 ```
 
 Expected: each production inventory row points to exact existing tests or explicitly says `None found`. The findings identify whether tests assert totals only or formula components and fork boundaries.
@@ -178,8 +178,8 @@ Expected: each production inventory row points to exact existing tests or explic
 **Files:**
 - Create: `docs/gas/GAS_COVERAGE_MATRIX.md`
 - Read: `docs/gas/GAS_RULE_INVENTORY.md`
-- Read: `Scrutor.Core/Forks/Fork.cs`
-- Read: `Scrutor.Core/Forks/ForkRules.cs`
+- Read: `Schlieren.Core/Forks/Fork.cs`
+- Read: `Schlieren.Core/Forks/ForkRules.cs`
 
 **Interfaces:**
 - Consumes: Proposed rule identifiers and exact fork variants from the inventory.
@@ -190,7 +190,7 @@ Expected: each production inventory row points to exact existing tests or explic
 Create `docs/gas/GAS_COVERAGE_MATRIX.md` beginning with:
 
 ```markdown
-# Scrutor Per-Fork Gas Coverage Matrix
+# Schlieren Per-Fork Gas Coverage Matrix
 
 ## Legend
 
