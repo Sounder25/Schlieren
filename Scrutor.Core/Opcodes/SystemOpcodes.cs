@@ -833,9 +833,6 @@ public sealed class OpcodeCallCode : IOpcode
             !context.Stack.TryPop(out var retLength))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
-        if (context.IsStatic && !value.IsZero)
-             return (ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1);
-
         // Gap 8: Clear last return data at call entry (EIP-211 §3)
         context.LastReturnData = Array.Empty<byte>();
 

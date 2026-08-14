@@ -285,6 +285,30 @@ public class CallGasForwardingTests
         Assert.Equal(BigInteger.Zero, ctx.Stack.Pop());
     }
 
+    [Fact]
+    public async Task CallCode_WithValue_InStaticContext_CanCallPrecompile()
+    {
+        var ctx = MakeContext(isStatic: true);
+        ctx.GlobalState.SetBalance(ctx.ContractAddress, 1);
+
+        // CALLCODE(gas=50_000, codeAddress=ECRECOVER, value=1,
+        //          argsOffset=0, argsLength=0, retOffset=0, retLength=0)
+        // CALLCODE does not transfer value to another account, so unlike CALL,
+        // a non-zero value is permitted while the current frame is static.
+        ctx.Stack.Push(0);
+        ctx.Stack.Push(0);
+        ctx.Stack.Push(0);
+        ctx.Stack.Push(0);
+        ctx.Stack.Push(BigInteger.One);
+        ctx.Stack.Push(BigInteger.One);
+        ctx.Stack.Push(50_000);
+
+        var (result, _) = await new OpcodeCallCode().ExecuteAsync(ctx);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(BigInteger.One, ctx.Stack.Pop());
+    }
+
     // ── LastReturnData cleared on call entry ────────────────────────────────
 
     [Fact]

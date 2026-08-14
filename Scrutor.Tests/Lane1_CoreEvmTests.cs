@@ -10,6 +10,13 @@ namespace Scrutor.Tests.Opcodes;
 public class ArithmeticOpcodeTests
 {
     [Fact]
+    public void Mod_And_Sdiv_UseCanonicalByteValues()
+    {
+        Assert.Equal(0x05, new OpcodeSdiv().Code);
+        Assert.Equal(0x06, new OpcodeMod().Code);
+    }
+
+    [Fact]
     public async Task Add_TwoNumbers_ReturnsSum()
     {
         var ctx = new EvmExecutionContext();

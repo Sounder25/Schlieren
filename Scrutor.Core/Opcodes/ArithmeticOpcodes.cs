@@ -80,7 +80,7 @@ public sealed class OpcodeDiv : IOpcode
 
 public sealed class OpcodeMod : IOpcode
 {
-    public byte Code => 0x05;
+    public byte Code => 0x06;
     public string Name => "MOD";
 
     // [AI-EDIT 2026-01-10] Yellow Paper: MOD = µ_s[0] mod µ_s[1], zero when µ_s[1]=0.
@@ -124,7 +124,7 @@ internal static class EvmArith
 /// </summary>
 public sealed class OpcodeSdiv : IOpcode
 {
-    public byte Code => 0x06;
+    public byte Code => 0x05;
     public string Name => "SDIV";
 
     // [AI-EDIT 2026-01-10] Yellow Paper: SDIV = µ_s[0] / µ_s[1] (signed), zero when µ_s[1]=0.
