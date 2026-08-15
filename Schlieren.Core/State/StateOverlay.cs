@@ -11,6 +11,7 @@ public sealed class StateOverlay : IGlobalState
     private readonly ConcurrentDictionary<Address, OverlayAccount> _buffer = new();
     private readonly HashSet<Address> _createdAccounts = new();
     private readonly HashSet<Address> _accountsMarkedForDeletion = new();
+    private readonly HashSet<Address> _tombstones = new();
 
     public StateOverlay(IGlobalState parent)
     {
@@ -19,6 +20,7 @@ public sealed class StateOverlay : IGlobalState
 
     public async ValueTask<BigInteger> GetBalanceAsync(Address address, CancellationToken ct = default)
     {
+        if (_tombstones.Contains(address)) return BigInteger.Zero;
         if (_buffer.TryGetValue(address, out var acc) && acc.Balance.HasValue)
             return acc.Balance.Value;
         return await _parent.GetBalanceAsync(address, ct);
@@ -41,6 +43,7 @@ public sealed class StateOverlay : IGlobalState
 
     public async ValueTask<ulong> GetNonceAsync(Address address, CancellationToken ct = default)
     {
+        if (_tombstones.Contains(address)) return 0UL;
         if (_buffer.TryGetValue(address, out var acc) && acc.Nonce.HasValue)
             return acc.Nonce.Value;
         return await _parent.GetNonceAsync(address, ct);
@@ -48,6 +51,7 @@ public sealed class StateOverlay : IGlobalState
 
     public async ValueTask<byte[]> GetCodeAsync(Address address, CancellationToken ct = default)
     {
+        if (_tombstones.Contains(address)) return Array.Empty<byte>();
         if (_buffer.TryGetValue(address, out var acc) && acc.Code != null)
             return acc.Code;
         return await _parent.GetCodeAsync(address, ct);
@@ -55,6 +59,7 @@ public sealed class StateOverlay : IGlobalState
 
     public async ValueTask<BigInteger> GetStorageAtAsync(Address address, BigInteger key, CancellationToken ct = default)
     {
+        if (_tombstones.Contains(address)) return BigInteger.Zero;
         if (_buffer.TryGetValue(address, out var acc) && acc.Storage.TryGetValue(key, out var val))
             return val;
         return await _parent.GetStorageAtAsync(address, key, ct);
@@ -63,6 +68,7 @@ public sealed class StateOverlay : IGlobalState
     public async ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        if (_tombstones.Contains(address)) return Array.Empty<BigInteger>();
         var parentKeys = await _parent.GetStorageKeysAsync(address, ct);
         if (_buffer.TryGetValue(address, out var acc))
         {
@@ -77,6 +83,7 @@ public sealed class StateOverlay : IGlobalState
     public async ValueTask<StoragePresence> GetStoragePresenceAsync(Address address, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        if (_tombstones.Contains(address)) return StoragePresence.Empty;
         if (_buffer.TryGetValue(address, out var acc) && acc.Storage.Values.Any(v => v != BigInteger.Zero))
             return StoragePresence.NonEmpty;
 
@@ -105,6 +112,7 @@ public sealed class StateOverlay : IGlobalState
 
     public async ValueTask<bool> AccountExistsAsync(Address address, CancellationToken ct = default)
     {
+        if (_tombstones.Contains(address)) return false;
         if (_buffer.ContainsKey(address))
             return true;
         return await _parent.AccountExistsAsync(address, ct);
@@ -130,6 +138,7 @@ public sealed class StateOverlay : IGlobalState
     public void Reset()
     {
         _buffer.Clear();
+        _tombstones.Clear();
     }
 
     /// <summary>
@@ -141,6 +150,7 @@ public sealed class StateOverlay : IGlobalState
     {
         _buffer.TryRemove(address, out _);
         _createdAccounts.Remove(address);
+        _tombstones.Remove(address);
     }
 
     public void Commit()
@@ -155,6 +165,7 @@ public sealed class StateOverlay : IGlobalState
         }
         foreach (var addr in _createdAccounts) _parent.MarkCreated(addr);
         foreach (var addr in _accountsMarkedForDeletion) _parent.MarkForDeletion(addr);
+        foreach (var addr in _tombstones) _parent.DeleteAccount(addr);
     }
 
     public void MarkCreated(Address address) => _createdAccounts.Add(address);
@@ -162,10 +173,17 @@ public sealed class StateOverlay : IGlobalState
     public void MarkForDeletion(Address address) => _accountsMarkedForDeletion.Add(address);
     public bool IsMarkedForDeletion(Address address) => _accountsMarkedForDeletion.Contains(address) || _parent.IsMarkedForDeletion(address);
     public IEnumerable<Address> GetAccountsMarkedForDeletion() => _accountsMarkedForDeletion.Concat(_parent.GetAccountsMarkedForDeletion()).Distinct();
-    public void DeleteAccount(Address address) => _parent.DeleteAccount(address);
+    public void DeleteAccount(Address address)
+    {
+        _buffer.TryRemove(address, out _);
+        _tombstones.Add(address);
+    }
 
     private OverlayAccount GetOrCreateOverlayAccount(Address address)
-        => _buffer.GetOrAdd(address, _ => new OverlayAccount());
+    {
+        _tombstones.Remove(address);
+        return _buffer.GetOrAdd(address, _ => new OverlayAccount());
+    }
 
     private class OverlayAccount
     {
@@ -199,6 +217,8 @@ public sealed class StateOverlay : IGlobalState
         }
         foreach (var addr in GetAccountsMarkedForDeletion())
             snapshot.Remove(addr);
+        foreach (var addr in _tombstones)
+            snapshot.Remove(addr);
         return snapshot;
     }
 
@@ -212,6 +232,7 @@ public sealed class StateOverlay : IGlobalState
         _buffer.Clear();
         _accountsMarkedForDeletion.Clear();
         _createdAccounts.Clear();
+        _tombstones.Clear();
         // Restore the underlying parent state
         _parent.RestoreSnapshot(snapshot);
     }
