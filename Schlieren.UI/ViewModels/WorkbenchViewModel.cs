@@ -1263,6 +1263,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         var reentrancy = ReentrancyDetector.Analyze(_currentTrace);
         var collisions = StorageCollisionDetector.Analyze(_currentTrace);
+        var libraryGuard = LibraryGuardDetector.Analyze(_currentTrace);
 
         foreach (var f in reentrancy)
         {
@@ -1287,6 +1288,19 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                 FileName = isBytecodeRun ? string.Empty : "Proxy.sol",
                 LineNumber = isBytecodeRun ? 0 : 14,
                 StepIndex = c.StepIndex
+            });
+        }
+        
+        if (libraryGuard != null)
+        {
+            SecurityFindings.Add(new SecurityFindingViewModel
+            {
+                SeverityEmoji = "ℹ️",
+                Description = "LIBRARY RUNTIME: Context guard triggered",
+                Details = $"Solidity library protection detected. {libraryGuard.Evidence} | Expected: DELEGATECALL context | Actual: CALL context | Not a vulnerability.",
+                FileName = $"PC 0x{_currentTrace[libraryGuard.StepIndex].Pc:X4}",
+                LineNumber = libraryGuard.StepIndex,
+                StepIndex = libraryGuard.StepIndex
             });
         }
 

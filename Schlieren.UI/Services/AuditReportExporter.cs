@@ -87,15 +87,36 @@ public static class AuditReportExporter
         // Recommendation Summary
         sb.AppendLine("## Auditor Recommendations");
         sb.AppendLine();
+        
+        bool hasRecommendations = false;
+        
         if (findingList.Any(f => f.Description.Contains("REENTRANCY", StringComparison.OrdinalIgnoreCase)))
         {
             sb.AppendLine("- 🔴 **Reentrancy Mitigation**: Apply the Checks-Effects-Interactions (CEI) pattern or use OpenZeppelin `ReentrancyGuard` (`nonReentrant` modifier) before making external state calls.");
+            hasRecommendations = true;
         }
         if (findingList.Any(f => f.Description.Contains("STORAGE COLLISION", StringComparison.OrdinalIgnoreCase)))
         {
             sb.AppendLine("- ⚠️ **Storage Layout Safety**: Ensure ERC-1967 storage slots or explicit random slot offsets (`keccak256(...) - 1`) are used for proxy implementation variables.");
+            hasRecommendations = true;
         }
-        sb.AppendLine("- ⚡ **Gas Optimization**: Check COLD storage access opcodes (`SLOAD`/`SSTORE`) and consider pre-warming targets via EIP-2930 access lists.");
+        
+        // Only recommend storage optimization if SLOAD/SSTORE actually occurred
+        var hasStorageOps = instrList.Any(i => 
+            i.Opcode.Equals("SLOAD", StringComparison.OrdinalIgnoreCase) || 
+            i.Opcode.Equals("SSTORE", StringComparison.OrdinalIgnoreCase));
+        
+        if (hasStorageOps)
+        {
+            sb.AppendLine("- ⚡ **Gas Optimization**: Storage operations detected. Check COLD storage access opcodes (`SLOAD`/`SSTORE`) and consider pre-warming targets via EIP-2930 access lists.");
+            hasRecommendations = true;
+        }
+        
+        if (!hasRecommendations)
+        {
+            sb.AppendLine("- ✅ **No specific recommendations**. Execution completed without detectable anti-patterns.");
+        }
+        
         sb.AppendLine();
 
         var reportContent = sb.ToString();
