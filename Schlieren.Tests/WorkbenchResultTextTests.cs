@@ -30,4 +30,26 @@ public sealed class WorkbenchResultTextTests
         Assert.Equal("PASS", v);
         Assert.Contains("STORAGE", e);
     }
+
+    [Fact]
+    public void FixtureMismatch_EvenWhenEvmSucceeded()
+    {
+        var (v, e) = WorkbenchResultText.Build(
+            true, true, "SUCCESS · 21,000 gas", "", "0x",
+            Array.Empty<string>(), fixturePostMatches: false,
+            fixtureNote: "2 field(s) differ.");
+        Assert.Equal("MISMATCH", v);
+        Assert.Contains("did not revert", e, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Conformance", e, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FixtureMatch_IsNotJustEvmSuccess()
+    {
+        var (v, e) = WorkbenchResultText.Build(
+            true, true, "SUCCESS · 21,000 gas", "", "0x",
+            Array.Empty<string>(), fixturePostMatches: true);
+        Assert.Equal("MATCH", v);
+        Assert.Contains("fixture", e, StringComparison.OrdinalIgnoreCase);
+    }
 }

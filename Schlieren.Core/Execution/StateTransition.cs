@@ -828,12 +828,18 @@ public sealed class StateTransition : IStateTransition
         }
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
-        // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).
-        // EIP-7951: also check 0x0100 (P256Verify) which uses IForkRules overload.
-        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue &&
-            Precompiles.IsPrecompile(tx.To.Value, block.Rules))
+        // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
+        // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).\n        // EIP-7951: also check 0x0100 (P256Verify) which uses IForkRules overload.
+        // CALLCODE/DELEGATECALL with a precompile codeAddress: the precompile runs in the
+        // caller's context (EELS: generic_call dispatches code_address as code source even for
+        // precompiles). We must still execute the precompile and return the result.
+        var precompileAddress = (!creationAddress.HasValue && codeAddress.HasValue && Precompiles.IsPrecompile(codeAddress.Value, block.Rules))
+            ? codeAddress
+            : null;
+        if (!creationAddress.HasValue && (precompileAddress.HasValue || (!codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.Rules))))
         {
-            var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, executionGasLimit ?? 0UL, block.Rules);
+            var effectivePrecompileAddr = precompileAddress.HasValue ? precompileAddress.Value : tx.To!.Value;
+            var (preOutput, preGas) = Precompiles.Execute(effectivePrecompileAddr, tx.Data, executionGasLimit ?? 0UL, block.Rules);
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change
@@ -841,8 +847,9 @@ public sealed class StateTransition : IStateTransition
             }
 
             // EELS touch_account: Frontier/Homestead precompile calls still create the account.
+            // For CALLCODE-to-precompile, touch the precompile address (code_address), not To.
             if (!block.Rules.HasEip161EmptyAccountDeletion)
-                await overlay.TouchAccountAsync(tx.To.Value, ct);
+                await overlay.TouchAccountAsync(effectivePrecompileAddr, ct);
 
             // Precompile succeeded — state commit handled here
             if (commit)

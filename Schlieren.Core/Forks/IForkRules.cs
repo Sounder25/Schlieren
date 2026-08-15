@@ -97,6 +97,24 @@ public interface IForkRules
     ulong CallBaseCost { get; }
 
     /// <summary>
+    /// Per-byte cost of the exponent in EXP (0x0A).
+    /// Frontier–Tangerine: 10 (Yellow Paper). Spurious Dragon+ (EIP-160): 50.
+    /// </summary>
+    ulong ExpByteCost { get; }
+
+    /// <summary>
+    /// EIP-2 (Homestead+): contract-creation transaction carries a 32000-gas surcharge.
+    /// Frontier: false (no surcharge). Homestead onwards: true.
+    /// </summary>
+    bool HasCreateTxSurcharge { get; }
+
+    /// <summary>
+    /// EIP-2 (Homestead+): CREATE deposit-OOG is ExceptionalHalt (consume all gas, revert account).
+    /// Frontier: false (deposit OOG deploys empty code and succeeds).
+    /// </summary>
+    bool HasCreateDepositOogHalt { get; }
+
+    /// <summary>
     /// True for Frontier/Homestead: CALL charges the gas argument to the parent
     /// (parent pays CALL_BASE + gas_arg + extras; child receives gas_arg).
     /// False from TangerineWhistle onwards (EIP-150 changed semantics: parent pays

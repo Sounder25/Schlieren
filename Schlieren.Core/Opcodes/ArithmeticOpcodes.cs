@@ -253,9 +253,10 @@ public sealed class OpcodeExp : IOpcode
         if (!context.Stack.TryPop(out var baseVal) || !context.Stack.TryPop(out var exp))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        // Gas: 10 base + 50 per byte of exponent (0 exponent = 0 extra bytes)
+        // Gas: 10 base + ExpByteCost per byte of exponent (0 exponent = 0 extra bytes)
+        // Frontier–Tangerine: 10/byte; Spurious Dragon+ (EIP-160): 50/byte.
         var expByteCount = exp == BigInteger.Zero ? 0 : (exp.GetBitLength() + 7) / 8;
-        var gasCost = 10UL + 50UL * (ulong)expByteCount;
+        var gasCost = 10UL + context.Block.Rules.ExpByteCost * (ulong)expByteCount;
 
         var result = BigInteger.ModPow(baseVal, exp, EvmArith.TwoTo256);
 

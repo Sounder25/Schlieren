@@ -79,4 +79,9 @@ public sealed class ExecutionTraceStep
     /// Null for CALL, STATICCALL, CREATE, CREATE2.
     /// </summary>
     public string? CodeAddress { get; init; }
+
+    /// <summary>
+    /// After CALL/STATICCALL/DELEGATECALL/CREATE, the callee's return data (if any).
+    /// </summary>
+    public byte[]? OutputData { get; init; }
 }

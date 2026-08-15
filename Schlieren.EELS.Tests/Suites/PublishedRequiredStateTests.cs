@@ -126,7 +126,10 @@ public sealed class PublishedRequiredStateTests
         });
 
         // Preserve original load order for deterministic output
-        var index = cases.Select((c, i) => (c.CaseId, i)).ToDictionary(x => x.CaseId, x => x.i);
+        // Use first-seen index when duplicate CaseIds exist (can happen if the same fixture appears under multiple dirs)
+        var index = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < cases.Count; i++)
+            index.TryAdd(cases[i].CaseId, i);
         return bag.OrderBy(r => index.TryGetValue(r.CaseId, out var i) ? i : int.MaxValue).ToList();
     }
 

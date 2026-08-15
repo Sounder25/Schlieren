@@ -20,6 +20,15 @@ public partial class MainWindow : Window
         BuildAppearanceMenu();
         ApplyWatermarkArt(SkinService.Current);
         SkinService.SkinChanged += OnSkinChanged;
+        if (this.FindControl<ConformanceView>("ConformancePanel") is { } panel)
+            panel.OpenInWorkbench += OnOpenFixtureInWorkbench;
+    }
+
+    private void OnOpenFixtureInWorkbench(string json, string sourceName, string fork, string caseId)
+    {
+        if (DataContext is not WorkbenchViewModel vm) return;
+        vm.ImportContractSource(json, sourceName, fork, caseId);
+        SetConformanceMode(false);
     }
 
     public MainWindow(WorkbenchViewModel viewModel) : this()
@@ -359,6 +368,36 @@ public partial class MainWindow : Window
         }
     }
 
+    public async void OnLoadPrestateClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not WorkbenchViewModel vm) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return;
+
+        try
+        {
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Load fixture, pre-state, or contract JSON",
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("JSON / hex") { Patterns = ["*.json", "*.hex", "*.txt"] },
+                    new FilePickerFileType("All files") { Patterns = ["*.*"] }
+                ]
+            });
+            if (files.Count == 0) return;
+            await using var stream = await files[0].OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            var text = await reader.ReadToEndAsync();
+            vm.ImportContractSource(text, files[0].Name);
+        }
+        catch (Exception ex)
+        {
+            vm.StatusMessage = $"Pre-state load failed: {ex.Message}";
+        }
+    }
+
     public async void OnOpenFileClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkbenchViewModel vm) return;
@@ -391,6 +430,14 @@ public partial class MainWindow : Window
                 lines.Add(line);
 
             var path = file.TryGetLocalPath() ?? file.Name;
+            var text = string.Join("\n", lines);
+            if (WorkbenchFixtureLoader.LooksLikeStateTest(text) ||
+                WorkbenchPrestateLoader.LooksLikePrestate(text))
+            {
+                vm.ImportContractSource(text, file.Name);
+                return;
+            }
+
             vm.AddCustomFile(file.Name, path, lines);
         }
         catch (Exception ex)

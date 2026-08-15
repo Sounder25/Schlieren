@@ -74,7 +74,7 @@
     <Border Grid.Row="0" Background="{DynamicResource Schlieren.PanelDeep}"
             BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
             Padding="20,14">
-      <Grid ColumnDefinitions="Auto,16,*,16,Auto,8,Auto,8,Auto,12,Auto">
+      <Grid ColumnDefinitions="Auto,16,*,16,Auto,8,Auto,8,Auto,8,Auto,12,Auto">
 
         <!-- Fork selector -->
         <StackPanel Grid.Column="0" Spacing="4" Width="140">
@@ -113,6 +113,13 @@
         </Button>
 
         <Button Grid.Column="8" Classes="cancel"
+                Click="OnOpenSuiteFixtureClick"
+                VerticalAlignment="Bottom"
+                ToolTip.Tip="Load a state_test JSON from this suite into the workbench and run it">
+          <TextBlock Text="OPEN FIXTURE"/>
+        </Button>
+
+        <Button Grid.Column="10" Classes="cancel"
                 Command="{Binding ResetResultsCommand}"
                 VerticalAlignment="Bottom"
                 ToolTip.Tip="Clear suite results, failures, and selection (Ctrl+Shift+R)">
@@ -120,7 +127,7 @@
         </Button>
 
         <!-- Elapsed -->
-        <Border Grid.Column="10" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+        <Border Grid.Column="12" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
                 BorderThickness="1" CornerRadius="6" Padding="12,0"
                 VerticalAlignment="Bottom" Height="36">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -346,7 +353,7 @@
               <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Classes="label" Text="FAILURE CLUSTERS" VerticalAlignment="Center"
-                             ToolTip.Tip="Grouped by mismatch category × EIP/feature folder — same idea as the EELS taxonomy drill"/>
+                             ToolTip.Tip="Grouped by first causal divergence (phase / inventory rule / fork), not final mismatch type"/>
                   <TextBlock Grid.Column="1" Text="{Binding Clusters.Count, StringFormat='{}{0}'}"
                              FontSize="11" Foreground="{DynamicResource Schlieren.TextDim}"/>
                 </Grid>
@@ -395,9 +402,15 @@
                       Background="{DynamicResource Schlieren.PanelDeep}">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Classes="label" Text="CASE INSPECTOR" VerticalAlignment="Center"/>
-                  <Button Grid.Column="1" Classes="link" Content="Clear"
-                          Command="{Binding ClearSelectionCommand}"
-                          IsVisible="{Binding HasSelectedFailure}"/>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="link" Content="OPEN IN WORKBENCH"
+                            Command="{Binding OpenSelectedInWorkbenchCommand}"
+                            IsVisible="{Binding HasSelectedFailure}"
+                            ToolTip.Tip="Load this fixture into the workbench (same StateTransition as the suite)"/>
+                    <Button Classes="link" Content="Clear"
+                            Command="{Binding ClearSelectionCommand}"
+                            IsVisible="{Binding HasSelectedFailure}"/>
+                  </StackPanel>
                 </Grid>
               </Border>
               <!-- Padding on ScrollViewer does not extend scroll extent in Avalonia —
@@ -419,7 +432,7 @@
                           CornerRadius="6" Padding="10,10"
                           IsVisible="{Binding HasLayer1Diagnosis}">
                     <StackPanel Spacing="6">
-                      <TextBlock Classes="label" Text="LAYER 1–2 DIAGNOSIS"/>
+                      <TextBlock Classes="label" Text="ROOT CAUSE"/>
                       <TextBlock Text="{Binding Layer1Headline}"
                                  FontSize="12" FontWeight="SemiBold"
                                  Foreground="{DynamicResource Schlieren.TextPrimary}"

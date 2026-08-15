@@ -139,10 +139,24 @@ public sealed class OpcodeCreate : IOpcode
             }
             else if (childRemaining < codeDepositCost)
             {
-                // Deposit OOG → ExceptionalHalt. Revert creation account only.
-                await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
-                context.Stack.TryPush(0);
-                // No RefundGas — child gas is consumed by exceptional halt.
+                // Frontier (pre-EIP-2): deposit OOG → deploy empty code and succeed (Yellow Paper §7).
+                // Homestead+ (EIP-2): deposit OOG → ExceptionalHalt, revert account.
+                if (!context.Block.Rules.HasCreateDepositOogHalt)
+                {
+                    context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                    context.CommitLastCreateTransient?.Invoke();
+                    context.CommitLastCreateTransient   = null;
+                    context.RollbackLastCreateTransient = null;
+                    context.GasRefundCounter += result.GasRefundCounter;
+                    context.RefundGas(childRemaining); // Frontier: child gas is NOT burned
+                    context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                }
+                else
+                {
+                    await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
+                    context.Stack.TryPush(0);
+                    // No RefundGas — child gas consumed by exceptional halt.
+                }
             }
             else
             {
@@ -641,10 +655,24 @@ public sealed class OpcodeCreate2 : IOpcode
             }
             else if (childRemaining < codeDepositCost)
             {
-                // Deposit OOG → ExceptionalHalt. Revert creation account only.
-                await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
-                context.Stack.TryPush(0);
-                // No RefundGas — child gas is consumed by exceptional halt.
+                // Frontier (pre-EIP-2): deposit OOG → deploy empty code and succeed (Yellow Paper §7).
+                // Homestead+ (EIP-2): deposit OOG → ExceptionalHalt, revert account.
+                if (!context.Block.Rules.HasCreateDepositOogHalt)
+                {
+                    context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                    context.CommitLastCreateTransient?.Invoke();
+                    context.CommitLastCreateTransient   = null;
+                    context.RollbackLastCreateTransient = null;
+                    context.GasRefundCounter += result.GasRefundCounter;
+                    context.RefundGas(childRemaining); // Frontier: child gas is NOT burned
+                    context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                }
+                else
+                {
+                    await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
+                    context.Stack.TryPush(0);
+                    // No RefundGas — child gas consumed by exceptional halt.
+                }
             }
             else
             {
@@ -876,22 +904,42 @@ public sealed class OpcodeCallCode : IOpcode
 
         ulong extraCost = accessCost + valueTransferCost;
 
-        // ── Pre-EIP-150 (Frontier/Homestead) DELEGATECALL ────────────────────
-        // Homestead DELEGATECALL: cost = CALL_BASE + gas_arg + memory.
-        // If cost > gas_left, OOG-burn the frame. Child gets exactly gas_arg.
+        // ── Pre-EIP-150 (Frontier/Homestead) CALLCODE ────────────────────────
+        // EELS Homestead callcode(): to = evm.message.current_target (self).
+        // calculate_message_call_gas: cost = CALL_BASE + gas_arg + create_gas_cost(to) + transfer_gas_cost
+        //   create_gas_cost(to=self) = 0 (self always exists)
+        //   transfer_gas_cost = 9000 if value > 0 else 0
+        //   sub_call = gas_arg + stipend (stipend = 2300 if value > 0 else 0)
+        // Balance check happens AFTER gas charge; on fail, refund sub_call gas.
         if (rules.HasPreEip150CallGas)
         {
             var requestedGasPre = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
-            ulong frontierDelegateCost = accessCost + requestedGasPre; // CALL_BASE + gas_arg
-            context.ConsumeGas(frontierDelegateCost); // OOGs if insufficient
-            // Child gets exactly gas_arg (no stipend on DELEGATECALL)
+            var stipendPre = value.IsZero ? 0UL : 2300UL;
+            // Cost: CALL_BASE + gas_arg + value_transfer_cost (create_gas_cost=0 since to=self)
+            ulong frontierCallCodeCost = accessCost + requestedGasPre + valueTransferCost;
+            context.ConsumeGas(frontierCallCodeCost); // OOGs if insufficient
+
+            // Balance check: CALLCODE sends value from self to self; reject if insufficient.
+            if (!value.IsZero)
+            {
+                var callerBalancePre = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                if (callerBalancePre < value)
+                {
+                    // Refund the sub_call allocation (gas_arg + stipend) to parent.
+                    context.RefundGas(requestedGasPre + stipendPre);
+                    context.Stack.TryPush(0);
+                    return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+                }
+            }
+
+            var childGasLimitPre = requestedGasPre + stipendPre;
             var tx = new Transaction
             {
                 From = context.ContractAddress,
                 To = context.ContractAddress,
                 Value = value,
                 Data = input,
-                GasLimit = requestedGasPre,
+                GasLimit = childGasLimitPre,
                 GasPrice = context.GasPrice,
                 Authorization = TransactionAuthorization.Internal,
                 EnableTracing = context.CaptureTrace
@@ -900,8 +948,8 @@ public sealed class OpcodeCallCode : IOpcode
                 return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
             var preResult = await context.SubCall(tx, context.IsStatic, null, codeAddress);
             if (preResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(preResult.TraceSteps);
-            var childUsedPre = preResult.GasUsed > requestedGasPre ? requestedGasPre : preResult.GasUsed;
-            var childRemainingPre = requestedGasPre > childUsedPre ? requestedGasPre - childUsedPre : 0UL;
+            var childUsedPre = preResult.GasUsed > childGasLimitPre ? childGasLimitPre : preResult.GasUsed;
+            var childRemainingPre = childGasLimitPre > childUsedPre ? childGasLimitPre - childUsedPre : 0UL;
             context.RefundGas(childRemainingPre);
             if (preResult.IsSuccess) context.GasRefundCounter += preResult.GasRefundCounter;
             context.LastReturnData = preResult.ReturnData;
@@ -1000,6 +1048,10 @@ public sealed class OpcodeDelegateCall : IOpcode
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        // DELEGATECALL added in Homestead (EIP-7). Frontier: INVALID — burn the frame.
+        if (!context.Block.Rules.HasDelegateCall)
+            return (ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit), context.ProgramCounter + 1);
+
         if (!context.Stack.TryPop(out var gas) || 
             !context.Stack.TryPop(out var addr) || 
             !context.Stack.TryPop(out var argsOffset) ||

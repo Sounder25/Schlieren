@@ -53,6 +53,8 @@
               BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,0,0,1" Height="26">
             <MenuItem Header="_File" FontSize="11">
                 <MenuItem Header="Open Contract File..." Click="OnOpenFileClick" InputGesture="Ctrl+O"/>
+                <MenuItem Header="Load Fixture or Contract..." Click="OnLoadPrestateClick" InputGesture="Ctrl+Shift+P"/>
+                <MenuItem Header="Load Pre-state JSON..." Click="OnLoadPrestateClick"/>
                 <MenuItem Header="Open Project Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O"/>
                 <MenuItem Header="Reset Workbench" Click="OnResetClick" InputGesture="Ctrl+Shift+R"/>
                 <Separator/>
@@ -107,7 +109,14 @@
                 <!-- Workbench-only center chrome (hidden in Conformance mode) -->
                 <StackPanel x:Name="WorkbenchTopCenter" Grid.Column="1" Orientation="Horizontal"
                             HorizontalAlignment="Center" Spacing="12">
-                    <TextBlock Text="{Binding CurrentFileTitle}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="12" VerticalAlignment="Center"/>
+                    <StackPanel Spacing="1" VerticalAlignment="Center" MaxWidth="380">
+                        <TextBlock Text="{Binding ExecutionTargetLine}" Foreground="{DynamicResource Schlieren.AccentAlt}"
+                                   FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="What RUN executes (To address + code + fork)"/>
+                        <TextBlock Text="{Binding EditorFileLine}" Foreground="{DynamicResource Schlieren.TextDim}"
+                                   FontSize="10" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="Open SOURCE tab only — not necessarily the execution target"/>
+                    </StackPanel>
                     <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="6,2" CornerRadius="3" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1"
                             ToolTip.Tip="Workbench report fork only — labels bytecode runs. Does NOT select EELS suite fork. Use the FORK control inside the CONFORMANCE tab for fixtures.">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -260,15 +269,19 @@
                             Command="{Binding ResetWorkbenchCommand}"/>
                 </Grid>
 
-                <Grid ColumnDefinitions="Auto,Auto,*">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*">
                     <Button Grid.Column="0" Content="TX PARAMS" FontSize="10" FontWeight="SemiBold"
                             Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3" Margin="0,0,6,0"
                             Command="{Binding ToggleTxParamsCommand}"
                             ToolTip.Tip="from / to / value / calldata / gas price"/>
                     <Button Grid.Column="1" Content="BLOCK CONTEXT" FontSize="10" FontWeight="SemiBold"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3" Margin="0,0,6,0"
                             Command="{Binding ToggleBlockContextCommand}"/>
-                    <Border Grid.Column="2" Background="#12131A" CornerRadius="3" Padding="10,4" Margin="8,0,0,0"
+                    <Button Grid.Column="2" Content="PRE-STATE" FontSize="10" FontWeight="SemiBold"
+                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" Padding="10,4" CornerRadius="3"
+                            Command="{Binding TogglePrestateCommand}"
+                            ToolTip.Tip="Extra accounts (callees, tokens, impls). File → Load Pre-state JSON"/>
+                    <Border Grid.Column="3" Background="#12131A" CornerRadius="3" Padding="10,4" Margin="8,0,0,0"
                             BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
@@ -281,6 +294,28 @@
                         </Grid>
                     </Border>
                 </Grid>
+
+                <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
+                        IsVisible="{Binding IsPrestateExpanded}">
+                    <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,Auto,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding PrestateSummary}" Foreground="{DynamicResource Schlieren.Warning}"
+                                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="1" Content="LOAD JSON" FontSize="10" Padding="8,2" Margin="8,0,4,0"
+                                Click="OnLoadPrestateClick"
+                                Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                        <Button Grid.Column="2" Content="CLEAR" FontSize="10" Padding="8,2"
+                                Command="{Binding ClearPrestateCommand}"
+                                Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#FF8A80"/>
+                        <ItemsControl Grid.Row="1" Grid.ColumnSpan="3" ItemsSource="{Binding PrestateAccountRows}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10"
+                                               Foreground="{DynamicResource Schlieren.TextPrimary}" Margin="0,2"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Border>
 
                 <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
                         IsVisible="{Binding IsTxParamsExpanded}">

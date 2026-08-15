@@ -2,20 +2,33 @@
 **Last Updated:** 2026-08-15  
 **Baseline commit:** `2391f1e` (CREATE snapshot restore — 100%)  
 **Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)  
-**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_032448.md`
+**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_032448.md`  
+**Full Prague official report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_040809.md`  
+**Full Shanghai report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_063321.md`
 
 ---
 
 ## Summary
 
+Official v20 gates (and v5.4.0 frozen suites) are **100%** on every fork we treat as a release gate:
+
 | Suite | Fixture Version | Cases | Passing | Status |
 |---|---|---|---|---|
 | **Osaka** | tests@v20.0.1 | 14,516 | **14,516** | ✅ **100.00%** |
-| **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(official gate, excl. ported_static)* |
-| **Prague (v20 full UI)** | tests@v20.0.1 | 13,851 | ~13,463 | ✅ **97.2%** *(includes ported_static; 2026-08-15 UI run)* |
+| **Prague (v20 official)** | tests@v20.0.1 | 6,811 | **6,811** | ✅ **100.00%** *(excl. ported_static)* |
+| **Cancun (v20)** | tests@v20.0.1 | 4,514 | **4,514** | ✅ **100%** |
+| **Shanghai (v20)** | tests@v20.0.1 | 4,969 | **4,969** | ✅ **100%** |
 | **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
 | **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
-| **Unit Tests** | — | 349 | 348 | ✅ **99.7%** (1 documented fail: see `docs/FORKING_GLOBALSTATE_UNIT_FAILURE.md`) |
+| **Unit Tests** | — | 349 | 348 | ⚠️ **99.7%** (1 documented fail: `docs/FORKING_GLOBALSTATE_UNIT_FAILURE.md` — remote-fork CREATE2, not EELS) |
+
+Not the official gate (larger trees / older forks). Do not collapse these into the 100% claim:
+
+| Extra tree | Latest report | Result |
+|---|---|---|
+| Prague full UI (`ported_static` included) | 2026-08-15 UI | ~13,463 / 13,851 (97.2%) |
+| Cancun `for_cancun` expanded | `taxonomy_20260815_062014.md` | 11,536 / 11,554 (18 fail) |
+| Paris / London / Berlin / Istanbul / Byzantium / Homestead / Frontier | latest `for_*` drills | 93–98%, not 100% |
 
 > **Note:** The `tests@v20.0.1` fixture suite (from the new `ethereum/execution-specs` repo) contains
 > 7× more cases than v5.4.0. The v5.4.0 Prague/Cancun suites remain at 100% — those were the final

@@ -67,7 +67,14 @@ public sealed class EelsStateFixtureLoader
             }
         }
 
-        return cases;
+        // Deduplicate by CaseId — the same fixture can appear under multiple fixture subdirectories
+        // (e.g. a cancun fixture also listed under a fork-specific sub-tree), causing duplicate keys downstream.
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var deduped = new List<EelsStateCase>(cases.Count);
+        foreach (var c in cases)
+            if (seen.Add(c.CaseId))
+                deduped.Add(c);
+        return deduped;
     }
 
     private static void LoadCasesFromFile(string filePath, EelsHarnessOptions options, List<EelsStateCase> output)

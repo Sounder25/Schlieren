@@ -67,6 +67,7 @@ public abstract class ForkRules : IForkRules
 
     // CALL base cost: Frontier/Homestead = 40 flat
     public virtual ulong CallBaseCost => 40;
+    public virtual ulong ExpByteCost  => 10;  // EIP-160 (Spurious Dragon+) raises to 50
 
     // Frontier/Homestead: parent pays the gas arg it forwards (pre-EIP-150 semantics)
     public virtual bool HasPreEip150CallGas => true;
@@ -75,6 +76,12 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasDelegateCall             => false;
     public virtual bool HasRevert                   => false;
     public virtual bool HasStaticCall               => false;
+    /// <summary>EIP-2 (Homestead): 32000 gas surcharge for contract-creation transactions.
+    /// Frontier: no surcharge. Homestead onwards: +32000.</summary>
+    public virtual bool HasCreateTxSurcharge        => false;
+    /// <summary>EIP-2 (Homestead): CREATE deposit-OOG is an ExceptionalHalt (consume all gas,
+    /// revert account). Frontier: deposit-OOG deploys empty code and succeeds.</summary>
+    public virtual bool HasCreateDepositOogHalt     => false;
     public virtual bool HasReturnDataOps            => false;
     public virtual bool HasCreate2                  => false;
     public virtual bool HasBitwiseShift             => false;
@@ -123,7 +130,9 @@ public class HomesteadRules : FrontierRules
 {
     public static new readonly HomesteadRules Instance = new();
     public override Fork Fork => Fork.Homestead;
-    public override bool HasDelegateCall => true;
+    public override bool HasDelegateCall         => true;
+    public override bool HasCreateTxSurcharge    => true; // EIP-2: 32000 CREATE tx surcharge
+    public override bool HasCreateDepositOogHalt => true; // EIP-2: deposit OOG = ExceptionalHalt
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -158,6 +167,7 @@ public class SpuriousDragonRules : TangerineWhistleRules
     public override bool HasEip161EmptyAccountDeletion => true;
     public override bool HasEip155ReplayProtection      => true;
     public override bool HasEip161ContractNonce         => true; // EIP-161: new contracts start at nonce 1
+    public override ulong ExpByteCost                   => 50;   // EIP-160: raise EXP byte cost 10→50
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -1,5 +1,7 @@
 # Schlieren Per-Fork Gas Coverage Matrix
 
+Formulas: `GAS_FORMULAS.md`. Source ledger: `GAS_RULE_INVENTORY.md`. Reconciled 2026-08-15.
+
 ## Legend
 
 - `D` — defined directly for this fork
@@ -25,7 +27,7 @@
 | TX.AUTHORIZATION_COST | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:21,84-86` - hardcoded 25,000 per type-4 authorization behind the Prague flag. |
 | TX.AUTHORIZATION_REFUND | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | `Schlieren.Core/Execution/StateTransition.cs:290-350,380-382` - main path adds 12,500, but existing-empty accounts are misclassified and the gas-tree path omits authorization processing/refund. |
 | TX.CALLDATA_FLOOR | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | `Schlieren.Core/Execution/IntrinsicGas.cs:24-39`; `Schlieren.Core/Execution/StateTransition.cs:95-101,461-469` - shared formula with separate pre-execution and settlement enforcement sites. |
-| TX.MAX_GAS_LIMIT | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | `Schlieren.Core/Execution/StateTransition.cs:75-81`; `Schlieren.Core/Forks/ForkRules.cs:51-52,407` - the main Osaka path validates the cap, but the gas-tree transaction path omits it. |
+| TX.MAX_GAS_LIMIT | Transaction Entry/Intrinsic | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | Canonical `ApplyTransactionAsync` validates 2^24 at `StateTransition.cs:75-81`; `ForkRules.cs:51-52,407`. Gas-tree path still omits it. |
 | OP.STOP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:15` |
 | OP.JUMPDEST | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:87` |
 | OP.ADD | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ArithmeticOpcodes.cs:21` |
@@ -49,12 +51,12 @@
 | OP.XOR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:55` |
 | OP.NOT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:74` |
 | OP.BYTE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:101` |
-| OP.SHL | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:126` |
-| OP.SHR | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:149` |
-| OP.SAR | Fixed Opcode Gas | M | M | M | M | M | S | S | S | S | S | S | S | S | S | Missing pre-Constantinople gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:183` |
-| OP.CLZ | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | M | M | M | S | No schedule flag; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:216` |
+| OP.SHL | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasBitwiseShift` invalid-opcode burn; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:118-131` |
+| OP.SHR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasBitwiseShift` gate; `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:146` |
+| OP.SAR | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasBitwiseShift` gate; `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:174` |
+| OP.CLZ | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasEip7939Clz` gate; price at `Schlieren.Core/Opcodes/BitwiseOpcodes.cs:215` |
 | OP.POP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:22` |
-| OP.PUSH0 | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | S | S | S | S | Unused `HasPush0`; price at `Schlieren.Core/Opcodes/StackOpcodes.cs:39` |
+| OP.PUSH0 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasPush0` invalid-opcode burn; `Schlieren.Core/Opcodes/StackOpcodes.cs:37-40` |
 | OP.PUSH1_32 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:77` |
 | OP.DUP1_16 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:126` |
 | OP.SWAP1_16 | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StackOpcodes.cs:162` |
@@ -76,9 +78,9 @@
 | OP.DIFFICULTY | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:274` |
 | OP.GASLIMIT | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:292` |
 | OP.CHAINID | Fixed Opcode Gas | M | M | M | M | M | M | S | S | S | S | S | S | S | S | Unused `HasChainId`; `Schlieren.Core/Opcodes/StateOpcodes.cs:47-57` |
-| OP.SELFBALANCE | Fixed Opcode Gas | M | M | M | M | M | M | S | S | S | S | S | S | S | S | Unused `HasSelfBalance`; hardcoded price at `Schlieren.Core/Opcodes/StateOpcodes.cs:80` |
-| OP.BASEFEE | Fixed Opcode Gas | M | M | M | M | M | M | M | M | S | S | S | S | S | S | Missing pre-London gate; `Schlieren.Core/Opcodes/StateOpcodes.cs:300-310` |
-| OP.BLOBBASEFEE | Fixed Opcode Gas | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Missing pre-Cancun gate; `Schlieren.Core/Opcodes/StateOpcodes.cs:318-328` |
+| OP.SELFBALANCE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasSelfBalance` gate; price at `Schlieren.Core/Opcodes/StateOpcodes.cs:72-83` |
+| OP.BASEFEE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasEip1559BaseFee` gate; `Schlieren.Core/Opcodes/StateOpcodes.cs:315-324` |
+| OP.BLOBBASEFEE | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasEip4844BlobTx` gate; `Schlieren.Core/Opcodes/StateOpcodes.cs:338-346` |
 | OP.JUMP | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:37` |
 | OP.JUMPI | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:52,62` |
 | OP.PC | Fixed Opcode Gas | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:76` |
@@ -88,33 +90,33 @@
 | OP.MLOAD | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:20-23` |
 | OP.MSTORE | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:47-50` |
 | OP.MSTORE8 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/MemoryOpcodes.cs:81-84` |
-| OP.MCOPY | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasMcopy`; `Schlieren.Core/Opcodes/MemoryCopyOpcode.cs:12-56` |
+| OP.MCOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasMcopy` gate; formula at `Schlieren.Core/Opcodes/MemoryCopyOpcode.cs:12-56` |
 | OP.CALLDATACOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:270-291` |
 | OP.CODECOPY | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:324-345` |
 | OP.RETURNDATACOPY | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasReturnDataOps`; `Schlieren.Core/Opcodes/ExecutionOpcodes.cs:371-403` |
 | OP.EXTCODECOPY | Dynamic Opcode/Memory/Copy/Hash/Log | D | I | O | I | I | I | I | O | I | I | I | I | I | I | Access schedule at `Schlieren.Core/Forks/ForkRules.cs:60,133,257`; invariant copy logic at `Schlieren.Core/Opcodes/StateOpcodes.cs:131-158` |
 | OP.KECCAK256 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/StateOpcodes.cs:27-39` |
-| OP.LOG0 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-49` |
-| OP.LOG1 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-54` |
-| OP.LOG2 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-55` |
-| OP.LOG3 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-56` |
-| OP.LOG4 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared hardcoded formula and missing static branch at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:15-57` |
+| OP.LOG0 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Formula + static gate at `Schlieren.Core/Opcodes/LoggingOpcodes.cs:17-56` |
+| OP.LOG1 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared LOG formula; `TopicCount=1` |
+| OP.LOG2 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared LOG formula; `TopicCount=2` |
+| OP.LOG3 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared LOG formula; `TopicCount=3` |
+| OP.LOG4 | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Shared LOG formula; `TopicCount=4` |
 | OP.RETURN | Dynamic Opcode/Memory/Copy/Hash/Log | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:98-108` |
 | OP.REVERT | Dynamic Opcode/Memory/Copy/Hash/Log | M | M | M | M | S | S | S | S | S | S | S | S | S | S | Unused `HasRevert`; `Schlieren.Core/Opcodes/ControlFlowOpcodes.cs:111-128` |
-| ACCESS.INITIAL_WARM_SET | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | S | M | M | M | Primary and duplicate initialization paths: `Schlieren.Core/Execution/StateTransition.cs:247-287`; fork counts at `Schlieren.Core/Forks/ForkRules.cs:98,167,202,379,395,405` |
+| ACCESS.INITIAL_WARM_SET | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | Canonical path: sender/to/precompiles; Shanghai+ coinbase; Osaka `0x0100`. `StateTransition.cs:247-287` |
 | ACCESS.EIP7702_AUTHORITY_WARM | Account and Storage Access | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | I | Gate and warm transition at `Schlieren.Core/Execution/StateTransition.cs:290-321`; `Schlieren.Core/Forks/ForkRules.cs:48,391` |
 | ACCESS.BALANCE | Account and Storage Access | D | I | M | M | M | M | I | O | I | I | I | I | I | I | Wrong shared Tangerine price at `Schlieren.Core/Forks/ForkRules.cs:60,133`; Berlin override at `:257` |
 | ACCESS.EXTCODESIZE | Account and Storage Access | D | I | O | I | I | I | I | O | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:60,133,257`; use at `Schlieren.Core/Opcodes/StateOpcodes.cs:100-101` |
 | ACCESS.EXTCODEHASH | Account and Storage Access | M | M | M | M | M | O | O | O | I | I | I | I | I | I | Missing pre-Constantinople gate; pricing overrides at `Schlieren.Core/Forks/ForkRules.cs:183,204,258` |
 | ACCESS.SLOAD | Account and Storage Access | D | I | O | I | I | I | O | O | I | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:18,131,197,255`; use at `Schlieren.Core/Opcodes/StorageOpcodes.cs:19-27` |
-| ACCESS.TLOAD | Account and Storage Access | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasTloadTstore`; hardcoded price at `Schlieren.Core/Opcodes/StorageOpcodes.cs:93-107` |
+| ACCESS.TLOAD | Account and Storage Access | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasTloadTstore` gate; price 100 at `StorageOpcodes.cs:93-107` |
 | SSTORE.REENTRANCY_GUARD | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | O | I | I | I | I | I | I | I | Activation at `Schlieren.Core/Forks/ForkRules.cs:21,201`; threshold at `Schlieren.Core/Opcodes/StorageOpcodes.cs:56-62` |
 | SSTORE.COLD_SURCHARGE | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | Fork flag at `Schlieren.Core/Forks/ForkRules.cs:22,252`; hardcoded 2100 at `Schlieren.Core/Opcodes/StorageOpcodes.cs:78-83` |
 | SSTORE.FORMULA_FRONTIER | SSTORE | D | I | I | I | I | I | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Forks/ForkRules.cs:26-36` |
 | SSTORE.FORMULA_ISTANBUL | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | O | N/A | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Forks/ForkRules.cs:211-241` |
 | SSTORE.FORMULA_BERLIN | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | N/A | N/A | N/A | N/A | N/A | N/A | `Schlieren.Core/Forks/ForkRules.cs:266-295` |
 | SSTORE.FORMULA_LONDON | SSTORE | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | O | I | I | I | I | I | `Schlieren.Core/Forks/ForkRules.cs:311-340` |
-| SSTORE.TSTORE | SSTORE | M | M | M | M | M | M | M | M | M | M | M | S | S | S | Unused `HasTloadTstore`; hardcoded price at `Schlieren.Core/Opcodes/StorageOpcodes.cs:111-125` |
+| SSTORE.TSTORE | SSTORE | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Local `HasTloadTstore` gate; price 100 at `StorageOpcodes.cs:111-125` |
 | CALL.MEMORY_EXPANSION | CALL-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `SystemOpcodes.cs:222-230,679-685,801-807,947-953` |
 | CALL.DEPTH_LIMIT | CALL-Family | M | M | M | M | M | M | M | M | M | M | M | M | M | M | Off-by-one recursion gate: `StateTransition.cs:775-806,953,978-996` |
 | CALL.ACCESS_COST | CALL-Family | D | I | O | I | I | I | I | O | I | I | I | I | I | I | `ForkRules.cs:64,136,257-261`; opcode composition in `SystemOpcodes.cs:239-244,691-695,814-817,960-963` |
@@ -131,18 +133,18 @@
 | STATICCALL.FORWARDING | CALL-Family | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | S | S | S | Active formula `SystemOpcodes.cs:650-767`; missing pre-Byzantium dispatch gate is covered by `HALT.OPCODE_ACTIVATION` |
 | DELEGATECALL.FORWARDING | CALL-Family | N/A | M | S | S | S | S | S | S | S | S | S | S | S | S | Homestead legacy forwarding missing; current path `SystemOpcodes.cs:918-1037` |
 | CALL.PRECOMPILE_DISPATCH | CALL-Family | S | S | M | S | S | S | S | S | S | S | S | S | S | S | Tangerine legacy touch omission in direct branch `SystemOpcodes.cs:313-318,405-421` |
-| CREATE.BASE | CREATE-Family | M | M | M | M | M | M | M | M | M | M | S | S | S | S | Hardcoded base and prematurely active word charge `SystemOpcodes.cs:25-35` |
-| CREATE.INITCODE_SIZE_LIMIT | CREATE-Family | M | M | M | M | M | M | M | M | M | M | S | S | S | S | Missing pre-Shanghai inactivity gate at `SystemOpcodes.cs:25-27,491-493`; activation flag `ForkRules.cs:362` |
-| CREATE.MEMORY_EXPANSION | CREATE-Family | M | M | M | M | M | M | M | M | M | M | M | M | M | M | Required charge absent before `Memory.Load`: `SystemOpcodes.cs:37,504`; `EvmMemory.cs:23-45` |
+| CREATE.BASE | CREATE-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `32000` plus Shanghai-gated `2*words` at `SystemOpcodes.cs:25-44` |
+| CREATE.INITCODE_SIZE_LIMIT | CREATE-Family | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | Gated by `HasEip3860InitcodeLimit` at `SystemOpcodes.cs:25-27,520-522` |
+| CREATE.MEMORY_EXPANSION | CREATE-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Charged before load at `SystemOpcodes.cs:32-36,527-531` |
 | CREATE.EIP150_FORWARDING | CREATE-Family | M | M | S | S | S | S | S | S | S | S | S | S | S | S | CREATE incorrectly caps legacy forks; `SystemOpcodes.cs:53-54,71,519-520,540` |
 | CREATE.PRE_CHECK_NO_TRANSFER | CREATE-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `SystemOpcodes.cs:43-62,515-527` |
 | CREATE.WARMING | CREATE-Family | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | Berlin+ access-state mutation `SystemOpcodes.cs:64-65,530-531`; activation `ForkRules.cs:252` |
 | CREATE.COLLISION_BURN | CREATE-Family | M | M | M | M | M | M | M | M | M | M | M | M | M | M | EIP-7610 predicate incomplete for unknown remote storage: `AccountDeployability.cs:11-30`; `ForkingGlobalState.cs:83-99` |
 | CREATE.CHILD_GAS_RETURN | CREATE-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `SystemOpcodes.cs:107-108,169-180,574-575,631-642` |
 | CREATE.CODE_DEPOSIT | CREATE-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | Hardcoded 200 and duplicated paths: `SystemOpcodes.cs:112-116,161-162,579-583,623-624`; `StateTransition.cs:404-418,662-669` |
-| CREATE.CODE_SIZE_LIMIT | CREATE-Family | N/A | N/A | N/A | M | M | M | M | M | M | M | M | M | M | M | Internal EIP-170 check absent; top-level-only checks `StateTransition.cs:386-391,655-660` |
-| CREATE.DEPOSIT_OOG | CREATE-Family | M | M | M | M | M | M | M | M | M | M | M | M | M | M | Frontier semantics missing and successful initcode commits before validation: `SystemOpcodes.cs:99,116-136,566,583-600`; `StateTransition.cs:978-1009` |
-| CREATE.EF_PREFIX_BURN | CREATE-Family | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | M | M | M | M | M | M | London gate exists, but rollback is incomplete: `SystemOpcodes.cs:139-158,604-620`; `StateTransition.cs:978-1009` |
+| CREATE.CODE_SIZE_LIMIT | CREATE-Family | M | M | M | S | S | S | S | S | S | S | S | S | S | S | Opcode+top-level check 24576 (`SystemOpcodes.cs:129-135`); no Spurious gate so Frontier–TW reject too |
+| CREATE.DEPOSIT_OOG | CREATE-Family | M | S | S | S | S | S | S | S | S | S | S | S | S | S | Overlay discarded + `CreateRevertHelper`; Frontier empty-code success still missing |
+| CREATE.EF_PREFIX_BURN | CREATE-Family | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | London gate + overlay discard + account revert; warmth not un-warmed |
 | CREATE2.BASE | CREATE-Family | N/A | N/A | N/A | N/A | N/A | S | S | S | S | S | S | S | S | S | Hardcoded 32000/6/2 word components at `SystemOpcodes.cs:498-502`; missing activation is covered by `HALT.OPCODE_ACTIVATION` |
 | CREATE.REFUND_COUNTER_PROPAGATION | CREATE-Family | S | S | S | S | S | S | S | S | S | S | S | S | S | S | `SystemOpcodes.cs:167,629` |
 | CREATE.TOP_LEVEL_DEPOSIT | CREATE-Family | M | M | M | M | M | M | M | M | M | M | M | M | M | M | Duplicated, drifted fork handling at `StateTransition.cs:386-424,655-671` |
@@ -251,14 +253,14 @@
 
 - EIP-3855 activates PUSH0 at 2 gas.
 - EIP-3860 activates the 49152-byte initcode limit and `2·ceil(initcodeBytes/32)` charge.
-- EIP-3651 adds coinbase to the initial warm set. Current code warms it from Berlin onward.
+- EIP-3651 adds coinbase to the initial warm set. Canonical path now gates coinbase on Shanghai+.
 
 ### Cancun
 
 - EIP-1153 activates TLOAD/TSTORE at 100.
 - EIP-5656 activates MCOPY; EIP-4844 activates blob transaction settlement, BLOBHASH/BLOBBASEFEE, and KZG point evaluation.
 - EIP-6780 restricts SELFDESTRUCT deletion to contracts created in the same transaction.
-- Most Cancun opcode activations are not enforced by the interpreter.
+- TLOAD/TSTORE/MCOPY/BLOBHASH/BLOBBASEFEE now have local activation gates. RETURNDATA/REVERT/STATICCALL/CREATE2/EXTCODEHASH/CHAINID/DELEGATECALL still do not.
 
 ### Prague
 
@@ -276,28 +278,30 @@
 
 ### Critical
 
-- `HALT.OPCODE_ACTIVATION`: pre-activation opcodes execute instead of invalid-opcode frame burn.
+- `HALT.OPCODE_ACTIVATION`: still no interpreter-wide table. Ungated: DELEGATECALL, RETURNDATA*, REVERT, STATICCALL, CREATE2, EXTCODEHASH, CHAINID. (SHL/SAR family, CLZ, PUSH0, SELFBALANCE, BASEFEE, blob ops, MCOPY, TLOAD/TSTORE now gate locally.)
 - `DIAG.GAS_TREE_EXECUTION`: diagnostic re-execution can apply a different transaction/fork lifecycle than canonical execution.
-- `CREATE.DEPOSIT_OOG` and `CREATE.EF_PREFIX_BURN`: failed deployment can leak state and access warmth.
-- `CREATE.MEMORY_EXPANSION`: CREATE/CREATE2 omit required expansion gas.
+- `CREATE.DEPOSIT_OOG`: Frontier empty-code-if-unaffordable still missing; failed create still leaves access warmth.
 - `CALL.PRE_EIP150_CHARGE`: unchecked narrowing/addition can wrap an oversized gas argument into an undercharge.
 
 ### High
 
-- `ACCESS.INITIAL_WARM_SET`: coinbase is warmed too early; modern precompile warming differs in the diagnostic path.
 - `TX.AUTHORIZATION_REFUND`: existing-empty-account detection can lose 12500 per valid authorization.
 - `ACCESS.BALANCE`: Tangerine Whistle–Constantinople is overcharged by 300.
 - `SELFDESTRUCT.REFUND`: the pre-London 24000 refund is absent.
 - `PRECOMPILE.MODEXP_EIP198`, `PRECOMPILE.MODEXP_EIP2565`, and `PRECOMPILE.MODEXP_EIP7883`: raw gas is saturated at a non-protocol 10-billion ceiling.
 - `CALL.DEPTH_LIMIT`: CALL-family recursion permits depth 1025.
+- `CREATE.COLLISION_BURN`: unknown remote storage is treated as deployable.
+- `CREATE.EIP150_FORWARDING`: CREATE still 63/64 on Frontier/Homestead.
 
 ### Medium
 
 - `MEMORY.EXPANSION`: signed-int arithmetic and the 16 MiB host limit can replace protocol gas reachability.
 - `PRECOMPILE.MODEXP_LENGTH_LIMIT`: a non-protocol pre-Osaka 8192-byte cap rejects valid inputs.
 - `PRECOMPILE.KZG_POINT_EVAL`: trusted-setup load failure escapes as a host exception.
-- `OP.LOG0`–`OP.LOG4`: static-mode violation is missing and boundary addition can overflow.
+- `OP.LOG0`–`OP.LOG4`: boundary addition can overflow (static-mode is gated).
 - `DIAG.KNOWN_CONSTANT_MATCH`, `DIAG.REFUND_CAP`, and `DIAG.BALANCE_TO_GAS`: fork-blind or algebraically unsafe root-cause inference.
+- `TX.CREATE_SURCHARGE`: Frontier CREATE txs still pay 32000.
+- `OP.EXP`: always 50/byte; pre-Spurious should be 10/byte.
 
 ### Low
 
@@ -313,10 +317,12 @@
 
 ## Validation Summary
 
+Reconciled **2026-08-15** against the live engine. Formulas: `GAS_FORMULAS.md`.
+
 - Inventory rule IDs: 177 (168 protocol + 9 diagnostic)
 - Matrix rule IDs: 177
 - Unique IDs in each document: 177; missing, extra, and duplicate IDs: 0
 - Every matrix row contains exactly 14 valid fork-status cells
-- Cell counts: `D=13`, `I=148`, `O=24`, `N/A=416`, `S=1581`, `M=296`
+- Cell counts: `D=13`, `I=148`, `O=24`, `N/A=423`, `S=1738`, `M=132`
+- `M` dropped from 296 because several activation/CREATE/warmth findings are now implemented (scattered local gates), not because they moved onto `ForkGasSchedule`
 - Placeholder search: no matches
-- Markdown whitespace validation: passed

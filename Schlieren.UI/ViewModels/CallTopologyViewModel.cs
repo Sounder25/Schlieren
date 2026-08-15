@@ -74,8 +74,9 @@ public partial class CallTopologyViewModel : ObservableObject
 
             var childKind = meta.IsPrecompile ? "Precompile" : "Contract";
             var childSuccess = meta.Success is null ? "UNKNOWN" : meta.Success.Value ? "SUCCESS" : "FAILURE";
+            var retLine = string.IsNullOrEmpty(meta.ReturnHex) ? "" : $"\nreturn {meta.ReturnHex}";
             var childDetail =
-                $"{childKind}\n{meta.Target}\n{childSuccess}\ngas used: {meta.GasUsed?.ToString("N0") ?? "—"}";
+                $"{childKind}\n{meta.Target}\n{childSuccess}\ngas used: {meta.GasUsed?.ToString("N0") ?? "—"}{retLine}";
             Rows.Add(CallGraphRowViewModel.Node(
                 label,
                 childDetail,
@@ -85,7 +86,7 @@ public partial class CallTopologyViewModel : ObservableObject
                 address: meta.Target,
                 success: meta.Success,
                 gasUsed: meta.GasUsed,
-                returnHint: meta.OutputBytes is { } ob ? $"{ob} bytes" : null,
+                returnHint: meta.ReturnHex,
                 stepIndex: i));
             calls++;
         }
@@ -135,7 +136,7 @@ public partial class CallTopologyViewModel : ObservableObject
     {
         if (step.Op is "CREATE" or "CREATE2")
         {
-            return new CallMeta("(new contract)", false, "CREATE", null, null, null, null, null);
+            return new CallMeta("(new contract)", false, "CREATE", null, null, null, null, null, null);
         }
 
         var stack = step.Stack ?? new List<string>();
@@ -155,12 +156,18 @@ public partial class CallTopologyViewModel : ObservableObject
 
         bool? success = null;
         ulong? outBytes = null;
+        string? returnHex = null;
+        if (step.OutputData is { Length: > 0 } output)
+        {
+            outBytes = (ulong)output.Length;
+            returnHex = "0x" + Convert.ToHexString(output).ToLowerInvariant();
+        }
         if (index + 1 < all.Count && all[index + 1].Stack is { Count: > 0 } s1)
         {
             var top = TryParseUlong(s1[0]);
             if (top is 0 or 1) success = top == 1;
         }
-        if (index + 2 < all.Count && all[index + 2].Stack is { Count: > 1 } s2)
+        if (outBytes is null && index + 2 < all.Count && all[index + 2].Stack is { Count: > 1 } s2)
             outBytes = TryParseUlong(s2[1]) ?? TryParseUlong(s2[0]);
 
         ulong? gasUsed = null;
@@ -169,7 +176,7 @@ public partial class CallTopologyViewModel : ObservableObject
         else if (isPre && name.Contains("ECRECOVER", StringComparison.OrdinalIgnoreCase))
             gasUsed = 3_000;
 
-        return new CallMeta(target, isPre, name, gasFwd, inBytes, outBytes, success, gasUsed);
+        return new CallMeta(target, isPre, name, gasFwd, inBytes, outBytes, success, gasUsed, returnHex);
     }
 
     public readonly record struct CallMeta(
@@ -180,7 +187,8 @@ public partial class CallTopologyViewModel : ObservableObject
         ulong? InputBytes,
         ulong? OutputBytes,
         bool? Success,
-        ulong? GasUsed);
+        ulong? GasUsed,
+        string? ReturnHex);
 
     public static string PrecompileLabel(string address)
     {

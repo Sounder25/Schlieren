@@ -87,6 +87,23 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _callDataHex = "";
     [ObservableProperty] private ulong _gasPriceGwei = 1;
     [ObservableProperty] private bool _isTxParamsExpanded;
+    [ObservableProperty] private bool _isPrestateExpanded;
+    [ObservableProperty] private string _prestateSummary = "No extra accounts — File → Load Pre-state JSON";
+    [ObservableProperty] private string _prestateSource = "";
+
+    public ObservableCollection<string> PrestateAccountRows { get; } = new();
+    private readonly List<WorkbenchAccountSeed> _extraAccounts = new();
+    private readonly List<WorkbenchFixtureLoader.ExpectedAccount> _expectedPost = new();
+    private string? _baseFeeWei;
+    private string? _gasPriceWei;
+    private string? _maxFeeWei;
+    private string? _maxPriorityWei;
+    private byte _txType;
+    private ulong _txNonce;
+    private bool? _lastFixturePostMatches;
+    private string _lastFixtureNote = "";
+    private IReadOnlyList<Schlieren.Core.State.AccessListEntry>? _accessList;
+    private IReadOnlyList<Schlieren.Core.State.Eip7702Authorization>? _authorizations;
 
     // Last-run outcome
     [ObservableProperty] private bool _lastRunSuccess;
@@ -106,6 +123,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _logsText = "(empty)";
     [ObservableProperty] private string _gasText = "(empty)";
     [ObservableProperty] private bool _isCallFramePinned;
+    private IReadOnlyDictionary<string, IReadOnlyList<string>> _postStorage =
+        new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>
     /// Soft center watermark. Stronger when empty, ghosted when code is up.
@@ -125,6 +144,51 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         SelectedFile != null
             ? $"{SelectedFile.FileName} ({SelectedFile.Lines.Count} lines)"
             : "No file loaded";
+
+    /// <summary>What this RUN will execute — not the editor tab.</summary>
+    public string ExecutionTargetLine
+    {
+        get
+        {
+            BytecodeExecutionService.TryParseHexBytes(BytecodeInput, out var box);
+            var fromPre = _extraAccounts.FirstOrDefault(a =>
+                a.AddressHex.Equals(TxTo, StringComparison.OrdinalIgnoreCase));
+            var preLen = 0;
+            if (fromPre != null)
+                BytecodeExecutionService.TryParseHexBytes(fromPre.CodeHex, out var pc);
+            if (fromPre != null)
+            {
+                BytecodeExecutionService.TryParseHexBytes(fromPre.CodeHex, out var preCode);
+                preLen = preCode.Length;
+            }
+            var bytes = box.Length > 0 ? box.Length : preLen;
+            var src = box.Length > 0 ? "bytecode box" : preLen > 0 ? "pre-state" : "no code";
+            return $"EXEC {ShortAddr(TxTo)}  ·  {bytes} B ({src})  ·  {SelectedFork}";
+        }
+    }
+
+    public string EditorFileLine =>
+        SelectedFile == null
+            ? "OPEN (none)"
+            : LooksLikeExecutionHex(SelectedFile)
+                ? $"OPEN {SelectedFile.FileName}  ·  editor matches hex target"
+                : $"OPEN {SelectedFile.FileName}  ·  editor only — not this run";
+
+    private static bool LooksLikeExecutionHex(ProjectFileViewModel file)
+    {
+        var joined = string.Join("", file.Lines).Trim();
+        return joined.Length >= 4 && joined.All(ch =>
+            Uri.IsHexDigit(ch) || ch is 'x' or 'X' or '0' or '\n' or '\r' or ' ');
+    }
+
+    private static string ShortAddr(string? a)
+    {
+        if (string.IsNullOrWhiteSpace(a)) return "(no To)";
+        a = a.Trim();
+        return a.Length > 12 && a.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? a[..6] + "…" + a[^4..]
+            : a;
+    }
 
     public string StepProgress => TotalSteps <= 0
         ? "0 / 0"
@@ -170,7 +234,19 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     partial void OnSearchQueryChanged(string value) => RefreshFilteredFiles();
     partial void OnOpSecEnabledChanged(bool value) => ApplyOpSec();
-    partial void OnSelectedForkChanged(string value) => OnPropertyChanged(nameof(ForkNote));
+    partial void OnSelectedForkChanged(string value)
+    {
+        OnPropertyChanged(nameof(ForkNote));
+        NotifyExecutionChrome();
+    }
+    partial void OnBytecodeInputChanged(string value) => NotifyExecutionChrome();
+    partial void OnTxToChanged(string value) => NotifyExecutionChrome();
+
+    private void NotifyExecutionChrome()
+    {
+        OnPropertyChanged(nameof(ExecutionTargetLine));
+        OnPropertyChanged(nameof(EditorFileLine));
+    }
 
     private void ApplyOpSec()
     {
@@ -214,6 +290,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             ActiveCodeLines.Add(line);
 
         OnPropertyChanged(nameof(CurrentFileTitle));
+        NotifyExecutionChrome();
         CenterEmptyHint = string.Empty;
     }
 
@@ -301,9 +378,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         IsCallFramePinned = true;
         ReturnDataHex = string.IsNullOrWhiteSpace(row.ReturnHint) ? ReturnDataHex : row.ReturnHint;
-        StorageText = row.Kind.Equals("Precompile", StringComparison.OrdinalIgnoreCase)
-            ? "(precompile — no contract storage)"
-            : StorageText;
+        if (row.Kind.Equals("Precompile", StringComparison.OrdinalIgnoreCase))
+            StorageText = "(precompile — no contract storage)";
+        else if (!string.IsNullOrEmpty(row.Address) &&
+                 _postStorage.TryGetValue(row.Address, out var slots) &&
+                 slots.Count > 0)
+            StorageText = string.Join(Environment.NewLine, slots);
+        else if (row.Kind.Equals("Contract", StringComparison.OrdinalIgnoreCase))
+            StorageText = "(no post-state storage on this account)";
         AccountsText =
             $"{row.Title}{Environment.NewLine}" +
             $"{row.Kind}{Environment.NewLine}" +
@@ -466,15 +548,223 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         ContractHex = TxTo,
         ValueWei = TxValueWei,
         CallDataHex = CallDataHex,
-        ForkLabel = SelectedFork
+        ForkLabel = SelectedFork,
+        ExtraAccounts = _extraAccounts.Count == 0 ? null : _extraAccounts.ToList(),
+        BaseFeeWei = _baseFeeWei,
+        GasPriceWei = _gasPriceWei,
+        MaxFeeWei = _maxFeeWei,
+        MaxPriorityWei = _maxPriorityWei,
+        TxType = _txType,
+        AccessList = _accessList,
+        AuthorizationList = _authorizations,
+        Nonce = _txNonce,
+        SnapshotAddresses = _expectedPost.Select(a => a.AddressHex).ToList()
     };
+
+    public string LoadPrestateJson(string json, string sourceName)
+    {
+        var parsed = WorkbenchPrestateLoader.Parse(json);
+        if (!parsed.Ok)
+        {
+            StatusMessage = parsed.Error;
+            return parsed.Error;
+        }
+
+        _extraAccounts.Clear();
+        _extraAccounts.AddRange(parsed.Accounts);
+        PrestateSource = sourceName;
+        RebuildPrestateRows();
+        IsPrestateExpanded = true;
+        StatusMessage = $"Pre-state loaded: {_extraAccounts.Count} account(s) from {sourceName}";
+        return StatusMessage;
+    }
+
+    /// <summary>
+    /// Load official state_test, workbench pre-state, or raw hex. Returns a status line.
+    /// </summary>
+    public string ImportContractSource(string text, string sourceName, string? fork = null, string? caseId = null)
+    {
+        if (WorkbenchFixtureLoader.LooksLikeStateTest(text))
+        {
+            var parsed = WorkbenchFixtureLoader.Parse(text, fork ?? SelectedFork, caseId);
+            if (!parsed.Ok || parsed.Fixture is null)
+            {
+                StatusMessage = parsed.Error;
+                return parsed.Error;
+            }
+
+            ApplyFixture(parsed.Fixture, sourceName);
+            return StatusMessage;
+        }
+
+        if (WorkbenchPrestateLoader.LooksLikePrestate(text))
+            return LoadPrestateJson(text, sourceName);
+
+        var joined = text.Trim();
+        if (LooksLikeHexBytecode(joined))
+        {
+            BytecodeInput = joined;
+            StatusMessage = $"Loaded {sourceName} as bytecode — press F5";
+            NotifyExecutionChrome();
+            return StatusMessage;
+        }
+
+        StatusMessage = $"{sourceName}: not a state_test, pre-state JSON, or hex bytecode.";
+        return StatusMessage;
+    }
+
+    public void ApplyFixture(WorkbenchFixtureLoader.LoadedFixture fx, string sourceName)
+    {
+        SelectedFork = AvailableForks.Contains(fx.Fork) ? fx.Fork : fx.Fork;
+        if (!AvailableForks.Contains(SelectedFork))
+            AvailableForks.Add(SelectedFork);
+
+        TxFrom = fx.SenderHex;
+        TxTo = fx.ToHex ?? "";
+        CallDataHex = fx.CallDataHex;
+        TxValueWei = fx.ValueWei;
+        if (fx.GasLimit > 0) TxGasLimit = fx.GasLimit;
+        if (fx.ChainId > 0) ChainId = fx.ChainId;
+        CoinbaseAddress = fx.CoinbaseHex;
+        _baseFeeWei = fx.BaseFeeWei;
+        _gasPriceWei = fx.GasPriceWei;
+        _maxFeeWei = fx.MaxFeeWei;
+        _maxPriorityWei = fx.MaxPriorityWei;
+        _txType = fx.TxType;
+        _txNonce = fx.Nonce;
+        _accessList = fx.AccessList.Count == 0 ? null : fx.AccessList;
+        _authorizations = fx.Authorizations.Count == 0 ? null : fx.Authorizations;
+
+        _extraAccounts.Clear();
+        _extraAccounts.AddRange(fx.PreAccounts);
+        _expectedPost.Clear();
+        _expectedPost.AddRange(fx.ExpectedPost);
+        PrestateSource = sourceName;
+
+        BytecodeInput = "";
+        if (string.IsNullOrEmpty(fx.ToHex))
+            BytecodeInput = fx.CallDataHex;
+
+        RebuildPrestateRows();
+        IsPrestateExpanded = true;
+        IsTxParamsExpanded = true;
+        NotifyExecutionChrome();
+        StatusMessage =
+            $"Loaded fixture {ShortName(fx.CaseName)} · {fx.Fork} · {fx.PreAccounts.Count} pre accounts" +
+            (fx.ExpectedPost.Count > 0 ? $" · {fx.ExpectedPost.Count} expected post" : "") +
+            " — press F5";
+    }
+
+    private static string ShortName(string name) =>
+        name.Length <= 72 ? name : name[..32] + "…" + name[^20..];
+
+    private void AppendExpectedDiff(WorkbenchRunResult run)
+    {
+        _lastFixturePostMatches = null;
+        _lastFixtureNote = "";
+        if (_expectedPost.Count == 0) return;
+
+        AccountStateRows.Add("fixture expected vs this run (Conformance check):");
+        var mismatches = 0;
+        foreach (var exp in _expectedPost)
+        {
+            var addr = exp.AddressHex;
+            run.PostBalances.TryGetValue(addr, out var actualBal);
+            actualBal ??= "(missing)";
+            WorkbenchQuantity.TryBigInteger(exp.BalanceWei, out var expBal);
+            var expBalText = WorkbenchQuantity.ToDecimalString(expBal);
+            if (!string.Equals(actualBal, expBalText, StringComparison.Ordinal))
+            {
+                AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} balance expected {expBalText} got {actualBal}");
+                mismatches++;
+            }
+
+            if (!run.PostNonces.TryGetValue(addr, out var actualNonce))
+            {
+                AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} account missing (expected nonce {exp.Nonce})");
+                mismatches++;
+            }
+            else if (actualNonce != exp.Nonce)
+            {
+                AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} nonce expected {exp.Nonce} got {actualNonce}");
+                mismatches++;
+            }
+
+            if (exp.StorageHex.Count == 0) continue;
+            run.PostStorage.TryGetValue(addr, out var slots);
+            slots ??= Array.Empty<string>();
+            foreach (var (k, v) in exp.StorageHex)
+            {
+                WorkbenchQuantity.TryBigInteger(k, out var slot);
+                WorkbenchQuantity.TryBigInteger(v, out var word);
+                var want = $"slot 0x{slot:x} = 0x{word:x}";
+                if (!slots.Any(s => s.Equals(want, StringComparison.OrdinalIgnoreCase)))
+                {
+                    AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} {want}");
+                    mismatches++;
+                }
+            }
+        }
+
+        _lastFixturePostMatches = mismatches == 0;
+        _lastFixtureNote = mismatches == 0
+            ? $"Compared {_expectedPost.Count} expected account(s) on {SelectedFork}."
+            : $"{mismatches} field(s) differ from fixture expected post on {SelectedFork}.";
+        AccountStateRows.Add(mismatches == 0
+            ? "  MATCH — post-state agrees with fixture expected"
+            : $"  {mismatches} expected-post mismatch(es)");
+    }
+
+    [RelayCommand]
+    private void ClearPrestate()
+    {
+        _extraAccounts.Clear();
+        _expectedPost.Clear();
+        _lastFixturePostMatches = null;
+        _lastFixtureNote = "";
+        _baseFeeWei = _gasPriceWei = _maxFeeWei = _maxPriorityWei = null;
+        _txType = 0;
+        _txNonce = 0;
+        _accessList = null;
+        _authorizations = null;
+        PrestateSource = "";
+        RebuildPrestateRows();
+        StatusMessage = "Pre-state cleared";
+    }
+
+    [RelayCommand]
+    private void TogglePrestate() => IsPrestateExpanded = !IsPrestateExpanded;
+
+    private void RebuildPrestateRows()
+    {
+        PrestateAccountRows.Clear();
+        foreach (var a in _extraAccounts)
+        {
+            BytecodeExecutionService.TryParseHexBytes(a.CodeHex, out var code);
+            var slots = a.StorageHex?.Count ?? 0;
+            PrestateAccountRows.Add(
+                $"{a.AddressHex}  bal={a.BalanceWei}  nonce={a.Nonce}  code={code.Length}B  storage={slots}");
+        }
+
+        PrestateSummary = _extraAccounts.Count == 0
+            ? "No extra accounts — File → Load Pre-state JSON"
+            : $"{_extraAccounts.Count} extra account(s)" +
+              (string.IsNullOrEmpty(PrestateSource) ? "" : $" · {PrestateSource}");
+        NotifyExecutionChrome();
+    }
 
     [RelayCommand]
     private async Task RunBytecodeAsync()
     {
-        if (string.IsNullOrWhiteSpace(BytecodeInput))
+        var hasBox = BytecodeExecutionService.TryParseHexBytes(BytecodeInput, out var boxCode) && boxCode.Length > 0;
+        var hasPreTo = _extraAccounts.Any(a =>
+            a.AddressHex.Equals(TxTo, StringComparison.OrdinalIgnoreCase) &&
+            BytecodeExecutionService.TryParseHexBytes(a.CodeHex, out var c) && c.Length > 0);
+        var isCreate = string.IsNullOrWhiteSpace(TxTo) || TxTo.Trim() is "0x" or "0x0" or "0x00";
+        var hasCalldata = BytecodeExecutionService.TryParseHexBytes(CallDataHex, out var cd) && cd.Length > 0;
+        if (!hasBox && !hasPreTo && !(isCreate && (hasBox || hasCalldata)))
         {
-            StatusMessage = "Paste hex bytecode first (e.g. 6005600301...)";
+            StatusMessage = "Need code at To (paste hex, load a fixture/pre-state), or a CREATE (empty To + initcode).";
             return;
         }
 
@@ -513,8 +803,17 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                 foreach (var line in run.StateDiff)
                     AccountStateRows.Add("  " + line);
             }
+            _postStorage = run.PostStorage;
+            foreach (var (addr, slots) in run.PostStorage)
+            {
+                if (slots.Count == 0) continue;
+                AccountStateRows.Add($"storage {addr}:");
+                foreach (var s in slots)
+                    AccountStateRows.Add("  " + s);
+            }
 
-            PopulateFromResult(run.Result, isBytecodeRun: true);
+            AppendExpectedDiff(run);
+            PopulateFromResult(run.Result, isBytecodeRun: true, runMeta: run);
         }
         catch (OperationCanceledException)
         {
@@ -560,6 +859,18 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         BytecodeInput = string.Empty;
         CallDataHex = string.Empty;
+        _extraAccounts.Clear();
+        _expectedPost.Clear();
+        _lastFixturePostMatches = null;
+        _lastFixtureNote = "";
+        _baseFeeWei = _gasPriceWei = _maxFeeWei = _maxPriorityWei = null;
+        _txType = 0;
+        _txNonce = 0;
+        _accessList = null;
+        _authorizations = null;
+        PrestateSource = "";
+        RebuildPrestateRows();
+        IsPrestateExpanded = false;
         SearchQuery = string.Empty;
         PcSearch = string.Empty;
         IsBytecodeMode = false;
@@ -670,7 +981,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private void RefreshResultExplain()
     {
         var (verdict, explain) = WorkbenchResultText.Build(
-            HasTrace, LastRunSuccess, ResultBanner, ErrorText, ReturnDataHex, StorageRows);
+            HasTrace, LastRunSuccess, ResultBanner, ErrorText, ReturnDataHex, StorageRows,
+            _lastFixturePostMatches, _lastFixtureNote);
         ResultVerdict = verdict;
         ResultExplain = explain;
     }
@@ -918,36 +1230,30 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             });
         }
 
-        var gasUsed = result.GasUsed;
-        var refund = result.GasRefundCounter;
-        GasTreeNodes.Add(new GasNodeViewModel
+        if (runMeta?.GasTree != null)
         {
-            DisplayText = $"▼ TOTAL USED: {gasUsed:N0}",
-            Indent = new(0, 0, 0, 8),
-            Color = "#FFFFFF"
-        });
-        GasTreeNodes.Add(new GasNodeViewModel
+            foreach (var line in GasTreeRenderer.Render(runMeta.GasTree)
+                         .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                GasTreeNodes.Add(new GasNodeViewModel
+                {
+                    DisplayText = line,
+                    Indent = new(4, 1),
+                    Color = line.Contains("canonical", StringComparison.OrdinalIgnoreCase)
+                        ? "#FFFFFF"
+                        : "#E0E0E0"
+                });
+            }
+        }
+        else
         {
-            DisplayText = $"├── Tx gas limit: {TxGasLimit:N0}",
-            Indent = new(16, 2)
-        });
-        GasTreeNodes.Add(new GasNodeViewModel
-        {
-            DisplayText = $"├── msg.value: {TxValueWei} wei",
-            Indent = new(16, 2)
-        });
-        GasTreeNodes.Add(new GasNodeViewModel
-        {
-            DisplayText = $"├── Steps: {_currentTrace.Count}",
-            Indent = new(16, 2),
-            Color = "#FFD700"
-        });
-        GasTreeNodes.Add(new GasNodeViewModel
-        {
-            DisplayText = $"└── Refund counter: {refund:N0}",
-            Indent = new(16, 2),
-            Color = "#00D4AA"
-        });
+            GasTreeNodes.Add(new GasNodeViewModel
+            {
+                DisplayText = $"TOTAL USED: {result.GasUsed:N0}  (no tree — same ExecutionResult)",
+                Indent = new(0, 0, 0, 8),
+                Color = "#FFFFFF"
+            });
+        }
 
         if (!isBytecodeRun)
         {
@@ -982,8 +1288,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
 
         StatusMessage = isBytecodeRun
-            ? $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {gasUsed:N0} gas | refund {refund}"
-            : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {gasUsed:N0} gas";
+            ? $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {result.GasUsed:N0} gas | refund {result.GasRefundCounter}"
+            : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {result.GasUsed:N0} gas";
         RefreshInspectorTexts();
         RefreshResultExplain();
     }

@@ -318,9 +318,15 @@ namespace Schlieren.Core.Execution
                 CallType = _callType,
                 ContractAddress = ContractAddress == Address.Zero ? null : ContractAddress.ToString(),
                 CallerAddress = _callerAddress?.ToString(),
-                CodeAddress = _codeAddress?.ToString()
+                CodeAddress = _codeAddress?.ToString(),
+                OutputData = IsCallLikeOp(op) && LastReturnData is { Length: > 0 }
+                    ? LastReturnData.ToArray()
+                    : null
             });
         }
+
+        private static bool IsCallLikeOp(string op) =>
+            op is "CALL" or "STATICCALL" or "DELEGATECALL" or "CALLCODE" or "CREATE" or "CREATE2";
 
         public void TraceStorageRead(BigInteger key, BigInteger value)
         {

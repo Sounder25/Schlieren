@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.RegularExpressions;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.EELS.Tests.Harness;
 
 namespace Schlieren.EELS.Tests.Conformance;
@@ -22,10 +23,56 @@ public static class Layer1DiagnosisBridge
     public static IReadOnlyList<DivergenceDiagnostics.Diagnosis> DiagnoseCase(
         EelsStateCase testCase,
         EelsCaseExecutionReport report)
+        => DiagnoseCausal(testCase, report).Diagnoses;
+
+    public sealed record CausalDiagnosisBundle(
+        IReadOnlyList<DivergenceDiagnostics.Diagnosis> Diagnoses,
+        string Fingerprint,
+        string Title,
+        string Grade,
+        string Phase,
+        string RuleId,
+        string InspectorBody);
+
+    /// <summary>Causal fingerprint + ranked diagnoses for Case Inspector / clusters.</summary>
+    public static CausalDiagnosisBundle DiagnoseCausal(
+        EelsStateCase testCase,
+        EelsCaseExecutionReport report)
     {
         var results = new List<DivergenceDiagnostics.Diagnosis>();
         if (report.Mismatches.Count == 0)
-            return results;
+            return new(results, "none", "", "POSSIBLE", "FINAL", "none", "");
+
+        var ev = FailureEvidenceFactory.From(
+            report.CaseId,
+            testCase.ForkName ?? "",
+            testCase.FixturePath ?? "",
+            testCase.Transaction,
+            testCase.Sender,
+            testCase.BlockContext.Coinbase,
+            report.Mismatches,
+            report.GasUsed,
+            report.GasRefundCounter,
+            report.ExecutionSucceeded,
+            report.Error,
+            report.LastOpcode,
+            report.LastPc,
+            testCase.ExpectedException,
+            testCase.ExpectedReceiptStatus);
+
+        var causal = CausalDiagnosisEngine.Analyze(ev);
+        foreach (var d in causal.Ranked)
+            results.Add(ToDiagnosis(d));
+
+        var body = FormatInspector(causal.Root);
+
+        if (causal.Root.Grade is DiagnosisGrade.Proven or DiagnosisGrade.Strong)
+        {
+            return new CausalDiagnosisBundle(
+                results.Take(3).ToList(), causal.Fingerprint, causal.Root.Title,
+                causal.Root.Grade.ToString().ToUpperInvariant(),
+                causal.FirstPhase.ToLabel(), causal.Root.RuleId, body);
+        }
 
         var mismatches = report.Mismatches;
         var gasPrice = ResolveEffectiveGasPrice(testCase);
@@ -195,8 +242,57 @@ public static class Layer1DiagnosisBridge
 
         results.AddRange(StructuralPatternRules.Evaluate(ctx));
 
-        return results;
+        return new CausalDiagnosisBundle(
+            results, causal.Fingerprint, causal.Root.Title,
+            causal.Root.Grade.ToString().ToUpperInvariant(),
+            causal.FirstPhase.ToLabel(), causal.Root.RuleId, body);
     }
+
+    private static DivergenceDiagnostics.Diagnosis ToDiagnosis(ScoredDiagnosis d)
+    {
+        var conf = d.Grade switch
+        {
+            DiagnosisGrade.Proven => DivergenceDiagnostics.Confidence.Certain,
+            DiagnosisGrade.Strong => DivergenceDiagnostics.Confidence.High,
+            _ => DivergenceDiagnostics.Confidence.Medium
+        };
+        return new DivergenceDiagnostics.Diagnosis(
+            Category: d.RuleId,
+            Summary: d.Title,
+            ProtocolRule: d.ProtocolRule,
+            CodeBoundary: d.CodeBoundary,
+            Confidence: conf,
+            Evidence: $"[{d.Grade.ToString().ToUpperInvariant()} {d.Score}] {d.Proof}");
+    }
+
+    private static string FormatInspector(ScoredDiagnosis d) =>
+        $"""
+        ROOT CAUSE — {d.Grade.ToString().ToUpperInvariant()}  ({d.Score})
+
+        Rule:
+        {d.RuleId}
+
+        Phase:
+        {d.Phase.ToLabel()}
+
+        Why:
+        {d.Why}
+
+        Proof:
+        {d.Proof}
+
+        Consequences:
+        {d.Consequences}
+
+        Likely fix:
+        {d.LikelyFix}
+
+        Implementation:
+        {d.CodeBoundary}
+
+        Fingerprint:
+        {d.Fingerprint}
+        """;
 
     private static bool IsForkAtLeast(string fork, string name) =>
         fork.Equals(name, StringComparison.OrdinalIgnoreCase)
@@ -240,9 +336,9 @@ public static class Layer1DiagnosisBridge
 
     private static int ConfidenceRank(string confidence) => confidence switch
     {
-        "Certain" => 4,
-        "High" => 3,
-        "Medium" => 2,
+        "PROVEN" or "Proven" or "Certain" => 5,
+        "STRONG" or "Strong" or "High" => 4,
+        "POSSIBLE" or "Possible" or "Medium" => 2,
         "Low" => 1,
         _ => 0
     };

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Schlieren.Core.Execution;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 
@@ -41,4 +42,7 @@ public sealed record EelsCaseExecutionReport(
     long GasRefundCounter,
     bool StateMatches,
     bool ReceiptStatusMatches,
-    IReadOnlyList<string> Mismatches);
+    IReadOnlyList<string> Mismatches,
+    EvmError Error = EvmError.None,
+    string? LastOpcode = null,
+    int LastPc = 0);

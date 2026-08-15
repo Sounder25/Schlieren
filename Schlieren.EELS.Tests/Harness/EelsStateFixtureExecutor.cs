@@ -80,6 +80,7 @@ public sealed class EelsStateFixtureExecutor
         var stateMatches = CompareExpectedState(testCase, globalState, mismatches);
         var receiptStatusMatches = CompareReceiptStatus(testCase.ExpectedReceiptStatus, result.IsSuccess, mismatches);
 
+        var last = result.TraceSteps is { Count: > 0 } ? result.TraceSteps[^1] : null;
         return new EelsCaseExecutionReport(
             testCase.CaseId,
             result.IsSuccess,
@@ -89,7 +90,10 @@ public sealed class EelsStateFixtureExecutor
             result.GasRefundCounter,
             stateMatches,
             receiptStatusMatches,
-            mismatches);
+            mismatches,
+            result.Error,
+            last?.Op,
+            last?.Pc ?? 0);
     }
 
     /// <summary>

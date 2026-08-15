@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Schlieren.Core.Execution;
 using Schlieren.EELS.Tests.Conformance;
 using Schlieren.EELS.Tests.Harness;
 
@@ -18,7 +19,11 @@ public sealed record Layer1DiagnosisInfo(
     string Summary,
     string ProtocolRule,
     string CodeBoundary,
-    string Evidence);
+    string Evidence,
+    string? InspectorBody = null,
+    string? Fingerprint = null,
+    string? Phase = null,
+    int Score = 0);
 
 /// <summary>
 /// One update fired per test case — drives the live conformance panel.
@@ -100,6 +105,20 @@ public static class ConformanceRunService
 
     public static string BuildClusterKey(string primaryCategory, string eipCluster)
         => $"{primaryCategory} · {eipCluster}";
+
+    private static string MapLegacyConfidence(DivergenceDiagnostics.Confidence c) => c switch
+    {
+        DivergenceDiagnostics.Confidence.Certain => "PROVEN",
+        DivergenceDiagnostics.Confidence.High => "STRONG",
+        _ => "POSSIBLE"
+    };
+
+    private static int ScoreFromGrade(string grade) => grade switch
+    {
+        "PROVEN" => 92,
+        "STRONG" => 70,
+        _ => 38
+    };
 
     /// <summary>
     /// Run all cases for the given fork, streaming progress updates.
@@ -201,22 +220,29 @@ public static class ConformanceRunService
                     .Distinct(StringComparer.Ordinal)
                     .OrderBy(x => x, StringComparer.Ordinal)
                     .ToList();
-                var primary = categories.FirstOrDefault() ?? "other";
-                var eip = ExtractEipCluster(c.FixturePath);
-                var cluster = BuildClusterKey(primary, eip);
+                var bundle = Layer1DiagnosisBridge.DiagnoseCausal(c, report);
+                var primary = string.IsNullOrEmpty(bundle.Title)
+                    ? (categories.FirstOrDefault() ?? "other")
+                    : bundle.Title;
+                var eip = $"{c.ForkName} · {bundle.Phase} · {bundle.RuleId}";
+                var cluster = string.IsNullOrEmpty(bundle.Fingerprint) || bundle.Fingerprint == "none"
+                    ? BuildClusterKey(categories.FirstOrDefault() ?? "other", ExtractEipCluster(c.FixturePath))
+                    : bundle.Fingerprint;
                 var summary = mismatches.Count == 0
                     ? "state/receipt mismatch"
                     : string.Join("; ", mismatches.Take(2));
 
-                // Phase 2: Layer 1 DivergenceDiagnostics (Schlieren.Core) via EELS bridge.
-                var layer1 = Layer1DiagnosisBridge.DiagnoseCase(c, report)
-                    .Select(d => new Layer1DiagnosisInfo(
-                        Confidence: d.Confidence.ToString(),
+                var layer1 = bundle.Diagnoses.Select((d, i) => new Layer1DiagnosisInfo(
+                        Confidence: i == 0 ? bundle.Grade : MapLegacyConfidence(d.Confidence),
                         Category: d.Category,
                         Summary: d.Summary,
                         ProtocolRule: d.ProtocolRule,
                         CodeBoundary: d.CodeBoundary,
-                        Evidence: d.Evidence))
+                        Evidence: d.Evidence,
+                        InspectorBody: i == 0 ? bundle.InspectorBody : null,
+                        Fingerprint: bundle.Fingerprint,
+                        Phase: bundle.Phase,
+                        Score: i == 0 ? ScoreFromGrade(bundle.Grade) : 0))
                     .ToList();
 
                 progress.Report(new ConformanceProgress(

@@ -1,0 +1,33 @@
+System.ArgumentNullException: Value cannot be null. (Parameter 'propertyName')
+   at System.Text.Json.ThrowHelper.ThrowArgumentNullException(String parameterName)
+   at System.Text.Json.JsonElement.TryGetProperty(String propertyName, JsonElement& value)
+   at Schlieren.UI.Services.WorkbenchFixtureLoader.TryForkPost(JsonElement postNode, String preferred, String& fork, JsonElement& variant) in C:\projects\Schlieren\Schlieren.UI\Services\WorkbenchFixtureLoader.cs:line 333
+   at Schlieren.UI.Services.WorkbenchFixtureLoader.ParseCase(String name, JsonElement caseNode, String preferredFork) in C:\projects\Schlieren\Schlieren.UI\Services\WorkbenchFixtureLoader.cs:line 113
+   at Schlieren.UI.Services.WorkbenchFixtureLoader.Parse(String json, String preferredFork) in C:\projects\Schlieren\Schlieren.UI\Services\WorkbenchFixtureLoader.cs:line 82
+   at Schlieren.UI.ViewModels.WorkbenchViewModel.ImportContractSource(String text, String sourceName) in C:\projects\Schlieren\Schlieren.UI\ViewModels\WorkbenchViewModel.cs:line 586
+   at Schlieren.UI.Views.MainWindow.OnOpenFixtureInWorkbench(String json, String sourceName) in C:\projects\Schlieren\Schlieren.UI\Views\MainWindow.axaml.cs:line 30
+   at Schlieren.UI.Views.ConformanceView.<.ctor>b__3_0(String json, String name) in C:\projects\Schlieren\Schlieren.UI\Views\ConformanceView.axaml.cs:line 17
+   at Schlieren.UI.ViewModels.ConformanceViewModel.OpenFixturePath(String path) in C:\projects\Schlieren\Schlieren.UI\ViewModels\ConformanceViewModel.cs:line 279
+   at Schlieren.UI.ViewModels.ConformanceViewModel.OpenSelectedInWorkbench() in C:\projects\Schlieren\Schlieren.UI\ViewModels\ConformanceViewModel.cs:line 253
+   at CommunityToolkit.Mvvm.Input.RelayCommand.Execute(Object parameter)
+   at Avalonia.Controls.Button.OnClick()
+   at Avalonia.Controls.Button.OnPointerReleased(PointerReleasedEventArgs e)
+   at Avalonia.Reactive.LightweightObservableBase`1.PublishNext(T value)
+   at Avalonia.Interactivity.EventRoute.RaiseEventImpl(RoutedEventArgs e)
+   at Avalonia.Interactivity.Interactive.RaiseEvent(RoutedEventArgs e)
+   at Avalonia.Input.MouseDevice.MouseUp(IMouseDevice device, UInt64 timestamp, IInputRoot root, Point p, PointerPointProperties props, KeyModifiers inputModifiers, IInputElement hitTest)
+   at Avalonia.Input.MouseDevice.ProcessRawEvent(RawPointerEventArgs e)
+   at Avalonia.Input.InputManager.ProcessInput(RawInputEventArgs e)
+   at Avalonia.Threading.Dispatcher.Send(SendOrPostCallback action, Object arg, Nullable`1 priority)
+   at Avalonia.Controls.TopLevel.HandleInput(RawInputEventArgs e)
+   at Avalonia.Win32.WindowImpl.AppWndProc(IntPtr hWnd, UInt32 msg, IntPtr wParam, IntPtr lParam)
+   at Avalonia.Win32.WindowImpl.WndProcMessageHandler(IntPtr hWnd, UInt32 msg, IntPtr wParam, IntPtr lParam)
+   at Avalonia.Win32.Interop.UnmanagedMethods.DispatchMessage(MSG& lpmsg)
+   at Avalonia.Win32.Win32DispatcherImpl.RunLoop(CancellationToken cancellationToken)
+   at Avalonia.Threading.DispatcherFrame.Run(IControlledDispatcherImpl impl)
+   at Avalonia.Threading.Dispatcher.PushFrame(DispatcherFrame frame)
+   at Avalonia.Threading.Dispatcher.MainLoop(CancellationToken cancellationToken)
+   at Avalonia.Controls.ApplicationLifetimes.ClassicDesktopStyleApplicationLifetime.StartCore(String[] args)
+   at Avalonia.Controls.ApplicationLifetimes.ClassicDesktopStyleApplicationLifetime.Start(String[] args)
+   at Avalonia.ClassicDesktopStyleApplicationLifetimeExtensions.StartWithClassicDesktopLifetime(AppBuilder builder, String[] args, Action`1 lifetimeBuilder)
+   at Schlieren.UI.Program.Main(String[] args) in C:\projects\Schlieren\Schlieren.UI\Program.cs:line 29

@@ -221,7 +221,7 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         HasSelectedFailure = true;
         DetailTitle = row.CaseId;
         DetailSubtitle = row.HasLayer1
-            ? $"{row.PrimaryCategory} · {row.EipCluster} · {row.Layer1Headline}"
+            ? $"{row.Layer1Diagnoses[0].Confidence} · {row.ClusterKey}"
             : $"{row.PrimaryCategory} · {row.EipCluster} · gas {row.GasUsed:N0}";
         DetailBody = row.BuildDetailBody();
         GasHint = row.BuildGasHint();
@@ -234,6 +234,55 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
     private void ClearSelection()
     {
         ClearSelectionUi();
+    }
+
+    /// <summary>json, file name, suite fork, failing case id.</summary>
+    public event Action<string, string, string, string>? OpenInWorkbenchRequested;
+
+    [RelayCommand]
+    private void OpenSelectedInWorkbench()
+    {
+        var path = SelectedFailure?.FixturePath;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            StatusMessage = "No fixture file on this row. Use OPEN FIXTURE and pick a JSON from the suite.";
+            StatusColor = "#f59e0b";
+            return;
+        }
+
+        OpenFixturePath(path);
+    }
+
+    /// <summary>Read a state_test JSON and ask the shell to load it in the workbench.</summary>
+    public bool OpenFixturePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            StatusMessage = "Fixture file not found.";
+            StatusColor = "#ef4444";
+            return false;
+        }
+
+        string json;
+        try
+        {
+            json = File.ReadAllText(path);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Cannot read fixture: {ex.Message}";
+            StatusColor = "#ef4444";
+            return false;
+        }
+
+        var name = Path.GetFileName(path);
+        var caseId = SelectedFailure?.CaseId ?? "";
+        OpenInWorkbenchRequested?.Invoke(json, name, SelectedFork, caseId);
+        StatusMessage = $"Opened {name} ({SelectedFork}" +
+                        (string.IsNullOrEmpty(caseId) ? "" : $", {caseId}") +
+                        ") in workbench — F5 compares to fixture expected post.";
+        StatusColor = "#22c55e";
+        return true;
     }
 
     [RelayCommand]
@@ -440,13 +489,28 @@ public sealed class ConformanceFailureRow
     public string GasLine => $"gasUsed={GasUsed:N0}  refundCounter={GasRefundCounter:N0}";
     public bool HasLayer1 => Layer1Diagnoses.Count > 0;
     public string Layer1Headline => HasLayer1
-        ? $"[{Layer1Diagnoses[0].Confidence}] {Layer1Diagnoses[0].Summary}"
+        ? $"{Layer1Diagnoses[0].Confidence} — {Layer1Diagnoses[0].Summary}"
         : string.Empty;
     public string Layer1Body
     {
         get
         {
             if (!HasLayer1) return string.Empty;
+            if (!string.IsNullOrWhiteSpace(Layer1Diagnoses[0].InspectorBody))
+            {
+                if (Layer1Diagnoses.Count == 1)
+                    return Layer1Diagnoses[0].InspectorBody!;
+                var ranked = new StringBuilder();
+                ranked.AppendLine(Layer1Diagnoses[0].InspectorBody);
+                ranked.AppendLine();
+                ranked.AppendLine("OTHER CANDIDATES");
+                for (int i = 1; i < Layer1Diagnoses.Count; i++)
+                {
+                    var d = Layer1Diagnoses[i];
+                    ranked.AppendLine($"{i}. [{d.Confidence}] {d.Category} — {d.Summary}");
+                }
+                return ranked.ToString().TrimEnd();
+            }
             var sb = new StringBuilder();
             for (int i = 0; i < Layer1Diagnoses.Count; i++)
             {
@@ -464,7 +528,7 @@ public sealed class ConformanceFailureRow
 
     /// <summary>One-line strip for the failures list (Layer 1 when present).</summary>
     public string DiagnosisLine => HasLayer1
-        ? $"L1 [{Layer1Diagnoses[0].Confidence}] {Layer1Diagnoses[0].Category}: {Layer1Diagnoses[0].Summary}"
+        ? $"[{Layer1Diagnoses[0].Confidence}] {Layer1Diagnoses[0].Category}: {Layer1Diagnoses[0].Summary}"
         : string.Empty;
 
     public ConformanceFailureRow(
@@ -508,9 +572,18 @@ public sealed class ConformanceFailureRow
         sb.AppendLine();
         if (HasLayer1)
         {
-            sb.AppendLine($"LAYER 1 DIAGNOSES ({Layer1Diagnoses.Count})");
-            sb.AppendLine(Layer1Body);
-            sb.AppendLine();
+            var head = Layer1Diagnoses[0];
+            if (!string.IsNullOrWhiteSpace(head.InspectorBody))
+            {
+                sb.AppendLine(head.InspectorBody);
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine($"DIAGNOSES ({Layer1Diagnoses.Count})");
+                sb.AppendLine(Layer1Body);
+                sb.AppendLine();
+            }
         }
         sb.AppendLine("FIXTURE");
         sb.AppendLine(string.IsNullOrEmpty(FixturePath) ? "(unknown)" : FixturePath);
@@ -529,6 +602,9 @@ public sealed class ConformanceFailureRow
 
     public string BuildGasHint()
     {
+        if (HasLayer1 && !string.IsNullOrWhiteSpace(Layer1Diagnoses[0].InspectorBody))
+            return "Root cause is the first divergent phase. Downstream balance/storage/missing-account lines are consequences, not competing causes.";
+
         if (PrimaryCategory.Equals("balance", StringComparison.OrdinalIgnoreCase))
         {
             return "Balance cluster — often gas residual / refund (EIP-3529) or coinbase priority fee " +
@@ -589,5 +665,5 @@ public sealed partial class ConformanceClusterRow : ObservableObject
     }
 
     private void UpdateDisplay()
-        => DisplayLine = $"{Count,4}  {Key}";
+        => DisplayLine = $"{Count,4}  {PrimaryCategory}  ·  {Key}";
 }

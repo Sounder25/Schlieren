@@ -8,7 +8,9 @@ public static class WorkbenchResultText
         string resultBanner,
         string errorText,
         string returnDataHex,
-        IReadOnlyList<string> storageRows)
+        IReadOnlyList<string> storageRows,
+        bool? fixturePostMatches = null,
+        string? fixtureNote = null)
     {
         if (!hasTrace && resultBanner.StartsWith("No run", StringComparison.OrdinalIgnoreCase))
         {
@@ -24,10 +26,26 @@ public static class WorkbenchResultText
                 "The engine threw. This is not a contract revert. Check the fork matches the opcode/precompile (P256VERIFY needs Osaka) and read the red error line.");
         }
 
+        // Fixture expected post is the same check Conformance uses. EVM "success"
+        // only means no revert — it is not a suite pass.
+        if (fixturePostMatches == false)
+        {
+            var evm = lastRunSuccess ? "The EVM did not revert." : "The EVM reverted or OOGed.";
+            var extra = string.IsNullOrWhiteSpace(fixtureNote) ? "" : " " + fixtureNote;
+            return ("MISMATCH",
+                evm + " Post-state does not match the fixture expected accounts (same check as Conformance)." + extra);
+        }
+
+        if (fixturePostMatches == true)
+        {
+            return ("MATCH",
+                "Post-state matches the fixture expected accounts — same pass condition as Conformance. EVM revert/success is separate.");
+        }
+
         if (!lastRunSuccess)
         {
             var why = string.IsNullOrWhiteSpace(errorText)
-                ? "The transaction reverted or ran out of gas."
+                ? "The transaction reverted or ran out of gas. No fixture expected-post was loaded, so this is EVM outcome only."
                 : errorText;
             return ("FAIL", why);
         }

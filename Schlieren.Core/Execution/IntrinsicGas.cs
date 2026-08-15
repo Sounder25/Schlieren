@@ -61,7 +61,9 @@ public static class IntrinsicGas
             // Contract creation surcharge
             if (tx.To == null)
             {
-                gas += TxCreate;
+                // EIP-2 (Homestead+): 32000-gas creation surcharge. Frontier: no surcharge.
+                if (rules.HasCreateTxSurcharge)
+                    gas += TxCreate;
                 // EIP-3860 (Shanghai+): 2 gas per 32-byte word of initcode
                 if (rules.HasEip3860InitcodeLimit)
                     gas += 2UL * ((ulong)(tx.Data.Length + 31) / 32);

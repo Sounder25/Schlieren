@@ -38,6 +38,18 @@ public sealed class BytecodeRunOptions
     public string CallerFundWei { get; init; } = "1000000000000000000000000";
     /// <summary>Additional accounts (callees, tokens, impls) loaded before the tx.</summary>
     public IReadOnlyList<WorkbenchAccountSeed>? ExtraAccounts { get; init; }
+    /// <summary>When set, used as block base fee (wei) instead of BaseFeeGwei×1e9.</summary>
+    public string? BaseFeeWei { get; init; }
+    /// <summary>When set, used as tx gas price / max fee (wei) instead of GasPriceGwei×1e9.</summary>
+    public string? GasPriceWei { get; init; }
+    public string? MaxFeeWei { get; init; }
+    public string? MaxPriorityWei { get; init; }
+    public byte TxType { get; init; }
+    public IReadOnlyList<AccessListEntry>? AccessList { get; init; }
+    public IReadOnlyList<Eip7702Authorization>? AuthorizationList { get; init; }
+    public ulong Nonce { get; init; }
+    /// <summary>Extra addresses to snapshot (fixture expected-post, created accounts).</summary>
+    public IReadOnlyList<string>? SnapshotAddresses { get; init; }
 }
 
 /// <summary>Live run outcome with post-state balances for the inspector.</summary>
@@ -52,6 +64,17 @@ public sealed class WorkbenchRunResult
     public int CallDataSize { get; init; }
     public string Fork { get; init; } = "";
     public IReadOnlyList<string> StateDiff { get; init; } = Array.Empty<string>();
+    /// <summary>Post-tx storage per address (hex addr → "slot k = v" lines).</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> PostStorage { get; init; } =
+        new Dictionary<string, IReadOnlyList<string>>();
+    /// <summary>Gas tree built from this same <see cref="Result"/> — not a second execution.</summary>
+    public GasTreeNode? GasTree { get; init; }
+    public ulong IntrinsicGas { get; init; }
+    public bool IsCreate { get; init; }
+    public IReadOnlyDictionary<string, string> PostBalances { get; init; } =
+        new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, ulong> PostNonces { get; init; } =
+        new Dictionary<string, ulong>();
 }
 
 /// <summary>
@@ -108,45 +131,63 @@ public static class BytecodeExecutionService
     {
         options ??= new BytecodeRunOptions();
 
-        if (!TryParseHexBytes(hexBytecode, out var code) || code.Length == 0)
+        if (!TryParseHexBytes(hexBytecode, out var code))
             return null;
 
         if (!TryParseHexBytes(options.CallDataHex, out var callData))
             return null;
 
         Address callerAddr;
-        Address contractAddr;
+        Address? contractAddr;
         Address coinbase;
         try
         {
             callerAddr = Address.FromHex(string.IsNullOrWhiteSpace(options.CallerHex)
                 ? "0x0000000000000000000000000000000000000001"
                 : options.CallerHex);
-            contractAddr = Address.FromHex(string.IsNullOrWhiteSpace(options.ContractHex)
-                ? "0x00000000000000000000000000000000000000aa"
-                : options.ContractHex);
             coinbase = Address.FromHex(string.IsNullOrWhiteSpace(options.CoinbaseHex)
                 ? "0x0000000000000000000000000000000000000000"
                 : options.CoinbaseHex);
+            contractAddr = ParseOptionalTo(options.ContractHex);
         }
         catch
         {
             return null;
         }
 
-        if (!BigInteger.TryParse(options.ValueWei, out var callValue))
+        if (!WorkbenchQuantity.TryBigInteger(options.ValueWei, out var callValue))
             callValue = BigInteger.Zero;
-        if (!BigInteger.TryParse(options.CallerFundWei, out var fund) || fund < 0)
+        if (!WorkbenchQuantity.TryBigInteger(options.CallerFundWei, out var fund) || fund < 0)
             fund = BigInteger.Pow(10, 24);
 
         var state = new GlobalState();
-        state.SetCode(contractAddr, code);
         state.SetNonce(callerAddr, 0);
         state.SetBalance(callerAddr, fund);
         if (!TryApplySeeds(state, options.ExtraAccounts))
             return null;
 
-        var tracked = new List<Address> { callerAddr, contractAddr };
+        var isCreate = contractAddr is null;
+        if (!isCreate && code.Length > 0)
+            state.SetCode(contractAddr!.Value, code);
+
+        // CREATE uses bytecode box / calldata as initcode. Message-call needs code or a precompile.
+        byte[] toCode = Array.Empty<byte>();
+        if (!isCreate)
+        {
+            toCode = await state.GetCodeAsync(contractAddr!.Value, ct);
+            var rulesProbe = ForkRulesFactory.For(options.ForkLabel);
+            var isPre = Precompiles.IsPrecompile(contractAddr.Value, rulesProbe);
+            if (toCode.Length == 0 && !isPre)
+                return null;
+        }
+        else if (callData.Length == 0 && code.Length > 0)
+        {
+            callData = code;
+        }
+
+        var tracked = new List<Address> { callerAddr };
+        if (contractAddr.HasValue)
+            tracked.Add(contractAddr.Value);
         if (options.ExtraAccounts is { Count: > 0 })
         {
             foreach (var seed in options.ExtraAccounts)
@@ -155,26 +196,40 @@ public static class BytecodeExecutionService
                     tracked.Add(extra);
             }
         }
+        if (options.SnapshotAddresses is { Count: > 0 })
+        {
+            foreach (var hex in options.SnapshotAddresses)
+            {
+                if (TryAddress(hex, out var extra))
+                    tracked.Add(extra);
+            }
+        }
 
         var pre = await SnapshotAsync(state, tracked, ct);
 
-        var baseFeeWei = options.BaseFeeGwei * 1_000_000_000UL;
-        var gasPriceWei = options.GasPriceGwei * 1_000_000_000UL;
         var rules = ForkRulesFactory.For(options.ForkLabel);
+        var baseFeeWei = ResolveWei(options.BaseFeeWei, options.BaseFeeGwei);
+        var gasPriceWei = ResolveWei(options.GasPriceWei, options.GasPriceGwei);
+        BigInteger maxFee = gasPriceWei;
+        BigInteger maxPrio = BigInteger.Zero;
+        if (!string.IsNullOrWhiteSpace(options.MaxFeeWei) &&
+            WorkbenchQuantity.TryBigInteger(options.MaxFeeWei, out var mf))
+            maxFee = mf;
+        if (!string.IsNullOrWhiteSpace(options.MaxPriorityWei) &&
+            WorkbenchQuantity.TryBigInteger(options.MaxPriorityWei, out var mp))
+            maxPrio = mp;
         var block = new BlockContext
         {
             ChainId = options.ChainId,
             Number = 1,
             Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-            GasLimit = options.BlockGasLimit,
+            GasLimit = Math.Max(options.BlockGasLimit, options.GasLimit == 0 ? 10_000_000 : options.GasLimit),
             Coinbase = coinbase,
-            BaseFeePerGas = baseFeeWei,
+            BaseFeePerGas = baseFeeWei > ulong.MaxValue ? ulong.MaxValue : (ulong)baseFeeWei,
             Rules = rules
         };
 
-        var gasLimit = Math.Min(options.GasLimit, options.BlockGasLimit);
-        if (gasLimit == 0)
-            gasLimit = 10_000_000;
+        var gasLimit = options.GasLimit == 0 ? 10_000_000 : options.GasLimit;
 
         var tx = new Transaction
         {
@@ -184,7 +239,12 @@ public static class BytecodeExecutionService
             Data = callData,
             GasLimit = gasLimit,
             GasPrice = gasPriceWei,
-            Nonce = 0,
+            MaxFeePerGas = maxFee,
+            MaxPriorityFeePerGas = maxPrio,
+            TxType = options.TxType,
+            AccessList = options.AccessList ?? Array.Empty<AccessListEntry>(),
+            AuthorizationList = options.AuthorizationList ?? Array.Empty<Eip7702Authorization>(),
+            Nonce = options.Nonce,
             Authorization = TransactionAuthorization.Impersonated,
             EnableTracing = true
         };
@@ -207,21 +267,51 @@ public static class BytecodeExecutionService
         }
 
         var callerBal = await state.GetBalanceAsync(callerAddr, ct);
-        var contractBal = await state.GetBalanceAsync(contractAddr, ct);
+        var contractBal = contractAddr.HasValue
+            ? await state.GetBalanceAsync(contractAddr.Value, ct)
+            : BigInteger.Zero;
         var post = await SnapshotAsync(state, tracked, ct);
+        var tree = GasTreeFromTrace.FromCanonical(tx, rules, result);
+        var intrinsic = tx.Authorization == TransactionAuthorization.Internal
+            ? 0UL
+            : IntrinsicGas.Compute(tx, rules);
 
         return new WorkbenchRunResult
         {
             Result = result,
             CallerAddress = callerAddr.ToString(),
-            ContractAddress = contractAddr.ToString(),
+            ContractAddress = contractAddr?.ToString() ?? "(create)",
             CallerBalanceWei = callerBal.ToString(),
             ContractBalanceWei = contractBal.ToString(),
-            CodeSize = code.Length,
+            CodeSize = toCode.Length,
             CallDataSize = callData.Length,
             Fork = options.ForkLabel,
-            StateDiff = DiffSnapshots(pre, post)
+            StateDiff = DiffSnapshots(pre, post),
+            PostStorage = await SnapshotStorageAsync(state, tracked, ct),
+            GasTree = tree,
+            IntrinsicGas = intrinsic,
+            IsCreate = isCreate,
+            PostBalances = post.ToDictionary(s => s.Address, s => s.Balance, StringComparer.OrdinalIgnoreCase),
+            PostNonces = post.ToDictionary(s => s.Address, s => s.Nonce, StringComparer.OrdinalIgnoreCase)
         };
+    }
+
+    private static Address? ParseOptionalTo(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return null;
+        var t = hex.Trim();
+        if (t is "0x" or "0X" or "0x0" or "0x00") return null;
+        var cleaned = CleanHex(t);
+        if (cleaned.Length == 0 || cleaned.Trim('0').Length == 0) return null;
+        return Address.FromHex(t);
+    }
+
+    private static BigInteger ResolveWei(string? weiText, ulong gweiFallback)
+    {
+        if (!string.IsNullOrWhiteSpace(weiText) &&
+            WorkbenchQuantity.TryBigInteger(weiText, out var wei))
+            return wei;
+        return new BigInteger(gweiFallback) * 1_000_000_000;
     }
 
     private static bool TryApplySeeds(GlobalState state, IReadOnlyList<WorkbenchAccountSeed>? seeds)
@@ -233,7 +323,8 @@ public static class BytecodeExecutionService
                 return false;
             if (!TryParseHexBytes(seed.CodeHex, out var extraCode))
                 return false;
-            if (!BigInteger.TryParse(string.IsNullOrWhiteSpace(seed.BalanceWei) ? "0" : seed.BalanceWei, out var bal))
+            if (!WorkbenchQuantity.TryBigInteger(
+                    string.IsNullOrWhiteSpace(seed.BalanceWei) ? "0" : seed.BalanceWei, out var bal))
                 bal = BigInteger.Zero;
             if (extraCode.Length > 0)
                 state.SetCode(addr, extraCode);
@@ -267,10 +358,23 @@ public static class BytecodeExecutionService
     private static bool TryParseWord(string hex, out BigInteger value)
     {
         value = BigInteger.Zero;
-        if (!TryParseHexBytes(hex, out var bytes))
+        var cleaned = CleanHex(hex ?? "");
+        if (cleaned.Length % 2 == 1)
+            cleaned = "0" + cleaned;
+        if (cleaned.Length == 0)
+        {
+            value = BigInteger.Zero;
+            return true;
+        }
+        try
+        {
+            value = new BigInteger(Convert.FromHexString(cleaned), isUnsigned: true, isBigEndian: true);
+            return true;
+        }
+        catch
+        {
             return false;
-        value = new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
-        return true;
+        }
     }
 
     private sealed record AccountSnap(string Address, string Balance, ulong Nonce, int CodeLen);
@@ -287,6 +391,25 @@ public static class BytecodeExecutionService
             snaps.Add(new AccountSnap(a.ToString(), bal.ToString(), nonce, code.Length));
         }
         return snaps;
+    }
+
+    private static async Task<Dictionary<string, IReadOnlyList<string>>> SnapshotStorageAsync(
+        GlobalState state, IEnumerable<Address> addrs, CancellationToken ct)
+    {
+        var map = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var a in addrs.Distinct())
+        {
+            var keys = await state.GetStorageKeysAsync(a, ct);
+            var lines = new List<string>();
+            foreach (var key in keys.OrderBy(k => k))
+            {
+                var val = await state.GetStorageAtAsync(a, key, ct);
+                if (val == BigInteger.Zero) continue;
+                lines.Add($"slot 0x{key:x} = 0x{val:x}");
+            }
+            map[a.ToString()] = lines;
+        }
+        return map;
     }
 
     private static List<string> DiffSnapshots(List<AccountSnap> pre, List<AccountSnap> post)
