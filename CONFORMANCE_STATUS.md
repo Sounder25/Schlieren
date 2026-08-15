@@ -15,7 +15,7 @@
 | **Prague (v20 full UI)** | tests@v20.0.1 | 13,851 | ~13,463 | ✅ **97.2%** *(includes ported_static; 2026-08-15 UI run)* |
 | **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
 | **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
-| **Unit Tests** | — | 337 | 336 | ✅ **99.7%** (1 pre-existing ForkingGlobalState stub) |
+| **Unit Tests** | — | 349 | 348 | ✅ **99.7%** (1 documented fail: see `docs/FORKING_GLOBALSTATE_UNIT_FAILURE.md`) |
 
 > **Note:** The `tests@v20.0.1` fixture suite (from the new `ethereum/execution-specs` repo) contains
 > 7× more cases than v5.4.0. The v5.4.0 Prague/Cancun suites remain at 100% — those were the final
