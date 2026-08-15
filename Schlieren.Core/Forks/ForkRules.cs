@@ -42,6 +42,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip2930AccessLists       => false;
     public virtual bool HasEip3529RefundCap         => false;
     public virtual bool HasEip3541EfPrefix          => false;
+    public virtual bool HasEip3651WarmCoinbase      => false;  // Shanghai+
     public virtual bool HasEip3860InitcodeLimit     => false;
     public virtual bool HasEip4844BlobTx            => false;
     public virtual int  MaxBlobsPerTransaction      => 0;    // 0 = blob txs not supported; Cancun=6, Prague+=9
@@ -361,6 +362,7 @@ public class ShanghaiRules : ParisRules
     public static new readonly ShanghaiRules Instance = new();
     public override Fork Fork => Fork.Shanghai;
     public override bool HasPush0               => true;
+    public override bool HasEip3651WarmCoinbase => true;
     public override bool HasEip3860InitcodeLimit => true;
 }
 

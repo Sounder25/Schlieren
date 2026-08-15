@@ -277,8 +277,8 @@ public sealed class StateTransition : IStateTransition
                 p256Bytes[18] = 0x01; p256Bytes[19] = 0x00;
                 accessTracker.WarmAddress(new Address(p256Bytes));
             }
-            // EIP-3651: pre-warm coinbase address so COINBASE access is always warm.
-            if (!block.Coinbase.Equals(Address.Zero))
+            // EIP-3651 (Shanghai+): pre-warm coinbase address so COINBASE access is always warm.
+            if (block.Rules.HasEip3651WarmCoinbase && !block.Coinbase.Equals(Address.Zero))
                 accessTracker.WarmAddress(block.Coinbase);
             foreach (var entry in tx.AccessList)
             {
