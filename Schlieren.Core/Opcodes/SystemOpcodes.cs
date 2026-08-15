@@ -22,8 +22,8 @@ public sealed class OpcodeCreate : IOpcode
             !context.Stack.TryPop(out var length))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
-        // Gap 6: EIP-3860 – init code must not exceed 2 × MAX_CODE_SIZE (49152 bytes).
-        if (length > 2 * 24576)
+        // EIP-3860 (Shanghai+) – init code must not exceed 2 × MAX_CODE_SIZE (49152 bytes).
+        if (context.Block.Rules.HasEip3860InitcodeLimit && length > 2 * 24576)
             return (ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1);
 
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
@@ -36,8 +36,10 @@ public sealed class OpcodeCreate : IOpcode
             context.ConsumeGas(memExpGas);
         }
 
-        // EIP-3860 word gas: 2 per 32-byte word of init code, charged before execution.
-        var initCodeWordGas = 2UL * ((ulong)(lengthInt + 31) / 32);
+        // EIP-3860 (Shanghai+) word gas: 2 per 32-byte word of init code, charged before execution.
+        var initCodeWordGas = context.Block.Rules.HasEip3860InitcodeLimit
+            ? 2UL * ((ulong)(lengthInt + 31) / 32)
+            : 0UL;
         // Base CREATE gas: 32000
         context.ConsumeGas(32000 + initCodeWordGas);
 
@@ -515,8 +517,8 @@ public sealed class OpcodeCreate2 : IOpcode
             !context.Stack.TryPop(out var salt))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 
-        // Gap 6: EIP-3860 – init code must not exceed 2 × MAX_CODE_SIZE (49152 bytes).
-        if (length > 2 * 24576)
+        // EIP-3860 (Shanghai+) – init code must not exceed 2 × MAX_CODE_SIZE (49152 bytes).
+        if (context.Block.Rules.HasEip3860InitcodeLimit && length > 2 * 24576)
             return (ExecutionResult.Failure(EvmError.OutOfGas), context.ProgramCounter + 1);
 
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
@@ -529,8 +531,10 @@ public sealed class OpcodeCreate2 : IOpcode
             context.ConsumeGas(memExpGas);
         }
 
-        // EIP-3860 word gas: 2 per 32-byte word of init code.
-        var initCodeWordGas = 2UL * ((ulong)(lengthInt + 31) / 32);
+        // EIP-3860 (Shanghai+) word gas: 2 per 32-byte word of init code.
+        var initCodeWordGas = context.Block.Rules.HasEip3860InitcodeLimit
+            ? 2UL * ((ulong)(lengthInt + 31) / 32)
+            : 0UL;
         // Base CREATE2 gas: 32000 + hash gas (6 per word)
         var hashWordGas = 6UL * ((ulong)(lengthInt + 31) / 32);
         context.ConsumeGas(32000 + initCodeWordGas + hashWordGas);
@@ -1109,19 +1113,29 @@ public sealed class OpcodeSelfDestruct : IOpcode
         var createdInTransaction =
             context.GlobalState.WasCreatedInTransaction(context.ContractAddress);
 
-        // EELS: always transfer balance from originator to beneficiary,
-        // even when balance=0 (this "touches" the beneficiary, creating it).
-        // Self-destruct to self: balance stays (zero is fine).
+        // EELS balance transfer semantics:
+        //
+        // Different beneficiary: add originator balance to beneficiary, then zero originator.
+        //
+        // Self-send (beneficiary == originator):
+        //   Pre-EIP-6780 (Shanghai and earlier): EELS does set_balance(ben, ben+orig) then
+        //     set_balance(orig, 0) — the comment says zero must come AFTER the add in case of
+        //     self-send. Net result: originator is always zeroed.
+        //   EIP-6780 (Cancun+): EELS uses move_ether which reduces then increases the same
+        //     account → net unchanged. Originator is only explicitly zeroed when it was created
+        //     in the same transaction (and is also marked for deletion).
         if (!beneficiary.Equals(context.ContractAddress))
         {
             var benBalance = await context.GlobalState.GetBalanceAsync(beneficiary, ct);
             context.GlobalState.SetBalance(beneficiary, benBalance + balance);
             context.GlobalState.SetBalance(context.ContractAddress, 0);
         }
-        else if (balance > 0 && createdInTransaction)
+        else
         {
-            // EIP-6780: same-transaction creation selfdestructs to itself → burn balance.
-            context.GlobalState.SetBalance(context.ContractAddress, 0);
+            // Self-send: zero unless EIP-6780 is active and this is a pre-existing contract.
+            var shouldZeroOnSelfSend = !rules.HasEip6780SelfdestructRestriction || createdInTransaction;
+            if (shouldZeroOnSelfSend)
+                context.GlobalState.SetBalance(context.ContractAddress, 0);
         }
 
         // EIP-6780 (Shanghai+): account deletion only when created in same transaction.
