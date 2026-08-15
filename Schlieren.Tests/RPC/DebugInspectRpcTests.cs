@@ -9,6 +9,7 @@ using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 using Schlieren.RPC.Handlers;
 using Schlieren.RPC.Server;
+using Schlieren.Tests.Inspect;
 using Xunit;
 
 namespace Schlieren.Tests.RPC;
@@ -31,31 +32,29 @@ public class DebugInspectRpcTests
     }
 
     [Fact]
-    public async Task DebugInspect_GoldenCase_FrontierCreateWithFeePairMismatch_ProvenDiagnosis()
+    public void DebugInspect_IsRegistered()
     {
-        // Golden case from InspectGoldenCase: Frontier CREATE with fee-pair mismatch
+        // J4: Assert debug_inspect is in the registered methods list
         var (globalState, handlers) = BuildFixture();
         var router = new RpcRouter(handlers, NullLogger<RpcRouter>.Instance);
 
-        // Setup: sender with specific balance to trigger mismatch
-        var sender = Address.FromHex("0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff");
-        var coinbase = Address.FromHex("0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba");
-        globalState.SetBalance(sender, 0xa6040); // Actual balance (vs expected 0xf4240)
+        var methods = router.GetRegisteredMethods();
+        Assert.Contains("debug_inspect", methods);
+    }
 
-        var response = await router.ProcessRequest(
-            @"{""jsonrpc"":""2.0"",""id"":1,""method"":""debug_inspect"",""params"":[{
-                ""from"":""0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"",
-                ""to"":null,
-                ""data"":""0x6000"",
-                ""gas"":""0x186a0"",
-                ""gasPrice"":""0xa"",
-                ""fork"":""Frontier"",
-                ""coinbase"":""0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba"",
-                ""mismatches"":[
-                    ""balance mismatch for 0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff: expected=0xf4240, actual=0xa6040"",
-                    ""balance mismatch for 0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba: expected=0x0, actual=0x4e200""
-                ]
-            }]}");
+    [Fact]
+    public async Task DebugInspect_GoldenCase_FrontierCreateWithFeePairMismatch_ProvenDiagnosis()
+    {
+        // J1: Use shared InspectGoldenCase constants (no duplication)
+        var (globalState, handlers) = BuildFixture();
+        var router = new RpcRouter(handlers, NullLogger<RpcRouter>.Instance);
+
+        // Setup: sender with actual balance from golden case
+        var sender = Address.FromHex(InspectGoldenCase.SenderHex);
+        var coinbase = Address.FromHex(InspectGoldenCase.CoinbaseHex);
+        globalState.SetBalance(sender, Convert.ToUInt64(InspectGoldenCase.SenderActual, 16));
+
+        var response = await router.ProcessRequest(InspectGoldenCase.DebugInspectJsonRpc());
 
         using var doc = JsonDocument.Parse(response);
         var result = doc.RootElement.GetProperty("result");
