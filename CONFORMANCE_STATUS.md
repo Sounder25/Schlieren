@@ -1,8 +1,8 @@
 # Schlieren EELS Conformance Status
 **Last Updated:** 2026-08-15  
-**Baseline commit:** `f78e658` (transient staging + ecrecover + StateOverlay tombstone)  
+**Baseline commit:** `2391f1e` (CREATE snapshot restore — 100%)  
 **Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)  
-**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_024201.md`
+**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_032448.md`
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Suite | Fixture Version | Cases | Passing | Status |
 |---|---|---|---|---|
-| **Osaka** | tests@v20.0.1 | 14,516 | **14,514** | ✅ **99.99%** (was 97.80% / 14,197) |
+| **Osaka** | tests@v20.0.1 | 14,516 | **14,516** | ✅ **100.00%** |
 | **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(not re-measured this run)* |
 | **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
 | **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
@@ -78,24 +78,17 @@
 
 ---
 
-## Remaining Osaka Failures (**2 cases** — post 2026-08-15 fixes)
+## Remaining Osaka Failures (**0 cases** — 100% as of 2026-08-15)
 
-Measured 2026-08-15 via `osaka_audit.runsettings` + `EelsTaxonomyDrill`.
+All 14,516 Osaka cases pass as of commit `2391f1e`.
 
-Mismatch lines (not unique cases):
-- `storage` — 2
-
-Both are storage-only mismatches in `ported_static`; no balance or nonce drift.
-Addresses involved: `0xb94f5374...` (slot 0x0) and `0x...5ef94d` (slot 0x0).
-These 2 failures are pre-existing — confirmed present in baseline before this session's fixes.
-They pass when run in isolation; only appear in combined ported_static sweep (ordering artefact).
-
-**Delta since prior baseline (14,197 pass / 319 fail → 14,514 pass / 2 fail): +317 cases fixed.**
+**Delta since session start (14,197 pass / 319 fail → 14,516 pass / 0 fail): +319 cases fixed.**
 
 Fixed root causes (2026-08-15 session):
-1. ~~**ecrecover invalid signature**~~ — fixed: `RecoverAddressForPrecompile` now uses only the exact recId from v; no fallback to alternative IDs.
-2. ~~**StateOverlay.DeleteAccount ghost account**~~ — fixed: tombstone semantics; DeleteAccount no longer bypasses overlay buffer.
-3. ~~**Transient storage leakage via failed CREATE**~~ — fixed: staging overlay for CREATE sub-calls; rollback on EIP-170/deposit-OOG/EIP-3541, commit on success.
+1. ~~**ecrecover invalid signature**~~ — `RecoverAddressForPrecompile` uses only the exact recId from v.
+2. ~~**StateOverlay.DeleteAccount ghost account**~~ — tombstone semantics prevent phantom overlay writes.
+3. ~~**Transient storage leakage via failed CREATE**~~ — staging overlay; rollback on EIP-170/deposit/EIP-3541.
+4. ~~**CREATE sub-call side effects not reverted on failure**~~ — full txOverlay snapshot restore on any top-level CREATE failure (EIP-3541, EIP-170, deposit OOG). Previously only the creation address was reset; sub-call SSTOREs (e.g. into contracts called by initcode) leaked through.
 
 ---
 
