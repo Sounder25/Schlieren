@@ -3,25 +3,20 @@ using Schlieren.Core.Execution.Inspect;
 using Schlieren.Core.Forks;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
+using Schlieren.Tests.Inspect;
 using Xunit;
 
 namespace Schlieren.Tests.Execution.Inspect;
 
 public sealed class InspectionAssemblerTests
 {
-    private static readonly Address Sender =
-        Address.FromHex("0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff");
-    private static readonly Address Coin =
-        Address.FromHex("0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba");
+    private static readonly Address Sender = Address.FromHex(InspectGoldenCase.SenderHex);
+    private static readonly Address Coin = Address.FromHex(InspectGoldenCase.CoinbaseHex);
 
     [Fact]
     public void FrontierCreateMismatches_AreProvenSurcharge()
     {
-        var req = FrontierRequest(
-        [
-            $"balance mismatch for {Sender}: expected=0xf4240, actual=0xa6040",
-            $"balance mismatch for {Coin}: expected=0x0, actual=0x4e200"
-        ]);
+        var req = FrontierRequest(InspectGoldenCase.Mismatches);
         var result = ExecutionResult.Success(53_000);
 
         var inspect = InspectionAssembler.FromCanonical(req, result);
@@ -80,7 +75,7 @@ public sealed class InspectionAssemblerTests
         var block = new BlockContext
         {
             Coinbase = Coin,
-            Rules = ForkRulesFactory.For("Frontier"),
+            Rules = ForkRulesFactory.For(InspectGoldenCase.Fork),
             GasLimit = 30_000_000
         };
         return new InspectRequest { Tx = tx, Block = block, Mismatches = mismatches };
