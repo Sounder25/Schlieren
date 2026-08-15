@@ -876,8 +876,42 @@ public sealed class OpcodeCallCode : IOpcode
 
         ulong extraCost = accessCost + valueTransferCost;
 
-        // Gap 1: EIP-150 – forward at most 63/64 of remaining gas (after extra costs).
-        // Guard against ulong underflow: if remaining < extraCost there is nothing to forward.
+        // ── Pre-EIP-150 (Frontier/Homestead) DELEGATECALL ────────────────────
+        // Homestead DELEGATECALL: cost = CALL_BASE + gas_arg + memory.
+        // If cost > gas_left, OOG-burn the frame. Child gets exactly gas_arg.
+        if (rules.HasPreEip150CallGas)
+        {
+            var requestedGasPre = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+            ulong frontierDelegateCost = accessCost + requestedGasPre; // CALL_BASE + gas_arg
+            context.ConsumeGas(frontierDelegateCost); // OOGs if insufficient
+            // Child gets exactly gas_arg (no stipend on DELEGATECALL)
+            var tx = new Transaction
+            {
+                From = context.ContractAddress,
+                To = context.ContractAddress,
+                Value = value,
+                Data = input,
+                GasLimit = requestedGasPre,
+                GasPrice = context.GasPrice,
+                Authorization = TransactionAuthorization.Internal,
+                EnableTracing = context.CaptureTrace
+            };
+            if (context.SubCall == null)
+                return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
+            var preResult = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+            if (preResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(preResult.TraceSteps);
+            var childUsedPre = preResult.GasUsed > requestedGasPre ? requestedGasPre : preResult.GasUsed;
+            var childRemainingPre = requestedGasPre > childUsedPre ? requestedGasPre - childUsedPre : 0UL;
+            context.RefundGas(childRemainingPre);
+            if (preResult.IsSuccess) context.GasRefundCounter += preResult.GasRefundCounter;
+            context.LastReturnData = preResult.ReturnData;
+            var copyLenPre = Math.Min(retLengthInt, preResult.ReturnData.Length);
+            if (copyLenPre > 0) { var buf = new byte[copyLenPre]; Array.Copy(preResult.ReturnData, 0, buf, 0, copyLenPre); context.Memory.Store(retOffsetInt, buf); }
+            context.Stack.TryPush(preResult.IsSuccess ? 1 : 0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // ── Post-EIP-150 (TangerineWhistle+): 63/64 gas forwarding ──────────
         var remaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
         var availableAfterExtras = remaining > extraCost ? remaining - extraCost : 0UL;
         var maxForward = availableAfterExtras - availableAfterExtras / 64;
@@ -1021,11 +1055,41 @@ public sealed class OpcodeDelegateCall : IOpcode
 
         context.ConsumeGas(accessCost);
 
-        // Gap 1: EIP-150 – forward at most 63/64 of remaining gas.
-        var remaining = context.GasLimit - context.GasUsed;
-        var maxForward = remaining - remaining / 64;
-        var requestedGas = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
-        var gasLimit = Math.Min(requestedGas, maxForward);
+        // Pre-EIP-150 (Frontier/Homestead): cost = CALL_BASE + gas_arg; child gets exactly gas_arg.
+        // No 63/64 cap. OOG-burns if insufficient.
+        if (rules.HasPreEip150CallGas)
+        {
+            var requestedGasPre150 = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+            context.ConsumeGas(requestedGasPre150); // OOGs if gas_left < accessCost + requestedGas
+            var gasLimit150 = requestedGasPre150;
+            ExecutionResult result150;
+            if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
+            {
+                result150 = Precompiles.ExecuteAsResult(codeAddress, input, gasLimit150, context.Block.Rules);
+            }
+            else
+            {
+                if (context.SubCall == null)
+                    return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
+                var tx150 = new Transaction { From = context.Caller, To = context.ContractAddress, Value = context.CallValue, Data = input, GasLimit = gasLimit150, GasPrice = context.GasPrice, Authorization = TransactionAuthorization.Internal, EnableTracing = context.CaptureTrace };
+                result150 = await context.SubCall(tx150, context.IsStatic, null, codeAddress);
+                if (result150.TraceSteps.Count > 0) context.TraceSteps.AddRange(result150.TraceSteps);
+            }
+            var childUsed150 = result150.GasUsed > gasLimit150 ? gasLimit150 : result150.GasUsed;
+            context.RefundGas(gasLimit150 > childUsed150 ? gasLimit150 - childUsed150 : 0UL);
+            if (result150.IsSuccess) context.GasRefundCounter += result150.GasRefundCounter;
+            context.LastReturnData = result150.ReturnData;
+            var copyLen150 = Math.Min(retLengthInt, result150.ReturnData.Length);
+            if (copyLen150 > 0) { var buf150 = new byte[copyLen150]; Array.Copy(result150.ReturnData, 0, buf150, 0, copyLen150); context.Memory.Store(retOffsetInt, buf150); }
+            context.Stack.TryPush(result150.IsSuccess ? 1 : 0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // Post-EIP-150 (TangerineWhistle+): 63/64 forwarding.
+        var remaining = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+        var maxForwardDC = remaining - remaining / 64;
+        var requestedGasDC = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+        var gasLimit = Math.Min(requestedGasDC, maxForwardDC);
 
         context.ConsumeGas(gasLimit);
 
@@ -1037,7 +1101,7 @@ public sealed class OpcodeDelegateCall : IOpcode
         else
         {
             if (context.SubCall == null)
-                 return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
+                return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
             // DELEGATECALL: From=caller, To=ContractAddress, Value=context.CallValue
             // The Value field is set so CALLVALUE returns the inherited value inside
