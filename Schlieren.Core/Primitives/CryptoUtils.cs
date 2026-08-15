@@ -95,6 +95,12 @@ public static class CryptoUtils
     /// Unlike <see cref="RecoverAddress"/>, this does NOT enforce the Low-S rule, because
     /// EELS ecrecover accepts any s in [1, N) (the Low-S rule only applies to tx signing).
     /// Returns null for out-of-range r/s or if recovery produces no valid key.
+    ///
+    /// IMPORTANT: matches EELS ecrecover semantics exactly:
+    ///   • v must be 27 or 28 — other values are invalid (checked by caller in EcRecover).
+    ///   • Only the single recovery ID derived from v is tried (recId = v − 27 = 0 or 1).
+    ///     No fallback to other IDs is performed; a failure on the exact ID means invalid
+    ///     signature → null, matching the spec256k1 library's InvalidSignatureError.
     /// </summary>
     public static Address? RecoverAddressForPrecompile(byte[] hash32, int v, byte[] r, byte[] s)
     {
@@ -113,33 +119,28 @@ public static class CryptoUtils
         if (rBI.CompareTo(BigInteger.One) < 0 || rBI.CompareTo(n) >= 0) return null;
         if (sBI.CompareTo(BigInteger.One) < 0 || sBI.CompareTo(n) >= 0) return null;
 
+        // EELS: only the exact recovery ID from v is used — no fallback.
+        // v=27 → recId=0, v=28 → recId=1. Any other v was already rejected upstream.
+        int? recId = TryMapVToRecoveryId(v);
+        if (recId is not (0 or 1)) return null;
+
         var sig = new ECDSASignature(rBI, sBI);
-        int? preferred = TryMapVToRecoveryId(v);
 
-        foreach (var recId in RecoveryIdCandidates(preferred))
+        try
         {
-            try
-            {
-                var ecKey = ECKey.RecoverFromSignature(recId, sig, hash32, false);
-                if (ecKey == null) continue;
+            var ecKey = ECKey.RecoverFromSignature(recId.Value, sig, hash32, false);
+            if (ecKey == null) return null;
 
-                var pubKey65 = ecKey.GetPubKey(false);
-                var pubKeyNoPrefix = pubKey65.Skip(1).ToArray();
-                var keccak = _keccak.CalculateHash(pubKeyNoPrefix);
-                var addrBytes = keccak.Skip(12).ToArray();
-                return new Address(addrBytes);
-            }
-            catch (ArgumentException ex) when (ex.Message.Contains("Invalid point compression", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-            catch
-            {
-                continue;
-            }
+            var pubKey65 = ecKey.GetPubKey(false);
+            var pubKeyNoPrefix = pubKey65.Skip(1).ToArray();
+            var keccak = _keccak.CalculateHash(pubKeyNoPrefix);
+            var addrBytes = keccak.Skip(12).ToArray();
+            return new Address(addrBytes);
         }
-
-        return null; // no valid recovery id found
+        catch
+        {
+            return null;
+        }
     }
 
     public static Address DeriveContractAddress(Address sender, ulong nonce)
