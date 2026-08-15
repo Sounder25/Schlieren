@@ -1,0 +1,37 @@
+# Build artifacts (we publish to ./publish before docker build)
+bin/
+obj/
+out/
+
+# Keep publish/ for container build
+# publish/
+
+# IDE files
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs and tools (not needed in container)
+docs/
+tools/
+*.md
+!README.md
+
+# Test fixtures (mount as volume instead)
+fixtures/
+
+# Development files
+.agents/
+*.test.csx
+muscle/

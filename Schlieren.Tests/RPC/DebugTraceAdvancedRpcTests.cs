@@ -30,6 +30,14 @@ public class DebugTraceAdvancedRpcTests
         var logs = result.GetProperty("structLogs");
         Assert.True(logs.GetArrayLength() >= 1);
         Assert.Equal("PUSH1", logs[0].GetProperty("op").GetString());
+        
+        // B1: Verify new fields are present
+        Assert.True(logs[0].TryGetProperty("gasCostDec", out var gasCostDec));
+        Assert.False(string.IsNullOrEmpty(gasCostDec.GetString()));
+        Assert.True(logs[0].TryGetProperty("contract", out _));
+        Assert.True(logs[0].TryGetProperty("caller", out _));
+        Assert.True(logs[0].TryGetProperty("callType", out _));
+        Assert.True(logs[0].TryGetProperty("output", out _));
     }
 
     [Fact]
@@ -86,6 +94,12 @@ public class DebugTraceAdvancedRpcTests
         var storage = sstoreLog.GetProperty("storage");
         Assert.True(storage.TryGetProperty("0x0000000000000000000000000000000000000000000000000000000000000000", out var v));
         Assert.Equal("0x0000000000000000000000000000000000000000000000000000000000000001", v.GetString());
+        
+        // B1: Verify new fields
+        Assert.True(sstoreLog.TryGetProperty("gasCostDec", out var gasCostDec));
+        Assert.False(string.IsNullOrEmpty(gasCostDec.GetString()));
+        Assert.True(sstoreLog.TryGetProperty("contract", out _));
+        Assert.True(sstoreLog.TryGetProperty("caller", out _));
     }
 
     [Fact]

@@ -1342,6 +1342,22 @@ public sealed class EthHandlers
         return gas;
     }
 
+    private static string ParseHexGasCostAsDecimal(string gasCostHex)
+    {
+        if (string.IsNullOrWhiteSpace(gasCostHex))
+            return "0";
+        
+        try
+        {
+            var value = EthereumTypes.FromEthHex(gasCostHex);
+            return value.ToString();
+        }
+        catch
+        {
+            return "0";
+        }
+    }
+
     private static object BuildTraceResponse(ExecutionResult result, TraceOptions options)
     {
         var steps = result.TraceSteps.AsEnumerable();
@@ -1361,10 +1377,15 @@ public sealed class EthHandlers
                 op = s.Op,
                 gas = s.Gas,
                 gasCost = s.GasCost,
+                gasCostDec = ParseHexGasCostAsDecimal(s.GasCost),
                 depth = s.Depth,
                 stack = options.DisableStack ? new List<string>() : s.Stack,
                 memory = options.DisableMemory ? new List<string>() : s.Memory,
-                storage = options.DisableStorage ? new Dictionary<string, string>() : s.Storage
+                storage = options.DisableStorage ? new Dictionary<string, string>() : s.Storage,
+                contract = s.ContractAddress,
+                caller = s.CallerAddress,
+                callType = s.CallType?.ToString(),
+                output = s.OutputData != null ? EthereumTypes.ToEthHex(s.OutputData) : null
             }).ToList()
         };
     }
@@ -1388,10 +1409,15 @@ public sealed class EthHandlers
                 op = s.Op,
                 gas = s.Gas,
                 gasCost = s.GasCost,
+                gasCostDec = ParseHexGasCostAsDecimal(s.GasCost),
                 depth = s.Depth,
                 stack = options.DisableStack ? new List<string>() : s.Stack,
                 memory = options.DisableMemory ? new List<string>() : s.Memory,
-                storage = options.DisableStorage ? new Dictionary<string, string>() : s.Storage
+                storage = options.DisableStorage ? new Dictionary<string, string>() : s.Storage,
+                contract = s.ContractAddress,
+                caller = s.CallerAddress,
+                callType = s.CallType?.ToString(),
+                output = s.OutputData != null ? EthereumTypes.ToEthHex(s.OutputData) : null
             }).ToList()
         };
     }
