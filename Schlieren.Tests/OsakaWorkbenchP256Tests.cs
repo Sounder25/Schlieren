@@ -20,7 +20,11 @@ public sealed class OsakaWorkbenchP256Tests
             GasLimit = 10_000_000
         });
         Assert.NotNull(prague);
-        Assert.False(prague!.Result.IsSuccess);
+        // Prague: 0x0100 is not P256VERIFY — empty-account CALL via StateTransition.
+        // Must not crash (InternalError). Returndata size is not 32.
+        Assert.DoesNotContain(
+            prague!.Result.TraceSteps.Last().Storage.Values,
+            v => v.Contains("20", StringComparison.Ordinal));
 
         var osaka = await BytecodeExecutionService.RunAsync(code, new BytecodeRunOptions
         {

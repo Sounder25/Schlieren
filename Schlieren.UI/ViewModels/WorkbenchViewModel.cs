@@ -105,6 +105,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _accountsText = "(empty)";
     [ObservableProperty] private string _logsText = "(empty)";
     [ObservableProperty] private string _gasText = "(empty)";
+    [ObservableProperty] private bool _isCallFramePinned;
 
     /// <summary>
     /// Soft center watermark. Stronger when empty, ghosted when code is up.
@@ -281,11 +282,59 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void SelectCallGraphRow(CallGraphRowViewModel? row)
+    {
+        if (row is null) return;
+
+        if (row.IsEdge && row.StepIndex >= 0)
+        {
+            CurrentStepIndex = row.StepIndex;
+            StatusMessage = row.Title;
+            return;
+        }
+
+        if (row.FrameKey is "root" or "")
+        {
+            UnpinCallFrame();
+            return;
+        }
+
+        IsCallFramePinned = true;
+        ReturnDataHex = string.IsNullOrWhiteSpace(row.ReturnHint) ? ReturnDataHex : row.ReturnHint;
+        StorageText = row.Kind.Equals("Precompile", StringComparison.OrdinalIgnoreCase)
+            ? "(precompile — no contract storage)"
+            : StorageText;
+        AccountsText =
+            $"{row.Title}{Environment.NewLine}" +
+            $"{row.Kind}{Environment.NewLine}" +
+            $"{row.Address}{Environment.NewLine}" +
+            $"{(row.Success is true ? "SUCCESS" : row.Success is false ? "FAILURE" : "UNKNOWN")}{Environment.NewLine}" +
+            $"gas used: {row.GasUsed?.ToString("N0") ?? "—"}";
+        ResultVerdict = row.Success is false ? "FAIL" : "PASS";
+        ResultExplain =
+            $"Showing the {row.Title} frame. Click Root or move the step slider to return to the parent contract.";
+        if (row.StepIndex >= 0)
+            CurrentStepIndex = row.StepIndex;
+        StatusMessage = $"Inspecting {row.Title}";
+    }
+
+    private void UnpinCallFrame()
+    {
+        if (!IsCallFramePinned) return;
+        IsCallFramePinned = false;
+        RefreshInspectorTexts();
+        RefreshResultExplain();
+        StatusMessage = "Back to parent frame";
+    }
+
+    [RelayCommand]
     private void ShowCallGraph()
     {
         foreach (var f in ProjectFiles)
             f.IsSelected = false;
+        CallTopology.LoadFromTrace(_currentTrace);
         IsCallGraphVisible = true;
+        StatusMessage = CallTopology.EmptyHint;
     }
 
     [RelayCommand]
@@ -452,11 +501,18 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             LastCallerAddress = run.CallerAddress;
             LastContractAddress = run.ContractAddress;
             AccountStateRows.Clear();
+            AccountStateRows.Add($"fork {run.Fork}  (StateTransition / EELS engine)");
             AccountStateRows.Add($"caller  {run.CallerAddress}");
             AccountStateRows.Add($"  balance {run.CallerBalanceWei} wei");
             AccountStateRows.Add($"contract {run.ContractAddress}");
             AccountStateRows.Add($"  balance {run.ContractBalanceWei} wei");
             AccountStateRows.Add($"code size {run.CodeSize} B | calldata {run.CallDataSize} B");
+            if (run.StateDiff.Count > 0)
+            {
+                AccountStateRows.Add("state diff:");
+                foreach (var line in run.StateDiff)
+                    AccountStateRows.Add("  " + line);
+            }
 
             PopulateFromResult(run.Result, isBytecodeRun: true);
         }
@@ -546,6 +602,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StatusMessage = "Workbench reset";
         StackText = MemoryText = AccountsText = LogsText = GasText = "(empty)";
         StorageText = "(empty — scrub to last step after RUN)";
+        IsCallFramePinned = false;
         RefreshResultExplain();
         OnPropertyChanged(nameof(CurrentFileTitle));
         OnPropertyChanged(nameof(MaxStepIndex));
@@ -957,8 +1014,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         ComputeEelsSpecCitation(step);
         UpdateActiveLineForStep(value);
         HighlightInstruction(value);
-        RefreshInspectorTexts();
-        RefreshResultExplain();
+        if (!IsCallFramePinned)
+        {
+            RefreshInspectorTexts();
+            RefreshResultExplain();
+        }
         NotifyStepProps();
 
         StatusMessage =

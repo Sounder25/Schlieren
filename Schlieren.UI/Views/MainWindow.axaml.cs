@@ -303,6 +303,16 @@ public partial class MainWindow : Window
             c.IsVisible = visible;
     }
 
+    private void OnCallGraphRowClick(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Control { DataContext: CallGraphRowViewModel row }
+            && DataContext is WorkbenchViewModel vm)
+        {
+            vm.SelectCallGraphRowCommand.Execute(row);
+            e.Handled = true;
+        }
+    }
+
     private void OnInstructionClick(object? sender, PointerPressedEventArgs e)
     {
         if (sender is Border border && border.DataContext is InstructionViewModel instr

@@ -7,6 +7,16 @@ using Schlieren.Core.State;
 
 namespace Schlieren.UI.Services;
 
+/// <summary>One extra account seeded into workbench pre-state (besides caller + primary code).</summary>
+public sealed class WorkbenchAccountSeed
+{
+    public string AddressHex { get; init; } = "";
+    public string BalanceWei { get; init; } = "0";
+    public string CodeHex { get; init; } = "";
+    public ulong Nonce { get; init; }
+    public IReadOnlyDictionary<string, string>? StorageHex { get; init; }
+}
+
 /// <summary>Options for a live bytecode run from the workbench.</summary>
 public sealed class BytecodeRunOptions
 {
@@ -22,10 +32,12 @@ public sealed class BytecodeRunOptions
     public string ValueWei { get; init; } = "0";
     /// <summary>Calldata hex (optional 0x).</summary>
     public string CallDataHex { get; init; } = "";
-    /// <summary>Report label only until Core exposes hard-fork gating.</summary>
+    /// <summary>Locks fork rules for the whole tx (same as EELS).</summary>
     public string ForkLabel { get; init; } = "Osaka";
     /// <summary>Starting wei balance funded to the caller (default 1e24).</summary>
     public string CallerFundWei { get; init; } = "1000000000000000000000000";
+    /// <summary>Additional accounts (callees, tokens, impls) loaded before the tx.</summary>
+    public IReadOnlyList<WorkbenchAccountSeed>? ExtraAccounts { get; init; }
 }
 
 /// <summary>Live run outcome with post-state balances for the inspector.</summary>
@@ -38,14 +50,17 @@ public sealed class WorkbenchRunResult
     public string ContractBalanceWei { get; init; } = "0";
     public int CodeSize { get; init; }
     public int CallDataSize { get; init; }
+    public string Fork { get; init; } = "";
+    public IReadOnlyList<string> StateDiff { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
-/// Runs hex bytecode through the live Schlieren.Core EVM and returns a real trace.
+/// Workbench front-end over the same <see cref="StateTransition"/> pipeline EELS uses.
+/// Nested CALL/CREATE go through SubCall; fork is locked on the block for the whole tx.
 /// </summary>
 public static class BytecodeExecutionService
 {
-    private static readonly EvmMachine Machine = BuildMachine();
+    private static readonly StateTransition Pipeline = new(BuildMachine());
 
     private static EvmMachine BuildMachine()
     {
@@ -126,12 +141,26 @@ public static class BytecodeExecutionService
 
         var state = new GlobalState();
         state.SetCode(contractAddr, code);
+        state.SetNonce(callerAddr, 0);
         state.SetBalance(callerAddr, fund);
-        // Fund contract with 0; value transfer is handled by CALLVALUE context only for pure code runs
-        // (full StateTransition path would move value; workbench injects CallValue on context)
+        if (!TryApplySeeds(state, options.ExtraAccounts))
+            return null;
+
+        var tracked = new List<Address> { callerAddr, contractAddr };
+        if (options.ExtraAccounts is { Count: > 0 })
+        {
+            foreach (var seed in options.ExtraAccounts)
+            {
+                if (TryAddress(seed.AddressHex, out var extra))
+                    tracked.Add(extra);
+            }
+        }
+
+        var pre = await SnapshotAsync(state, tracked, ct);
 
         var baseFeeWei = options.BaseFeeGwei * 1_000_000_000UL;
         var gasPriceWei = options.GasPriceGwei * 1_000_000_000UL;
+        var rules = ForkRulesFactory.For(options.ForkLabel);
         var block = new BlockContext
         {
             ChainId = options.ChainId,
@@ -140,37 +169,30 @@ public static class BytecodeExecutionService
             GasLimit = options.BlockGasLimit,
             Coinbase = coinbase,
             BaseFeePerGas = baseFeeWei,
-            Rules = ForkRulesFactory.For(options.ForkLabel)
+            Rules = rules
         };
 
         var gasLimit = Math.Min(options.GasLimit, options.BlockGasLimit);
         if (gasLimit == 0)
             gasLimit = 10_000_000;
 
-        var context = new Schlieren.Core.Execution.ExecutionContext
+        var tx = new Transaction
         {
-            Code = code,
+            From = callerAddr,
+            To = contractAddr,
+            Value = callValue,
+            Data = callData,
             GasLimit = gasLimit,
-            Caller = callerAddr,
-            Origin = callerAddr,
-            ContractAddress = contractAddr,
-            StorageAddress = contractAddr,
-            State = state,
-            Block = block,
-            CaptureTrace = true,
-            CallValue = callValue,
-            CallData = callData,
-            GasPrice = gasPriceWei
+            GasPrice = gasPriceWei,
+            Nonce = 0,
+            Authorization = TransactionAuthorization.Impersonated,
+            EnableTracing = true
         };
-
-        context.Access.WarmAddress(callerAddr);
-        context.Access.WarmAddress(contractAddr);
-        context.SetCallContext(CallType.Root, callerAddr, contractAddr);
 
         ExecutionResult result;
         try
         {
-            result = await Machine.ExecuteAsync(context, ct);
+            result = await Pipeline.ApplyTransactionAsync(tx, state, block, commit: true, ct);
         }
         catch (OperationCanceledException)
         {
@@ -178,17 +200,15 @@ public static class BytecodeExecutionService
         }
         catch (Exception ex)
         {
-            result = ExecutionResult.Failure(EvmError.InternalError, context.GasUsed) with
+            result = ExecutionResult.Failure(EvmError.InternalError, gasLimit) with
             {
-                TraceSteps = context.TraceSteps,
-                ReturnData = System.Text.Encoding.UTF8.GetBytes(ex.Message),
-                GasRefundCounter = context.GasRefundCounter,
-                Logs = context.Logs.ToList()
+                ReturnData = System.Text.Encoding.UTF8.GetBytes(ex.Message)
             };
         }
 
         var callerBal = await state.GetBalanceAsync(callerAddr, ct);
         var contractBal = await state.GetBalanceAsync(contractAddr, ct);
+        var post = await SnapshotAsync(state, tracked, ct);
 
         return new WorkbenchRunResult
         {
@@ -198,8 +218,98 @@ public static class BytecodeExecutionService
             CallerBalanceWei = callerBal.ToString(),
             ContractBalanceWei = contractBal.ToString(),
             CodeSize = code.Length,
-            CallDataSize = callData.Length
+            CallDataSize = callData.Length,
+            Fork = options.ForkLabel,
+            StateDiff = DiffSnapshots(pre, post)
         };
+    }
+
+    private static bool TryApplySeeds(GlobalState state, IReadOnlyList<WorkbenchAccountSeed>? seeds)
+    {
+        if (seeds is null) return true;
+        foreach (var seed in seeds)
+        {
+            if (!TryAddress(seed.AddressHex, out var addr))
+                return false;
+            if (!TryParseHexBytes(seed.CodeHex, out var extraCode))
+                return false;
+            if (!BigInteger.TryParse(string.IsNullOrWhiteSpace(seed.BalanceWei) ? "0" : seed.BalanceWei, out var bal))
+                bal = BigInteger.Zero;
+            if (extraCode.Length > 0)
+                state.SetCode(addr, extraCode);
+            state.SetBalance(addr, bal);
+            state.SetNonce(addr, seed.Nonce);
+            if (seed.StorageHex is null) continue;
+            foreach (var (k, v) in seed.StorageHex)
+            {
+                if (!TryParseWord(k, out var slot) || !TryParseWord(v, out var word))
+                    return false;
+                state.SetStorageAt(addr, slot, word);
+            }
+        }
+        return true;
+    }
+
+    private static bool TryAddress(string? hex, out Address addr)
+    {
+        addr = default;
+        try
+        {
+            addr = Address.FromHex(hex ?? "");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryParseWord(string hex, out BigInteger value)
+    {
+        value = BigInteger.Zero;
+        if (!TryParseHexBytes(hex, out var bytes))
+            return false;
+        value = new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
+        return true;
+    }
+
+    private sealed record AccountSnap(string Address, string Balance, ulong Nonce, int CodeLen);
+
+    private static async Task<List<AccountSnap>> SnapshotAsync(
+        GlobalState state, IEnumerable<Address> addrs, CancellationToken ct)
+    {
+        var snaps = new List<AccountSnap>();
+        foreach (var a in addrs.Distinct())
+        {
+            var bal = await state.GetBalanceAsync(a, ct);
+            var nonce = await state.GetNonceAsync(a, ct);
+            var code = await state.GetCodeAsync(a, ct);
+            snaps.Add(new AccountSnap(a.ToString(), bal.ToString(), nonce, code.Length));
+        }
+        return snaps;
+    }
+
+    private static List<string> DiffSnapshots(List<AccountSnap> pre, List<AccountSnap> post)
+    {
+        var lines = new List<string>();
+        foreach (var after in post)
+        {
+            var before = pre.FirstOrDefault(p => p.Address == after.Address);
+            if (before is null)
+            {
+                lines.Add($"{after.Address} created  bal={after.Balance} nonce={after.Nonce} code={after.CodeLen}B");
+                continue;
+            }
+            if (before.Balance != after.Balance)
+                lines.Add($"{after.Address} balance {before.Balance} → {after.Balance}");
+            if (before.Nonce != after.Nonce)
+                lines.Add($"{after.Address} nonce {before.Nonce} → {after.Nonce}");
+            if (before.CodeLen != after.CodeLen)
+                lines.Add($"{after.Address} code {before.CodeLen}B → {after.CodeLen}B");
+        }
+        if (lines.Count == 0)
+            lines.Add("(no account-level balance/nonce/code diffs)");
+        return lines;
     }
 
     public static string DescribeOpcode(string opName) => opName switch

@@ -270,8 +270,15 @@
                             Command="{Binding ToggleBlockContextCommand}"/>
                     <Border Grid.Column="2" Background="#12131A" CornerRadius="3" Padding="10,4" Margin="8,0,0,0"
                             BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1">
-                        <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
-                                   FontSize="11" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
+                                       FontSize="11" FontWeight="Bold" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2" Margin="8,0,0,0"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="verdict"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"
+                                    ToolTip.Tip="Copy verdict + explanation"/>
+                        </Grid>
                     </Border>
                 </Grid>
 
@@ -453,37 +460,49 @@
 
                     <!-- Call graph -->
                     <Grid IsVisible="{Binding IsCallGraphVisible}" RowDefinitions="Auto,*">
-                        <Border Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,6" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
-                            <TextBlock Text="{Binding CallTopology.EmptyHint}" Foreground="#FFAA00" FontWeight="Bold" FontSize="12"/>
+                        <Border Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,8" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="CALL GRAPH" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Schlieren.Warning}"/>
+                                <TextBlock Text="{Binding CallTopology.EmptyHint}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="12" TextWrapping="Wrap"/>
+                            </StackPanel>
                         </Border>
-                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                            <Canvas Width="900" Height="600" Background="{DynamicResource Schlieren.ShellBg}">
-                                <ItemsControl ItemsSource="{Binding CallTopology.Nodes}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <Canvas/>
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <!-- Position the item containers on the canvas -->
-                                    <ItemsControl.Styles>
-                                        <Style Selector="ContentPresenter" x:DataType="vm:CallNodeViewModel">
-                                            <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                                            <Setter Property="Canvas.Top" Value="{Binding Y}"/>
-                                        </Style>
-                                    </ItemsControl.Styles>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:CallNodeViewModel">
-                                            <Border Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{Binding Color}" BorderThickness="2"
-                                                    Padding="12,8" CornerRadius="8" MinWidth="120">
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding CallTopology.Rows}" Margin="24,16">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CallGraphRowViewModel">
+                                        <StackPanel Margin="0,0,0,4">
+                                            <StackPanel IsVisible="{Binding IsEdge}" Margin="0,8" HorizontalAlignment="Center">
+                                                <TextBlock Text="{Binding Title}"
+                                                           HorizontalAlignment="Center"
+                                                           FontFamily="Consolas, Cascadia Mono, monospace"
+                                                           FontSize="12" FontWeight="Bold"
+                                                           Foreground="{DynamicResource Schlieren.Warning}"/>
+                                                <TextBlock Text="{Binding Detail}"
+                                                           HorizontalAlignment="Center"
+                                                           FontFamily="Consolas, Cascadia Mono, monospace"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource Schlieren.TextMuted}"
+                                                           TextAlignment="Center" TextWrapping="Wrap"
+                                                           Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                            <Border IsVisible="{Binding IsNode}"
+                                                    Background="{DynamicResource Schlieren.PanelElevated}"
+                                                    BorderBrush="{DynamicResource Schlieren.Accent}"
+                                                    BorderThickness="2"
+                                                    Padding="16,10" CornerRadius="8" MinWidth="300"
+                                                    HorizontalAlignment="Center" Margin="0,4"
+                                                    Cursor="Hand"
+                                                    PointerPressed="OnCallGraphRowClick"
+                                                    ToolTip.Tip="Click to inspect this frame in the RESULTS panel">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding Name}" Foreground="{Binding Color}" FontWeight="Bold" FontSize="13"/>
-                                                    <TextBlock Text="{Binding Address}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding Title}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="16"/>
+                                                    <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="12" FontFamily="Consolas" Margin="0,6,0,0" TextWrapping="Wrap"/>
                                                 </StackPanel>
                                             </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Canvas>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </ScrollViewer>
                     </Grid>
                 </Grid>
@@ -493,7 +512,30 @@
             <Border Grid.Column="2" Classes="panel">
                 <ScrollViewer>
                     <StackPanel Margin="12">
-                        <TextBlock Text="EVM INSPECTOR" Classes="header"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="RESULTS" Classes="header" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY ALL" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="all"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}"
+                                    ToolTip.Tip="Copy verdict, return data, storage, stack, accounts"/>
+                        </Grid>
+
+                        <Border Background="#12131A" BorderBrush="{DynamicResource Schlieren.BorderSubtle}"
+                                BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,4,0,8">
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding ResultVerdict}" FontWeight="Bold" FontSize="16"
+                                               Foreground="{Binding ResultBannerColor}"/>
+                                    <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                            Command="{Binding CopyInspectorCommand}" CommandParameter="verdict"
+                                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                                </Grid>
+                                <TextBlock Text="{Binding ResultExplain}" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                           FontSize="12" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
+                                           FontSize="10" TextWrapping="Wrap" Opacity="0.85"/>
+                            </StackPanel>
+                        </Border>
 
                         <TextBlock Text="STEP (F10 / F11 / Space)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,8,0,4"/>
                         <Grid>
@@ -526,10 +568,15 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="RETURN DATA" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="RETURN DATA (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="return"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#00D4AA"/>
+                        </Grid>
                         <TextBox Text="{Binding ReturnDataHex}" IsReadOnly="True"
                                  Background="{DynamicResource Schlieren.ShellBg}" Foreground="#00D4AA" FontFamily="Consolas" FontSize="10"
-                                 TextWrapping="Wrap" MaxHeight="64" AcceptsReturn="True"/>
+                                 TextWrapping="Wrap" MaxHeight="72" AcceptsReturn="True" IsTabStop="True"/>
                         <TextBlock Text="{Binding ErrorText}" Foreground="#FF4500" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
                                    IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
@@ -555,68 +602,65 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Text="STACK" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
-                        <ItemsControl ItemsSource="{Binding StackRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="8,4" Margin="0,1" CornerRadius="2">
-                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="STACK (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="stack"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                        </Grid>
+                        <TextBox Text="{Binding StackText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}"
+                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="48" MaxHeight="140"/>
 
-                        <TextBlock Text="MEMORY" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
-                        <ItemsControl ItemsSource="{Binding MemoryRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="8,4" Margin="0,1" CornerRadius="2">
-                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="MEMORY (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="memory"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                        </Grid>
+                        <TextBox Text="{Binding MemoryText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                 FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
 
-                        <TextBlock Text="STORAGE" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
-                        <ItemsControl ItemsSource="{Binding StorageRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="8,4" Margin="0,1" CornerRadius="2">
-                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource Schlieren.Warning}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="STORAGE (this contract's saved result)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="storage"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}"/>
+                        </Grid>
+                        <TextBox Text="{Binding StorageText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.Warning}"
+                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="56" MaxHeight="160"/>
 
-                        <TextBlock Text="ACCOUNTS (post-run)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
-                        <ItemsControl ItemsSource="{Binding AccountStateRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource Schlieren.TextMuted}"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="ACCOUNTS (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="accounts"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextMuted}"/>
+                        </Grid>
+                        <TextBox Text="{Binding AccountsText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextMuted}"
+                                 FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
 
-                        <TextBlock Text="LOGS" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
-                        <ItemsControl ItemsSource="{Binding EventLogRows}" MaxHeight="100">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{DynamicResource Schlieren.ShellBg}" Padding="6,3" Margin="0,1" CornerRadius="2">
-                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="9" Foreground="{DynamicResource Schlieren.TextPrimary}" TextWrapping="Wrap"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="LOGS (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="logs"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                        </Grid>
+                        <TextBox Text="{Binding LogsText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                 FontFamily="Consolas" FontSize="9" TextWrapping="Wrap" MinHeight="36" MaxHeight="100"/>
 
-                        <TextBlock Text="GAS" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,16,0,4"/>
-                        <ItemsControl ItemsSource="{Binding GasTreeNodes}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:GasNodeViewModel">
-                                    <TextBlock Text="{Binding DisplayText}" FontFamily="Consolas" FontSize="11"
-                                               Foreground="{Binding Color}" Margin="{Binding Indent}"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="GAS (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="gas"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                        </Grid>
+                        <TextBox Text="{Binding GasText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
