@@ -988,13 +988,16 @@ public sealed class StateTransition : IStateTransition
                 // If the CREATE ultimately fails (EIP-170 / deposit-OOG / EIP-3541),
                 // the opcode calls context.RollbackLastCreateTransient() to discard the
                 // staging overlay without propagating its writes to the parent.
+                // On success the opcode calls CommitLastCreateTransient() to propagate.
                 var staging = new TransientStorageOverlay(transientFrame);
                 context.RollbackLastCreateTransient = () => staging.Rollback();
+                context.CommitLastCreateTransient   = () => staging.Commit();
                 createTransientStorage = staging;
             }
             else
             {
                 context.RollbackLastCreateTransient = null;
+                context.CommitLastCreateTransient   = null;
             }
 
             return ExecuteInternalAsync(

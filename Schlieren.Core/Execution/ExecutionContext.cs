@@ -186,6 +186,14 @@ namespace Schlieren.Core.Execution
         public Action? RollbackLastCreateTransient { get; set; }
 
         /// <summary>
+        /// Set by StateTransition before a CREATE sub-call is dispatched.
+        /// The opcode calls this on the CREATE success path to propagate
+        /// transient-storage writes from the staging overlay to the parent frame.
+        /// Reset to null after each sub-call.
+        /// </summary>
+        public Action? CommitLastCreateTransient { get; set; }
+
+        /// <summary>
         /// EIP-6780: set of addresses created during this transaction.
         /// Shared across the entire call tree so sub-calls can register new contracts.
         /// SELFDESTRUCT only fully deletes an account if it appears in this set.

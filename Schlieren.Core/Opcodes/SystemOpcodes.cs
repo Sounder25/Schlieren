@@ -155,6 +155,11 @@ public sealed class OpcodeCreate : IOpcode
                     // Install runtime code.
                     context.GlobalState.SetCode(newAddress, runtimeCode);
 
+                    // EIP-1153: CREATE succeeded — commit staging transient overlay.
+                    context.CommitLastCreateTransient?.Invoke();
+                    context.CommitLastCreateTransient   = null;
+                    context.RollbackLastCreateTransient = null;
+
                     context.GasRefundCounter += result.GasRefundCounter;
 
                     // Refund remaining gas to parent.
@@ -203,6 +208,7 @@ internal static class CreateRevertHelper
         // EIP-1153: roll back transient-storage writes from this failed CREATE frame.
         context.RollbackLastCreateTransient?.Invoke();
         context.RollbackLastCreateTransient = null;
+        context.CommitLastCreateTransient   = null;
     }
 }
 
@@ -641,6 +647,11 @@ public sealed class OpcodeCreate2 : IOpcode
 
                     // Install runtime code.
                     context.GlobalState.SetCode(newAddress, runtimeCode);
+
+                    // EIP-1153: CREATE succeeded — commit staging transient overlay.
+                    context.CommitLastCreateTransient?.Invoke();
+                    context.CommitLastCreateTransient   = null;
+                    context.RollbackLastCreateTransient = null;
 
                     context.GasRefundCounter += result.GasRefundCounter;
 
