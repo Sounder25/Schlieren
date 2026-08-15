@@ -44,6 +44,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip3541EfPrefix          => false;
     public virtual bool HasEip3860InitcodeLimit     => false;
     public virtual bool HasEip4844BlobTx            => false;
+    public virtual int  MaxBlobsPerTransaction      => 0;    // 0 = blob txs not supported; Cancun=6, Prague+=9
     public virtual bool HasEip7623CalldataFloor     => false;
     public virtual bool HasEip7702SetCode           => false;
     public virtual bool HasEip7951P256Verify        => false;  // Osaka+
@@ -377,6 +378,7 @@ public class CancunRules : ShanghaiRules
     public override bool HasEip4844BlobTx => true;
     public override bool HasEip6780SelfdestructRestriction => true; // EIP-6780
     public override int  PrecompileCount  => 10; // +KZG point eval (0x0A)
+    public override int  MaxBlobsPerTransaction => 6; // Cancun: MAX_BLOB_GAS_PER_BLOCK=786432 / GAS_PER_BLOB=131072
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -393,6 +395,8 @@ public class PragueRules : CancunRules
     // 0x01–0x09 = 9, 0x0A = KZG = 10, 0x0b–0x11 = 7 BLS → total 17.
     // NOTE: 0x12 and 0x13 are NOT defined precompiles in EIP-2537 (EELS confirms).
     public override int  PrecompileCount         => 17; // 0x01–0x11
+    // Prague raised MAX_BLOB_GAS_PER_BLOCK from 786432 (6 blobs) to 1179648 (9 blobs)
+    public override int  MaxBlobsPerTransaction  => 9;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

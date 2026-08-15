@@ -49,6 +49,7 @@ public interface IForkRules
     bool HasEip3541EfPrefix       { get; }  // London+: reject code starting with 0xEF
     bool HasEip3860InitcodeLimit  { get; }  // Shanghai+: initcode size limit + cost
     bool HasEip4844BlobTx         { get; }  // Cancun+
+    int  MaxBlobsPerTransaction   { get; }  // Cancun: 6; Prague+: 9 (EIP-7516 / larger block target)
     bool HasEip7623CalldataFloor  { get; }  // Prague+
     bool HasEip7702SetCode        { get; }  // Prague+
     bool HasEip7951P256Verify     { get; }  // Osaka+: P256VERIFY precompile at 0x0100

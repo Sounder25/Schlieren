@@ -148,7 +148,8 @@ public sealed class StateTransition : IStateTransition
             // EIP-4844 blob hash well-formedness
             if (tx.TxType >= 3)
             {
-                if (tx.BlobVersionedHashes == null || tx.BlobVersionedHashes.Count == 0 || tx.BlobVersionedHashes.Count > 6)
+                var maxBlobs = block.Rules.MaxBlobsPerTransaction;
+                if (tx.BlobVersionedHashes == null || tx.BlobVersionedHashes.Count == 0 || tx.BlobVersionedHashes.Count > maxBlobs)
                     return ExecutionResult.Failure(EvmError.InternalError);
 
                 foreach (var hash in tx.BlobVersionedHashes)
