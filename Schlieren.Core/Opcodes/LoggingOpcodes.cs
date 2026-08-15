@@ -36,8 +36,13 @@ public abstract class LogOpcodeBase : IOpcode
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
         var lengthInt = length > int.MaxValue ? int.MaxValue : (int)length;
 
-        var expansionGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
-        var data = context.Memory.Load(offsetInt, lengthInt);
+        // EELS: if size == 0, no memory extension is needed regardless of offset.
+        ulong expansionGas = lengthInt > 0
+            ? context.Memory.CalculateGasCost(offsetInt + lengthInt)
+            : 0;
+        var data = lengthInt > 0
+            ? context.Memory.Load(offsetInt, lengthInt)
+            : Array.Empty<byte>();
 
         var log = new TransactionLog
         {
