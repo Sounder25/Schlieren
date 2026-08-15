@@ -60,7 +60,11 @@ public sealed class OpcodeCreate : IOpcode
         // instead of cold (2600), producing a 2500-gas delta.
         var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         var parentGasBeforeChild = context.GasLimit - context.GasUsed;
-        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
+        // Frontier/Homestead: forward ALL remaining gas (no 63/64).
+        // TangerineWhistle+ (HasPreEip150CallGas=false): 63/64 cap (EIP-150).
+        var forwardedGas = context.Block.Rules.HasPreEip150CallGas
+            ? parentGasBeforeChild
+            : parentGasBeforeChild - (parentGasBeforeChild / 64UL);
 
         if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
         {
@@ -558,7 +562,11 @@ public sealed class OpcodeCreate2 : IOpcode
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
         var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         var parentGasBeforeChild = context.GasLimit - context.GasUsed;
-        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
+        // Frontier/Homestead: forward ALL remaining gas (no 63/64).
+        // TangerineWhistle+ (HasPreEip150CallGas=false): 63/64 cap (EIP-150).
+        var forwardedGas = context.Block.Rules.HasPreEip150CallGas
+            ? parentGasBeforeChild
+            : parentGasBeforeChild - (parentGasBeforeChild / 64UL);
 
         if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
         {
