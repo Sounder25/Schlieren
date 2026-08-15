@@ -14,7 +14,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        KeyDown += OnWindowKeyDown;
+        // Tunnel + handledEventsToo: F5 must fire even when a TextBox has focus
+        // (bytecode / calldata / fixture path). Bubble-only KeyDown is eaten there.
+        AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         BuildAppearanceMenu();
         ApplyWatermarkArt(SkinService.Current);
         SkinService.SkinChanged += OnSkinChanged;
@@ -132,8 +134,25 @@ public partial class MainWindow : Window
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        var inText = FocusManager?.GetFocusedElement() is TextBox;
+
+        if (e.Key == Key.F5)
+        {
+            RunFocusedSurface();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) &&
+            e.KeyModifiers.HasFlag(KeyModifiers.Shift) &&
+            e.Key == Key.R)
+        {
+            OnResetClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
         if (DataContext is not WorkbenchViewModel vm) return;
-        if (FocusManager?.GetFocusedElement() is TextBox) return;
 
         // Ctrl+O / Ctrl+Shift+O
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -152,12 +171,11 @@ public partial class MainWindow : Window
             }
         }
 
+        // Typing keys stay with the text box; function/nav keys below do not.
+        if (inText) return;
+
         switch (e.Key)
         {
-            case Key.F5:
-                _ = vm.RunBytecodeCommand.ExecuteAsync(null);
-                e.Handled = true;
-                break;
             case Key.F10:
                 vm.StepForwardCommand.Execute(null);
                 e.Handled = true;
@@ -179,6 +197,20 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
         }
+    }
+
+    private void RunFocusedSurface()
+    {
+        var panel = this.FindControl<ConformanceView>("ConformancePanel");
+        if (panel is { IsVisible: true, DataContext: ConformanceViewModel cvm })
+        {
+            if (cvm.RunCommand.CanExecute(null))
+                _ = cvm.RunCommand.ExecuteAsync(null);
+            return;
+        }
+
+        if (DataContext is WorkbenchViewModel vm)
+            _ = vm.RunBytecodeCommand.ExecuteAsync(null);
     }
 
     private void OnTabClick(object? sender, PointerPressedEventArgs e)
@@ -220,6 +252,23 @@ public partial class MainWindow : Window
 
         // Toggle: open if closed, close if already open
         SetConformanceMode(!panel.IsVisible);
+    }
+
+    /// <summary>
+    /// Reset the visible surface: Conformance results when that tab is up,
+    /// otherwise the bytecode workbench.
+    /// </summary>
+    private void OnResetClick(object? sender, RoutedEventArgs e)
+    {
+        var panel = this.FindControl<ConformanceView>("ConformancePanel");
+        if (panel is { IsVisible: true })
+        {
+            panel.Reset();
+            return;
+        }
+
+        if (DataContext is WorkbenchViewModel vm)
+            vm.ResetWorkbenchCommand.Execute(null);
     }
 
     /// <summary>

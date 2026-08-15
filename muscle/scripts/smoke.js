@@ -1,6 +1,6 @@
 /**
  * Minimal Muscle smoke: chainId, funded account, deploy Counter, read/write.
- * Requires Scrutor listening with Anvil test mnemonic (see hardhat.config.js).
+ * Requires Schlieren listening with Anvil test mnemonic (see hardhat.config.js).
  */
 const hre = require("hardhat");
 
@@ -16,7 +16,7 @@ async function main() {
   console.log("signer:", signer.address, "balance wei:", bal.toString());
   if (bal === 0n) {
     throw new Error(
-      "signer balance is 0 — restart Scrutor with the Anvil test mnemonic (see muscle/README.md)"
+      "signer balance is 0 — restart Schlieren with the Anvil test mnemonic (see muscle/README.md)"
     );
   }
 

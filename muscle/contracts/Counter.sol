@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @notice Trivial contract used to prove Muscle (Hardhat) can deploy + call against Scrutor.
+/// @notice Trivial contract used to prove Muscle (Hardhat) can deploy + call against Schlieren.
 contract Counter {
     uint256 public number;
 

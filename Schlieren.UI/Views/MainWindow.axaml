@@ -54,6 +54,7 @@
             <MenuItem Header="_File" FontSize="11">
                 <MenuItem Header="Open Contract File..." Click="OnOpenFileClick" InputGesture="Ctrl+O"/>
                 <MenuItem Header="Open Project Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O"/>
+                <MenuItem Header="Reset Workbench" Click="OnResetClick" InputGesture="Ctrl+Shift+R"/>
                 <Separator/>
                 <MenuItem Header="Export Security Audit Report (.md)..." Click="OnExportReportClick"/>
                 <Separator/>
@@ -75,7 +76,7 @@
                 <MenuItem Header="Export Audit Report (.md)..." Click="OnExportReportClick"/>
             </MenuItem>
             <MenuItem Header="_Help" FontSize="11">
-                <MenuItem Header="F5 Run · F10 Step · F11 Back · Space Play · Home/End"/>
+                <MenuItem Header="F5 Run · Ctrl+Shift+R Reset · F10 Step · F11 Back · Space Play · Home/End"/>
                 <MenuItem Header="Skins: View → Appearance (Arctic Night is easiest on eyes)"/>
             </MenuItem>
         </Menu>
@@ -145,6 +146,10 @@
                             Padding="16,6" FontSize="12"
                             Command="{Binding RunBytecodeCommand}"
                             IsEnabled="{Binding !IsRunning}"/>
+                    <Button Content="RESET" ToolTip.Tip="Clear bytecode, calldata, files, and last trace (Ctrl+Shift+R)"
+                            Background="#3D1414" Foreground="#FF8A80" FontSize="11" FontWeight="Bold"
+                            Padding="12,6" CornerRadius="3"
+                            Command="{Binding ResetWorkbenchCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -212,7 +217,7 @@
         <!-- BYTECODE + TX + BLOCK CONTEXT -->
         <Border x:Name="WorkbenchBytecodeBar" Grid.Row="3" Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,8" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,0,0,1">
             <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                     <TextBlock Grid.Column="0" Text="BYTECODE" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11"
                                VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <TextBox Grid.Column="1"
@@ -246,9 +251,13 @@
                             IsEnabled="{Binding !IsRunning}"/>
                     <Button Grid.Column="7" Content="STOP" ToolTip.Tip="Cancel in-flight run"
                             Background="#3D1414" Foreground="#FF4500" FontWeight="Bold" FontSize="11"
-                            Padding="12,6" CornerRadius="4"
+                            Padding="12,6" CornerRadius="4" Margin="0,0,4,0"
                             Command="{Binding CancelRunCommand}"
                             IsEnabled="{Binding IsRunning}"/>
+                    <Button Grid.Column="8" Content="RESET" ToolTip.Tip="Clear bytecode, calldata, files, and last trace (Ctrl+Shift+R)"
+                            Background="#2A1C14" Foreground="#FFAA00" FontWeight="Bold" FontSize="11"
+                            Padding="12,6" CornerRadius="4"
+                            Command="{Binding ResetWorkbenchCommand}"/>
                 </Grid>
 
                 <Grid ColumnDefinitions="Auto,Auto,*">

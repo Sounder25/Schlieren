@@ -15,6 +15,8 @@ public partial class ConformanceView : UserControl
 
     private ConformanceViewModel? Vm => DataContext as ConformanceViewModel;
 
+    public void Reset() => Vm?.ResetResultsCommand.Execute(null);
+
     private void OnFailureClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: ConformanceFailureRow row })

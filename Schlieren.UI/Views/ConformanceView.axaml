@@ -74,7 +74,7 @@
     <Border Grid.Row="0" Background="{DynamicResource Schlieren.PanelDeep}"
             BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
             Padding="20,14">
-      <Grid ColumnDefinitions="Auto,16,*,16,Auto,12,Auto,12,Auto">
+      <Grid ColumnDefinitions="Auto,16,*,16,Auto,8,Auto,8,Auto,12,Auto">
 
         <!-- Fork selector -->
         <StackPanel Grid.Column="0" Spacing="4" Width="140">
@@ -88,6 +88,10 @@
         <StackPanel Grid.Column="2" Spacing="4">
           <TextBlock Classes="label" Text="FIXTURES BASE PATH"/>
           <TextBox Text="{Binding FixturesBasePath}" Watermark="e.g. C:\projects\Schlieren\fixtures\state_tests"/>
+          <CheckBox Content="Exclude ported_static (avoids 2-min CREATE2 hangs)"
+                    IsChecked="{Binding ExcludePortedStatic}"
+                    FontSize="11" Foreground="{DynamicResource Schlieren.TextMuted}"
+                    ToolTip.Tip="Official Prague/Osaka v20 gate excludes this folder. Uncheck only if you want the full 13k+ suite."/>
         </StackPanel>
 
         <!-- Run button -->
@@ -108,8 +112,15 @@
           <TextBlock Text="■  STOP"/>
         </Button>
 
+        <Button Grid.Column="8" Classes="cancel"
+                Command="{Binding ResetResultsCommand}"
+                VerticalAlignment="Bottom"
+                ToolTip.Tip="Clear suite results, failures, and selection (Ctrl+Shift+R)">
+          <TextBlock Text="RESET"/>
+        </Button>
+
         <!-- Elapsed -->
-        <Border Grid.Column="8" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+        <Border Grid.Column="10" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
                 BorderThickness="1" CornerRadius="6" Padding="12,0"
                 VerticalAlignment="Bottom" Height="36">
           <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">

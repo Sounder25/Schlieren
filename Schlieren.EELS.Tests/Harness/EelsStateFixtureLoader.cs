@@ -25,7 +25,9 @@ public sealed class EelsStateFixtureLoader
         ["Osaka"] = 11
     };
 
-    public IReadOnlyList<EelsStateCase> LoadCases(EelsHarnessOptions options)
+    public IReadOnlyList<EelsStateCase> LoadCases(
+        EelsHarnessOptions options,
+        IProgress<EelsLoadProgress>? progress = null)
     {
         if (!Directory.Exists(options.FixturesRoot))
         {
@@ -40,12 +42,27 @@ public sealed class EelsStateFixtureLoader
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        progress?.Report(new EelsLoadProgress(0, fixtureFiles.Length, 0, string.Empty));
+
         var cases = new List<EelsStateCase>(Math.Min(options.MaxCases, 256));
-        foreach (var file in fixtureFiles)
+        for (var i = 0; i < fixtureFiles.Length; i++)
         {
+            var file = fixtureFiles[i];
             LoadCasesFromFile(file, options, cases);
+            var done = i + 1;
+            if (progress != null && (done == fixtureFiles.Length || done % 10 == 0 || done == 1))
+            {
+                progress.Report(new EelsLoadProgress(
+                    done,
+                    fixtureFiles.Length,
+                    cases.Count,
+                    Path.GetFileName(file)));
+            }
+
             if (cases.Count >= options.MaxCases)
             {
+                progress?.Report(new EelsLoadProgress(
+                    done, fixtureFiles.Length, cases.Count, Path.GetFileName(file)));
                 break;
             }
         }

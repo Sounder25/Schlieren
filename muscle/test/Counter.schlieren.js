@@ -2,10 +2,10 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 /**
- * Integration tests against the configured network (default: scrutor).
- * Start Scrutor first with the Anvil test mnemonic — see muscle/README.md.
+ * Integration tests against the configured network (default: schlieren).
+ * Start Schlieren first with the Anvil test mnemonic — see muscle/README.md.
  */
-describe("Counter @ Scrutor", function () {
+describe("Counter @ Schlieren", function () {
   let counter;
   let deployer;
 

@@ -2,7 +2,7 @@
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
-      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/for_osaka</EELS_FIXTURES_ROOT>
+      <EELS_FIXTURES_ROOT>C:/projects/Schlieren/fixtures/state_tests/for_osaka</EELS_FIXTURES_ROOT>
       <EELS_FORK_NAME>Osaka</EELS_FORK_NAME>
       <EELS_MAX_CASES>99999</EELS_MAX_CASES>
       <EELS_INCLUDE_SUBDIRECTORIES>true</EELS_INCLUDE_SUBDIRECTORIES>

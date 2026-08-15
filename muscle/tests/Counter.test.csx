@@ -1,4 +1,4 @@
-// Counter.test.csx — scrutor test smoke suite
+// Counter.test.csx — Schlieren test smoke suite
 // Uses Test("name", async () => { ... }) + Assert.* injected by the test runner.
 
 var counter = await node.Deploy("Counter");

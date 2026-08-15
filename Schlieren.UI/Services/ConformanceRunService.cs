@@ -109,7 +109,8 @@ public static class ConformanceRunService
         string fixtureRoot,
         string forkName,
         IProgress<ConformanceProgress> progress,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? excludeFolder = null)
     {
         var loader   = new EelsStateFixtureLoader();
         var executor = new EelsStateFixtureExecutor();
@@ -118,13 +119,29 @@ public static class ConformanceRunService
             FixturesRoot:          fixtureRoot,
             ForkName:              forkName,
             MaxCases:              int.MaxValue,
-            IncludeSubdirectories: true
+            IncludeSubdirectories: true,
+            ExcludeFolder:         excludeFolder
         );
+
+        progress.Report(LoadTick(0, "Loading fixtures from disk…", fixtureRoot));
 
         List<EelsStateCase> cases;
         try
         {
-            cases = loader.LoadCases(options).ToList();
+            // Parse JSON off the UI thread. Osaka v20 is ~14k cases and otherwise
+            // freezes the window for ~20–30s with no painted status.
+            cases = await Task.Run(() =>
+            {
+                var loadProgress = new Progress<EelsLoadProgress>(lp =>
+                {
+                    var name = string.IsNullOrEmpty(lp.CurrentFile) ? "scanning" : lp.CurrentFile;
+                    progress.Report(LoadTick(
+                        0,
+                        $"Loading fixtures… {lp.FilesDone:N0}/{lp.FilesTotal:N0} files · {lp.CasesLoaded:N0} cases · {name}",
+                        fixtureRoot));
+                });
+                return loader.LoadCases(options, loadProgress).ToList();
+            }, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -142,6 +159,7 @@ public static class ConformanceRunService
         }
 
         int total  = cases.Count;
+        progress.Report(LoadTick(total, $"Loaded {total:N0} cases — starting {forkName}…", fixtureRoot));
         int passed = 0;
         int failed = 0;
 
@@ -153,6 +171,13 @@ public static class ConformanceRunService
             try
             {
                 ct.ThrowIfCancellationRequested();
+                progress.Report(new ConformanceProgress(
+                    Volatile.Read(ref passed),
+                    Volatile.Read(ref failed),
+                    total,
+                    $"Running {c.CaseId}",
+                    null, null, c.FixturePath,
+                    0, 0, string.Empty, string.Empty, string.Empty));
                 var report = await executor.ExecuteAsync(c, ct);
                 bool ok = report.StateMatches && report.ReceiptStatusMatches;
 
@@ -213,4 +238,12 @@ public static class ConformanceRunService
         await Task.WhenAll(tasks);
         return (passed, failed, total);
     }
+
+    private static ConformanceProgress LoadTick(int casesSoFar, string message, string fixtureRoot)
+        => new(
+            0, 0, casesSoFar,
+            message,
+            null, null, fixtureRoot,
+            0, 0,
+            string.Empty, string.Empty, string.Empty);
 }

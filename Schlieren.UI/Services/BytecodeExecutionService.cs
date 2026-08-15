@@ -140,7 +140,7 @@ public static class BytecodeExecutionService
             GasLimit = options.BlockGasLimit,
             Coinbase = coinbase,
             BaseFeePerGas = baseFeeWei,
-            Rules = ForkRulesFactory.Latest
+            Rules = ForkRulesFactory.For(options.ForkLabel)
         };
 
         var gasLimit = Math.Min(options.GasLimit, options.BlockGasLimit);

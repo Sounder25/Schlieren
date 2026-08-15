@@ -97,6 +97,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _pcSearch = "";
     [ObservableProperty] private string _lastCallerAddress = "";
     [ObservableProperty] private string _lastContractAddress = "";
+    [ObservableProperty] private string _resultVerdict = "WAITING";
+    [ObservableProperty] private string _resultExplain = "Nothing has run yet. Open or paste bytecode, set the fork, then press RUN or F5.";
+    [ObservableProperty] private string _stackText = "(empty)";
+    [ObservableProperty] private string _memoryText = "(empty)";
+    [ObservableProperty] private string _storageText = "(empty — scrub to last step after RUN)";
+    [ObservableProperty] private string _accountsText = "(empty)";
+    [ObservableProperty] private string _logsText = "(empty)";
+    [ObservableProperty] private string _gasText = "(empty)";
 
     /// <summary>
     /// Soft center watermark. Stronger when empty, ghosted when code is up.
@@ -133,11 +141,10 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public int MaxStepIndex => Math.Max(0, TotalSteps - 1);
 
     /// <summary>
-    /// Honest note: fork name is report metadata. Core uses the unified modern opcode set.
-    /// Block fields (gas, base fee, chain id, coinbase) are applied to live runs.
+    /// Live bytecode runs use this fork's rule set (precompiles, gas schedule).
     /// </summary>
     public string ForkNote =>
-        $"{SelectedFork} · block fields apply; fork is report label";
+        $"{SelectedFork} · live EVM rules + block fields";
 
     public WorkbenchViewModel()
     {
@@ -484,6 +491,143 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StatusMessage = "Cancelling...";
     }
 
+    /// <summary>
+    /// Clears bytecode, calldata, open files, and the last live/synthetic trace.
+    /// Keeps fork, gas, and address fields so the next run can reuse them.
+    /// </summary>
+    [RelayCommand]
+    private void ResetWorkbench()
+    {
+        StopAutoPlay();
+        if (IsRunning)
+            _runCts?.Cancel();
+
+        BytecodeInput = string.Empty;
+        CallDataHex = string.Empty;
+        SearchQuery = string.Empty;
+        PcSearch = string.Empty;
+        IsBytecodeMode = false;
+        IsCallGraphVisible = false;
+
+        ProjectFiles.Clear();
+        SelectedFile = null;
+        ActiveCodeLines.Clear();
+        RefreshFilteredFiles();
+
+        _currentTrace = new List<ExecutionTraceStep>();
+        HasTrace = false;
+        TotalSteps = 0;
+        CurrentStepIndex = 0;
+        CurrentStep = null;
+        LastRunSuccess = false;
+        ResultBanner = "No run yet";
+        ResultBannerColor = "#A9A9A9";
+        ReturnDataHex = "0x";
+        ErrorText = string.Empty;
+        LastCallerAddress = string.Empty;
+        LastContractAddress = string.Empty;
+        CurrentOpcodeSpec = string.Empty;
+        CurrentGasFormulaBreakdown = string.Empty;
+        CurrentStepDetail = string.Empty;
+
+        Instructions.Clear();
+        StackRows.Clear();
+        MemoryRows.Clear();
+        StorageRows.Clear();
+        SecurityFindings.Clear();
+        GasTreeNodes.Clear();
+        EventLogRows.Clear();
+        AccountStateRows.Clear();
+        CallTopology.LoadFromTrace(_currentTrace);
+
+        CriticalCount = 0;
+        WarningCount = 0;
+        CenterEmptyHint = "Open a .sol/.hex file or paste bytecode above, then Run.";
+        StatusMessage = "Workbench reset";
+        StackText = MemoryText = AccountsText = LogsText = GasText = "(empty)";
+        StorageText = "(empty — scrub to last step after RUN)";
+        RefreshResultExplain();
+        OnPropertyChanged(nameof(CurrentFileTitle));
+        OnPropertyChanged(nameof(MaxStepIndex));
+        OnPropertyChanged(nameof(WatermarkOpacity));
+        NotifyStepProps();
+    }
+
+    [RelayCommand]
+    private async Task CopyInspectorAsync(string? section)
+    {
+        var text = (section ?? "all").ToLowerInvariant() switch
+        {
+            "verdict" => $"{ResultVerdict}{Environment.NewLine}{ResultExplain}{Environment.NewLine}{ResultBanner}",
+            "return" => ReturnDataHex,
+            "storage" => StorageText,
+            "stack" => StackText,
+            "memory" => MemoryText,
+            "accounts" => AccountsText,
+            "logs" => LogsText,
+            "gas" => GasText,
+            _ => BuildFullCopyText()
+        };
+
+        if (await TryCopyAsync(text))
+            StatusMessage = $"Copied {section ?? "results"}";
+        else
+            StatusMessage = "Clipboard unavailable";
+    }
+
+    private string BuildFullCopyText() =>
+        $"""
+        VERDICT: {ResultVerdict}
+        {ResultExplain}
+        BANNER: {ResultBanner}
+        FORK: {SelectedFork}
+        RETURN: {ReturnDataHex}
+        ERROR: {ErrorText}
+        STORAGE:
+        {StorageText}
+        STACK:
+        {StackText}
+        ACCOUNTS:
+        {AccountsText}
+        """;
+
+    private static async Task<bool> TryCopyAsync(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        try
+        {
+            if (Avalonia.Application.Current?.ApplicationLifetime
+                is not Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desk)
+                return false;
+            var clip = desk.MainWindow?.Clipboard;
+            if (clip is null) return false;
+            await clip.SetTextAsync(text);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void RefreshResultExplain()
+    {
+        var (verdict, explain) = WorkbenchResultText.Build(
+            HasTrace, LastRunSuccess, ResultBanner, ErrorText, ReturnDataHex, StorageRows);
+        ResultVerdict = verdict;
+        ResultExplain = explain;
+    }
+
+    private void RefreshInspectorTexts()
+    {
+        StackText = WorkbenchResultText.JoinOrEmpty(StackRows, "(empty)");
+        MemoryText = WorkbenchResultText.JoinOrEmpty(MemoryRows, "(empty)");
+        StorageText = WorkbenchResultText.JoinOrEmpty(StorageRows, "(empty — scrub to last step after RUN)");
+        AccountsText = WorkbenchResultText.JoinOrEmpty(AccountStateRows, "(empty)");
+        LogsText = WorkbenchResultText.JoinOrEmpty(EventLogRows, "(empty)");
+        GasText = WorkbenchResultText.JoinOrEmpty(GasTreeNodes.Select(g => g.DisplayText), "(empty)");
+    }
+
     [RelayCommand]
     private void JumpToInstruction(InstructionViewModel? instr)
     {
@@ -781,8 +925,10 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
 
         StatusMessage = isBytecodeRun
-            ? $"LIVE EVM [{SelectedFork} label]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {gasUsed:N0} gas | refund {refund}"
+            ? $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {gasUsed:N0} gas | refund {refund}"
             : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {gasUsed:N0} gas";
+        RefreshInspectorTexts();
+        RefreshResultExplain();
     }
 
     partial void OnCurrentStepIndexChanged(int value)
@@ -806,11 +952,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         StorageRows.Clear();
         foreach (var kvp in step.Storage)
-            StorageRows.Add($"{kvp.Key}: {kvp.Value}");
+            StorageRows.Add($"slot {kvp.Key} = {kvp.Value}");
 
         ComputeEelsSpecCitation(step);
         UpdateActiveLineForStep(value);
         HighlightInstruction(value);
+        RefreshInspectorTexts();
+        RefreshResultExplain();
         NotifyStepProps();
 
         StatusMessage =

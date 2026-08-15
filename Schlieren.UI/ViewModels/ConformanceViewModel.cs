@@ -51,6 +51,7 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string  _fixtureSuiteVersion = SuiteVersion;
     [ObservableProperty] private string  _readySummary        = string.Empty;
     [ObservableProperty] private bool    _showEmptyFailures   = true;
+    [ObservableProperty] private bool    _excludePortedStatic = true;
 
     // Selection / detail / clusters
     [ObservableProperty] private ConformanceFailureRow? _selectedFailure;
@@ -87,6 +88,7 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
     // ── Derived ──────────────────────────────────────────────────────────────
     partial void OnSelectedForkChanged(string value)     => RefreshFixturePath();
     partial void OnFixturesBasePathChanged(string value) => RefreshFixturePath();
+    partial void OnExcludePortedStaticChanged(bool value) => RefreshFixturePath();
 
     private void RefreshFixturePath()
     {
@@ -115,7 +117,8 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         }
 
         ReadySummary =
-            $"{SelectedFork} · {DiscoveredFixtureFiles:N0} fixture files · {SuiteVersion}";
+            $"{SelectedFork} · {DiscoveredFixtureFiles:N0} fixture files · {SuiteVersion}"
+            + (ExcludePortedStatic ? " · excluding ported_static" : "");
         StatusColor   = "#22c55e";
         StatusMessage = $"Ready — live EELS state tests ({SuiteVersion}). Click RUN.";
     }
@@ -159,10 +162,14 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
 
         var progress = new Progress<ConformanceProgress>(OnProgress);
 
+        // Let Avalonia paint "Loading fixtures…" before the first await hits disk I/O.
+        await Task.Yield();
+
         try
         {
+            var exclude = ExcludePortedStatic ? "ported_static" : null;
             var (p, f, t) = await ConformanceRunService.RunAsync(
-                ResolvedFixturePath, SelectedFork, progress, _cts.Token);
+                ResolvedFixturePath, SelectedFork, progress, _cts.Token, exclude);
 
             Passed = p; Failed = f; Total = t;
             UpdateDerived();
@@ -252,6 +259,45 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         ApplyFailureFilter();
     }
 
+    /// <summary>
+    /// Clears the last suite run (scores, failures, clusters, selection).
+    /// Keeps fork and fixture path. Cancels an in-flight run first.
+    /// </summary>
+    [RelayCommand]
+    private void ResetResults()
+    {
+        if (IsRunning)
+            _cts?.Cancel();
+
+        _stopwatch?.Stop();
+        _clockTimer?.Stop();
+        _stopwatch = null;
+        IsRunning = false;
+
+        _allFailures.Clear();
+        _clusterMap.Clear();
+        Failures.Clear();
+        Clusters.Clear();
+        HasClusters = false;
+        ActiveClusterFilter = null;
+        ClusterFilterLabel = "All failures";
+        ClearSelectionUi();
+        ShowEmptyFailures = true;
+
+        Passed = Failed = Total = 0;
+        ProgressRatio = 0;
+        ProgressText = "0 / 0";
+        PassRateText = "—";
+        PassRateColor = "#7a82a8";
+        HasResults = false;
+        CurrentCase = string.Empty;
+        ElapsedText = "00:00";
+
+        RefreshFixturePath();
+        if (FixturePathValid)
+            StatusMessage = $"Reset — ready to run {SelectedFork} ({SuiteVersion}).";
+    }
+
     // ── Progress handler (fires on UI thread via Progress<T>) ─────────────
     private void OnProgress(ConformanceProgress p)
     {
@@ -260,6 +306,9 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         Total   = p.Total;
         CurrentCase = p.CurrentCase;
         UpdateDerived();
+
+        if (p.Passed == 0 && p.Failed == 0 && !string.IsNullOrEmpty(p.CurrentCase))
+            StatusMessage = p.CurrentCase;
 
         if (p.FailureDetail is null)
             return;

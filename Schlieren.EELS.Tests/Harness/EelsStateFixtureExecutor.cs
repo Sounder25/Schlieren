@@ -108,7 +108,7 @@ public sealed class EelsStateFixtureExecutor
     private sealed class LargeStackWorker
     {
         private readonly Thread _thread;
-        private readonly BlockingCollection<Action> _queue = new();
+        private readonly BlockingCollection<(Action Run, Action OnTimeout)> _queue = new();
 
         public LargeStackWorker()
         {
@@ -120,42 +120,44 @@ public sealed class EelsStateFixtureExecutor
         public Task<T> RunAsync<T>(Func<Task<T>> action)
         {
             var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _queue.Add(() =>
-            {
-                try
+            _queue.Add((
+                Run: () =>
                 {
-                    var result = action().GetAwaiter().GetResult();
-                    tcs.SetResult(result);
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
+                    try
+                    {
+                        var result = action().GetAwaiter().GetResult();
+                        tcs.TrySetResult(result);
+                    }
+                    catch (Exception ex)
+                    {
+                        tcs.TrySetException(ex);
+                    }
+                },
+                OnTimeout: () => tcs.TrySetException(
+                    new TimeoutException("EELS case exceeded the 120s large-stack worker limit."))));
             return tcs.Task;
         }
 
         private void WorkerLoop()
         {
-            foreach (var work in _queue.GetConsumingEnumerable())
+            foreach (var item in _queue.GetConsumingEnumerable())
             {
                 // Run each work item on its own fresh 32MB thread so a StackOverflowException
                 // in one item does not kill the shared worker loop.
                 Exception? workerEx = null;
-                var itemTcs = new TaskCompletionSource<bool>();
                 var itemThread = new Thread(() =>
                 {
-                    try { work(); itemTcs.TrySetResult(true); }
-                    catch (Exception ex) { workerEx = ex; itemTcs.TrySetResult(false); }
+                    try { item.Run(); }
+                    catch (Exception ex) { workerEx = ex; }
                 }, 32 * 1024 * 1024);
                 itemThread.IsBackground = true;
                 itemThread.Start();
-                // 120-second per-case timeout — if hit, mark the outer TCS as cancelled
+                // 120-second per-case timeout. CREATE2 collision / deep-recursion
+                // fixtures in ported_static can pin the worker here.
                 if (!itemThread.Join(TimeSpan.FromSeconds(120)))
                 {
+                    item.OnTimeout();
                     itemThread.Interrupt();
-                    // Signal completion so the queue drains — the case TCS stays uncompleted
-                    // and the caller will get an OperationCanceledException from CancellationToken
                 }
                 if (workerEx != null)
                     throw workerEx;

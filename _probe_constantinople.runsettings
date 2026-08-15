@@ -6,7 +6,7 @@
       <EELS_INCLUDE_SUBDIRS>1</EELS_INCLUDE_SUBDIRS>
       <EELS_MAX_CASES>50</EELS_MAX_CASES>
       <EELS_REQUIRED_FORK>Prague</EELS_REQUIRED_FORK>
-      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/for_prague/constantinople</EELS_FIXTURES_ROOT>
+      <EELS_FIXTURES_ROOT>C:/projects/Schlieren/fixtures/state_tests/for_prague/constantinople</EELS_FIXTURES_ROOT>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

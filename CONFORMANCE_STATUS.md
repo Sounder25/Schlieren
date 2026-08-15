@@ -11,7 +11,8 @@
 | Suite | Fixture Version | Cases | Passing | Status |
 |---|---|---|---|---|
 | **Osaka** | tests@v20.0.1 | 14,516 | **14,516** | ✅ **100.00%** |
-| **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(not re-measured this run)* |
+| **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(official gate, excl. ported_static)* |
+| **Prague (v20 full UI)** | tests@v20.0.1 | 13,851 | ~13,463 | ✅ **97.2%** *(includes ported_static; 2026-08-15 UI run)* |
 | **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
 | **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
 | **Unit Tests** | — | 337 | 336 | ✅ **99.7%** (1 pre-existing ForkingGlobalState stub) |

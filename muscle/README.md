@@ -1,20 +1,20 @@
-# Scrutor Muscle (Hardhat)
+# Schlieren Muscle (Hardhat)
 
-Hardhat project that treats **Scrutor** as the local Anvil-compatible node.
+Hardhat project that treats **Schlieren** as the local Anvil-compatible node.
 
 RPC: `http://127.0.0.1:18545` · chainId `31337` · Anvil test mnemonic (account #0 funded).
 
 ## Prerequisites
 
 - Node 18+
-- Scrutor built (`dotnet build` in repo root)
+- Schlieren built (`dotnet build` in repo root)
 
-## 1. Start Scrutor (must use this mnemonic)
+## 1. Start Schlieren (must use this mnemonic)
 
-From `C:\projects\Scrutor`:
+From the repo root:
 
 ```powershell
-.\Scrutor.CLI\bin\Debug\net8.0\Scrutor.CLI.exe `
+.\Schlieren.CLI\bin\Debug\net8.0\Schlieren.CLI.exe `
   --host 127.0.0.1 --port 18545 --accounts 3 --balance 10000 `
   --mnemonic "test test test test test test test test test test test junk"
 ```
@@ -34,13 +34,13 @@ npm run compile
 ```powershell
 npm run smoke          # deploy Counter, increment, assert
 npm run deploy         # same path, slightly more logging
-npm test               # mocha suite on --network scrutor
+npm test               # mocha suite on --network schlieren
 ```
 
 Override RPC if needed:
 
 ```powershell
-$env:SCRUTOR_RPC = "http://127.0.0.1:18545"
+$env:SCHLIEREN_RPC = "http://127.0.0.1:18545"
 npm run smoke
 ```
 
@@ -49,10 +49,10 @@ npm run smoke
 | Path | Role |
 |------|------|
 | `contracts/Counter.sol` | Trivial stateful contract |
-| `scripts/smoke.js` | Gate: deploy + call on Scrutor |
+| `scripts/smoke.js` | Gate: deploy + call on Schlieren |
 | `scripts/deploy.js` | Deploy helper |
-| `test/Counter.scrutor.js` | Integration tests against live node |
-| `hardhat.config.js` | `scrutor` network → port 18545 |
+| `test/Counter.schlieren.js` | Integration tests against live node |
+| `hardhat.config.js` | `schlieren` network → port 18545 |
 
 ## Relation to other gates
 
@@ -62,7 +62,7 @@ npm run smoke
 | **This package** | Real toolchain deploy/call (Hardhat) |
 | EELS fixtures | Spec math/gas (later, not day-one) |
 
-## Known limits (Scrutor)
+## Known limits (Schlieren)
 
 - Pairing precompile fail-closed for k>0
 - Snapshot/revert may not fully rewind block number
