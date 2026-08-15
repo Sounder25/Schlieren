@@ -1138,6 +1138,13 @@ public sealed class OpcodeSelfDestruct : IOpcode
                 context.GlobalState.SetBalance(context.ContractAddress, 0);
         }
 
+        // Frontier–Berlin (removed by EIP-3529 in London): first SELFDESTRUCT of an account
+        // in the transaction adds 24000 to the refund counter.
+        // Check BEFORE MarkForDeletion: IsMarkedForDeletion reflects prior same-tx selfdestructs only.
+        // EELS: if originator not already in accounts_to_delete → refund_counter += 24000
+        if (rules.HasSelfdestructRefund && !context.GlobalState.IsMarkedForDeletion(context.ContractAddress))
+            context.GasRefundCounter += 24_000;
+
         // EIP-6780 (Shanghai+): account deletion only when created in same transaction.
         // Pre-Shanghai: SELFDESTRUCT always marks the contract for deletion.
         bool shouldDelete = rules.HasEip6780SelfdestructRestriction

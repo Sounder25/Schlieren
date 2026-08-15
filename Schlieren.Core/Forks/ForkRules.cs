@@ -43,6 +43,7 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip3529RefundCap         => false;
     public virtual bool HasEip3541EfPrefix          => false;
     public virtual bool HasEip3651WarmCoinbase      => false;  // Shanghai+
+    public virtual bool HasSelfdestructRefund       => true;   // Frontier–Berlin; removed by EIP-3529 (London+)
     public virtual bool HasEip3860InitcodeLimit     => false;
     public virtual bool HasEip4844BlobTx            => false;
     public virtual int  MaxBlobsPerTransaction      => 0;    // 0 = blob txs not supported; Cancun=6, Prague+=9
@@ -307,8 +308,9 @@ public class LondonRules : BerlinRules
     public override Fork Fork => Fork.London;
 
     public override bool  HasEip1559BaseFee   => true;
-    public override bool  HasEip3529RefundCap => true;
-    public override bool  HasEip3541EfPrefix  => true;
+    public override bool  HasEip3529RefundCap    => true;
+    public override bool  HasEip3541EfPrefix     => true;
+    public override bool  HasSelfdestructRefund  => false; // EIP-3529 removes the 24000 refund
     public override ulong RefundQuotient      => 5; // gasUsed/5 = 20% max refund
 
     // EIP-3529: clear refund 15000 → 4800

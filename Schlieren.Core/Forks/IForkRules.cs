@@ -47,6 +47,7 @@ public interface IForkRules
     bool HasEip2930AccessLists    { get; }  // Berlin+
     bool HasEip3529RefundCap      { get; }  // London+ (refund cap = gasUsed/5 instead of /2)
     bool HasEip3541EfPrefix       { get; }  // London+: reject code starting with 0xEF
+    bool HasSelfdestructRefund    { get; }  // Frontier–Berlin: +24000 refund on first SELFDESTRUCT
     bool HasEip3651WarmCoinbase   { get; }  // Shanghai+: pre-warm coinbase at tx start
     bool HasEip3860InitcodeLimit  { get; }  // Shanghai+: initcode size limit + cost
     bool HasEip4844BlobTx         { get; }  // Cancun+
