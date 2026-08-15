@@ -131,6 +131,31 @@ The gas formula book lives in [`docs/gas/`](docs/gas/):
 
 ---
 
+## Security
+
+Schlieren has been hardened against adversarial inputs at every layer:
+
+### EVM Execution Security
+- **Call-depth bomb:** EVM enforces 1024-frame limit; CLR stack protected by `Task.Yield()` every 32 frames prevents `StackOverflowException`
+- **Infinite loops:** Gas limit enforced; `OutOfGas` revert without freezing host thread
+- **Memory expansion attacks:** Quadratic gas formula aborts before allocating terabyte-scale arrays
+- **Precompile abuse:** Bad input sizes and insufficient gas handled gracefully; no `IndexOutOfRangeException`
+- **Dirty calldata:** `MAX_UINT256` arguments decoded safely; reverts on contract `require()`, not host crash
+- **SELFDESTRUCT + CREATE2:** Tombstone semantics enforced; re-deploy at same address correctly rejected within block
+
+### RPC Server Security
+- **Slowloris defense:** 5-second read timeout on entire request phase; `408 Request Timeout` on stalled connections
+- **Payload limit:** 1MB cap enforced; `413 Payload Too Large` and socket close on oversized bodies
+- **Malformed JSON:** `-32700 Parse error` on truncated/invalid JSON
+- **Missing fields:** `-32600 Invalid Request` on missing `method`
+- **Invalid method:** `-32601 Method not found` gracefully returned
+- **HTTP method abuse:** `405 Method Not Allowed` on GET requests
+- **Batch bomb:** 10k-request arrays rejected without host OOM
+
+Tested via `muscle/tests/Chaos.test.csx` and `muscle/tests/RpcChaos.test.csx`.
+
+---
+
 ## Development Tools
 
 ```
