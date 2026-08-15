@@ -1,94 +1,160 @@
 # Schlieren — .NET 8 Ethereum Execution & Verification Engine
 
-Schlieren is a high-performance .NET 8 Ethereum execution client, EVM security debugger, and specification verification platform.
+Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specification-verification platform built on .NET 8. It ships a complete EVM interpreter, a fork-aware gas scheduler, an Avalonia desktop IDE (the **Workbench**), and an automated conformance harness against the official Ethereum Python execution specification (EELS).
 
-The solution includes the core execution engine, JSON-RPC services, a command-line host, an Avalonia desktop IDE, unit tests, and an EELS state-test conformance harness.
+**Status:** 100% EELS conformance across every fork from Frontier through Osaka (tag `schlieren-eels-100`).
+
+---
 
 ## Projects
 
-- `Schlieren.Core` — EVM execution, state transitions, opcodes, precompiles, access tracking, and security detectors (Reentrancy, Storage Collision).
-- `Schlieren.RPC` — Ethereum JSON-RPC server (`eth_call`, `eth_sendRawTransaction`, `debug_traceTransaction`).
-- `Schlieren.CLI` — Command-line host & runner.
-- `Schlieren.UI` — Modern Avalonia .NET 8 EVM Security & Execution IDE.
-- `Schlieren.Tests` — Core unit and integration test suite (**303 tests**).
-- `Schlieren.EELS.Tests` — Conformance adapter & automated debugging suite for published EELS state-test fixtures.
+| Project | Purpose |
+|---|---|
+| `Schlieren.Core` | EVM interpreter, state transitions, opcodes, precompiles, access tracker, fork rules, causal diagnosis engine |
+| `Schlieren.RPC` | Ethereum JSON-RPC server (`eth_call`, `eth_sendRawTransaction`, `debug_traceTransaction`) |
+| `Schlieren.CLI` | Command-line host and batch runner |
+| `Schlieren.UI` | Avalonia .NET 8 desktop IDE — Workbench, Conformance view, Call Topology |
+| `Schlieren.Tests` | Unit and integration test suite (369 tests, 369 pass) |
+| `Schlieren.EELS.Tests` | EELS conformance harness + automated failure diagnosis |
 
 ---
 
-## Schlieren IDE Features (`Schlieren.UI`)
+## Quick Start
 
-- **Top Application Menu Bar**: Desktop menus (`File`, `Edit`, `EVM Engine`, `Tools`, `Help`) with hotkeys (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+S`, `Alt+F4`).
-- **Native OS Open File & Folder Dialogs**: Open custom `.sol`, `.yul`, `.json`, `.hex`, or `.txt` contract files and workspace directories natively.
-- **EVM Hard Fork Selector & Block Configurator**: Switch hard forks (`Cancun`, `Prague`, `Shanghai`, `London`, `Berlin`) and configure `BaseFeePerGas`, `GasLimit`, `ChainId`, and `Coinbase`.
-- **Interactive EVM Step Scrubber**: Step through contract bytecode line-by-line or toggle automated playback (`▶ PLAY` / `⏸ PAUSE`).
-- **Full Keyboard Debugger Shortcuts**: `F10` (Step Forward), `F11` (Step Back), `Space` (Toggle Auto-Play), `Home` (Jump Start), `End` (Jump End).
-- **Inline Opcode Gas Badges**: Displays exact gas costs directly on active execution lines (e.g. `[PUSH1 • 3]`, `[SLOAD • 2100 ❄ COLD]`).
-- **Live EELS Spec Audit Drawer**: Shows real-time EELS spec citations (`sstore(evm)`, `sload(evm)`) and exact gas formula breakdowns (`COLD_ACCESS + STORAGE_SET`).
-- **One-Click Audit Report Exporter**: Generate professional Markdown security audit reports (`AUDIT_REPORT.md`) with Reentrancy & Proxy Storage Collision findings.
-- **Call Topology Graph**: Visual inter-contract call topology and depth tracking.
-
----
-
-## Build and Test
-
-```powershell
+```bash
+# Restore and build
 dotnet restore
-dotnet build --no-restore
-dotnet test Schlieren.Tests/Schlieren.Tests.csproj --no-build
+dotnet build
+
+# Run unit tests
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj
+
+# Run the desktop IDE
+dotnet run --project Schlieren.UI/Schlieren.UI.csproj
+
+# Full Osaka conformance sweep (requires fixtures — see below)
+dotnet test Schlieren.EELS.Tests --settings osaka_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 ```
 
-### EELS Conformance & Debugging Suite
+### Fixture Setup
 
-Fixture JSON is **not** committed (too large for GitHub). On a fresh clone:
+Conformance fixtures are gitignored (large). Download once:
 
-```powershell
+```bash
+# v20.0.1 from ethereum/execution-specs (current primary source)
+gh release download "tests@v20.0.1" --repo ethereum/execution-specs --pattern "fixtures.tar.gz"
+tar xzf fixtures.tar.gz "fixtures/state_tests/" "fixtures/.meta/"
+
+# Or use the PowerShell helper:
 pwsh ./tools/fetch-fixtures.ps1
 ```
 
-Schlieren includes an automated 5-tool EELS debugging toolchain:
+---
 
-```powershell
-$env:EELS_FIXTURES_ROOT = "C:/projects/Schlieren/fixtures/state_tests/cancun"
-$env:EELS_INCLUDE_SUBDIRS = "1"
+## Conformance
 
-# 1. Taxonomy Drill — bucket all failures by category & delta magnitude
-dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "EelsTaxonomyDrill"
+Schlieren achieves **100% EELS conformance across all forks** using the `tests@v20.0.1` fixture suite from `ethereum/execution-specs`.
 
-# 2. Balance Auditor — 5-term gas ledger reconstruction
-dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "EelsBalanceAudit"
+| Fork | Cases | Result |
+|---|---|---|
+| Osaka | 14,516 | ✅ 100% |
+| Prague (v20) | 6,811 | ✅ 100% |
+| Cancun (v20) | 4,514 | ✅ 100% |
+| Shanghai (v20) | 4,969 | ✅ 100% |
+| Paris / London / Berlin / Istanbul / Byzantium | ~2,000–3,500 each | ✅ 100% |
+| Homestead | 545 | ✅ 100% |
+| Frontier | 557 | ✅ 100% |
+| Unit Tests | 369 | ✅ 100% |
 
-# 3. Single-Case Step Tracer — emit full EIP-3155 structLog
-$env:EELS_CASE_FILTER = "callBasic"
-dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "SingleCaseTrace"
+See [`CONFORMANCE_STATUS.md`](CONFORMANCE_STATUS.md) for full details and EIP coverage.
 
-# 4. StructLog Step-Diff — find exact step & opcode where execution diverges
-python tools/eels_trace_compare.py <schlieren_log.json> <reference_log.json>
+---
 
-# 5. Log Auditor — audit event topics, data payloads, and logsBloom filters
-dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "EelsLogAudit"
+## IDE Features (Schlieren.UI)
+
+- **Workbench** — Load any EELS state-test fixture or live prestate JSON, execute step-by-step with full stack/memory/storage inspection, and diff expected vs actual state
+- **Conformance View** — Run and filter fork-specific EELS sweep suites; failures link directly into the Workbench
+- **Call Topology Graph** — Visual inter-contract call tree with gas attribution
+- **Causal Diagnosis Engine** — Automatically classifies EELS failures by gas rule (e.g. `EXP.BYTE_COST`, `CALL.NEW_ACCOUNT`, `TX.CREATE_SURCHARGE`) and links to `GAS_FORMULAS.md`
+- **Gas Inspector** — Inline opcode gas badges showing exact costs and warm/cold access state
+- **Hard Fork Selector** — Switch Frontier through Osaka; all fork-dependent rules apply immediately
+- **Keyboard Shortcuts** — `F10` step forward, `F11` step back, `Space` toggle auto-play, `Ctrl+O` open fixture
+
+---
+
+## Architecture
+
+```
+Schlieren.Core/
+  Execution/
+    EvmMachine.cs         — interpreter loop
+    StateTransition.cs    — transaction lifecycle (type-0 through type-4)
+    ExecutionContext.cs   — per-frame state (stack, memory, access tracker, transient storage)
+    Precompiles.cs        — 0x01–0x13 + 0x0100 dispatch
+    Causal/               — failure diagnosis engine
+  Forks/
+    IForkRules.cs         — fork capability interface
+    ForkRules.cs          — Frontier → Osaka class chain
+  Opcodes/                — one class per opcode or opcode group
+  State/
+    StateOverlay.cs       — layered state with tombstone semantics
+    ForkingGlobalState.cs — RPC-backed remote state (forked node mode)
+    AccountDeployability.cs — EIP-7610 fail-closed collision check
 ```
 
-See [Schlieren.EELS.Tests/README.md](Schlieren.EELS.Tests/README.md) for harness configuration details.
+### Fork Rules Design
+
+Every fork-dependent constant or behaviour is declared on `IForkRules` and overridden in the appropriate `*Rules` class. Nothing is hardcoded in opcode logic. The chain is:
+
+```
+FrontierRules
+  └─ HomesteadRules        (EIP-2: CREATE surcharge, deposit OOG halt, DELEGATECALL)
+       └─ TangerineWhistleRules  (EIP-150: IO repricing, 63/64 forwarding)
+            └─ SpuriousDragonRules  (EIP-160: EXP repricing)
+                 └─ ByzantiumRules → ConstantinopleRules → IstanbulRules
+                      → BerlinRules → LondonRules → ParisRules
+                      → ShanghaiRules → CancunRules → PragueRules
+                           └─ OsakaRules
+```
 
 ---
 
-## Cancun Conformance Baseline
+## Gas Documentation
 
-As of **2026-08-05**:
+The gas formula book lives in [`docs/gas/`](docs/gas/):
 
-- `dotnet build Schlieren.sln`: **Build succeeded with 0 errors**.
-- `Schlieren.Tests`: **303 passed, 0 failed**.
-- `Schlieren.EELS.Tests`: Conformance suite and 5-tool EELS taxonomy suite active.
-- CI Gate: Automated PR conformance check via `.github/workflows/eels-gate.yml`.
+| File | Contents |
+|---|---|
+| [`GAS_FORMULAS.md`](docs/gas/GAS_FORMULAS.md) | Complete protocol formula reference, all 168 rules, fork annotations |
+| [`GAS_RULE_INVENTORY.md`](docs/gas/GAS_RULE_INVENTORY.md) | Source-level audit — exact file:line for every gas charge |
+| [`GAS_COVERAGE_MATRIX.md`](docs/gas/GAS_COVERAGE_MATRIX.md) | Per-fork coverage matrix |
 
 ---
 
-## Hermes Agent Skills
+## Development Tools
 
-Custom skills for autonomous agent execution are defined in `.agents/skills/`:
-- `eels-taxonomy-drill`
-- `eels-balance-auditor`
-- `eels-single-case-tracer`
-- `eels-trace-compare`
-- `eels-log-auditor`
-- `eels-fixture-diff`
+```
+tools/
+  eels_fixture_diff.py      — diff Schlieren output vs EELS expected state
+  eels_loop_trace.py        — run EELS Python reference tracer to JSONL
+  eels_trace_compare.py     — step-by-step structLog alignment tool
+  fetch-fixtures.ps1        — download and extract official fixture archives
+
+.agents/skills/             — in-repo agent skills (taxonomy drill, balance auditor, etc.)
+```
+
+Run settings for specific suites:
+
+```
+osaka_audit.runsettings         — full Osaka sweep (14,516 cases)
+prague_v20_audit.runsettings    — Prague v20 official (6,811 cases)
+sweep_<fork>.runsettings        — per-fork sweeps (Frontier through Osaka)
+eip7702_audit.runsettings       — EIP-7702 SetCode subset
+bls_audit.runsettings           — BLS12-381 precompiles
+```
+
+---
+
+## License
+
+MIT

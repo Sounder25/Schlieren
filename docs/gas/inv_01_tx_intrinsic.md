@@ -1,3 +1,5 @@
 # Historical fragment — not authoritative
 
-Transaction/intrinsic formulas live in `GAS_FORMULAS.md` §1 and `GAS_RULE_INVENTORY.md` (TX.*).
+Fixed opcode costs and discovery notes live in `GAS_FORMULAS.md` and `GAS_RULE_INVENTORY.md`.
+
+This file is a working-session artifact retained for git history. Do not use as a reference.

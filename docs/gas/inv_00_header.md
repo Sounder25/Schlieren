@@ -1,9 +1,5 @@
 # Historical fragment — not authoritative
 
-This file is a leftover from the original inventory transfer.
+Fixed opcode costs and discovery notes live in `GAS_FORMULAS.md` and `GAS_RULE_INVENTORY.md`.
 
-Use:
-
-- `GAS_FORMULAS.md`
-- `GAS_RULE_INVENTORY.md`
-- `GAS_COVERAGE_MATRIX.md`
+This file is a working-session artifact retained for git history. Do not use as a reference.

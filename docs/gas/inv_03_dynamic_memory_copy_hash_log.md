@@ -1,3 +1,5 @@
 # Historical fragment — not authoritative
 
-Dynamic/memory/copy/hash/log formulas live in `GAS_FORMULAS.md` §3 and `GAS_RULE_INVENTORY.md`.
+Fixed opcode costs and discovery notes live in `GAS_FORMULAS.md` and `GAS_RULE_INVENTORY.md`.
+
+This file is a working-session artifact retained for git history. Do not use as a reference.

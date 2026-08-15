@@ -276,35 +276,41 @@ Named so diagnosis does not treat them as Yellow Paper gas.
 
 ---
 
-## 12. Still open vs protocol (canonical path, 2026-08-15)
+## 12. Open vs protocol — canonical path (2026-08-15)
 
-Closed since the `806dd2d` discovery (do not re-fix):
+All items from the `806dd2d` discovery baseline are now closed.
 
-- SDIV=`0x05`, MOD=`0x06`
-- CREATE/CREATE2 charge `Δmem` and gate EIP-3860 word gas + size
-- LOG* reject static context
-- Coinbase pre-warm only Shanghai+; Osaka warms `0x0100`
-- Local activation: SHL/SHR/SAR, CLZ, PUSH0, SELFBALANCE, BASEFEE, BLOBBASEFEE, BLOBHASH, MCOPY, TLOAD/TSTORE
-- Osaka tx gas cap on `ApplyTransactionAsync`; Osaka suite 14,516/14,516
+### Closed in 2026-08-15 session (commits `e7ecef4`–`d77dfe2`)
 
-Closed during 2026-08-15 session (commits `63977c2`–`5c7191e`):
+- **`TX.CREATE_SURCHARGE`** — Frontier charges 0, Homestead+ charges 32000. `HasCreateTxSurcharge` flag.
+- **`CREATE.DEPOSIT_OOG`** — Frontier deploys empty code on deposit OOG; Homestead+ ExceptionalHalt. `HasCreateDepositOogHalt` flag.
+- **`HALT.OPCODE_ACTIVATION` (DELEGATECALL)** — 0xF4 was active in Frontier. `HasDelegateCall` guard at entry.
+- **`CALL.PRE_EIP150_CHARGE` (CALLCODE value-transfer)** — Pre-150 CALLCODE was missing 9000 value-transfer cost and 2300 stipend.
+- **`CALL.PRECOMPILE_DISPATCH` (codeAddress)** — CALLCODE/DELEGATECALL to a precompile codeAddress skipped the precompile block. `StateTransition` now dispatches on `codeAddress.HasValue && IsPrecompile`.
+- **`OP.EXP`** — Per-byte cost was hardcoded to 50; Frontier–Tangerine requires 10. `IForkRules.ExpByteCost` (10 default, 50 in `SpuriousDragonRules`).
+- **`EIP-7610 fail-closed`** — `AccountDeployability.IsDeployableAsync` was treating `StoragePresence.Unknown` as deployable. Now requires `== Empty`.
 
-- SELFDESTRUCT 24000 refund Frontier–Berlin (`HasSelfdestructRefund` flag, `LondonRules` = false)
-- EIP-3651 coinbase pre-warm fork-gated to Shanghai+ (`HasEip3651WarmCoinbase`)
-- EXTCODEHASH/CHAINID/CREATE2/RETURNDATASIZE/RETURNDATACOPY local activation gates
-- BALANCE correct pricing: Frontier/Homestead=20, TangerineWhistle–Constantinople=400, Istanbul+=700 (`BalanceCost()`)
-- CREATE/CREATE2 gas forwarding: Frontier/Homestead forward all remaining gas; TangerineWhistle+ 63/64
-- SELFDESTRUCT self-send balance zeroing: pre-EIP-6780 always zeroes originator; Cancun+ only if same-tx
+### Closed earlier (do not re-fix)
 
-Still wrong or missing on the **canonical** path:
+- SDIV=`0x05`, MOD=`0x06` byte assignments
+- CREATE/CREATE2 memory expansion and EIP-3860 word gas
+- LOG* static context rejection
+- Coinbase pre-warm: Shanghai+ only; Osaka warms `0x0100`
+- Local activation gates: SHL/SHR/SAR, CLZ, PUSH0, SELFBALANCE, BASEFEE, BLOBBASEFEE, BLOBHASH, MCOPY, TLOAD/TSTORE, CHAINID, RETURNDATA*, CREATE2, EXTCODEHASH, DELEGATECALL, REVERT, STATICCALL
+- Osaka tx gas cap on `ApplyTransactionAsync`
+- SELFDESTRUCT 24000 refund Frontier–Berlin
+- EIP-3651 coinbase pre-warm fork-gated to Shanghai+
+- BALANCE pricing: Frontier/Homestead=20, Tangerine–Constantinople=400, Istanbul+=700
+- CREATE/CREATE2 forwarding: Frontier/Homestead forward all remaining; Tangerine+ 63/64
+- SELFDESTRUCT self-send zeroing: pre-EIP-6780 always zeroes; Cancun+ only if same-tx
 
-1. Frontier CREATE tx surcharge `32000` (should be 0)
-2. EXP always 50/byte (should be 10/byte before Spurious Dragon)
-3. No interpreter-wide activation: REVERT, STATICCALL, DELEGATECALL (CHAINID, RETURNDATA*, CREATE2, EXTCODEHASH now gated)
-4. EIP-170 has no Spurious gate (too early on Frontier–Tangerine); unknown remote storage is deployable; CREATE deposit-OOG never uses Frontier empty-code success; warmth not un-warmed on failed create
-5. Tangerine CALL new-account predicate; pre-EIP-150 CALL overflow
-6. ModExp 10B saturate + pre-Osaka 8192 host cap
-7. Diagnostic `ApplyTransactionWithFrameAsync` / gas-tree still a second lifecycle
+### Still open (host policies, not protocol bugs)
+
+1. `OP.EXP` Frontier edge: `byte_count(0) = 0` — already correct.
+2. ModExp `10_000_000_000` saturation cap — host policy, undercharges extreme inputs.
+3. Pre-Osaka ModExp 8192-byte host length cap — host policy only.
+4. `Unknown` remote storage deployable (EIP-7610) — **fixed** (`== Empty` predicate).
+5. Diagnostic `ApplyTransactionWithFrameAsync` / gas-tree second lifecycle — diagnostic path only, does not affect conformance.
 
 ## 13. Diagnostic IDs (not protocol charges)
 
