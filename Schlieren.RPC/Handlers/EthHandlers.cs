@@ -1098,6 +1098,20 @@ public sealed class EthHandlers
             : "Prague";
 
         var currentBlock = _chainState.CurrentBlock;
+        
+        // Parse coinbase from request, or use block miner
+        Address coinbase;
+        if (requestObj.Value.TryGetProperty("coinbase", out var coinbaseProp) && 
+            coinbaseProp.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(coinbaseProp.GetString()))
+        {
+            coinbase = Address.FromHex(coinbaseProp.GetString()!);
+        }
+        else
+        {
+            coinbase = string.IsNullOrEmpty(currentBlock.Miner) ? Address.Zero : Address.FromHex(currentBlock.Miner);
+        }
+        
         var blockContext = new BlockContext
         {
             ChainId = _chainState.ChainId,
@@ -1106,7 +1120,7 @@ public sealed class EthHandlers
             GasLimit = currentBlock.GasLimit,
             Difficulty = currentBlock.Difficulty,
             BaseFeePerGas = currentBlock.BaseFeePerGas,
-            Coinbase = string.IsNullOrEmpty(currentBlock.Miner) ? Address.Zero : Address.FromHex(currentBlock.Miner),
+            Coinbase = coinbase,
             Rules = ForkRulesFactory.For(fork)
         };
 

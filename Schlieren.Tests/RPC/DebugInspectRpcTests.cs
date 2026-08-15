@@ -16,6 +16,64 @@ namespace Schlieren.Tests.RPC;
 public class DebugInspectRpcTests
 {
     [Fact]
+    public async Task DebugInspect_RejectsEmptyParams()
+    {
+        var (globalState, handlers) = BuildFixture();
+        var router = new RpcRouter(handlers, NullLogger<RpcRouter>.Instance);
+
+        var response = await router.ProcessRequest(
+            @"{""jsonrpc"":""2.0"",""id"":1,""method"":""debug_inspect"",""params"":[]}");
+
+        using var doc = JsonDocument.Parse(response);
+        Assert.True(doc.RootElement.TryGetProperty("error", out var error));
+        Assert.Equal(-32602, error.GetProperty("code").GetInt32());
+        Assert.Contains("Missing inspect request object", error.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task DebugInspect_GoldenCase_FrontierCreateWithFeePairMismatch_ProvenDiagnosis()
+    {
+        // Golden case from InspectGoldenCase: Frontier CREATE with fee-pair mismatch
+        var (globalState, handlers) = BuildFixture();
+        var router = new RpcRouter(handlers, NullLogger<RpcRouter>.Instance);
+
+        // Setup: sender with specific balance to trigger mismatch
+        var sender = Address.FromHex("0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff");
+        var coinbase = Address.FromHex("0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba");
+        globalState.SetBalance(sender, 0xa6040); // Actual balance (vs expected 0xf4240)
+
+        var response = await router.ProcessRequest(
+            @"{""jsonrpc"":""2.0"",""id"":1,""method"":""debug_inspect"",""params"":[{
+                ""from"":""0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"",
+                ""to"":null,
+                ""data"":""0x6000"",
+                ""gas"":""0x186a0"",
+                ""gasPrice"":""0xa"",
+                ""fork"":""Frontier"",
+                ""coinbase"":""0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba"",
+                ""mismatches"":[
+                    ""balance mismatch for 0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff: expected=0xf4240, actual=0xa6040"",
+                    ""balance mismatch for 0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba: expected=0x0, actual=0x4e200""
+                ]
+            }]}");
+
+        using var doc = JsonDocument.Parse(response);
+        var result = doc.RootElement.GetProperty("result");
+        
+        // J3: Assert fee-pair PROVEN diagnosis
+        Assert.True(result.TryGetProperty("diagnosis", out var diagnosis));
+        Assert.True(diagnosis.TryGetProperty("root", out var root));
+        
+        // Must be PROVEN with fee-pair mismatch
+        Assert.Equal("TX.CREATE_SURCHARGE", root.GetProperty("ruleId").GetString());
+        Assert.Equal("PROVEN", root.GetProperty("grade").GetString());
+        
+        // Should have gas delta
+        Assert.True(root.TryGetProperty("gasDelta", out var gasDelta));
+        Assert.Equal(32000, gasDelta.GetInt64());
+    }
+
+    [Fact]
     public async Task DebugInspect_ReturnsInspectResultWithDiagnosis()
     {
         var (globalState, handlers) = BuildFixture();
