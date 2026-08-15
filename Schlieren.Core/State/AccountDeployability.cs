@@ -24,7 +24,9 @@ public static class AccountDeployability
             return false;
 
         var storage = await state.GetStoragePresenceAsync(address, ct);
-        // Empty or Unknown-without-writes: only NonEmpty blocks deployment.
-        return storage != StoragePresence.NonEmpty;
+        // EIP-7610 fail-closed: only Empty is definitely safe.
+        // Unknown means a remote-forked account whose storage cannot be enumerated —
+        // we must treat it as potentially non-empty and block deployment.
+        return storage == StoragePresence.Empty;
     }
 }
