@@ -8,6 +8,7 @@ using Schlieren.Core.State;
 using Schlieren.Core.Execution;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.Configuration;
+using Schlieren.Core.Forks;
 using Schlieren.RPC;
 
 namespace Schlieren.RPC.Handlers;
@@ -1080,6 +1081,93 @@ public sealed class EthHandlers
 
         var options = ParseTraceOptions(parameters.Length > 1 ? parameters[1] : null);
         return await TraceBlockTransactions(block, options, ct);
+    }
+
+    public async Task<object> HandleDebugInspect(object[] parameters, CancellationToken ct = default)
+    {
+        if (parameters == null || parameters.Length == 0)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing inspect request object");
+
+        var requestObj = parameters[0] as JsonElement?;
+        if (!requestObj.HasValue || requestObj.Value.ValueKind != JsonValueKind.Object)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid inspect request object");
+
+        // Parse fork parameter
+        var fork = requestObj.Value.TryGetProperty("fork", out var forkProp) && forkProp.ValueKind == JsonValueKind.String
+            ? forkProp.GetString() ?? "Prague"
+            : "Prague";
+
+        var currentBlock = _chainState.CurrentBlock;
+        var blockContext = new BlockContext
+        {
+            ChainId = _chainState.ChainId,
+            Number = currentBlock.Number,
+            Timestamp = currentBlock.Timestamp,
+            GasLimit = currentBlock.GasLimit,
+            Difficulty = currentBlock.Difficulty,
+            BaseFeePerGas = currentBlock.BaseFeePerGas,
+            Coinbase = string.IsNullOrEmpty(currentBlock.Miner) ? Address.Zero : Address.FromHex(currentBlock.Miner),
+            Rules = ForkRulesFactory.For(fork)
+        };
+
+        // Build transaction from request
+        var tx = BuildCallTransaction(requestObj.Value, blockContext.GasLimit);
+        tx.EnableTracing = true;
+        tx.Nonce = requestObj.Value.TryGetProperty("nonce", out var nonceProp)
+            ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
+            : await _globalState.GetNonceAsync(tx.From, ct);
+
+        // Parse mismatches array (optional)
+        var mismatches = new List<string>();
+        if (requestObj.Value.TryGetProperty("mismatches", out var mismatchesProp) && 
+            mismatchesProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in mismatchesProp.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                    mismatches.Add(item.GetString() ?? "");
+            }
+        }
+
+        // Parse optional flags
+        var expectException = requestObj.Value.TryGetProperty("expectException", out var expectProp) && 
+                              expectProp.ValueKind == JsonValueKind.String
+            ? expectProp.GetString()
+            : null;
+
+        var expectedReceiptSuccess = requestObj.Value.TryGetProperty("expectedReceiptSuccess", out var receiptProp)
+            ? receiptProp.ValueKind == JsonValueKind.True
+            : (bool?)null;
+
+        var disableStack = GetBooleanOption(requestObj.Value, "disableStack");
+        var disableMemory = GetBooleanOption(requestObj.Value, "disableMemory");
+        var disableStorage = GetBooleanOption(requestObj.Value, "disableStorage");
+
+        // Execute transaction
+        var result = await _stateTransition.ApplyTransactionAsync(
+            tx,
+            _globalState,
+            blockContext,
+            commit: false,
+            ct: ct);
+
+        // Build InspectRequest
+        var inspectRequest = new Core.Execution.Inspect.InspectRequest
+        {
+            Tx = tx,
+            Block = blockContext,
+            Mismatches = mismatches,
+            ExpectException = expectException,
+            ExpectedReceiptSuccess = expectedReceiptSuccess,
+            DisableStack = disableStack,
+            DisableMemory = disableMemory,
+            DisableStorage = disableStorage
+        };
+
+        // Call InspectionAssembler
+        var inspectResult = Core.Execution.Inspect.InspectionAssembler.FromCanonical(inspectRequest, result);
+
+        return inspectResult;
     }
 
     public async Task<object> HandleDebugWhyNot(object[] parameters, CancellationToken ct = default)
