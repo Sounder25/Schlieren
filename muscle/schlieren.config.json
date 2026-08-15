@@ -1,0 +1,25 @@
+{
+  "network": {
+    "chainId": 31337,
+    "hardfork": "cancun",
+    "port": 8545,
+    "host": "127.0.0.1",
+    "gasLimit": 30000000,
+    "baseFee": 1000000000
+  },
+  "accounts": {
+    "count": 10,
+    "balance": "10000"
+  },
+  "paths": {
+    "contracts": "contracts",
+    "scripts": "scripts",
+    "tests": "tests",
+    "artifacts": "artifacts"
+  },
+  "compiler": {
+    "version": "0.8.24",
+    "optimizer": true,
+    "runs": 200
+  }
+}

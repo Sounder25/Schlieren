@@ -994,7 +994,7 @@ public sealed class StateTransition : IStateTransition
         // must run on a thread with sufficient stack (see EelsStateFixtureExecutor).
         // The recursion itself is architecturally correct per EELS process_message().
 
-        context.SubCall = (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
+        context.SubCall = async (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
         {
             subTx.BlobVersionedHashes = context.BlobVersionedHashes;
 
@@ -1017,7 +1017,10 @@ public sealed class StateTransition : IStateTransition
                 context.CommitLastCreateTransient   = null;
             }
 
-            return ExecuteInternalAsync(
+            // [AI-EDIT 2026-08-15] Prevent .NET StackOverflow by yielding on deep recursions
+            if (depth % 32 == 0) await Task.Yield();
+
+            return await ExecuteInternalAsync(
                 subTx,
                 overlay,
                 block,
