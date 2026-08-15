@@ -60,8 +60,18 @@ namespace Schlieren.Core.Execution
 
                     var (execResult, nextPc) = await opcode.ExecuteAsync(context, ct);
 
+                    // Pattern B opcodes charge here.
+                    // Pattern A returns 0 because it already charged internally.
                     context.ConsumeGas(execResult.GasUsed);
-                    context.AddTraceStep(pc, opcode.Name, gasBefore, execResult.GasUsed, preStack);
+
+                    // Compute observed gas delta for trace export. Some opcodes self-consume
+                    // (MSTORE, SLOAD, CALL) and return GasUsed=0; others return their cost
+                    // and rely on the line above to charge it. The trace must reflect the actual
+                    // delta regardless of which pattern the opcode uses.
+                    var gasAfter = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+                    var actualGasUsed = gasBefore - gasAfter;
+
+                    context.AddTraceStep(pc, opcode.Name, gasBefore, actualGasUsed, preStack);
                     // Record into gas frame journal (for gas causality tree)
                     if (context.GasFrame != null && execResult.GasUsed > 0)
                         context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));
