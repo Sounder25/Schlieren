@@ -1,0 +1,44 @@
+{
+  "description": "Golden case: Frontier CREATE with fee-pair mismatch → TX.CREATE_SURCHARGE PROVEN",
+  "fork": "Frontier",
+  "baseFeePerGas": null,
+  "tx": {
+    "type": 0,
+    "from": "0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+    "to": null,
+    "data": "0x6000",
+    "gas": "0x186a0",
+    "gasPrice": "0xa",
+    "value": "0x0",
+    "nonce": 0
+  },
+  "prestate": {
+    "0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff": {
+      "balance": "0xa6040",
+      "nonce": 0,
+      "code": "",
+      "storage": {}
+    }
+  },
+  "expectedPost": {
+    "0xf6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff": {
+      "balance": "0xf4240",
+      "nonce": 0,
+      "code": "",
+      "storage": {}
+    },
+    "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba": {
+      "balance": "0x0",
+      "nonce": 0,
+      "code": "",
+      "storage": {}
+    }
+  },
+  "block": {
+    "coinbase": "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+    "gasLimit": "0x1c9c380",
+    "number": "0x1",
+    "timestamp": "0x3e8",
+    "difficulty": "0x0"
+  }
+}
