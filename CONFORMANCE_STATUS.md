@@ -1,8 +1,8 @@
 # Schlieren EELS Conformance Status
-**Last Updated:** 2026-08-11  
-**Baseline commit:** `a744e63` (EIP-7825 + EIP-7883)  
+**Last Updated:** 2026-08-15  
+**Baseline commit:** `f78e658` (transient staging + ecrecover + StateOverlay tombstone)  
 **Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)  
-**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260811_040812.md`
+**Full Osaka report:** `Schlieren.EELS.Tests/TestResults/taxonomy_20260815_024201.md`
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Suite | Fixture Version | Cases | Passing | Status |
 |---|---|---|---|---|
-| **Osaka** | tests@v20.0.1 | 14,516 | **14,197** | ✅ **97.80%** (was 97.1% / 14,100) |
+| **Osaka** | tests@v20.0.1 | 14,516 | **14,514** | ✅ **99.99%** (was 97.80% / 14,197) |
 | **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(not re-measured this run)* |
 | **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
 | **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
-| **Unit Tests** | — | 303 | 303 | ✅ **100%** |
+| **Unit Tests** | — | 337 | 336 | ✅ **99.7%** (1 pre-existing ForkingGlobalState stub) |
 
 > **Note:** The `tests@v20.0.1` fixture suite (from the new `ethereum/execution-specs` repo) contains
 > 7× more cases than v5.4.0. The v5.4.0 Prague/Cancun suites remain at 100% — those were the final
@@ -78,29 +78,24 @@
 
 ---
 
-## Remaining Osaka Failures (**319 cases** — post 7825/7883)
+## Remaining Osaka Failures (**2 cases** — post 2026-08-15 fixes)
 
-Measured 2026-08-11 via `osaka_audit.runsettings` + `EelsTaxonomyDrill` (~3m 39s).
+Measured 2026-08-15 via `osaka_audit.runsettings` + `EelsTaxonomyDrill`.
 
 Mismatch lines (not unique cases):
-- `storage` — 535
-- `balance` — 359
-- `nonce` — 93
-- `other` — 54
-- `receipt_status` — 24
-- `code` — 22
-- `missing_account` — 7
+- `storage` — 2
 
-**Delta since prior baseline (14,100 pass / 416 fail → 14,197 pass / 319 fail): +97 cases fixed.**
+Both are storage-only mismatches in `ported_static`; no balance or nonce drift.
+Addresses involved: `0xb94f5374...` (slot 0x0) and `0x...5ef94d` (slot 0x0).
+These 2 failures are pre-existing — confirmed present in baseline before this session's fixes.
+They pass when run in isolation; only appear in combined ported_static sweep (ordering artefact).
 
-Probable remaining root causes (from Layer 1–2):
-1. ~~CREATE / EIP-7610 collision~~ — **fixed** (CREATE + top-level parity with CREATE2 `account_deployable`)
-2. **Tx applied when should reject** — High, 23× (validation gaps beyond plain 7825)
-3. **Gas residuals** — +199000 (32×), CALL_STIPEND 2300 (19×), +25000 new-account (25×)
-4. **Unexpected / empty-account** — Medium, EIP-161 touch/delete
-5. **Precompile invalid-success** — Certain on ecrecover folder (may still be noisy)
+**Delta since prior baseline (14,197 pass / 319 fail → 14,514 pass / 2 fail): +317 cases fixed.**
 
-Dedicated suites at 100%: EIP-7825 (35), EIP-7883 (168), EIP-7610 create_collision (50).
+Fixed root causes (2026-08-15 session):
+1. ~~**ecrecover invalid signature**~~ — fixed: `RecoverAddressForPrecompile` now uses only the exact recId from v; no fallback to alternative IDs.
+2. ~~**StateOverlay.DeleteAccount ghost account**~~ — fixed: tombstone semantics; DeleteAccount no longer bypasses overlay buffer.
+3. ~~**Transient storage leakage via failed CREATE**~~ — fixed: staging overlay for CREATE sub-calls; rollback on EIP-170/deposit-OOG/EIP-3541, commit on success.
 
 ---
 
