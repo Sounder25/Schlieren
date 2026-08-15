@@ -196,6 +196,12 @@ public sealed class OpcodeClz : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        // CLZ is only valid on Osaka+ (EIP-7939). Treat as INVALID on earlier forks.
+        if (context.Block?.Rules.HasEip7939Clz != true)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 

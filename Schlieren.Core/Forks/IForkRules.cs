@@ -53,6 +53,7 @@ public interface IForkRules
     bool HasEip7623CalldataFloor  { get; }  // Prague+
     bool HasEip7702SetCode        { get; }  // Prague+
     bool HasEip7951P256Verify     { get; }  // Osaka+: P256VERIFY precompile at 0x0100
+    bool HasEip7939Clz            { get; }  // Osaka+: CLZ opcode (0x1E)
     bool HasEip7883ModExpIncrease  { get; }  // Osaka+: ModExp gas cost increase
     /// <summary>
     /// EIP-7825 (Osaka+): reject transactions whose gas limit exceeds
