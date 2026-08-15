@@ -1273,6 +1273,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         var reentrancy = ReentrancyDetector.Analyze(_currentTrace);
         var collisions = StorageCollisionDetector.Analyze(_currentTrace);
         var libraryGuard = LibraryGuardDetector.Analyze(_currentTrace);
+        var proxyUnresolved = ProxyImplementationUnresolvedDetector.Analyze(_currentTrace);
 
         foreach (var f in reentrancy)
         {
@@ -1310,6 +1311,19 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                 FileName = $"PC 0x{_currentTrace[libraryGuard.StepIndex].Pc:X4}",
                 LineNumber = libraryGuard.StepIndex,
                 StepIndex = libraryGuard.StepIndex
+            });
+        }
+        
+        if (proxyUnresolved != null)
+        {
+            SecurityFindings.Add(new SecurityFindingViewModel
+            {
+                SeverityEmoji = "ℹ️",
+                Description = "PROXY DELEGATION: Implementation unresolved",
+                Details = $"EIP-1967 slot {proxyUnresolved.ImplementationSlot} read as 0x0. DELEGATECALL targeted address(0). {proxyUnresolved.Evidence} | Not an error: expected when running proxy runtime without deployed state.",
+                FileName = $"Step {proxyUnresolved.DelegateCallStep}",
+                LineNumber = proxyUnresolved.DelegateCallStep,
+                StepIndex = proxyUnresolved.DelegateCallStep
             });
         }
 
