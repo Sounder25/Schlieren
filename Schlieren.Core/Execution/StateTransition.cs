@@ -352,6 +352,14 @@ public sealed class StateTransition : IStateTransition
 
         ExecutionResult result;
 
+        // EELS process_create_message takes a full snapshot before execution and calls
+        // restore_tx_state(snapshot) on any failure — rolling back ALL mutations including
+        // side effects from sub-CALLs inside the initcode (e.g. SSTORE in called contracts).
+        // Take the snapshot here so we can restore it on CREATE failure below.
+        IDictionary<Address, Account>? preCreateSnapshot = topLevelCreation.HasValue
+            ? txOverlay.Snapshot()
+            : null;
+
         // EELS process_message_call: top-level CREATE with non-deployable target
         // (nonce/code/storage — EIP-7610) → AddressCollision, gas_left = 0 (all
         // execution gas consumed). Sender nonce was already bumped above.
@@ -426,13 +434,14 @@ public sealed class StateTransition : IStateTransition
         }
 
         // EELS: process_create_message calls restore_tx_state(snapshot) on failure,
-        // which undoes all mutations to the creation address (nonce=1, storage, etc).
-        // Our overlay architecture may have leaked writes to the creation address into
-        // txOverlay during execution (e.g. via SSTORE, value transfer, or sub-calls).
-        // Clean it up so txOverlay.Commit() doesn't persist the ghost account.
-        if (topLevelCreation.HasValue && !result.IsSuccess)
+        // rolling back ALL mutations — creation address AND any sub-call side effects.
+        // RestoreSnapshot undoes everything written to txOverlay since the snapshot,
+        // including SSTOREs in contracts called by the initcode.
+        // Note: the snapshot was taken AFTER the upfront sender deduction, so the
+        // sender's nonce bump and balance deduction are already in the snapshot and survive.
+        if (topLevelCreation.HasValue && !result.IsSuccess && preCreateSnapshot != null)
         {
-            txOverlay.Reset(topLevelCreation.Value);
+            txOverlay.RestoreSnapshot(preCreateSnapshot);
         }
 
         // [AI-EDIT 2026-01-10] Post-execution accounting on the base state.
