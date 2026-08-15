@@ -51,6 +51,9 @@ public sealed class OpcodeChainId : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasChainId)
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit), context.ProgramCounter + 1));
+
         if (!context.Stack.TryPush(context.Block.ChainId))
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
@@ -358,6 +361,9 @@ public sealed class OpcodeExtCodeHash : IOpcode
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasExtCodeHash)
+            return (ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit), context.ProgramCounter + 1);
+
         if (!context.Stack.TryPop(out var addr))
             return (ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1);
 

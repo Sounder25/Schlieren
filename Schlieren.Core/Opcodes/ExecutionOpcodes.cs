@@ -60,7 +60,7 @@ public sealed class OpcodeBalance : IOpcode
         var address = ToAddress(addr);
         var rules   = context.Block.Rules;
         bool isWarm = rules.HasEip2929WarmCold ? context.Access.TouchAddress(address) : true;
-        var gasCost = rules.ExtAccountCost(isWarm);
+        var gasCost = rules.BalanceCost(isWarm);
 
         var balance = await context.GlobalState.GetBalanceAsync(address, ct);
         if (!context.Stack.TryPush(balance))

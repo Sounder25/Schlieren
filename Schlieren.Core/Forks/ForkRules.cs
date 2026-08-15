@@ -62,6 +62,7 @@ public abstract class ForkRules : IForkRules
     // External account/code opcode gas
     // Frontier: BALANCE/EXTCODESIZE/EXTCODECOPY = 20 flat (no warm/cold)
     public virtual ulong ExtAccountCost(bool isWarm)  => 20;
+    public virtual ulong BalanceCost(bool isWarm)     => 20; // Frontier/Homestead: 20
     public virtual ulong ExtCodeHashCost(bool isWarm) => 20; // not available pre-Constantinople, but safe default
 
     // CALL base cost: Frontier/Homestead = 40 flat
@@ -134,7 +135,9 @@ public class TangerineWhistleRules : HomesteadRules
     public override Fork Fork => Fork.TangerineWhistle;
     public override ulong SloadCost(bool isWarm) => 200;
     // EIP-150: BALANCE/EXTCODESIZE/EXTCODECOPY repriced from 20 → 700
+    // But BALANCE was actually repriced to 400, not 700 (EXTCODESIZE/EXTCODECOPY to 700)
     public override ulong ExtAccountCost(bool isWarm) => 700;
+    public override ulong BalanceCost(bool isWarm)    => 400; // EIP-150: BALANCE=400; EXTCODESIZE/COPY=700
     public override ulong ExtCodeHashCost(bool isWarm) => 700;
     // EIP-150: OPCODE_CALL_BASE repriced 40 → 700
     public override ulong CallBaseCost => 700;
@@ -205,6 +208,7 @@ public class IstanbulRules : ConstantinopleRules
     public override bool  HasEip2200Reentrancy   => true;
     public override int   PrecompileCount        => 9;   // +BLAKE2F (0x09)
     // EIP-1884: BALANCE/EXTCODESIZE/EXTCODECOPY repriced 700 (already inherited), EXTCODEHASH 700
+    public override ulong BalanceCost(bool isWarm)     => 700; // EIP-1884: BALANCE raised 400→700
     public override ulong ExtCodeHashCost(bool isWarm) => 700;
     // EIP-1108: BN254 precompile gas reduction
     public override ulong BnAddGas           => 150;    // was 500
@@ -259,6 +263,7 @@ public class BerlinRules : IstanbulRules
     public override ulong SloadCost(bool isWarm)  => isWarm ? 100UL : 2_100UL;
     // EIP-2929: BALANCE/EXTCODESIZE/EXTCODECOPY/EXTCODEHASH use warm=100/cold=2600
     public override ulong ExtAccountCost(bool isWarm)  => isWarm ? 100UL : 2_600UL;
+    public override ulong BalanceCost(bool isWarm)      => isWarm ? 100UL : 2_600UL; // same as ExtAccountCost in Berlin+
     public override ulong ExtCodeHashCost(bool isWarm) => isWarm ? 100UL : 2_600UL;
     // EIP-2929: CALL base cost is 0 — the warm/cold ACCESS cost is charged directly
     // as accessCost=ExtAccountCost(isWarm), so CallBaseCost must be 0 to avoid double-charge.

@@ -508,6 +508,9 @@ public sealed class OpcodeCreate2 : IOpcode
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasCreate2)
+            return (ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit), context.ProgramCounter + 1);
+
         if (context.IsStatic)
              return (ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1);
 

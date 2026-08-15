@@ -74,10 +74,17 @@ public interface IForkRules
 
     // ── External account/code opcode gas ────────────────────────────────────
     /// <summary>
-    /// Gas for BALANCE, EXTCODESIZE, EXTCODECOPY (base), EXTCODEHASH.
-    /// Frontier=20, TangerineWhistle=700, Istanbul=700, Berlin+=warm/cold.
+    /// Gas for EXTCODESIZE, EXTCODECOPY (base). Frontier=20, TangerineWhistle+=700, Berlin+=warm/cold.
+    /// NOTE: BALANCE diverges from this in Byzantium–Constantinople (400 vs 700). Use BalanceCost().
     /// </summary>
     ulong ExtAccountCost(bool isWarm);
+
+    /// <summary>
+    /// Gas for BALANCE opcode. Frontier=20, TangerineWhistle–Constantinople=400,
+    /// Istanbul+=700, Berlin+=warm/cold (same as ExtAccountCost in those forks).
+    /// BALANCE was priced differently from EXTCODESIZE in Byzantium–Constantinople.
+    /// </summary>
+    ulong BalanceCost(bool isWarm);
 
     /// <summary>Gas for EXTCODEHASH (Constantinople=400, Istanbul+=700, Berlin+=warm/cold).</summary>
     ulong ExtCodeHashCost(bool isWarm);
