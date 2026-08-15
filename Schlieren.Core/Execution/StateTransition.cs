@@ -644,8 +644,8 @@ public sealed class StateTransition : IStateTransition
             accessTracker.WarmAddress(tx.From);
             if (tx.To.HasValue) accessTracker.WarmAddress(tx.To.Value);
             if (topLevelCreation.HasValue) accessTracker.WarmAddress(topLevelCreation.Value);
-            for (int i = 1; i <= 9; i++) { var b = new byte[20]; b[19] = (byte)i; accessTracker.WarmAddress(new Address(b)); }
-            if (!block.Coinbase.Equals(Address.Zero)) accessTracker.WarmAddress(block.Coinbase);
+            for (int i = 1; i <= block.Rules.PrecompileCount; i++) { var b = new byte[20]; b[19] = (byte)i; accessTracker.WarmAddress(new Address(b)); }
+            if (block.Rules.HasEip3651WarmCoinbase && !block.Coinbase.Equals(Address.Zero)) accessTracker.WarmAddress(block.Coinbase);
             foreach (var entry in tx.AccessList) { accessTracker.WarmAddress(entry.Address); foreach (var slot in entry.StorageKeys) accessTracker.WarmSlot(entry.Address, slot); }
         }
 
