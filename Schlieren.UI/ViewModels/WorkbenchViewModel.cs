@@ -123,6 +123,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _accountsText = "(empty)";
     [ObservableProperty] private string _logsText = "(empty)";
     [ObservableProperty] private string _gasText = "(empty)";
+    [ObservableProperty] private string _diagnosisText = "(no diagnosis — run with mismatches)";
+    
+    private InspectResult? _lastInspectResult;
     [ObservableProperty] private bool _isCallFramePinned;
     private IReadOnlyDictionary<string, IReadOnlyList<string>> _postStorage =
         new Dictionary<string, IReadOnlyList<string>>();
@@ -729,9 +732,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             var inspect = InspectionAssembler.FromCanonical(
                 new InspectRequest { Tx = run.Tx, Block = run.Block, Mismatches = engineMismatches },
                 run.Result);
+            _lastInspectResult = inspect;  // Store for diagnosis display
             var root = inspect.Diagnosis?.Root;
             if (root != null)
                 AccountStateRows.Add($"  DIAGNOSIS  {root.RuleId}  {root.Grade}  {root.Why}");
+        }
+        else
+        {
+            _lastInspectResult = null;  // Clear when no mismatches
         }
     }
 
@@ -933,6 +941,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StatusMessage = "Workbench reset";
         StackText = MemoryText = AccountsText = LogsText = GasText = "(empty)";
         StorageText = "(empty — scrub to last step after RUN)";
+        DiagnosisText = "(no diagnosis — run with mismatches)";
+        _lastInspectResult = null;
         IsCallFramePinned = false;
         RefreshResultExplain();
         OnPropertyChanged(nameof(CurrentFileTitle));
@@ -954,6 +964,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             "accounts" => AccountsText,
             "logs" => LogsText,
             "gas" => GasText,
+            "diagnosis" => DiagnosisText,
             _ => BuildFullCopyText()
         };
 
@@ -1015,6 +1026,35 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         AccountsText = WorkbenchResultText.JoinOrEmpty(AccountStateRows, "(empty)");
         LogsText = WorkbenchResultText.JoinOrEmpty(EventLogRows, "(empty)");
         GasText = WorkbenchResultText.JoinOrEmpty(GasTreeNodes.Select(g => g.DisplayText), "(empty)");
+        
+        // Build diagnosis text from last inspect result
+        if (_lastInspectResult?.Diagnosis?.Root != null)
+        {
+            var root = _lastInspectResult.Diagnosis.Root;
+            var sb = new StringBuilder();
+            sb.AppendLine($"Rule: {root.RuleId}");
+            sb.AppendLine($"Grade: {root.Grade}");
+            sb.AppendLine($"Phase: {root.Phase}");
+            if (root.GasDelta != null)
+                sb.AppendLine($"Gas Delta: {root.GasDelta:N0}");
+            sb.AppendLine($"Why: {root.Why}");
+            if (!string.IsNullOrEmpty(root.Proof))
+                sb.AppendLine($"Proof: {root.Proof}");
+            if (!string.IsNullOrEmpty(root.Consequences))
+                sb.AppendLine($"Consequences: {root.Consequences}");
+            if (!string.IsNullOrEmpty(root.LikelyFix))
+                sb.AppendLine($"Likely Fix: {root.LikelyFix}");
+            if (!string.IsNullOrEmpty(root.CodeBoundary))
+                sb.AppendLine($"Code: {root.CodeBoundary}");
+            if (!string.IsNullOrEmpty(root.ProtocolRule))
+                sb.AppendLine($"Protocol: {root.ProtocolRule}");
+                
+            DiagnosisText = sb.ToString().TrimEnd();
+        }
+        else
+        {
+            DiagnosisText = "(no diagnosis — run with mismatches)";
+        }
     }
 
     [RelayCommand]

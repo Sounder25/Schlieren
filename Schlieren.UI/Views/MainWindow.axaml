@@ -696,6 +696,16 @@
                         <TextBox Text="{Binding GasText}" IsReadOnly="True" AcceptsReturn="True"
                                  Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
                                  FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
+
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
+                            <TextBlock Text="DIAGNOSIS (causal analysis)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
+                                    Command="{Binding CopyInspectorCommand}" CommandParameter="diagnosis"
+                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#FF8C00"/>
+                        </Grid>
+                        <TextBox Text="{Binding DiagnosisText}" IsReadOnly="True" AcceptsReturn="True"
+                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="#FF8C00"
+                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="80" MaxHeight="180"/>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
