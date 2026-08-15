@@ -980,6 +980,23 @@ public sealed class StateTransition : IStateTransition
         context.SubCall = (subTx, subIsStatic, subCreateAddr, subCodeAddr) =>
         {
             subTx.BlobVersionedHashes = context.BlobVersionedHashes;
+
+            ITransientStorageFrame createTransientStorage = transientFrame;
+            if (subCreateAddr != null)
+            {
+                // EIP-1153: wrap the parent frame in a staging overlay for CREATE sub-calls.
+                // If the CREATE ultimately fails (EIP-170 / deposit-OOG / EIP-3541),
+                // the opcode calls context.RollbackLastCreateTransient() to discard the
+                // staging overlay without propagating its writes to the parent.
+                var staging = new TransientStorageOverlay(transientFrame);
+                context.RollbackLastCreateTransient = () => staging.Rollback();
+                createTransientStorage = staging;
+            }
+            else
+            {
+                context.RollbackLastCreateTransient = null;
+            }
+
             return ExecuteInternalAsync(
                 subTx,
                 overlay,
@@ -992,7 +1009,7 @@ public sealed class StateTransition : IStateTransition
                 ct,
                 depth + 1,
                 executionGasLimit: null,
-                transientStorage: transientFrame,
+                transientStorage: createTransientStorage,
                 accessTracker: accessTracker,
                 originalStorageSnapshot: originalStorageSnapshot,
                 parentGasFrame: thisFrame);
@@ -1137,5 +1154,8 @@ public sealed class StateTransition : IStateTransition
                 }
             }
         }
+
+        /// <summary>Discard all pending writes without propagating to parent (EIP-1153 revert).</summary>
+        public void Rollback() => _writes.Clear();
     }
 }

@@ -182,6 +182,7 @@ public sealed class OpcodeCreate : IOpcode
 /// Reverts the creation account on CREATE/CREATE2 failure (EIP-170/EIP-3541/deposit OOG).
 /// Undoes value transfer, nonce bump, and code that were manually written to GlobalState
 /// after SubCall returned. Sub-call overlay changes are already discarded (commit=false).
+/// Also rolls back any transient-storage writes from the failed CREATE frame (EIP-1153).
 /// </summary>
 internal static class CreateRevertHelper
 {
@@ -198,6 +199,10 @@ internal static class CreateRevertHelper
         context.GlobalState.SetNonce(newAddress, 0);
         context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
         context.GlobalState.DeleteAccount(newAddress);
+
+        // EIP-1153: roll back transient-storage writes from this failed CREATE frame.
+        context.RollbackLastCreateTransient?.Invoke();
+        context.RollbackLastCreateTransient = null;
     }
 }
 

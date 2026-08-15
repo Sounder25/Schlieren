@@ -178,6 +178,14 @@ namespace Schlieren.Core.Execution
         public Action<Address, BigInteger, BigInteger>? TransientStore { get; init; }
 
         /// <summary>
+        /// Set by StateTransition before a CREATE sub-call is dispatched.
+        /// The opcode calls this when EIP-170 / deposit-OOG / EIP-3541 fires to
+        /// roll back any transient-storage writes from the failed CREATE frame.
+        /// Reset to null after each sub-call.
+        /// </summary>
+        public Action? RollbackLastCreateTransient { get; set; }
+
+        /// <summary>
         /// EIP-6780: set of addresses created during this transaction.
         /// Shared across the entire call tree so sub-calls can register new contracts.
         /// SELFDESTRUCT only fully deletes an account if it appears in this set.
