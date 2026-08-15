@@ -1159,8 +1159,17 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public async Task GenerateAuditReportAsync(string savePath)
     {
+        // Compute calldata intrinsic gas (nonzero bytes × 16, zero bytes × 4)
+        ulong calldataGas = 0UL;
+        if (BytecodeExecutionService.TryParseHexBytes(CallDataHex, out var calldata) && calldata.Length > 0)
+        {
+            var nonzeroBytes = calldata.Count(b => b != 0);
+            var zeroBytes = calldata.Length - nonzeroBytes;
+            calldataGas = (ulong)(nonzeroBytes * 16 + zeroBytes * 4);
+        }
+
         var totalGas = Instructions.Count > 0
-            ? (ulong)Instructions.Sum(i => i.GasCost) + 21_000UL
+            ? (ulong)Instructions.Sum(i => i.GasCost) + 21_000UL + calldataGas
             : 0UL;
 
         await AuditReportExporter.GenerateReportAsync(
