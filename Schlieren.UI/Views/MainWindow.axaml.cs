@@ -143,7 +143,8 @@ public partial class MainWindow : Window
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        var inText = FocusManager?.GetFocusedElement() is TextBox;
+        var focused = FocusManager?.GetFocusedElement();
+        var inText = focused is TextBox || focused?.GetType().FullName == "AvaloniaEdit.TextEditor";
 
         if (e.Key == Key.F5)
         {
@@ -388,6 +389,11 @@ public partial class MainWindow : Window
             });
             if (files.Count == 0) return;
             await using var stream = await files[0].OpenReadAsync();
+            if (stream.Length > 10 * 1024 * 1024)
+            {
+                vm.StatusMessage = "File exceeds 10 MB limit. Aborting load to prevent Out-Of-Memory.";
+                return;
+            }
             using var reader = new StreamReader(stream);
             var text = await reader.ReadToEndAsync();
             vm.ImportContractSource(text, files[0].Name);
@@ -424,6 +430,11 @@ public partial class MainWindow : Window
 
             var file = files[0];
             await using var stream = await file.OpenReadAsync();
+            if (stream.Length > 10 * 1024 * 1024)
+            {
+                vm.StatusMessage = "File exceeds 10 MB limit. Aborting load to prevent Out-Of-Memory.";
+                return;
+            }
             using var reader = new StreamReader(stream);
             var lines = new List<string>();
             while (await reader.ReadLineAsync() is { } line)

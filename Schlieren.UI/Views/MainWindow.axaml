@@ -132,7 +132,7 @@
                 <!-- Shown only while Conformance tab is active -->
                 <Border x:Name="ConformanceModeBadge" Grid.Column="1"
                         IsVisible="False" HorizontalAlignment="Center"
-                        Background="{DynamicResource Schlieren.PanelBg}" BorderBrush="#4A00E0" BorderThickness="1"
+                        Background="{DynamicResource Schlieren.PanelBg}" BorderBrush="{DynamicResource Schlieren.AccentSoft}" BorderThickness="1"
                         CornerRadius="6" Padding="14,6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="✅" FontSize="12" VerticalAlignment="Center"/>
@@ -140,7 +140,7 @@
                                    Foreground="{DynamicResource Schlieren.AccentSoft}" FontWeight="Bold" FontSize="12"
                                    VerticalAlignment="Center" LetterSpacing="1"/>
                         <TextBlock Text="· suite fork is controlled inside this panel"
-                                   Foreground="#7a82a8" FontSize="11" VerticalAlignment="Center"/>
+                                   Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
@@ -156,7 +156,7 @@
                             Command="{Binding RunBytecodeCommand}"
                             IsEnabled="{Binding !IsRunning}"/>
                     <Button Content="RESET" ToolTip.Tip="Clear bytecode, calldata, files, and last trace (Ctrl+Shift+R)"
-                            Background="#3D1414" Foreground="#FF8A80" FontSize="11" FontWeight="Bold"
+                            Background="{DynamicResource Schlieren.AlertBg}" Foreground="{DynamicResource Schlieren.Alert}" FontSize="11" FontWeight="Bold"
                             Padding="12,6" CornerRadius="3"
                             Command="{Binding ResetWorkbenchCommand}"/>
                 </StackPanel>
@@ -177,23 +177,23 @@
                             <DataTemplate x:DataType="vm:ProjectFileViewModel">
                                 <Border Padding="10,6" CornerRadius="4,4,0,0"
                                         Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
-                                        PointerPressed="OnTabClick"
+                                        PointerPressed="OnTabClick" Focusable="True"
                                         Cursor="Hand" Margin="0,0,2,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding FileName}"
                                                    Foreground="{Binding IsSelected, Converter={x:Static vm:BoolToFGConverter.Instance}}"
                                                    FontWeight="{Binding IsSelected, Converter={x:Static vm:BoolToFontWeightConverter.Instance}}"
-                                                   FontSize="12"/>
-                                        <Button Content="×" FontSize="10" Foreground="{DynamicResource Schlieren.TextDim}" Background="Transparent" Padding="2,0" Margin="4,0,0,0"
+                                                   FontSize="12" VerticalAlignment="Center"/>
+                                        <Button Content="×" FontSize="12" Foreground="{DynamicResource Schlieren.TextDim}" Background="Transparent" Padding="8,4" Margin="4,0,0,0"
                                                 Command="{Binding #root.DataContext.CloseTabCommand}" CommandParameter="{Binding}"
-                                                x:CompileBindings="False" ToolTip.Tip="Close tab"/>
+                                                x:CompileBindings="False" ToolTip.Tip="Close tab" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Border Width="1" Height="16" Background="#2D2D2D" Margin="12,0,12,0" VerticalAlignment="Center"/>
+                    <Border Width="1" Height="16" Background="{DynamicResource Schlieren.BorderSubtle}" Margin="12,0,12,0" VerticalAlignment="Center"/>
                     <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelElevated}"
                             PointerPressed="OnCallGraphClick" Cursor="Hand">
                         <TextBlock Text="CALL GRAPH" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="12"/>

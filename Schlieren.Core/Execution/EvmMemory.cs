@@ -5,6 +5,8 @@ namespace Schlieren.Core.Execution;
 /// </summary>
 public sealed class EvmMemory
 {
+    // Max memory size: prevents DOS via OOM. 16 MB = ~540M gas,
+    // far beyond realistic block gas limits. Adjust if running on constrained hosts.
     private const int MaxMemorySize = 16 * 1024 * 1024;
 
     private byte[] _data = Array.Empty<byte>();
