@@ -696,6 +696,9 @@ public sealed class OpcodeStaticCall : IOpcode
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasStaticCall)
+            return (ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit), context.ProgramCounter + 1);
+
         if (!context.Stack.TryPop(out var gas) || 
             !context.Stack.TryPop(out var addr) || 
             !context.Stack.TryPop(out var argsOffset) ||
