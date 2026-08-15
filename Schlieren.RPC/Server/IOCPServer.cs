@@ -101,15 +101,20 @@ namespace Schlieren.RPC.Server
                     // SECTION: Read HTTP request using IOCP
                     int bytesRead;
                     int headerEndIndex = -1;
+                    
+                    // Defense against Slowloris: Enforce an absolute 5-second timeout for the entire request read phase
+                    using var readCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-                    while ((bytesRead = await clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None)) > 0)
+                    try
                     {
-                        var chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        requestBuilder.Append(chunk);
+                        while ((bytesRead = await clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None, readCts.Token)) > 0)
+                        {
+                            var chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                            requestBuilder.Append(chunk);
 
-                        // Check for end of HTTP headers
-                        var currentData = requestBuilder.ToString();
-                        headerEndIndex = currentData.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+                            // Check for end of HTTP headers
+                            var currentData = requestBuilder.ToString();
+                            headerEndIndex = currentData.IndexOf("\r\n\r\n", StringComparison.Ordinal);
 
                         if (headerEndIndex != -1)
                         {
@@ -125,7 +130,14 @@ namespace Schlieren.RPC.Server
                         {
                             await SendErrorResponse(clientSocket, 413, "Payload Too Large");
                             return;
-                        }
+                        } // End of if > 1MB
+                    } // End of while loop
+                    } // End of try block
+                    catch (OperationCanceledException)
+                    {
+                        // Slowloris timeout reached
+                        await SendErrorResponse(clientSocket, 408, "Request Timeout");
+                        return;
                     }
 
                     if (bytesRead == 0 || headerEndIndex == -1)
