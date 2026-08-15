@@ -41,6 +41,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public ObservableCollection<InstructionViewModel> Instructions { get; } = new();
     public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
     public ObservableCollection<SecurityFindingViewModel> SecurityFindings { get; } = new();
+    public ObservableCollection<DiagnosticFinding> Diagnostics { get; } = new();
     public ObservableCollection<string> EventLogRows { get; } = new();
     public ObservableCollection<string> AccountStateRows { get; } = new();
 
@@ -1180,6 +1181,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             TotalSteps,
             totalGas,
             SecurityFindings,
+            Diagnostics,
             Instructions,
             savePath);
 
@@ -1275,6 +1277,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         var libraryGuard = LibraryGuardDetector.Analyze(_currentTrace);
         var proxyUnresolved = ProxyImplementationUnresolvedDetector.Analyze(_currentTrace);
 
+        // Security Findings (actual vulnerabilities)
         foreach (var f in reentrancy)
         {
             SecurityFindings.Add(new SecurityFindingViewModel
@@ -1301,31 +1304,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             });
         }
         
+        // Diagnostics (execution context explanations)
+        Diagnostics.Clear();
+        
         if (libraryGuard != null)
-        {
-            SecurityFindings.Add(new SecurityFindingViewModel
-            {
-                SeverityEmoji = "ℹ️",
-                Description = "LIBRARY RUNTIME: Context guard triggered",
-                Details = $"Solidity library protection detected. {libraryGuard.Evidence} | Expected: DELEGATECALL context | Actual: CALL context | Not a vulnerability.",
-                FileName = $"PC 0x{_currentTrace[libraryGuard.StepIndex].Pc:X4}",
-                LineNumber = libraryGuard.StepIndex,
-                StepIndex = libraryGuard.StepIndex
-            });
-        }
+            Diagnostics.Add(libraryGuard);
         
         if (proxyUnresolved != null)
-        {
-            SecurityFindings.Add(new SecurityFindingViewModel
-            {
-                SeverityEmoji = "ℹ️",
-                Description = "PROXY DELEGATION: Implementation unresolved",
-                Details = $"EIP-1967 slot {proxyUnresolved.ImplementationSlot} read as 0x0. DELEGATECALL targeted address(0). {proxyUnresolved.Evidence} | Not an error: expected when running proxy runtime without deployed state.",
-                FileName = $"Step {proxyUnresolved.DelegateCallStep}",
-                LineNumber = proxyUnresolved.DelegateCallStep,
-                StepIndex = proxyUnresolved.DelegateCallStep
-            });
-        }
+            Diagnostics.Add(proxyUnresolved);
 
         if (runMeta?.GasTree != null)
         {

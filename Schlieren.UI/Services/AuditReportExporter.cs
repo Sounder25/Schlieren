@@ -21,6 +21,7 @@ public static class AuditReportExporter
         int totalSteps,
         ulong totalGasUsed,
         IEnumerable<SecurityFindingViewModel> findings,
+        IEnumerable<DiagnosticFinding> diagnostics,
         IEnumerable<InstructionViewModel> instructions,
         string savePath)
     {
@@ -59,6 +60,62 @@ public static class AuditReportExporter
             }
         }
         sb.AppendLine();
+
+        // Execution Diagnostics
+        var diagnosticList = diagnostics.ToList();
+        if (diagnosticList.Count > 0)
+        {
+            sb.AppendLine("## Execution Diagnostics");
+            sb.AppendLine();
+            sb.AppendLine("*Execution context explanations — not security vulnerabilities*");
+            sb.AppendLine();
+
+            foreach (var d in diagnosticList)
+            {
+                var severityLabel = d.Severity switch
+                {
+                    DiagnosticSeverity.Info => "ℹ️ Info",
+                    DiagnosticSeverity.Warning => "⚠️ Warning",
+                    DiagnosticSeverity.Error => "❌ Error",
+                    _ => "Info"
+                };
+
+                var confidenceLabel = d.Confidence switch
+                {
+                    DiagnosticConfidence.High => "High",
+                    DiagnosticConfidence.Medium => "Medium",
+                    DiagnosticConfidence.Low => "Low",
+                    _ => "Medium"
+                };
+
+                sb.AppendLine($"### {d.Category} — {d.Title}");
+                sb.AppendLine();
+                sb.AppendLine($"**Severity:** {severityLabel} | **Confidence:** {confidenceLabel} | **Expected Behavior:** {(d.IsExpectedBehavior ? "Yes" : "No")}");
+                sb.AppendLine();
+                sb.AppendLine(d.Summary);
+                sb.AppendLine();
+
+                if (!string.IsNullOrWhiteSpace(d.Detail))
+                {
+                    sb.AppendLine("**Details:**");
+                    sb.AppendLine();
+                    sb.AppendLine(d.Detail);
+                    sb.AppendLine();
+                }
+
+                if (!string.IsNullOrWhiteSpace(d.LikelyCause))
+                {
+                    sb.AppendLine($"**Likely Cause:** {d.LikelyCause}");
+                    sb.AppendLine();
+                }
+
+                if (d.IsExpectedBehavior)
+                {
+                    sb.AppendLine("**Classification:** Expected execution-context behavior, not an implementation failure.");
+                    sb.AppendLine();
+                }
+            }
+        }
 
         // Top Gas-Consuming Steps
         var instrList = instructions.ToList();

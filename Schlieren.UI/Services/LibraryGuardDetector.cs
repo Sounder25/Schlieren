@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Schlieren.Core.Execution;
+using Schlieren.UI.ViewModels;
 
 namespace Schlieren.UI.Services;
 
@@ -10,12 +11,7 @@ namespace Schlieren.UI.Services;
 /// </summary>
 public static class LibraryGuardDetector
 {
-    public record LibraryGuardFinding(
-        int StepIndex,
-        string EmbeddedAddress,
-        string Evidence);
-
-    public static LibraryGuardFinding? Analyze(IReadOnlyList<ExecutionTraceStep> trace)
+    public static DiagnosticFinding? Analyze(IReadOnlyList<ExecutionTraceStep> trace)
     {
         if (trace.Count < 10) return null; // Too short for library guard pattern
         
@@ -87,10 +83,16 @@ public static class LibraryGuardDetector
                 "No function dispatch reached"
             };
             
-            return new LibraryGuardFinding(
-                branchStep,
-                embeddedConstant ?? "(unknown address)",
-                string.Join(" · ", evidence));
+            return new DiagnosticFinding(
+                Category: "Compiler Guard",
+                Severity: DiagnosticSeverity.Info,
+                Title: "Library runtime context guard triggered",
+                Summary: "Solidity library protection detected. Runtime rejected CALL execution context.",
+                Detail: string.Join(" · ", evidence),
+                LikelyCause: "Bytecode represents a Solidity library executed via CALL instead of expected DELEGATECALL context.",
+                IsExpectedBehavior: true,
+                Confidence: DiagnosticConfidence.High,
+                StepIndex: branchStep);
         }
         
         return null;

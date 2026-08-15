@@ -42,6 +42,7 @@ public sealed class AuditReportExporterTests
                 totalSteps: 34,
                 totalGasUsed: 42100,
                 findings: findings,
+                diagnostics: Array.Empty<DiagnosticFinding>(),
                 instructions: instructions,
                 savePath: tempFile);
 

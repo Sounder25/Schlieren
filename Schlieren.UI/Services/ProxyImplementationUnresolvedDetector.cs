@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Schlieren.Core.Execution;
+using Schlieren.UI.ViewModels;
 
 namespace Schlieren.UI.Services;
 
@@ -16,12 +17,7 @@ public static class ProxyImplementationUnresolvedDetector
     // EIP-1967 beacon slot: bytes32(uint256(keccak256('eip1967.proxy.beacon')) - 1)
     private const string Eip1967BeaconSlot = "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50";
 
-    public record ProxyUnresolvedFinding(
-        int DelegateCallStep,
-        string ImplementationSlot,
-        string Evidence);
-
-    public static ProxyUnresolvedFinding? Analyze(IReadOnlyList<ExecutionTraceStep> trace)
+    public static DiagnosticFinding? Analyze(IReadOnlyList<ExecutionTraceStep> trace)
     {
         if (trace.Count < 10) return null; // Too short for proxy pattern
 
@@ -56,19 +52,22 @@ public static class ProxyImplementationUnresolvedDetector
                 var slotUsed = implementationSlotRead ? Eip1967ImplementationSlot : Eip1967BeaconSlot;
                 var slotName = implementationSlotRead ? "implementation" : "beacon";
 
-                var evidence = new List<string>
-                {
-                    $"EIP-1967 {slotName} slot read as 0x0",
-                    $"DELEGATECALL targeted address(0) at step {i}",
-                    "No child execution frame created",
-                    "Proxy returned with empty execution",
-                    "Execution context lacks proxy's deployed storage state"
-                };
+                var detail = $"EIP-1967 {slotName} slot: {slotUsed}\n" +
+                            $"Value: 0x0000000000000000000000000000000000000000\n\n" +
+                            $"DELEGATECALL targeted address(0) at step {i}.\n" +
+                            "No child execution frame created.\n" +
+                            "Proxy returned with empty execution.";
 
-                return new ProxyUnresolvedFinding(
-                    i,
-                    slotUsed,
-                    string.Join(" · ", evidence));
+                return new DiagnosticFinding(
+                    Category: "Proxy Delegation",
+                    Severity: DiagnosticSeverity.Info,
+                    Title: "Implementation unresolved",
+                    Summary: $"EIP-1967 {slotName} storage resolved to address(0). No implementation bytecode executed.",
+                    Detail: detail,
+                    LikelyCause: "Execution context does not contain the proxy's deployed storage state.",
+                    IsExpectedBehavior: true,
+                    Confidence: DiagnosticConfidence.High,
+                    StepIndex: i);
             }
         }
 
