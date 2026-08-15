@@ -69,6 +69,9 @@ public sealed class OpcodeSelfBalance : IOpcode
 
     public async ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasSelfBalance)
+            return (ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit), context.ProgramCounter + 1);
+
         if (context.GlobalState == null)
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
@@ -185,14 +188,19 @@ public sealed class OpcodeBlockHash : IOpcode
         if (!context.Stack.TryPop(out var blockNum))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
-        // Only the 256 most recent blocks are available; otherwise return 0.
+        // BLOCKHASH returns 0 for:
+        //   - requested block >= current block (future / current)
+        //   - requested block < current block - 256 (too old)
+        // Otherwise look up from the block's hash table.
         var currentBlock = context.Block.Number;
         BigInteger hash = BigInteger.Zero;
-        if (blockNum < currentBlock && blockNum >= (currentBlock > 256 ? currentBlock - 256 : 0))
+        var requested = (ulong)blockNum;
+        if (blockNum >= 0 && requested < currentBlock &&
+            (currentBlock <= 256 || requested >= currentBlock - 256))
         {
-            // In tests, block hashes are typically 0 unless a lookup table is provided.
-            // Return 0 as a safe default (no block hash table in this minimal EVM).
-            hash = BigInteger.Zero;
+            if (context.Block.BlockHashes.TryGetValue(requested, out var hashBytes))
+                hash = new BigInteger(hashBytes, isUnsigned: true, isBigEndian: true);
+            // else hash stays 0 (no entry provided — valid in tests that don't care)
         }
 
         if (!context.Stack.TryPush(hash))
@@ -304,6 +312,11 @@ public sealed class OpcodeBaseFee : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasEip1559BaseFee)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPush(context.Block.BaseFeePerGas))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
@@ -322,6 +335,11 @@ public sealed class OpcodeBlobBaseFee : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasEip4844BlobTx)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPush(context.Block.GetBlobBaseFee()))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 

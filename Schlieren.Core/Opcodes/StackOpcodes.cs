@@ -34,6 +34,11 @@ public sealed class OpcodePush0 : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasPush0)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPush(BigInteger.Zero))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(2), context.ProgramCounter + 1));

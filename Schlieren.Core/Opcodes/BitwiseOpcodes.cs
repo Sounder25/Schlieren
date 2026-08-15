@@ -115,6 +115,11 @@ public sealed class OpcodeShl : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasBitwiseShift)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var shift) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
@@ -138,6 +143,11 @@ public sealed class OpcodeShr : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasBitwiseShift)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var shift) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
@@ -161,6 +171,11 @@ public sealed class OpcodeSar : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasBitwiseShift)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var shift) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 

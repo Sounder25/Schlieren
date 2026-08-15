@@ -97,6 +97,11 @@ public sealed class OpcodeTload : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasTloadTstore)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var key))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
@@ -115,6 +120,11 @@ public sealed class OpcodeTstore : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasTloadTstore)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (context.IsStatic)
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StaticModeViolation), context.ProgramCounter + 1));
 

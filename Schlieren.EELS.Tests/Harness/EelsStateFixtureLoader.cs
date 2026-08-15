@@ -210,7 +210,8 @@ public sealed class EelsStateFixtureLoader
             Rules = ForkRulesFactory.For(forkName),
             ExcessBlobGas = envNode.TryGetProperty("currentExcessBlobGas", out var excessBlobGasNode)
                 ? EelsHex.ParseUlong(GetJsonText(excessBlobGasNode))
-                : 0
+                : 0,
+            BlockHashes = ParseBlockHashes(envNode),
         };
 
 
@@ -1154,5 +1155,50 @@ public sealed class EelsStateFixtureLoader
         }
         else
             tx.V = 0;
+    }
+
+    /// <summary>
+    /// Builds the block-hash lookup table from the fixture env.
+    ///
+    /// The v20 state-test format uses the EELS convention:
+    ///   blockHash(n) = keccak256(str(n).encode('ascii'))
+    /// The fixture env may carry an explicit "blockHashes" object (decimal string
+    /// keys → hex hash values), or leave it absent — in the absent case we
+    /// synthesise all 256 hashes on demand so BLOCKHASH always returns a
+    /// deterministic non-zero value for in-window block numbers.
+    /// </summary>
+    private static IReadOnlyDictionary<ulong, byte[]> ParseBlockHashes(JsonElement envNode)
+    {
+        var map = new Dictionary<ulong, byte[]>();
+
+        // Explicit map in fixture (older format: "blockHashes": {"1": "0x..."})
+        if (envNode.TryGetProperty("blockHashes", out var bhNode) &&
+            bhNode.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in bhNode.EnumerateObject())
+            {
+                if (ulong.TryParse(prop.Name, out var num))
+                {
+                    var hex = prop.Value.GetString() ?? "0x0";
+                    map[num] = Convert.FromHexString(hex.Replace("0x", "").PadLeft(64, '0'));
+                }
+            }
+            return map;
+        }
+
+        // EELS convention: synthesise keccak256(str(n)) for each ancestor.
+        // Get current block number so we know the window.
+        if (!envNode.TryGetProperty("currentNumber", out var numNode)) return map;
+        var current = EelsHex.ParseUlong(numNode.GetString()!);
+        var windowStart = current > 256 ? current - 256 : 0;
+
+        for (var n = windowStart; n < current; n++)
+        {
+            var ascii = System.Text.Encoding.ASCII.GetBytes(n.ToString());
+            var hash  = Nethereum.Util.Sha3Keccack.Current.CalculateHash(ascii);
+            map[n] = hash;
+        }
+
+        return map;
     }
 }

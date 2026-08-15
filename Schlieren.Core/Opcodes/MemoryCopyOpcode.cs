@@ -16,6 +16,11 @@ public sealed class OpcodeMcopy : IOpcode
 
     public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
     {
+        if (!context.Block.Rules.HasMcopy)
+            return new ValueTask<(ExecutionResult, int)>((
+                ExecutionResult.Failure(EvmError.InvalidOpcode, context.GasLimit),
+                context.ProgramCounter + 1));
+
         if (!context.Stack.TryPop(out var dst) ||
             !context.Stack.TryPop(out var src) ||
             !context.Stack.TryPop(out var length))
