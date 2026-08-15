@@ -75,6 +75,8 @@ public sealed class WorkbenchRunResult
         new Dictionary<string, string>();
     public IReadOnlyDictionary<string, ulong> PostNonces { get; init; } =
         new Dictionary<string, ulong>();
+    public required Transaction Tx { get; init; }
+    public required BlockContext Block { get; init; }
 }
 
 /// <summary>
@@ -292,7 +294,9 @@ public static class BytecodeExecutionService
             IntrinsicGas = intrinsic,
             IsCreate = isCreate,
             PostBalances = post.ToDictionary(s => s.Address, s => s.Balance, StringComparer.OrdinalIgnoreCase),
-            PostNonces = post.ToDictionary(s => s.Address, s => s.Nonce, StringComparer.OrdinalIgnoreCase)
+            PostNonces = post.ToDictionary(s => s.Address, s => s.Nonce, StringComparer.OrdinalIgnoreCase),
+            Tx = tx,
+            Block = block
         };
     }
 

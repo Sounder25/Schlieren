@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using Schlieren.Core.Execution.Causal;
 
 namespace Schlieren.Core.Execution.Inspect;
@@ -22,6 +23,9 @@ public static class InspectMapper
 
     public static string ToHex(long value)
         => value < 0 ? "0x0" : ToHex((ulong)value);
+
+    public static string ToHex(BigInteger value)
+        => value < 0 ? "0x0" : "0x" + value.ToString("x", CultureInfo.InvariantCulture);
 
     public static string ToHex(byte[]? data)
     {

@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Inspect;
 using Schlieren.Core.Security;
 using Schlieren.UI.Services;
 
@@ -666,6 +667,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         AccountStateRows.Add("fixture expected vs this run (Conformance check):");
         var mismatches = 0;
+        var engineMismatches = new List<string>();
         foreach (var exp in _expectedPost)
         {
             var addr = exp.AddressHex;
@@ -677,6 +679,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             {
                 AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} balance expected {expBalText} got {actualBal}");
                 mismatches++;
+                if (WorkbenchQuantity.TryBigInteger(actualBal, out var actualBalParsed))
+                {
+                    engineMismatches.Add(InspectMismatchFormat.Balance(
+                        addr,
+                        InspectMapper.ToHex(expBal),
+                        InspectMapper.ToHex(actualBalParsed)));
+                }
             }
 
             if (!run.PostNonces.TryGetValue(addr, out var actualNonce))
@@ -688,6 +697,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             {
                 AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} nonce expected {exp.Nonce} got {actualNonce}");
                 mismatches++;
+                engineMismatches.Add(InspectMismatchFormat.Nonce(addr, exp.Nonce, actualNonce));
             }
 
             if (exp.StorageHex.Count == 0) continue;
@@ -713,6 +723,16 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         AccountStateRows.Add(mismatches == 0
             ? "  MATCH — post-state agrees with fixture expected"
             : $"  {mismatches} expected-post mismatch(es)");
+
+        if (engineMismatches.Count > 0)
+        {
+            var inspect = InspectionAssembler.FromCanonical(
+                new InspectRequest { Tx = run.Tx, Block = run.Block, Mismatches = engineMismatches },
+                run.Result);
+            var root = inspect.Diagnosis?.Root;
+            if (root != null)
+                AccountStateRows.Add($"  DIAGNOSIS  {root.RuleId}  {root.Grade}  {root.Why}");
+        }
     }
 
     [RelayCommand]
