@@ -95,11 +95,15 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             {
                 foreach (var (slotHex, valueHex) in account.Storage)
                 {
-                    var slot = BigInteger.Parse(slotHex.Replace("0x", ""), 
+                    var slotClean = slotHex.Replace("0x", "").Replace("0X", "");
+                    var valClean  = valueHex.Replace("0x", "").Replace("0X", "");
+                    // Prepend "0" so BigInteger.Parse treats the value as unsigned
+                    // (without it, values with high bit set like 0xAA parse as negative)
+                    var slot  = BigInteger.Parse("0" + slotClean,
                         System.Globalization.NumberStyles.HexNumber);
-                    var value = BigInteger.Parse(valueHex.Replace("0x", ""), 
+                    var value = BigInteger.Parse("0" + valClean,
                         System.Globalization.NumberStyles.HexNumber);
-                    state.SetStorageAt(address, slot, value);  // Fixed: SetStorageAt API
+                    state.SetStorageAt(address, slot, value);
                 }
             }
         }

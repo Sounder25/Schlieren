@@ -461,13 +461,13 @@ public sealed class StateTransition : IStateTransition
             var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
             var totalGasUsed = intrinsicGas + evmGasUsed;
 
-            // EIP-3529 (London+): apply capped gas refund. Pre-London: max refund = gasUsed/2.
-            if (result.GasRefundCounter > 0)
-            {
-                var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
-                var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
-                totalGasUsed -= (ulong)cappedRefund;
-            }
+                        // EIP-3529 (London+): apply capped gas refund. Pre-London: max refund = gasUsed/2.
+                        if (result.GasRefundCounter > 0)
+                        {
+                            var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
+                            var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
+                            totalGasUsed -= (ulong)cappedRefund;
+                        }
 
             // EIP-7623 (Prague+): enforce calldata token floor.
             // If actual gas consumed is below floor = TX_BASE + tokens×10, charge the floor instead.
