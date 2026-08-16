@@ -89,6 +89,22 @@ public static class SyntheticCaseMaterializer
                 Push(ops, 0); Push(ops, 0); ops.Add("a0"); // LOG0(0, 0)
                 break;
 
+            case ChildBehavior.Log1:
+                Push(ops, 0x1111); Push(ops, 0); Push(ops, 0); ops.Add("a1"); // LOG1
+                break;
+
+            case ChildBehavior.Log2:
+                Push(ops, 0x2222); Push(ops, 0x1111); Push(ops, 0); Push(ops, 0); ops.Add("a2");
+                break;
+
+            case ChildBehavior.Log3:
+                Push(ops, 0x3333); Push(ops, 0x2222); Push(ops, 0x1111); Push(ops, 0); Push(ops, 0); ops.Add("a3");
+                break;
+
+            case ChildBehavior.Log4:
+                Push(ops, 0x4444); Push(ops, 0x3333); Push(ops, 0x2222); Push(ops, 0x1111); Push(ops, 0); Push(ops, 0); ops.Add("a4");
+                break;
+
             case ChildBehavior.LogRevert:
                 Push(ops, 0); Push(ops, 0); ops.Add("a0");
                 Push(ops, 0); Push(ops, 0); ops.Add("fd");
@@ -105,6 +121,44 @@ public static class SyntheticCaseMaterializer
                 ops.Add("5a"); ops.Add("f1"); ops.Add("50"); // GAS CALL POP
                 break;
 
+            case ChildBehavior.Create:
+                // CREATE empty contract: PUSH1 0 (size) PUSH1 0 (offset) PUSH1 0 (value) CREATE POP
+                Push(ops, 0); Push(ops, 0); Push(ops, 0); ops.Add("f0"); ops.Add("50");
+                break;
+
+            case ChildBehavior.Create2:
+                // CREATE2: PUSH1 0 (salt) PUSH1 0 (size) PUSH1 0 (offset) PUSH1 0 (value) CREATE2 POP
+                Push(ops, 0); Push(ops, 0); Push(ops, 0); Push(ops, 0); ops.Add("f5"); ops.Add("50");
+                break;
+
+            case ChildBehavior.CreateRevert:
+                // CREATE then REVERT (creation rolled back)
+                Push(ops, 0); Push(ops, 0); Push(ops, 0); ops.Add("f0"); ops.Add("50");
+                Push(ops, 0); Push(ops, 0); ops.Add("fd");
+                return ops;
+
+            case ChildBehavior.CallThenSStore:
+                // CALL grandchild, then SSTORE slot 0
+                Push(ops, 0); Push(ops, 0); Push(ops, 0); Push(ops, 0); Push(ops, 0);
+                ops.Add("73"); ops.AddRange(Addr20(AddrGrandchild));
+                ops.Add("5a"); ops.Add("f1"); ops.Add("50");
+                Push(ops, 0xAA); Push(ops, 0); ops.Add("55"); // SSTORE
+                break;
+
+            case ChildBehavior.SStoreThenCall:
+                // SSTORE slot 0, then CALL grandchild
+                Push(ops, 0xAA); Push(ops, 0); ops.Add("55");
+                Push(ops, 0); Push(ops, 0); Push(ops, 0); Push(ops, 0); Push(ops, 0);
+                ops.Add("73"); ops.AddRange(Addr20(AddrGrandchild));
+                ops.Add("5a"); ops.Add("f1"); ops.Add("50");
+                break;
+
+            case ChildBehavior.MultiReturn:
+                // Return 32 bytes
+                Push(ops, 0xDEAD); Push(ops, 0); ops.Add("52");
+                Push(ops, 32); Push(ops, 0); ops.Add("f3");
+                return ops;
+
             default:
                 break;
         }
@@ -116,7 +170,8 @@ public static class SyntheticCaseMaterializer
     {
         // Behaviors that self-terminate ignore RevertMode
         if (c.ChildBehavior is ChildBehavior.SStoreRevert or ChildBehavior.LogRevert
-            or ChildBehavior.SelfDestruct or ChildBehavior.Return)
+            or ChildBehavior.SelfDestruct or ChildBehavior.Return
+            or ChildBehavior.CreateRevert or ChildBehavior.MultiReturn)
             return new List<string>();
 
         return c.RevertMode switch
@@ -245,7 +300,9 @@ public static class SyntheticCaseMaterializer
                 break;
         }
 
-        if (c.ChildBehavior == ChildBehavior.NestedCall)
+        if (c.ChildBehavior is ChildBehavior.NestedCall
+                             or ChildBehavior.CallThenSStore
+                             or ChildBehavior.SStoreThenCall)
         {
             accounts.Add(new()
             {

@@ -9,13 +9,26 @@ namespace Schlieren.Tests.Campaigns.Synthetic;
 public enum CallKind        { Call, StaticCall, DelegateCall, CallCode }
 public enum TargetKind      { ExistingCode, EmptyAccount, Nonexistent, Precompile, Self }
 public enum ChildBehavior   { Stop, Return, Revert, SStore, SStoreRevert,
-                              Log, LogRevert, SelfDestruct, NestedCall, OutOfGas, InvalidOpcode }
+                              Log, LogRevert, SelfDestruct, NestedCall, OutOfGas, InvalidOpcode,
+                              // Campaign 002+
+                              Create, Create2, CreateRevert, Log1, Log2, Log3, Log4,
+                              CallThenSStore, SStoreThenCall, MultiReturn }
 public enum GasClass        { Minimal, BelowStipend, Stipend, AboveStipend,
                               ExactMinus1, Exact, ExactPlus1, Boundary6364, High }
 public enum ValueClass      { Zero, One, Byte255, Byte256, OneEther, InsufficientBalance }
 public enum ReturnSize      { Zero, One, Byte31, Byte32, Byte33, Byte255, Byte256, Byte257 }
 public enum StoragePattern  { None, ZeroToX, XToY, XToZero, MultiSlot, SameSlotTwice }
 public enum RevertMode      { None, ExplicitRevert, OutOfGas, InvalidOpcode }
+
+// Campaign 002 dimensions
+public enum PrecompileTarget { Ecrecover = 1, Sha256 = 2, Ripemd160 = 3, Identity = 4,
+                               ModExp = 5, EcAdd = 6, EcMul = 7, EcPairing = 8, Blake2f = 9 }
+public enum DepthClass      { One = 1, Two = 2, Three = 3, Four = 4,
+                              Eight = 8, Sixteen = 16, SixtyFour = 64,
+                              Max1023 = 1023, Max1024 = 1024 }
+public enum AccountState    { HasCode, EmptyNoBalance, EmptyWithBalance, NonExistent }
+public enum MemoryStress    { None, Small32, Medium256, Large1024, Boundary4096 }
+public enum LogTopics       { Zero, One, Two, Three, Four }
 
 // ── Case record ──────────────────────────────────────────────────────────────
 

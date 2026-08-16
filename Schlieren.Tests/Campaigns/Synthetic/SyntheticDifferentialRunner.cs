@@ -139,6 +139,8 @@ public static class InvariantChecker
         // SSTORE + success: verify the expected state transition actually happened.
         // Derive expected pre/post from the case dimensions, not just "any StateDiff".
         // DELEGATECALL/CALLCODE execute in the CALLER's storage context (parent = 0xaa).
+        // Note: pre-state storage is always set on the CHILD (0xbb) regardless of call type,
+        // so for DELEGATECALL/CALLCODE the parent's pre-state value is always 0.
         if (c.ChildBehavior == ChildBehavior.SStore
             && c.CallKind   != CallKind.StaticCall
             && c.TargetKind == TargetKind.ExistingCode
@@ -147,12 +149,18 @@ public static class InvariantChecker
             && r.Success && child?.Success == true)
         {
             var (writeVal, writeSlot) = SyntheticCaseMaterializer.StorageWritePublic(c.StoragePattern);
-            var preVal   = SyntheticCaseMaterializer.PreStorageValue(c.StoragePattern, writeSlot);
 
-            // DELEGATECALL/CALLCODE: write lands on caller's (parent's) storage
+            // For DELEGATECALL/CALLCODE: storage is written to parent (0xaa), which has no pre-state
+            // For CALL/CALLCODE-to-child: storage is written to child (0xbb), which has the pre-state
             var storageOwner = c.CallKind is CallKind.DelegateCall or CallKind.CallCode
                 ? DeterministicAddresses.Parent
                 : DeterministicAddresses.Child;
+
+            // Pre-state value: 0 for parent (DELEGATECALL), pattern-based for child (CALL)
+            var preVal = c.CallKind is CallKind.DelegateCall or CallKind.CallCode
+                ? 0UL
+                : SyntheticCaseMaterializer.PreStorageValue(c.StoragePattern, writeSlot);
+
             var slotKey = $"{storageOwner}:0x{writeSlot:X}";
 
             if (writeVal == preVal)
