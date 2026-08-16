@@ -65,6 +65,12 @@ public class CallSemanticsCampaignTests
         Assert.StartsWith("0x", child);
         Assert.True(parent.Length > 4);  // More than just "0x"
         Assert.True(child.Length > 4);
+        
+        // Regression: PUSH3 gas encoding must be 0x0186a0 (100,000), not 0x000186 (390)
+        // Sequence: PUSH20 <address> PUSH3 <gas> CALL
+        // 73 = PUSH20, 00...bb = 20 bytes, 62 = PUSH3, 0186a0 = 100k gas, f1 = CALL
+        _output.WriteLine($"Parent bytecode: {parent}");
+        Assert.Contains("7300000000000000000000000000000000000000bb620186a0f1", parent);
     }
 
     [Fact]
