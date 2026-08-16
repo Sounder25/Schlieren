@@ -1169,8 +1169,10 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             calldataGas = (ulong)(nonzeroBytes * 16 + zeroBytes * 4);
         }
 
+        // CRITICAL: Only sum depth-1 gas. Child frame gas is already included in parent CALL opcode gasCost.
+        // Summing all depths would double-count nested execution (Bug #3).
         var totalGas = Instructions.Count > 0
-            ? (ulong)Instructions.Sum(i => i.GasCost) + 21_000UL + calldataGas
+            ? (ulong)Instructions.Where((inst, idx) => _currentTrace[idx].Depth == 1).Sum(i => i.GasCost) + 21_000UL + calldataGas
             : 0UL;
 
         await AuditReportExporter.GenerateReportAsync(

@@ -62,10 +62,12 @@ public static class ReentrancyDetector
             var currentAddr = step.ContractAddress;
 
             // Check if current contract address is already present in an upper active call frame
+            // CRITICAL: Exclude DELEGATECALL — that's normal proxy execution, NOT reentrancy
             foreach (var frame in activeFrames)
             {
                 if (string.Equals(frame.address, currentAddr, StringComparison.OrdinalIgnoreCase) && 
-                    step.Depth > frame.depth)
+                    step.Depth > frame.depth &&
+                    step.CallType != CallType.DelegateCall)
                 {
                     // Check for post-call storage mutations (State-Check-Interaction rule)
                     var postMutations = FindPostCallStorageMutations(trace, i, frame.depth);
