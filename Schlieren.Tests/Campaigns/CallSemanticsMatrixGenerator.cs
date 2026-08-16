@@ -32,7 +32,7 @@ public static class CallSemanticsMatrixGenerator
 
     public sealed class CallTestCase
     {
-        public required string CaseId { get; init; set; }
+        public required string CaseId { get; set; }
         public required CallType Type { get; init; }
         public required ChildResult Result { get; init; }
         public required TargetState Target { get; init; }
@@ -48,6 +48,17 @@ public static class CallSemanticsMatrixGenerator
         public string Bytecode { get; set; } = "";
         public string ParentBytecode { get; set; } = "";
         public ulong? ExpectedGas { get; set; }
+        
+        /// <summary>
+        /// Canonical fingerprint for deduplication.
+        /// Includes ALL dimensions that affect execution semantics.
+        /// </summary>
+        public string GetCanonicalFingerprint()
+        {
+            return $"{Fork}|{Type}|{Target}|{PrecompileTarget?.ToString() ?? "NONE"}|" +
+                   $"{Access}|{Value}|{Behavior}|{Result}|{ReturnSize}|" +
+                   $"{Depth}|{GasLimit?.ToString() ?? "NONE"}";
+        }
     }
 
     /// <summary>
@@ -362,9 +373,9 @@ public static class CallSemanticsMatrixGenerator
             TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
             ChildBehavior.SelfDestruct, ReturnDataSize.Zero, 2, Fork.Cancun));
 
-        // Deduplicate by case ID (prevent duplicate semantic cases)
+        // Deduplicate by canonical fingerprint (not CaseId)
         cases = cases
-            .GroupBy(c => c.CaseId)
+            .GroupBy(c => c.GetCanonicalFingerprint())
             .Select(g => g.First())
             .ToList();
 
