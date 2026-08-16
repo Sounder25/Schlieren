@@ -91,21 +91,36 @@ public static class ExecutionComparator
         Dictionary<string, string> s,
         Dictionary<string, string> o)
     {
-        // Only compare storage entries — keys containing ":" are slot entries
-        var sSlots = s.Where(kv => kv.Key.Contains(':')).ToDictionary(kv => kv.Key, kv => kv.Value);
-        var oSlots = o.Where(kv => kv.Key.Contains(':')).ToDictionary(kv => kv.Key, kv => kv.Value);
+        // Schlieren emits "before → after" format. REVM emits post-state value only.
+        // Normalize both to just the post-state value before comparing.
+        var sSlots = s.Where(kv => kv.Key.Contains(':'))
+                      .ToDictionary(kv => kv.Key, kv => ExtractPostValue(kv.Value));
+        var oSlots = o.Where(kv => kv.Key.Contains(':'))
+                      .ToDictionary(kv => kv.Key, kv => NormalizeHex(kv.Value));
 
         foreach (var (key, sVal) in sSlots)
         {
             if (!oSlots.TryGetValue(key, out var oVal))
                 return $"slot {key}: schlieren={sVal} oracle=missing";
-            if (NormalizeHex(sVal) != NormalizeHex(oVal))
+            if (sVal != oVal)
                 return $"slot {key}: schlieren={sVal} oracle={oVal}";
         }
         foreach (var key in oSlots.Keys.Except(sSlots.Keys))
             return $"slot {key}: schlieren=missing oracle={oSlots[key]}";
 
         return null;
+    }
+
+    /// <summary>
+    /// Extract the post-state value from either format:
+    ///   "0x0 → 0xAA"  →  "0xaa"
+    ///   "0xaa"         →  "0xaa"
+    /// </summary>
+    private static string ExtractPostValue(string v)
+    {
+        var arrow = v.IndexOf('→');
+        var raw   = arrow >= 0 ? v[(arrow + 1)..].Trim() : v.Trim();
+        return NormalizeHex(raw);
     }
 
     private static string? CompareLogs(List<LogFingerprint> s, List<LogFingerprint> o)

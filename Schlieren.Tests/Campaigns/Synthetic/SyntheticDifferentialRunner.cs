@@ -358,11 +358,30 @@ public static class CampaignResultPersister
                 var payload = new
                 {
                     record.Case,
-                    SchlierenSuccess  = record.Schlieren?.Success,
-                    SchlierenGasUsed  = record.Schlieren?.GasUsed,
-                    SchlierenStateDiff = record.Schlieren?.Fingerprint.StateDiff,
-                    DiffMessage       = record.Diff?.Message,
-                    record.Exception,
+                    Schlieren = new
+                    {
+                        Success  = record.Schlieren?.Success,
+                        GasUsed  = record.Schlieren?.GasUsed,
+                        ReturnData = record.Schlieren?.ReturnData,
+                        StateDiff  = record.Schlieren?.Fingerprint.StateDiff,
+                        Logs      = record.Schlieren?.Fingerprint.Logs.Select(l => new { l.Address, l.Topics, l.Data }),
+                    },
+                    Oracle = record.Oracle == null ? null : new
+                    {
+                        Success  = record.Oracle.Success,
+                        GasUsed  = record.Oracle.GasUsed,
+                        ReturnData = record.Oracle.ReturnData,
+                        StateDiff  = record.Oracle.Fingerprint.StateDiff,
+                        Logs      = record.Oracle.Fingerprint.Logs.Select(l => new { l.Address, l.Topics, l.Data }),
+                    },
+                    Diff = record.ExecutionDiff == null ? null : new
+                    {
+                        record.ExecutionDiff.Category,
+                        record.ExecutionDiff.Layer,
+                        record.ExecutionDiff.Detail,
+                        record.ExecutionDiff.GasDelta,
+                    },
+                    InvariantViolation = record.Exception,
                 };
                 File.WriteAllText(
                     Path.Combine(dir, $"{record.Case.CaseId}.json"),

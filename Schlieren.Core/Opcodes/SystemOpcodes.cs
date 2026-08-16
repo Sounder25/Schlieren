@@ -113,6 +113,7 @@ public sealed class OpcodeCreate : IOpcode
         // that is NEVER committed. Only manual writes to context.GlobalState persist.
         var result = await context.SubCall(tx, false, newAddress, null);
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+        if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
 
         // EIP-211: Only capture return data on revert (failure), not on success
         // Successful CREATE/CREATE2 does NOT set return data - deployed code is separate
@@ -397,6 +398,7 @@ public sealed class OpcodeCall : IOpcode
                 };
                 frontierResult = await context.SubCall(tx, context.IsStatic, null, null);
                 if (frontierResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(frontierResult.TraceSteps);
+                if (frontierResult.IsSuccess && frontierResult.Logs.Count > 0) context.Logs.AddRange(frontierResult.Logs);
             }
 
             var childUsedFrontier = frontierResult.GasUsed > childGasLimitFrontier ? childGasLimitFrontier : frontierResult.GasUsed;
@@ -486,6 +488,7 @@ public sealed class OpcodeCall : IOpcode
 
             result = await context.SubCall(tx, context.IsStatic, null, null);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+            if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
 
         // EELS refund semantics: return ALL unused child gas to parent.
@@ -629,6 +632,7 @@ public sealed class OpcodeCreate2 : IOpcode
         // SubCall with commit=false: initcode state changes are isolated.
         var result = await context.SubCall(tx, false, newAddress, null);
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+        if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
 
         // EIP-211: Only capture return data on revert (failure), not on success
         // Successful CREATE/CREATE2 does NOT set return data - deployed code is separate
@@ -814,6 +818,7 @@ public sealed class OpcodeStaticCall : IOpcode
 
             result = await context.SubCall(tx, true, null, null);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+            if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
@@ -948,6 +953,7 @@ public sealed class OpcodeCallCode : IOpcode
                 return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
             var preResult = await context.SubCall(tx, context.IsStatic, null, codeAddress);
             if (preResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(preResult.TraceSteps);
+            if (preResult.IsSuccess && preResult.Logs.Count > 0) context.Logs.AddRange(preResult.Logs);
             var childUsedPre = preResult.GasUsed > childGasLimitPre ? childGasLimitPre : preResult.GasUsed;
             var childRemainingPre = childGasLimitPre > childUsedPre ? childGasLimitPre - childUsedPre : 0UL;
             context.RefundGas(childRemainingPre);
@@ -1015,6 +1021,7 @@ public sealed class OpcodeCallCode : IOpcode
             // CALLCODE is NOT a staticcall, but inherits parent's static flag.
             result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+            if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
 
         // EELS refund semantics: return ALL unused child gas to parent.
@@ -1126,6 +1133,7 @@ public sealed class OpcodeDelegateCall : IOpcode
                 var tx150 = new Transaction { From = context.Caller, To = context.ContractAddress, Value = context.CallValue, Data = input, GasLimit = gasLimit150, GasPrice = context.GasPrice, Authorization = TransactionAuthorization.Internal, EnableTracing = context.CaptureTrace };
                 result150 = await context.SubCall(tx150, context.IsStatic, null, codeAddress);
                 if (result150.TraceSteps.Count > 0) context.TraceSteps.AddRange(result150.TraceSteps);
+                if (result150.IsSuccess && result150.Logs.Count > 0) context.Logs.AddRange(result150.Logs);
             }
             var childUsed150 = result150.GasUsed > gasLimit150 ? gasLimit150 : result150.GasUsed;
             context.RefundGas(gasLimit150 > childUsed150 ? gasLimit150 - childUsed150 : 0UL);
@@ -1173,6 +1181,7 @@ public sealed class OpcodeDelegateCall : IOpcode
 
             result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
+            if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
