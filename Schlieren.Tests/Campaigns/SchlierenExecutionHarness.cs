@@ -77,7 +77,8 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             // Set balance
             if (account.Balance != "0x0" && account.Balance != "0x")
             {
-                if (BigInteger.TryParse(account.Balance.Replace("0x", ""), 
+                var balClean = account.Balance.Replace("0x", "").Replace("0X", "");
+                if (BigInteger.TryParse("0" + balClean,
                     System.Globalization.NumberStyles.HexNumber, null, out var balance))
                 {
                     state.SetBalance(address, balance);
