@@ -262,10 +262,12 @@ public static class CallSemanticsMatrixGenerator
             case ChildResult.Success:
                 if (returnSize > 0)
                 {
-                    // PUSH1 <size>
+                    // PUSH<n> <size>
                     // PUSH1 0x00 (offset)
                     // RETURN
-                    opcodes.AddRange(new[] { "60", returnSize.ToString("x2"), "60", "00", "f3" });
+                    var sizeBytes = BytecodeEncoder.EncodePushHex((ulong)returnSize);
+                    opcodes.Add(sizeBytes);
+                    opcodes.AddRange(new[] { "60", "00", "f3" });
                 }
                 else
                 {
@@ -275,10 +277,12 @@ public static class CallSemanticsMatrixGenerator
                 break;
 
             case ChildResult.Revert:
-                // PUSH1 <size>
+                // PUSH<n> <size>
                 // PUSH1 0x00 (offset)
                 // REVERT
-                opcodes.AddRange(new[] { "60", returnSize.ToString("x2"), "60", "00", "fd" });
+                var revertSizeBytes = BytecodeEncoder.EncodePushHex((ulong)returnSize);
+                opcodes.Add(revertSizeBytes);
+                opcodes.AddRange(new[] { "60", "00", "fd" });
                 break;
 
             case ChildResult.OutOfGas:
@@ -315,7 +319,9 @@ public static class CallSemanticsMatrixGenerator
         };
 
         // Stack setup (bottom to top for CALL)
-        opcodes.AddRange(new[] { "60", retSize.ToString("x2") });  // retSize
+        // Use proper PUSH encoding for all sizes
+        var retSizeBytes = BytecodeEncoder.EncodePushHex((ulong)retSize);
+        opcodes.Add(retSizeBytes);  // retSize with correct PUSHn
         opcodes.AddRange(new[] { "60", "00" });  // retOffset
         opcodes.AddRange(new[] { "60", "00" });  // argsSize
         opcodes.AddRange(new[] { "60", "00" });  // argsOffset

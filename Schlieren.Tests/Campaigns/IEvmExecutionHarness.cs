@@ -56,9 +56,8 @@ public sealed record CampaignExecutionResult
     public required ulong GasUsed { get; init; }
     public required string ReturnData { get; init; }
     public required ExecutionFingerprint Fingerprint { get; init; }
-    
-    /// <summary>Raw execution result from engine (for debugging).</summary>
-    public required Core.Execution.ExecutionResult RawTrace { get; init; }
+    public required Core.Execution.ExecutionResult RawTrace { get; init; }  // Full ExecutionResult for debugging
+    public required Core.State.GlobalState PostExecutionState { get; init; }  // For consensus checks
 }
 
 /// <summary>

@@ -44,14 +44,15 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
         // 5. Convert to fingerprint
         var fingerprint = BuildFingerprint(result, request);
 
-        // 6. Return normalized result
+        // 6. Return normalized result WITH post-execution state for consensus checks
         return new CampaignExecutionResult
         {
             Success = result.IsSuccess,  // Fixed: property, not method
             GasUsed = result.GasUsed,
-            ReturnData = ToHex(result.ReturnData),
+            ReturnData = ToHex(result.ReturnData ?? Array.Empty<byte>()),
             Fingerprint = fingerprint,
-            RawTrace = result
+            RawTrace = result,  // Keep full trace for debugging
+            PostExecutionState = state  // ADD: For consensus-level storage inspection
         };
     }
 
@@ -270,6 +271,30 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             };
         }
 
+        // Determine success from terminal opcode
+        // STOP or RETURN → success
+        // REVERT or exceptional halt → failure  
+        // OOG shows as parent getting control back without explicit terminal
+        var terminalOp = lastStep.Op;
+        var success = terminalOp is "STOP" or "RETURN" or "SELFDESTRUCT";
+        
+        // If last opcode is REVERT, explicit failure
+        if (terminalOp == "REVERT")
+            success = false;
+
+        // For exceptional halts (OOG, invalid opcode, stack underflow):
+        // The trace doesn't continue to STOP/RETURN — it just ends.
+        // Check if we returned to parent depth without reaching a terminal.
+        if (endIdx < trace.Count - 1)
+        {
+            var nextStep = trace[endIdx + 1];
+            if (nextStep.Depth < depth && terminalOp is not ("STOP" or "RETURN" or "REVERT" or "SELFDESTRUCT"))
+            {
+                // Abrupt return to parent without terminal opcode → exceptional halt
+                success = false;
+            }
+        }
+
         return new FrameFingerprint
         {
             Depth = depth,
@@ -280,7 +305,7 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             Value = "0",      // TODO: Extract from CALL
             GasProvided = 0,  // TODO: Calculate
             GasConsumed = gasConsumed,
-            Success = !lastStep.Op.Contains("REVERT"),
+            Success = success,
             ReturnData = "0x" // TODO: Extract
         };
     }
