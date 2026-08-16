@@ -12,16 +12,27 @@ public static class CallSemanticsMatrixGenerator
 {
     public enum CallType { Call, DelegateCall, StaticCall, CallCode }
     public enum ChildResult { Success, Revert, OutOfGas }
-    public enum TargetState { CodePresent, EmptyAccount, Nonexistent }
+    public enum TargetState { CodePresent, EmptyAccount, Nonexistent, Precompile }
     public enum AccessWarmth { Cold, Warm }
-    public enum ValueTransfer { Zero, NonZero }
-    public enum ChildBehavior { NoOp, SLoad, SStore, Log, NestedCall }
+    public enum ValueTransfer { Zero, OneWei, BoundaryLow, BoundaryHigh, OneEther }
+    public enum ChildBehavior { NoOp, SLoad, SStore, Log, NestedCall, MultipleWrites, SelfDestruct, Create }
     public enum ReturnDataSize { Zero, One, ThirtyOne, ThirtyTwo, ThirtyThree, Large256 }
     public enum Fork { Berlin, London, Shanghai, Cancun }
+    public enum PrecompileAddress { 
+        Ecrecover = 1, 
+        Sha256 = 2, 
+        Ripemd160 = 3, 
+        Identity = 4, 
+        ModExp = 5, 
+        EcAdd = 6, 
+        EcMul = 7, 
+        EcPairing = 8, 
+        Blake2f = 9 
+    }
 
     public sealed class CallTestCase
     {
-        public required string CaseId { get; init; }
+        public required string CaseId { get; init; set; }
         public required CallType Type { get; init; }
         public required ChildResult Result { get; init; }
         public required TargetState Target { get; init; }
@@ -31,7 +42,9 @@ public static class CallSemanticsMatrixGenerator
         public required ReturnDataSize ReturnSize { get; init; }
         public required int Depth { get; init; }
         public required Fork Fork { get; init; }
-
+        
+        public PrecompileAddress? PrecompileTarget { get; set; }
+        public ulong? GasLimit { get; set; }
         public string Bytecode { get; set; } = "";
         public string ParentBytecode { get; set; } = "";
         public ulong? ExpectedGas { get; set; }
@@ -39,14 +52,20 @@ public static class CallSemanticsMatrixGenerator
 
     /// <summary>
     /// Generate pairwise combinations to cover call semantics efficiently.
-    /// Target: 50+ cases initially, expandable to 200-500.
+    /// Expanded matrix: ~200 deterministic cases covering:
+    /// - Value transfer variations (1 wei, boundaries, 1 ether)
+    /// - Precompile targets (ecrecover through blake2f)
+    /// - Depth variations (2, 3, 4, 5)
+    /// - Storage patterns (multiple writes, cold→warm transitions)
+    /// - Gas boundary conditions
+    /// - Cross-fork validation (Berlin, London, Shanghai, Cancun)
     /// Uses deterministic addresses for reproducibility.
     /// </summary>
     public static List<CallTestCase> GenerateMatrix()
     {
         var cases = new List<CallTestCase>();
 
-        // Core scenarios - each call type with common patterns
+        // === CORE CALL SEMANTICS (27 baseline cases) ===
         foreach (var callType in new[] { CallType.Call, CallType.DelegateCall, CallType.StaticCall })
         {
             // Basic success - no-op
@@ -82,7 +101,7 @@ public static class CallSemanticsMatrixGenerator
 
         // CALL with value transfer (not valid for STATICCALL/DELEGATECALL)
         cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
-            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.NonZero,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.OneWei,
             ChildBehavior.NoOp, ReturnDataSize.Zero, 2, Fork.Cancun));
 
         // Empty account targets
@@ -118,6 +137,230 @@ public static class CallSemanticsMatrixGenerator
         cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.OutOfGas,
             TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
             ChildBehavior.SStore, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+        // === VALUE TRANSFER MATRIX (~30 cases) ===
+        foreach (var value in new[] { ValueTransfer.OneWei, ValueTransfer.BoundaryLow, ValueTransfer.BoundaryHigh, ValueTransfer.OneEther })
+        {
+            // CALL with value + success
+            cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, value,
+                ChildBehavior.NoOp, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+            // CALL with value + revert (value returned to caller)
+            cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Revert,
+                TargetState.CodePresent, AccessWarmth.Cold, value,
+                ChildBehavior.NoOp, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+            // Value transfer to empty account (creates account)
+            cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+                TargetState.EmptyAccount, AccessWarmth.Cold, value,
+                ChildBehavior.NoOp, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+            // Value + storage operation
+            cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, value,
+                ChildBehavior.SStore, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+            // Value transfer cold vs warm
+            cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Warm, value,
+                ChildBehavior.NoOp, ReturnDataSize.Zero, 2, Fork.Cancun));
+        }
+
+        // === PRECOMPILE MATRIX (~36 cases) ===
+        var precompiles = new[] { 
+            PrecompileAddress.Ecrecover,
+            PrecompileAddress.Sha256,
+            PrecompileAddress.Ripemd160,
+            PrecompileAddress.Identity,
+            PrecompileAddress.ModExp,
+            PrecompileAddress.EcAdd,
+            PrecompileAddress.EcMul,
+            PrecompileAddress.EcPairing,
+            PrecompileAddress.Blake2f
+        };
+
+        foreach (var precompile in precompiles)
+        {
+            // CALL to precompile with zero value
+            var preCase = CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+                TargetState.Precompile, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.NoOp, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun);
+            preCase.PrecompileTarget = precompile;
+            UpdateCaseId(preCase);
+            cases.Add(preCase);
+
+            // DELEGATECALL to precompile (exotic but valid)
+            preCase = CreateCase(cases.Count + 1, CallType.DelegateCall, ChildResult.Success,
+                TargetState.Precompile, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.NoOp, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun);
+            preCase.PrecompileTarget = precompile;
+            UpdateCaseId(preCase);
+            cases.Add(preCase);
+
+            // STATICCALL to precompile
+            preCase = CreateCase(cases.Count + 1, CallType.StaticCall, ChildResult.Success,
+                TargetState.Precompile, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.NoOp, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun);
+            preCase.PrecompileTarget = precompile;
+            UpdateCaseId(preCase);
+            cases.Add(preCase);
+
+            // Precompile with value transfer (only Identity/ModExp accept value)
+            if (precompile == PrecompileAddress.Identity || precompile == PrecompileAddress.ModExp)
+            {
+                preCase = CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+                    TargetState.Precompile, AccessWarmth.Cold, ValueTransfer.OneEther,
+                    ChildBehavior.NoOp, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun);
+                preCase.PrecompileTarget = precompile;
+                UpdateCaseId(preCase);
+                cases.Add(preCase);
+            }
+        }
+
+        // === DEPTH MATRIX (~30 cases) ===
+        foreach (var depth in new[] { 3, 4, 5 })
+        {
+            foreach (var callType in new[] { CallType.Call, CallType.DelegateCall, CallType.StaticCall })
+            {
+                // Success at depth N
+                cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                    TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                    ChildBehavior.SLoad, ReturnDataSize.ThirtyTwo, depth, Fork.Cancun));
+
+                // Revert at depth N
+                cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Revert,
+                    TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                    ChildBehavior.NoOp, ReturnDataSize.Zero, depth, Fork.Cancun));
+
+                // With value at depth N (CALL only)
+                if (callType == CallType.Call)
+                {
+                    cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                        TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.OneEther,
+                        ChildBehavior.NoOp, ReturnDataSize.Zero, depth, Fork.Cancun));
+                }
+            }
+        }
+
+        // === STORAGE PATTERN MATRIX (~20 cases) ===
+        foreach (var callType in new[] { CallType.Call, CallType.DelegateCall })
+        {
+            // Multiple SSTOREs (cold → warm transitions)
+            cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.MultipleWrites, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+            // Multiple SSTOREs at depth 3
+            cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.MultipleWrites, ReturnDataSize.Zero, 3, Fork.Cancun));
+
+            // Multiple writes with value transfer
+            if (callType == CallType.Call)
+            {
+                cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                    TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.OneWei,
+                    ChildBehavior.MultipleWrites, ReturnDataSize.Zero, 2, Fork.Cancun));
+            }
+
+            // Multiple writes then revert (gas refund behavior)
+            cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Revert,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.MultipleWrites, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+            // Cross-fork storage (Berlin vs Cancun gas deltas)
+            cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.MultipleWrites, ReturnDataSize.Zero, 2, Fork.Berlin));
+        }
+
+        // === GAS BOUNDARY MATRIX (~15 cases) ===
+        foreach (var callType in new[] { CallType.Call, CallType.DelegateCall, CallType.StaticCall })
+        {
+            // Exact gas for operation (boundary condition)
+            var gasCase = CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.SLoad, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun);
+            gasCase.GasLimit = 25000; // Just enough for SLOAD + overhead
+            UpdateCaseId(gasCase);
+            cases.Add(gasCase);
+
+            // Insufficient gas (OOG during execution)
+            gasCase = CreateCase(cases.Count + 1, callType, ChildResult.OutOfGas,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.SStore, ReturnDataSize.Zero, 2, Fork.Cancun);
+            gasCase.GasLimit = 3000; // Not enough for SSTORE
+            UpdateCaseId(gasCase);
+            cases.Add(gasCase);
+
+            // High gas limit (no OOG)
+            gasCase = CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                ChildBehavior.MultipleWrites, ReturnDataSize.Zero, 2, Fork.Cancun);
+            gasCase.GasLimit = 1_000_000; // Plenty
+            UpdateCaseId(gasCase);
+            cases.Add(gasCase);
+        }
+
+        // === CROSS-FORK VALIDATION (~20 cases) ===
+        var forks = new[] { Fork.London, Fork.Shanghai };
+        foreach (var fork in forks)
+        {
+            foreach (var callType in new[] { CallType.Call, CallType.DelegateCall, CallType.StaticCall })
+            {
+                // Cold access at fork F
+                cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                    TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+                    ChildBehavior.SLoad, ReturnDataSize.ThirtyTwo, 2, fork));
+
+                // Warm access at fork F
+                cases.Add(CreateCase(cases.Count + 1, callType, ChildResult.Success,
+                    TargetState.CodePresent, AccessWarmth.Warm, ValueTransfer.Zero,
+                    ChildBehavior.SLoad, ReturnDataSize.ThirtyTwo, 2, fork));
+            }
+        }
+
+        // === EXOTIC BEHAVIORS (~10 cases) ===
+        // SELFDESTRUCT within child call
+        cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.SelfDestruct, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+        // CREATE within child call
+        cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.Create, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun));
+
+        // CREATE with value
+        cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.OneEther,
+            ChildBehavior.Create, ReturnDataSize.ThirtyTwo, 2, Fork.Cancun));
+
+        // SELFDESTRUCT at depth 3
+        cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.SelfDestruct, ReturnDataSize.Zero, 3, Fork.Cancun));
+
+        // LOG emission
+        cases.Add(CreateCase(cases.Count + 1, CallType.Call, ChildResult.Success,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.Log, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+        // LOG in STATICCALL (should revert)
+        cases.Add(CreateCase(cases.Count + 1, CallType.StaticCall, ChildResult.Revert,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.Log, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+        // DELEGATECALL with SELFDESTRUCT (destroys parent)
+        cases.Add(CreateCase(cases.Count + 1, CallType.DelegateCall, ChildResult.Success,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.SelfDestruct, ReturnDataSize.Zero, 2, Fork.Cancun));
+
+        // STATICCALL with SELFDESTRUCT attempt (should revert)
+        cases.Add(CreateCase(cases.Count + 1, CallType.StaticCall, ChildResult.Revert,
+            TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
+            ChildBehavior.SelfDestruct, ReturnDataSize.Zero, 2, Fork.Cancun));
 
         // Deduplicate by case ID (prevent duplicate semantic cases)
         cases = cases
@@ -159,10 +402,27 @@ public static class CallSemanticsMatrixGenerator
             _ => "R0"
         };
         var forkStr = fork.ToString().ToUpperInvariant();
+        var valueStr = value switch
+        {
+            ValueTransfer.Zero => "V0",
+            ValueTransfer.OneWei => "V1",
+            ValueTransfer.BoundaryLow => "V255",
+            ValueTransfer.BoundaryHigh => "V256",
+            ValueTransfer.OneEther => "V1E18",
+            _ => "V0"
+        };
+        var targetStr = target switch
+        {
+            TargetState.CodePresent => "CODE",
+            TargetState.EmptyAccount => "EMPTY",
+            TargetState.Nonexistent => "NONEX",
+            TargetState.Precompile => "PRE",
+            _ => "CODE"
+        };
 
-        var caseId = $"R6_{callStr}_{accessStr}_{resultStr}_{behaviorStr}_{retStr}_D{depth}_{forkStr}";
+        var caseId = $"R6_{callStr}_{accessStr}_{resultStr}_{behaviorStr}_{retStr}_{valueStr}_{targetStr}_D{depth}_{forkStr}";
 
-        return new CallTestCase
+        var testCase = new CallTestCase
         {
             CaseId = caseId,
             Type = type,
@@ -175,6 +435,30 @@ public static class CallSemanticsMatrixGenerator
             Depth = depth,
             Fork = fork
         };
+        
+        return testCase;
+    }
+    
+    /// <summary>
+    /// Update case ID after setting optional fields (precompile target, gas limit).
+    /// Call this after setting PrecompileTarget or GasLimit.
+    /// </summary>
+    private static void UpdateCaseId(CallTestCase testCase)
+    {
+        var suffix = "";
+        if (testCase.PrecompileTarget.HasValue)
+        {
+            suffix += $"_PRE{(int)testCase.PrecompileTarget.Value}";
+        }
+        if (testCase.GasLimit.HasValue)
+        {
+            suffix += $"_GAS{testCase.GasLimit.Value}";
+        }
+        
+        if (!string.IsNullOrEmpty(suffix))
+        {
+            testCase.CaseId += suffix;
+        }
     }
 
     /// <summary>
@@ -242,6 +526,47 @@ public static class CallSemanticsMatrixGenerator
                     "00", "00", "00", "00", "00", "00", "00", "00", "00", "cc"
                 });
                 opcodes.AddRange(new[] { "61", "75", "30", "f1", "50" });
+                break;
+
+            case ChildBehavior.MultipleWrites:
+                // Write to slots 0, 1, 2 (test cold→warm transition)
+                // Slot 0: PUSH1 0xAA, PUSH1 0x00, SSTORE
+                opcodes.AddRange(new[] { "60", "aa", "60", "00", "55" });
+                // Slot 1: PUSH1 0xBB, PUSH1 0x01, SSTORE
+                opcodes.AddRange(new[] { "60", "bb", "60", "01", "55" });
+                // Slot 2: PUSH1 0xCC, PUSH1 0x02, SSTORE
+                opcodes.AddRange(new[] { "60", "cc", "60", "02", "55" });
+                break;
+
+            case ChildBehavior.SelfDestruct:
+                // SELFDESTRUCT(caller)
+                // PUSH20 <caller address 0x01>
+                // SELFDESTRUCT
+                opcodes.Add("73");  // PUSH20
+                opcodes.AddRange(new[] {
+                    "00", "00", "00", "00", "00", "00", "00", "00", "00", "00",
+                    "00", "00", "00", "00", "00", "00", "00", "00", "00", "01"
+                });
+                opcodes.Add("ff");  // SELFDESTRUCT
+                break;
+
+            case ChildBehavior.Create:
+                // CREATE(value=0, offset=0, size=minimal)
+                // Deploy minimal contract: PUSH1 0x60, PUSH1 0x00, MSTORE, PUSH1 0x01, PUSH1 0x00, RETURN
+                // Init code: 0x60600060005260016000f3 (11 bytes)
+                // PUSH1 0x0B (init code size)
+                // PUSH1 0x00 (offset - we'll write init code to memory first)
+                // PUSH1 0x00 (value)
+                // First write init code to memory:
+                // PUSH11 0x60600060005260016000f3
+                // PUSH1 0x00
+                // MSTORE
+                opcodes.AddRange(new[] { "6a", "60", "60", "00", "60", "00", "52", "60", "01", "60", "00", "f3" });
+                opcodes.AddRange(new[] { "60", "00", "52" });
+                // Now CREATE: PUSH1 0x0B (size), PUSH1 0x00 (offset), PUSH1 0x00 (value), CREATE
+                opcodes.AddRange(new[] { "60", "0b", "60", "00", "60", "00", "f0" });
+                // POP result address
+                opcodes.Add("50");
                 break;
         }
 
@@ -328,8 +653,24 @@ public static class CallSemanticsMatrixGenerator
 
         if (testCase.Type == CallType.Call)
         {
-            var value = testCase.Value == ValueTransfer.NonZero ? "01" : "00";
-            opcodes.AddRange(new[] { "60", value });  // value
+            var valueHex = testCase.Value switch
+            {
+                ValueTransfer.Zero => "00",
+                ValueTransfer.OneWei => "01",
+                ValueTransfer.BoundaryLow => BytecodeEncoder.EncodePushHex(255), // Max 1-byte value
+                ValueTransfer.BoundaryHigh => BytecodeEncoder.EncodePushHex(256), // Min 2-byte value
+                ValueTransfer.OneEther => BytecodeEncoder.EncodePushHex(1000000000000000000), // 1 ETH = 10^18 wei
+                _ => "00"
+            };
+            
+            if (testCase.Value == ValueTransfer.Zero || testCase.Value == ValueTransfer.OneWei)
+            {
+                opcodes.AddRange(new[] { "60", valueHex });  // PUSH1
+            }
+            else
+            {
+                opcodes.Add(valueHex);  // Already encoded with correct PUSHn
+            }
         }
 
         // Target address - split into 20 bytes
