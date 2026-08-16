@@ -36,11 +36,20 @@ public sealed class Campaign003_ForkSemanticsAndFeatures
         return File.Exists(path) ? new RevmExecutionHarness(path) : null;
     }
 
+    private static EelsExecutionHarness? TryBuildEels()
+    {
+        return EelsExecutionHarness.IsAvailable() ? new EelsExecutionHarness() : null;
+    }
+
     [Fact]
     public async Task Campaign003A_ForkLocalDeltas()
     {
         var cases  = Campaign003Generator.Generate003A();
-        var result = await RunAndPrint(cases, "003A — Fork-local semantic deltas");
+        // Use REVM for bulk speed. Known REVM limitation: Berlin SSTORE clear refund
+        // (EIP-2200 REFUND_STORAGE_CLEAR) is not applied by REVM — use EELS to verify
+        // any Berlin GasMismatch families before attributing to Schlieren.
+        var oracle = (IEvmExecutionHarness?)TryBuildRevm();
+        var result = await RunAndPrint(cases, "003A — Fork-local semantic deltas", oracle);
         Assert.Equal(0, result.InvariantFailureCount);
     }
 
@@ -64,10 +73,18 @@ public sealed class Campaign003_ForkSemanticsAndFeatures
     }
 
     private async Task<SyntheticCampaignResult> RunAndPrint(
-        System.Collections.Generic.List<SyntheticCase> cases, string label)
+        System.Collections.Generic.List<SyntheticCase> cases, string label,
+        IEvmExecutionHarness? oracle = null)
     {
-        var revm   = TryBuildRevm();
-        var runner = new SyntheticDifferentialRunner(BuildSchlieren(), revm);
+        oracle ??= TryBuildRevm();
+        var runner = new SyntheticDifferentialRunner(BuildSchlieren(), oracle);
+        var oracleLabel = oracle switch
+        {
+            EelsExecutionHarness => "EELS",
+            RevmExecutionHarness => "REVM",
+            null                 => "none",
+            _                    => "unknown"
+        };
         var result = await runner.RunAsync(cases);
         var outPath = CampaignResultPersister.Persist(result,
             $"c003-{label.Substring(0,4).ToLower().Replace(" ","")}-{DateTime.UtcNow:yyyyMMdd-HHmmss}");
@@ -75,10 +92,11 @@ public sealed class Campaign003_ForkSemanticsAndFeatures
         _out.WriteLine($"\n╔══════════════════════════════════════════════════════╗");
         _out.WriteLine($"║  {label,-52}║");
         _out.WriteLine($"╚══════════════════════════════════════════════════════╝");
+        _out.WriteLine($"  Oracle       : {oracleLabel}");
         _out.WriteLine($"  Cases        : {result.Total}");
         _out.WriteLine($"  Passed       : {result.Passed}");
         _out.WriteLine($"  Invariants   : {result.InvariantFailureCount}");
-        _out.WriteLine($"  REVM delta   : {(revm != null ? result.DifferentialFailureCount.ToString() : "no oracle")}");
+        _out.WriteLine($"  Oracle delta : {(oracle != null ? result.DifferentialFailureCount.ToString() : "no oracle")} [{oracleLabel}]");
         _out.WriteLine($"  Families     : {result.UniqueFailureFamilies}");
         _out.WriteLine($"  Results      : {outPath}");
 
@@ -92,13 +110,13 @@ public sealed class Campaign003_ForkSemanticsAndFeatures
                 _out.WriteLine($"      e.g. {string.Join(", ", cl.Cases.Take(2).Select(c => c.Case.CaseId))}");
             }
         }
-        else
+        if (result.Clusters.Count == 0)
         {
-            _out.WriteLine(revm != null
-                ? $"\n  ✅ {result.Total}/{result.Total} REVM agreement."
+            _out.WriteLine(oracle != null
+                ? $"\n  ✅ {result.Total}/{result.Total} {oracleLabel} agreement."
                 : $"\n  ✅ {result.Total}/{result.Total} structural invariants passed.");
+            return result;
         }
-
         return result;
     }
 }
