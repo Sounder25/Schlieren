@@ -60,7 +60,7 @@ public sealed class SyntheticDifferentialRunner
                     });
                 }
 
-                // Layer 2: REVM differential — only when oracle available
+                // Layer 2: oracle differential — only when oracle available
                 if (_oracle != null)
                 {
                     var oracle = await _oracle.ExecuteAsync(request, ct);
@@ -68,15 +68,24 @@ public sealed class SyntheticDifferentialRunner
 
                     if (!diff.IsMatch)
                     {
-                        differentialFails.Add(new SyntheticFailureRecord
+                        // Skip divergences that are documented oracle bugs, not Schlieren defects.
+                        // See oracle/REVM_KNOWN_LIMITATIONS.md for full analysis.
+                        if (KnownOracleLimitations.IsKnown(_oracle, syntheticCase, diff))
                         {
-                            Case      = syntheticCase,
-                            Request   = request,
-                            Schlieren = schlieren,
-                            Oracle    = oracle,
-                            ExecutionDiff = diff,
-                            Signature = FailureSignatureBuilder.FromDiff(syntheticCase, schlieren, diff),
-                        });
+                            passes++; // counts as pass — oracle is wrong, not Schlieren
+                        }
+                        else
+                        {
+                            differentialFails.Add(new SyntheticFailureRecord
+                            {
+                                Case          = syntheticCase,
+                                Request       = request,
+                                Schlieren     = schlieren,
+                                Oracle        = oracle,
+                                ExecutionDiff = diff,
+                                Signature     = FailureSignatureBuilder.FromDiff(syntheticCase, schlieren, diff),
+                            });
+                        }
                     }
                 }
 
@@ -398,5 +407,36 @@ public static class CampaignResultPersister
         }
 
         return root;
+    }
+}
+
+// ── Known oracle limitations ───────────────────────────────────────────────────
+
+/// <summary>
+/// Cases where a specific oracle engine diverges from the EVM spec.
+/// These are oracle bugs, not Schlieren defects.
+/// Full analysis: oracle/REVM_KNOWN_LIMITATIONS.md
+/// </summary>
+public static class KnownOracleLimitations
+{
+    public static bool IsKnown(
+        IEvmExecutionHarness oracle,
+        SyntheticCase c,
+        ExecutionComparator.ExecutionDiff diff)
+    {
+        // Only suppress for REVM — EELS is authoritative
+        if (oracle is not RevmExecutionHarness) return false;
+
+        // REVM-BUG-001: Berlin SSTORE clear refund (EIP-2200 REFUND_STORAGE_CLEAR)
+        // REVM 42.x does not apply the 15000 gas refund when clearing a non-zero slot.
+        // Schlieren=14314 == EELS=14314. REVM=23828 is wrong.
+        // Signature: Berlin + XToZero + GasMismatch + delta=-9514
+        if (c.Fork == "Berlin"
+            && c.StoragePattern == StoragePattern.XToZero
+            && diff.GasMismatch
+            && diff.GasDelta == -9514)
+            return true;
+
+        return false;
     }
 }
