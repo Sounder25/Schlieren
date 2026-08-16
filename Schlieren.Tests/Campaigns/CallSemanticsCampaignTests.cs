@@ -74,6 +74,55 @@ public class CallSemanticsCampaignTests
     }
 
     [Fact]
+    public void Campaign_GenerateBytecode_REVERT_Structure()
+    {
+        // Regression: REVERT terminator must not be unreachable
+        // NoOp + Revert should generate: 60 00 60 00 fd (not 00 ... fd)
+        var testCase = new CallSemanticsMatrixGenerator.CallTestCase
+        {
+            CaseId = "R6-REVERT-TEST",
+            Type = CallSemanticsMatrixGenerator.CallType.Call,
+            Result = CallSemanticsMatrixGenerator.ChildResult.Revert,
+            Target = CallSemanticsMatrixGenerator.TargetState.CodePresent,
+            Access = CallSemanticsMatrixGenerator.AccessWarmth.Cold,
+            Value = CallSemanticsMatrixGenerator.ValueTransfer.Zero,
+            Behavior = CallSemanticsMatrixGenerator.ChildBehavior.NoOp,
+            ReturnSize = CallSemanticsMatrixGenerator.ReturnDataSize.Zero,
+            Depth = 2,
+            Fork = CallSemanticsMatrixGenerator.Fork.Cancun
+        };
+
+        var (_, child) = CallSemanticsMatrixGenerator.GenerateBytecode(testCase);
+
+        _output.WriteLine($"Child (REVERT): {child}");
+        
+        // Must end with REVERT sequence: PUSH1 0 / PUSH1 0 / REVERT
+        Assert.EndsWith("60006000fd", child);
+        
+        // Must NOT contain STOP before REVERT (would make REVERT unreachable)
+        var withoutPrefix = child.Replace("0x", "");
+        var bodyBeforeRevert = withoutPrefix.Substring(0, withoutPrefix.Length - 10); // Remove "60006000fd"
+        
+        // Body should be empty for NoOp (no STOP opcode 00)
+        Assert.Equal("", bodyBeforeRevert);
+    }
+
+    [Fact]
+    public void Campaign_Matrix_NoDuplicates()
+    {
+        // Regression: Deduplication must prevent duplicate semantic cases
+        var cases = CallSemanticsMatrixGenerator.GenerateMatrix();
+        
+        var duplicates = cases
+            .GroupBy(c => c.CaseId)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        Assert.Empty(duplicates);
+    }
+
+    [Fact]
     public async Task Campaign_FirstCase_CALL_Cold_NoOp_STOP()
     {
         // Simplest possible case: CALL to child that just STOPs

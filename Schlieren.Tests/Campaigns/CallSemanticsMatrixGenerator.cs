@@ -119,6 +119,12 @@ public static class CallSemanticsMatrixGenerator
             TargetState.CodePresent, AccessWarmth.Cold, ValueTransfer.Zero,
             ChildBehavior.SStore, ReturnDataSize.Zero, 2, Fork.Cancun));
 
+        // Deduplicate by case ID (prevent duplicate semantic cases)
+        cases = cases
+            .GroupBy(c => c.CaseId)
+            .Select(g => g.First())
+            .ToList();
+
         return cases;
     }
 
@@ -186,11 +192,11 @@ public static class CallSemanticsMatrixGenerator
     {
         var opcodes = new List<string>();
 
-        // Child behavior
+        // STEP 1: Generate behavior body ONLY (no termination)
         switch (testCase.Behavior)
         {
             case ChildBehavior.NoOp:
-                // Just return
+                // Emit nothing - just termination
                 break;
 
             case ChildBehavior.SLoad:
@@ -217,7 +223,6 @@ public static class CallSemanticsMatrixGenerator
 
             case ChildBehavior.NestedCall:
                 // Recursive CALL to grandchild (depth 3)
-                // Uses DeterministicAddresses.Grandchild
                 // PUSH1 0x00 (retSize)
                 // PUSH1 0x00 (retOffset)
                 // PUSH1 0x00 (argsSize)
@@ -240,7 +245,7 @@ public static class CallSemanticsMatrixGenerator
                 break;
         }
 
-        // Return data
+        // STEP 2: Generate exactly ONE terminal path (mutually exclusive)
         var returnSize = testCase.ReturnSize switch
         {
             ReturnDataSize.Zero => 0,
@@ -252,24 +257,35 @@ public static class CallSemanticsMatrixGenerator
             _ => 0
         };
 
-        if (testCase.Result == ChildResult.Revert)
+        switch (testCase.Result)
         {
-            // PUSH1 <size>
-            // PUSH1 0x00 (offset)
-            // REVERT
-            opcodes.AddRange(new[] { "60", returnSize.ToString("x2"), "60", "00", "fd" });
-        }
-        else if (returnSize > 0)
-        {
-            // PUSH1 <size>
-            // PUSH1 0x00 (offset)
-            // RETURN
-            opcodes.AddRange(new[] { "60", returnSize.ToString("x2"), "60", "00", "f3" });
-        }
-        else
-        {
-            // STOP (success with no return)
-            opcodes.Add("00");
+            case ChildResult.Success:
+                if (returnSize > 0)
+                {
+                    // PUSH1 <size>
+                    // PUSH1 0x00 (offset)
+                    // RETURN
+                    opcodes.AddRange(new[] { "60", returnSize.ToString("x2"), "60", "00", "f3" });
+                }
+                else
+                {
+                    // STOP (success with no return)
+                    opcodes.Add("00");
+                }
+                break;
+
+            case ChildResult.Revert:
+                // PUSH1 <size>
+                // PUSH1 0x00 (offset)
+                // REVERT
+                opcodes.AddRange(new[] { "60", returnSize.ToString("x2"), "60", "00", "fd" });
+                break;
+
+            case ChildResult.OutOfGas:
+                // Will OOG during execution due to parent's low gas limit
+                // Terminate normally but parent provides insufficient gas
+                opcodes.Add("00");
+                break;
         }
 
         var code = "0x" + string.Join("", opcodes);
