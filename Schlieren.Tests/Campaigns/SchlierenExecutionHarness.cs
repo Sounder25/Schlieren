@@ -31,6 +31,9 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
     {
         // 1. Build state from prestate accounts
         var state = BuildGlobalState(request.Prestate);
+        
+        // Capture pre-state for diff
+        var preStateStorage = CaptureStorage(state, request.Prestate);
 
         // 2. Build transaction
         var tx = BuildTransaction(request);
@@ -42,7 +45,7 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
         var result = await _pipeline.ApplyTransactionAsync(tx, state, block, commit: true, ct);
 
         // 5. Convert to fingerprint
-        var fingerprint = BuildFingerprint(result, request);
+        var fingerprint = BuildFingerprint(result, request, state, preStateStorage);
 
         // 6. Return normalized result WITH post-execution state for consensus checks
         return new CampaignExecutionResult
@@ -148,7 +151,63 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
         };
     }
 
-    private ExecutionFingerprint BuildFingerprint(ExecutionResult result, CampaignExecutionRequest request)
+    private Dictionary<string, Dictionary<string, string>> CaptureStorage(
+        GlobalState state, 
+        IReadOnlyList<CampaignAccount> accounts)
+    {
+        var storage = new Dictionary<string, Dictionary<string, string>>();
+        
+        foreach (var account in accounts)
+        {
+            var address = Address.FromHex(account.Address);
+            var accountStorage = new Dictionary<string, string>();
+            
+            // Capture pre-state storage
+            foreach (var (slotHex, valueHex) in account.Storage)
+            {
+                accountStorage[slotHex] = valueHex;
+            }
+            
+            storage[account.Address] = accountStorage;
+        }
+        
+        return storage;
+    }
+    
+    private Dictionary<string, string> BuildStateDiff(
+        GlobalState postState,
+        Dictionary<string, Dictionary<string, string>> preStateStorage,
+        IReadOnlyList<CampaignAccount> accounts)
+    {
+        var diff = new Dictionary<string, string>();
+        
+        // Extract storage writes from post-state
+        foreach (var account in accounts)
+        {
+            var address = Address.FromHex(account.Address);
+            
+            // Get all storage keys that were written
+            var keys = postState.GetStorageKeysAsync(address).GetAwaiter().GetResult();
+            
+            foreach (var key in keys)
+            {
+                var value = postState.GetStorageAtAsync(address, key).GetAwaiter().GetResult();
+                if (value != BigInteger.Zero)
+                {
+                    var diffKey = $"{account.Address}:{key:X}";
+                    diff[diffKey] = $"0x{value:X}";
+                }
+            }
+        }
+        
+        return diff;
+    }
+
+    private ExecutionFingerprint BuildFingerprint(
+        ExecutionResult result, 
+        CampaignExecutionRequest request,
+        GlobalState postState,
+        Dictionary<string, Dictionary<string, string>> preStateStorage)
     {
         // Extract frame tree from trace
         var frames = BuildFrameTree(result);
@@ -162,8 +221,8 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             WarmSlots = new List<string>()
         };
 
-        // Extract state diff (placeholder for now)
-        var stateDiff = new Dictionary<string, string>();
+        // Extract state diff - compare pre vs post for all accounts that were touched
+        var stateDiff = BuildStateDiff(postState, preStateStorage, request.Prestate);
 
         // Extract logs (TransactionLog already has string properties)
         var logs = result.Logs
