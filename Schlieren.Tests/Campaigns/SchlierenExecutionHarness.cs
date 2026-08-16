@@ -262,41 +262,44 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
 
     private List<FrameFingerprint> BuildFrameTree(ExecutionResult result)
     {
-        if (result.TraceSteps == null || result.TraceSteps.Count == 0)  // Fixed: TraceSteps property
+        if (result.TraceSteps == null || result.TraceSteps.Count == 0)
             return new List<FrameFingerprint>();
 
         var frames = new List<FrameFingerprint>();
         var currentDepth = 1;
-        var frameStarts = new Stack<int>();
-        frameStarts.Push(0);
+        // Stack: startIdx only — the caller CALL step is identified at close time, not open time.
+        var frameStack = new Stack<int>();
+        frameStack.Push(0);
 
         for (int i = 0; i < result.TraceSteps.Count; i++)
         {
             var step = result.TraceSteps[i];
 
-            // Detect depth change
             if (step.Depth > currentDepth)
             {
-                // New child frame started
-                frameStarts.Push(i);
+                frameStack.Push(i);
                 currentDepth = step.Depth;
             }
             else if (step.Depth < currentDepth)
             {
-                // Frame ended - build fingerprint
-                var startIdx = frameStarts.Pop();
-                var frame = BuildFrameFingerprint(result.TraceSteps, startIdx, i - 1, currentDepth);
+                var startIdx = frameStack.Pop();
+                var endIdx   = i - 1;
+                // The CALL opcode that spawned this child is the step AFTER the child ends:
+                // trace layout is [...CALL_SETUP, child-steps..., CALL(outputData), ...]
+                // so step i (depth=currentDepth-1, op=CALL/STATICCALL/etc) IS the CALL step.
+                var callerStepIdx = i; // depth just dropped — step i is the parent's CALL opcode
+                var frame = BuildFrameFingerprint(result.TraceSteps, startIdx, endIdx, currentDepth, callerStepIdx);
                 frames.Add(frame);
                 currentDepth = step.Depth;
             }
         }
 
-        // Close remaining frames
-        while (frameStarts.Count > 0)
+        // Close remaining open frames (root has no caller step)
+        while (frameStack.Count > 0)
         {
-            var startIdx = frameStarts.Pop();
-            var depth = result.TraceSteps[startIdx].Depth;
-            var frame = BuildFrameFingerprint(result.TraceSteps, startIdx, result.TraceSteps.Count - 1, depth);
+            var startIdx = frameStack.Pop();
+            var depth    = result.TraceSteps[startIdx].Depth;
+            var frame    = BuildFrameFingerprint(result.TraceSteps, startIdx, result.TraceSteps.Count - 1, depth, -1);
             frames.Add(frame);
         }
 
@@ -304,81 +307,73 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
     }
 
     private FrameFingerprint BuildFrameFingerprint(
-        IReadOnlyList<ExecutionTraceStep> trace,  // Fixed: List<ExecutionTraceStep>
+        IReadOnlyList<ExecutionTraceStep> trace,
         int startIdx,
         int endIdx,
-        int depth)
+        int depth,
+        int callerStepIdx)
     {
         var firstStep = trace[startIdx];
-        var lastStep = trace[endIdx];
+        var lastStep  = trace[endIdx];
 
-        // Sum gas for this depth only (not nested)
+        // GasProvided: gas available at the first step of this frame
+        var gasProvided = ParseHexUlong(firstStep.Gas);
+
+        // GasConsumed: sum costs of every step at this exact depth (excludes child frames)
         var gasConsumed = 0UL;
         for (int i = startIdx; i <= endIdx && i < trace.Count; i++)
         {
-            if (trace[i].Depth == depth && trace[i].GasCost.StartsWith("0x"))
-            {
-                if (ulong.TryParse(trace[i].GasCost.Replace("0x", ""), 
-                    System.Globalization.NumberStyles.HexNumber, null, out var gas))
-                {
-                    gasConsumed += gas;
-                }
-            }
+            if (trace[i].Depth == depth)
+                gasConsumed += ParseHexUlong(trace[i].GasCost);
         }
 
-        // Detect call type from opcode before this frame
-        var callType = "Root";
-        if (startIdx > 0)
+        // CallType: carried on the first step of the frame, or inferred from the parent CALL opcode
+        var callType = firstStep.CallType?.ToString() ?? "Root";
+        if (callType == "Root" && callerStepIdx >= 0)
         {
-            var parentOp = trace[startIdx - 1].Op;
-            callType = parentOp switch
+            callType = trace[callerStepIdx].Op switch
             {
-                "CALL" => "Call",
+                "CALL"         => "Call",
                 "DELEGATECALL" => "DelegateCall",
-                "STATICCALL" => "StaticCall",
-                "CALLCODE" => "CallCode",
-                "CREATE" => "Create",
-                "CREATE2" => "Create2",
-                _ => "Root"
+                "STATICCALL"   => "StaticCall",
+                "CALLCODE"     => "CallCode",
+                "CREATE"       => "Create",
+                "CREATE2"      => "Create2",
+                _              => "Root"
             };
         }
 
-        // Determine success from terminal opcode
-        // STOP or RETURN → success
-        // REVERT or exceptional halt → failure  
-        // OOG shows as parent getting control back without explicit terminal
+        // Success: derive from terminal opcode and depth transition
         var terminalOp = lastStep.Op;
         var success = terminalOp is "STOP" or "RETURN" or "SELFDESTRUCT";
-        
-        // If last opcode is REVERT, explicit failure
-        if (terminalOp == "REVERT")
-            success = false;
-
-        // For exceptional halts (OOG, invalid opcode, stack underflow):
-        // The trace doesn't continue to STOP/RETURN — it just ends.
-        // Check if we returned to parent depth without reaching a terminal.
-        if (endIdx < trace.Count - 1)
+        if (terminalOp == "REVERT") success = false;
+        // Exceptional halt: frame ended without a terminal opcode (OOG, invalid, stack underflow)
+        if (!success && endIdx < trace.Count - 1)
         {
             var nextStep = trace[endIdx + 1];
             if (nextStep.Depth < depth && terminalOp is not ("STOP" or "RETURN" or "REVERT" or "SELFDESTRUCT"))
-            {
-                // Abrupt return to parent without terminal opcode → exceptional halt
                 success = false;
-            }
         }
+
+        // ReturnData: the CALL opcode step in the parent has OutputData set after the child returns.
+        // For the root frame, use the terminal RETURN/REVERT step's stack to infer (not available
+        // directly), but OutputData on the CALL step is the authoritative source.
+        var returnData = "0x";
+        if (callerStepIdx >= 0 && trace[callerStepIdx].OutputData is { Length: > 0 } od)
+            returnData = ToHex(od);
 
         return new FrameFingerprint
         {
-            Depth = depth,
-            CallType = callType,
-            CodeAddress = firstStep.ContractAddress ?? "0x",  // Fixed: ContractAddress property
-            ContextAddress = firstStep.ContractAddress ?? "0x",  // TODO: Extract from DELEGATECALL
-            Caller = firstStep.CallerAddress ?? "0x01",  // Fixed: CallerAddress property
-            Value = "0",      // TODO: Extract from CALL
-            GasProvided = 0,  // TODO: Calculate
-            GasConsumed = gasConsumed,
-            Success = success,
-            ReturnData = "0x" // TODO: Extract
+            Depth          = depth,
+            CallType       = callType,
+            CodeAddress    = firstStep.ContractAddress ?? "0x",
+            ContextAddress = firstStep.ContractAddress ?? "0x",
+            Caller         = firstStep.CallerAddress   ?? "0x",
+            Value          = "0",
+            GasProvided    = gasProvided,
+            GasConsumed    = gasConsumed,
+            Success        = success,
+            ReturnData     = returnData
         };
     }
 
@@ -389,6 +384,13 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
         var cleaned = hex.StartsWith("0x") ? hex[2..] : hex;
         if (cleaned.Length % 2 != 0) cleaned = "0" + cleaned;
         return Convert.FromHexString(cleaned);
+    }
+
+    private static ulong ParseHexUlong(string hex)
+    {
+        if (string.IsNullOrEmpty(hex) || hex == "0x" || hex == "0x0") return 0UL;
+        var cleaned = hex.StartsWith("0x") ? hex[2..] : hex;
+        return ulong.TryParse(cleaned, System.Globalization.NumberStyles.HexNumber, null, out var v) ? v : 0UL;
     }
 
     private static string ToHex(byte[] bytes)
