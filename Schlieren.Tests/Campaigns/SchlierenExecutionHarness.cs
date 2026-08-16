@@ -162,10 +162,12 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             var address = Address.FromHex(account.Address);
             var accountStorage = new Dictionary<string, string>();
             
-            // Capture pre-state storage
-            foreach (var (slotHex, valueHex) in account.Storage)
+            // Capture current storage keys
+            var keys = state.GetStorageKeysAsync(address).GetAwaiter().GetResult();
+            foreach (var key in keys)
             {
-                accountStorage[slotHex] = valueHex;
+                var value = state.GetStorageAtAsync(address, key).GetAwaiter().GetResult();
+                accountStorage[FormatBigInt(key)] = FormatBigInt(value);
             }
             
             storage[account.Address] = accountStorage;
@@ -181,21 +183,32 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
     {
         var diff = new Dictionary<string, string>();
         
-        // Extract storage writes from post-state
+        // Capture post-state storage
+        var postStorage = CaptureStorage(postState, accounts);
+        
+        // Compare pre vs post for each account
         foreach (var account in accounts)
         {
-            var address = Address.FromHex(account.Address);
+            var address = account.Address;
+            var preSlotsForAccount = preStateStorage.ContainsKey(address) 
+                ? preStateStorage[address] 
+                : new Dictionary<string, string>();
+            var postSlotsForAccount = postStorage.ContainsKey(address)
+                ? postStorage[address]
+                : new Dictionary<string, string>();
             
-            // Get all storage keys that were written
-            var keys = postState.GetStorageKeysAsync(address).GetAwaiter().GetResult();
+            // Get union of all slots
+            var allSlots = preSlotsForAccount.Keys.Union(postSlotsForAccount.Keys).ToHashSet();
             
-            foreach (var key in keys)
+            foreach (var slot in allSlots)
             {
-                var value = postState.GetStorageAtAsync(address, key).GetAwaiter().GetResult();
-                if (value != BigInteger.Zero)
+                var before = preSlotsForAccount.ContainsKey(slot) ? preSlotsForAccount[slot] : "0x0";
+                var after = postSlotsForAccount.ContainsKey(slot) ? postSlotsForAccount[slot] : "0x0";
+                
+                if (before != after)
                 {
-                    var diffKey = $"{account.Address}:{key:X}";
-                    diff[diffKey] = $"0x{value:X}";
+                    var key = $"{address}:{slot}";
+                    diff[key] = $"{before} → {after}";
                 }
             }
         }
@@ -382,5 +395,18 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
     {
         if (bytes == null || bytes.Length == 0) return "0x";
         return "0x" + Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Normalize a BigInteger to a clean hex string: 0x0, 0xAA, 0x100, etc.
+    /// Uses ulong for values that fit, strips leading zeros.
+    /// </summary>
+    private static string FormatBigInt(BigInteger v)
+    {
+        if (v == BigInteger.Zero) return "0x0";
+        // Convert to hex without sign-padding (BigInteger.ToString("X") can prepend 0 for sign)
+        var hex = v.ToString("X").TrimStart('0');
+        if (string.IsNullOrEmpty(hex)) hex = "0";
+        return "0x" + hex;
     }
 }
