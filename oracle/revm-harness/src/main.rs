@@ -327,18 +327,19 @@ fn parse_u256(s: &str) -> Result<U256> {
 
 fn parse_fork(fork: &str) -> Result<SpecId> {
     match fork.to_uppercase().as_str() {
-        "CANCUN" => Ok(SpecId::CANCUN),
-        "SHANGHAI" => Ok(SpecId::SHANGHAI),
-        "PARIS" | "MERGE" => Ok(SpecId::MERGE), // Paris was renamed to Merge in revm 42
-        "LONDON" => Ok(SpecId::LONDON),
-        "BERLIN" => Ok(SpecId::BERLIN),
-        "ISTANBUL" => Ok(SpecId::ISTANBUL),
-        "PETERSBURG" | "CONSTANTINOPLE" => Ok(SpecId::PETERSBURG), // Constantinople and Petersburg merged
-        "BYZANTIUM" => Ok(SpecId::BYZANTIUM),
-        "SPURIOUS_DRAGON" => Ok(SpecId::SPURIOUS_DRAGON),
-        "TANGERINE" => Ok(SpecId::TANGERINE),
-        "HOMESTEAD" => Ok(SpecId::HOMESTEAD),
-        "FRONTIER" => Ok(SpecId::FRONTIER),
+        "CANCUN"                          => Ok(SpecId::CANCUN),
+        "PRAGUE"                          => Ok(SpecId::PRAGUE),
+        "SHANGHAI"                        => Ok(SpecId::SHANGHAI),
+        "PARIS" | "MERGE"                 => Ok(SpecId::MERGE),
+        "LONDON"                          => Ok(SpecId::LONDON),
+        "BERLIN"                          => Ok(SpecId::BERLIN),
+        "ISTANBUL"                        => Ok(SpecId::ISTANBUL),
+        "PETERSBURG" | "CONSTANTINOPLE"   => Ok(SpecId::PETERSBURG),
+        "BYZANTIUM"                       => Ok(SpecId::BYZANTIUM),
+        "SPURIOUS_DRAGON" | "SPURIOUSDRAGON" | "EIP158" => Ok(SpecId::SPURIOUS_DRAGON),
+        "TANGERINE" | "TANGERINEWHISTLE" | "EIP150"     => Ok(SpecId::TANGERINE),
+        "HOMESTEAD"                       => Ok(SpecId::HOMESTEAD),
+        "FRONTIER"                        => Ok(SpecId::FRONTIER),
         _ => anyhow::bail!("Unknown fork: {}", fork),
     }
 }
