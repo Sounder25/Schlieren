@@ -1,0 +1,5 @@
+# Rust build artifacts
+revm-harness/target/
+
+# Test files
+test-case.json
