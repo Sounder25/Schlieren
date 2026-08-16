@@ -57,8 +57,8 @@ public sealed record CampaignExecutionResult
     public required string ReturnData { get; init; }
     public required ExecutionFingerprint Fingerprint { get; init; }
     
-    // Raw trace for debugging (optional)
-    public object? RawTrace { get; init; }
+    /// <summary>Raw execution result from engine (for debugging).</summary>
+    public required Core.Execution.ExecutionResult RawTrace { get; init; }
 }
 
 /// <summary>

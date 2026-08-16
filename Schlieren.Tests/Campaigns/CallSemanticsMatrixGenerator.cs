@@ -310,19 +310,23 @@ public static class CallSemanticsMatrixGenerator
             opcodes.AddRange(new[] { "60", value });  // value
         }
 
-        // Target address - extract bytes from 0x000...00bb
+        // Target address - split into 20 bytes
         opcodes.Add("73");  // PUSH20
         var addressBytes = childAddress.StartsWith("0x") ? childAddress[2..] : childAddress;
-        opcodes.Add(addressBytes);
+        // Split 40-char hex string into 20 separate 2-char bytes
+        for (int i = 0; i < 40; i += 2)
+        {
+            opcodes.Add(addressBytes.Substring(i, 2));
+        }
 
         // Gas
         if (testCase.Result == ChildResult.OutOfGas)
         {
-            opcodes.AddRange(new[] { "61", "0b", "b8" });  // 3000 gas (too low for SSTORE)
+            opcodes.AddRange(new[] { "61", "0b", "b8" });  // PUSH2 3000 gas (too low for SSTORE)
         }
         else
         {
-            opcodes.AddRange(new[] { "62", "00", "01", "86", "a0" });  // 100,000 gas
+            opcodes.AddRange(new[] { "62", "01", "86", "a0" });  // PUSH3 100,000 gas (0x0186a0)
         }
 
         // Call opcode

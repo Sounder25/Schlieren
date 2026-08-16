@@ -1,112 +1,83 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Forks;
+using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 
 namespace Schlieren.Tests.Campaigns;
 
 /// <summary>
 /// Schlieren EVM execution harness adapter.
-/// Bridges campaign framework to actual EvmExecutor.
+/// Bridges campaign framework to actual StateTransition pipeline.
+/// NO EVM logic here — pure translation.
 /// </summary>
 public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
 {
-    private readonly IEvmExecutor _executor;
+    private readonly StateTransition _pipeline;
 
-    public SchlierenExecutionHarness(IEvmExecutor executor)
+    public SchlierenExecutionHarness(StateTransition pipeline)
     {
-        _executor = executor;
+        _pipeline = pipeline;
     }
 
     public async Task<CampaignExecutionResult> ExecuteAsync(
         CampaignExecutionRequest request,
         CancellationToken ct = default)
     {
-        // 1. Resolve fork rules
-        var fork = ResolveFork(request.Fork);
+        // 1. Build state from prestate accounts
+        var state = BuildGlobalState(request.Prestate);
 
-        // 2. Build execution context
-        var context = BuildExecutionContext(request, fork);
+        // 2. Build transaction
+        var tx = BuildTransaction(request);
 
-        // 3. Seed accounts/code/storage
-        var state = BuildWorldState(request.Prestate);
+        // 3. Build block context
+        var block = BuildBlockContext(request);
 
-        // 4. Execute
-        var result = await _executor.ExecuteAsync(
-            context,
-            state,
-            ct);
+        // 4. Execute through existing pipeline
+        var result = await _pipeline.ApplyTransactionAsync(tx, state, block, commit: true, ct);
 
         // 5. Convert to fingerprint
-        var fingerprint = BuildFingerprint(result);
+        var fingerprint = BuildFingerprint(result, request);
 
         // 6. Return normalized result
         return new CampaignExecutionResult
         {
-            Success = result.Success,
+            Success = result.IsSuccess,  // Fixed: property, not method
             GasUsed = result.GasUsed,
             ReturnData = ToHex(result.ReturnData),
             Fingerprint = fingerprint,
-            RawTrace = result.Trace
+            RawTrace = result
         };
     }
 
-    private ForkRules ResolveFork(string forkName)
+    private GlobalState BuildGlobalState(IReadOnlyList<CampaignAccount> accounts)
     {
-        return forkName switch
-        {
-            "Berlin" => ForkRules.Berlin,
-            "London" => ForkRules.London,
-            "Shanghai" => ForkRules.Shanghai,
-            "Cancun" => ForkRules.Cancun,
-            "Prague" => ForkRules.Prague,
-            _ => throw new ArgumentException($"Unknown fork: {forkName}")
-        };
-    }
-
-    private ExecutionContext BuildExecutionContext(
-        CampaignExecutionRequest request,
-        ForkRules fork)
-    {
-        return new ExecutionContext
-        {
-            Caller = ParseAddress(request.Caller),
-            Target = ParseAddress(request.Target),
-            Calldata = ParseHex(request.Calldata),
-            Value = request.Value,
-            GasLimit = request.GasLimit,
-            Fork = fork,
-            
-            // Block context (use defaults for campaigns)
-            BlockNumber = 1,
-            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-            Coinbase = new byte[20],
-            Difficulty = 0,
-            GasPrice = 1
-        };
-    }
-
-    private IWorldState BuildWorldState(IReadOnlyList<CampaignAccount> accounts)
-    {
-        var state = new MemoryWorldState();
+        var state = new GlobalState();
 
         foreach (var account in accounts)
         {
-            var address = ParseAddress(account.Address);
-            
+            var address = Address.FromHex(account.Address);
+
             // Set code
             if (!string.IsNullOrEmpty(account.Code) && account.Code != "0x")
             {
-                state.SetCode(address, ParseHex(account.Code));
+                var code = ParseHex(account.Code);
+                state.SetCode(address, code);
             }
 
             // Set balance
             if (account.Balance != "0x0" && account.Balance != "0x")
             {
-                state.SetBalance(address, ParseUInt256(account.Balance));
+                if (BigInteger.TryParse(account.Balance.Replace("0x", ""), 
+                    System.Globalization.NumberStyles.HexNumber, null, out var balance))
+                {
+                    state.SetBalance(address, balance);
+                }
             }
 
             // Set nonce
@@ -116,38 +87,99 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
             }
 
             // Set storage
-            foreach (var (slot, value) in account.Storage)
+            if (account.Storage.Count > 0)
             {
-                state.SetStorage(
-                    address,
-                    ParseUInt256(slot),
-                    ParseUInt256(value));
+                foreach (var (slotHex, valueHex) in account.Storage)
+                {
+                    var slot = BigInteger.Parse(slotHex.Replace("0x", ""), 
+                        System.Globalization.NumberStyles.HexNumber);
+                    var value = BigInteger.Parse(valueHex.Replace("0x", ""), 
+                        System.Globalization.NumberStyles.HexNumber);
+                    state.SetStorageAt(address, slot, value);  // Fixed: SetStorageAt API
+                }
             }
         }
 
         return state;
     }
 
-    private ExecutionFingerprint BuildFingerprint(ExecutionResult result)
+    private Transaction BuildTransaction(CampaignExecutionRequest request)
+    {
+        var caller = Address.FromHex(request.Caller);
+        var target = string.IsNullOrWhiteSpace(request.Target) || request.Target == "0x"
+            ? (Address?)null
+            : Address.FromHex(request.Target);
+        var calldata = ParseHex(request.Calldata);
+        var value = BigInteger.Parse(request.Value.ToString());
+
+        return new Transaction
+        {
+            From = caller,
+            To = target,
+            Value = value,
+            Data = calldata,
+            GasLimit = request.GasLimit,
+            GasPrice = 1,  // 1 wei
+            MaxFeePerGas = 1,
+            MaxPriorityFeePerGas = 0,
+            TxType = 0,
+            AccessList = Array.Empty<AccessListEntry>(),
+            AuthorizationList = Array.Empty<Eip7702Authorization>(),
+            Nonce = 0,
+            Authorization = TransactionAuthorization.Impersonated,
+            EnableTracing = true
+        };
+    }
+
+    private BlockContext BuildBlockContext(CampaignExecutionRequest request)
+    {
+        var rules = ForkRulesFactory.For(request.Fork);
+
+        return new BlockContext
+        {
+            ChainId = 1,
+            Number = 1,
+            Timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            GasLimit = 30_000_000,
+            Coinbase = new Address(new byte[20]),
+            BaseFeePerGas = 1,
+            Rules = rules
+        };
+    }
+
+    private ExecutionFingerprint BuildFingerprint(ExecutionResult result, CampaignExecutionRequest request)
     {
         // Extract frame tree from trace
-        var frames = BuildFrameTree(result.Trace);
+        var frames = BuildFrameTree(result);
 
-        // Extract access set
-        var accesses = BuildAccessFingerprint(result.Trace);
+        // Extract access set (placeholder for now)
+        var accesses = new AccessFingerprint
+        {
+            ColdAccounts = new List<string>(),
+            WarmAccounts = new List<string>(),
+            ColdSlots = new List<string>(),
+            WarmSlots = new List<string>()
+        };
 
-        // Extract state diff
-        var stateDiff = BuildStateDiff(result.StateDiff);
+        // Extract state diff (placeholder for now)
+        var stateDiff = new Dictionary<string, string>();
 
-        // Extract logs
-        var logs = BuildLogs(result.Logs);
+        // Extract logs (TransactionLog already has string properties)
+        var logs = result.Logs
+            .Select(log => new LogFingerprint
+            {
+                Address = log.Address,  // Already string
+                Topics = log.Topics,    // Already List<string>
+                Data = log.Data         // Already string
+            })
+            .ToList();
 
         return new ExecutionFingerprint
         {
-            Success = result.Success,
+            Success = result.IsSuccess,  // Fixed: property
             GasUsed = result.GasUsed,
             ReturnData = ToHex(result.ReturnData),
-            Refund = result.Refund,
+            Refund = (ulong)Math.Max(0, result.GasRefundCounter),
             FrameTree = frames,
             Accesses = accesses,
             StateDiff = stateDiff,
@@ -155,39 +187,43 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
         };
     }
 
-    private List<FrameFingerprint> BuildFrameTree(ExecutionTrace trace)
+    private List<FrameFingerprint> BuildFrameTree(ExecutionResult result)
     {
+        if (result.TraceSteps == null || result.TraceSteps.Count == 0)  // Fixed: TraceSteps property
+            return new List<FrameFingerprint>();
+
         var frames = new List<FrameFingerprint>();
-        var frameStack = new Stack<(int startIdx, int depth, string callType)>();
+        var currentDepth = 1;
+        var frameStarts = new Stack<int>();
+        frameStarts.Push(0);
 
-        // Root frame
-        frameStack.Push((0, 1, "Root"));
-
-        for (int i = 0; i < trace.Steps.Count; i++)
+        for (int i = 0; i < result.TraceSteps.Count; i++)
         {
-            var step = trace.Steps[i];
+            var step = result.TraceSteps[i];
 
-            // Detect frame changes by depth
-            if (step.Depth > frameStack.Peek().depth)
+            // Detect depth change
+            if (step.Depth > currentDepth)
             {
-                // New child frame
-                var callType = DetectCallType(trace.Steps[i - 1].Op);
-                frameStack.Push((i, step.Depth, callType));
+                // New child frame started
+                frameStarts.Push(i);
+                currentDepth = step.Depth;
             }
-            else if (step.Depth < frameStack.Peek().depth)
+            else if (step.Depth < currentDepth)
             {
-                // Frame returned - build fingerprint
-                var (startIdx, depth, callType) = frameStack.Pop();
-                var frame = BuildFrameFingerprint(trace, startIdx, i - 1, depth, callType);
+                // Frame ended - build fingerprint
+                var startIdx = frameStarts.Pop();
+                var frame = BuildFrameFingerprint(result.TraceSteps, startIdx, i - 1, currentDepth);
                 frames.Add(frame);
+                currentDepth = step.Depth;
             }
         }
 
         // Close remaining frames
-        while (frameStack.Count > 0)
+        while (frameStarts.Count > 0)
         {
-            var (startIdx, depth, callType) = frameStack.Pop();
-            var frame = BuildFrameFingerprint(trace, startIdx, trace.Steps.Count - 1, depth, callType);
+            var startIdx = frameStarts.Pop();
+            var depth = result.TraceSteps[startIdx].Depth;
+            var frame = BuildFrameFingerprint(result.TraceSteps, startIdx, result.TraceSteps.Count - 1, depth);
             frames.Add(frame);
         }
 
@@ -195,98 +231,61 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
     }
 
     private FrameFingerprint BuildFrameFingerprint(
-        ExecutionTrace trace,
+        IReadOnlyList<ExecutionTraceStep> trace,  // Fixed: List<ExecutionTraceStep>
         int startIdx,
         int endIdx,
-        int depth,
-        string callType)
+        int depth)
     {
-        var firstStep = trace.Steps[startIdx];
-        var lastStep = trace.Steps[endIdx];
+        var firstStep = trace[startIdx];
+        var lastStep = trace[endIdx];
 
-        // Sum gas for this frame only (not nested)
+        // Sum gas for this depth only (not nested)
         var gasConsumed = 0UL;
-        for (int i = startIdx; i <= endIdx; i++)
+        for (int i = startIdx; i <= endIdx && i < trace.Count; i++)
         {
-            if (trace.Steps[i].Depth == depth)
+            if (trace[i].Depth == depth && trace[i].GasCost.StartsWith("0x"))
             {
-                gasConsumed += ParseGasCost(trace.Steps[i].GasCost);
+                if (ulong.TryParse(trace[i].GasCost.Replace("0x", ""), 
+                    System.Globalization.NumberStyles.HexNumber, null, out var gas))
+                {
+                    gasConsumed += gas;
+                }
             }
+        }
+
+        // Detect call type from opcode before this frame
+        var callType = "Root";
+        if (startIdx > 0)
+        {
+            var parentOp = trace[startIdx - 1].Op;
+            callType = parentOp switch
+            {
+                "CALL" => "Call",
+                "DELEGATECALL" => "DelegateCall",
+                "STATICCALL" => "StaticCall",
+                "CALLCODE" => "CallCode",
+                "CREATE" => "Create",
+                "CREATE2" => "Create2",
+                _ => "Root"
+            };
         }
 
         return new FrameFingerprint
         {
             Depth = depth,
             CallType = callType,
-            CodeAddress = firstStep.Contract ?? "0x",
-            ContextAddress = firstStep.Contract ?? "0x",  // TODO: Extract from DELEGATECALL context
-            Caller = "0x01",  // TODO: Extract from execution context
-            Value = "0",      // TODO: Extract from CALL value
-            GasProvided = 0,  // TODO: Calculate from parent
+            CodeAddress = firstStep.ContractAddress ?? "0x",  // Fixed: ContractAddress property
+            ContextAddress = firstStep.ContractAddress ?? "0x",  // TODO: Extract from DELEGATECALL
+            Caller = firstStep.CallerAddress ?? "0x01",  // Fixed: CallerAddress property
+            Value = "0",      // TODO: Extract from CALL
+            GasProvided = 0,  // TODO: Calculate
             GasConsumed = gasConsumed,
             Success = !lastStep.Op.Contains("REVERT"),
-            ReturnData = "0x" // TODO: Extract from RETURN/REVERT
+            ReturnData = "0x" // TODO: Extract
         };
-    }
-
-    private string DetectCallType(string op)
-    {
-        return op switch
-        {
-            "CALL" => "Call",
-            "DELEGATECALL" => "DelegateCall",
-            "STATICCALL" => "StaticCall",
-            "CALLCODE" => "CallCode",
-            "CREATE" => "Create",
-            "CREATE2" => "Create2",
-            _ => "Unknown"
-        };
-    }
-
-    private AccessFingerprint BuildAccessFingerprint(ExecutionTrace trace)
-    {
-        var coldAccounts = new HashSet<string>();
-        var warmAccounts = new HashSet<string>();
-        var coldSlots = new HashSet<string>();
-        var warmSlots = new HashSet<string>();
-
-        // TODO: Extract from trace access tracking
-        // For now return empty - will populate when access tracking is available
-
-        return new AccessFingerprint
-        {
-            ColdAccounts = coldAccounts.ToList(),
-            WarmAccounts = warmAccounts.ToList(),
-            ColdSlots = coldSlots.ToList(),
-            WarmSlots = warmSlots.ToList()
-        };
-    }
-
-    private Dictionary<string, string> BuildStateDiff(IReadOnlyDictionary<string, string>? stateDiff)
-    {
-        if (stateDiff == null) return new Dictionary<string, string>();
-        return new Dictionary<string, string>(stateDiff);
-    }
-
-    private List<LogFingerprint> BuildLogs(IReadOnlyList<LogEntry>? logs)
-    {
-        if (logs == null) return new List<LogFingerprint>();
-
-        return logs.Select(log => new LogFingerprint
-        {
-            Address = ToHex(log.Address),
-            Topics = log.Topics.Select(ToHex).ToList(),
-            Data = ToHex(log.Data)
-        }).ToList();
     }
 
     // Parsing utilities
-    private static byte[] ParseAddress(string hex)
-    {
-        var cleaned = hex.StartsWith("0x") ? hex[2..] : hex;
-        return Convert.FromHexString(cleaned.PadLeft(40, '0'));
-    }
-
     private static byte[] ParseHex(string hex)
     {
         if (string.IsNullOrEmpty(hex) || hex == "0x") return Array.Empty<byte>();
@@ -295,112 +294,9 @@ public sealed class SchlierenExecutionHarness : IEvmExecutionHarness
         return Convert.FromHexString(cleaned);
     }
 
-    private static UInt256 ParseUInt256(string hex)
-    {
-        var bytes = ParseHex(hex);
-        return UInt256.FromBytes(bytes);
-    }
-
-    private static ulong ParseGasCost(string gasCostStr)
-    {
-        if (ulong.TryParse(gasCostStr, out var gas))
-            return gas;
-        if (gasCostStr.StartsWith("0x"))
-            return Convert.ToUInt64(gasCostStr, 16);
-        return 0;
-    }
-
     private static string ToHex(byte[] bytes)
     {
         if (bytes == null || bytes.Length == 0) return "0x";
         return "0x" + Convert.ToHexString(bytes).ToLowerInvariant();
     }
-}
-
-// Placeholder types - adjust to match your actual Schlieren.Core types
-public interface IEvmExecutor
-{
-    Task<ExecutionResult> ExecuteAsync(
-        ExecutionContext context,
-        IWorldState state,
-        CancellationToken ct = default);
-}
-
-public sealed record ExecutionResult
-{
-    public required bool Success { get; init; }
-    public required ulong GasUsed { get; init; }
-    public required byte[] ReturnData { get; init; }
-    public required ulong Refund { get; init; }
-    public required ExecutionTrace Trace { get; init; }
-    public IReadOnlyDictionary<string, string>? StateDiff { get; init; }
-    public IReadOnlyList<LogEntry>? Logs { get; init; }
-}
-
-public sealed record ExecutionContext
-{
-    public required byte[] Caller { get; init; }
-    public required byte[] Target { get; init; }
-    public required byte[] Calldata { get; init; }
-    public required ulong Value { get; init; }
-    public required ulong GasLimit { get; init; }
-    public required ForkRules Fork { get; init; }
-    public required ulong BlockNumber { get; init; }
-    public required long Timestamp { get; init; }
-    public required byte[] Coinbase { get; init; }
-    public required ulong Difficulty { get; init; }
-    public required ulong GasPrice { get; init; }
-}
-
-public sealed record ForkRules
-{
-    public static ForkRules Berlin => new() { Name = "Berlin" };
-    public static ForkRules London => new() { Name = "London" };
-    public static ForkRules Shanghai => new() { Name = "Shanghai" };
-    public static ForkRules Cancun => new() { Name = "Cancun" };
-    public static ForkRules Prague => new() { Name = "Prague" };
-    
-    public required string Name { get; init; }
-}
-
-public interface IWorldState
-{
-    void SetCode(byte[] address, byte[] code);
-    void SetBalance(byte[] address, UInt256 balance);
-    void SetNonce(byte[] address, ulong nonce);
-    void SetStorage(byte[] address, UInt256 slot, UInt256 value);
-}
-
-public sealed class MemoryWorldState : IWorldState
-{
-    // TODO: Implement actual state storage
-    public void SetCode(byte[] address, byte[] code) { }
-    public void SetBalance(byte[] address, UInt256 balance) { }
-    public void SetNonce(byte[] address, ulong nonce) { }
-    public void SetStorage(byte[] address, UInt256 slot, UInt256 value) { }
-}
-
-public sealed record ExecutionTrace
-{
-    public required List<TraceStep> Steps { get; init; }
-}
-
-public sealed record TraceStep
-{
-    public required int Depth { get; init; }
-    public required string Op { get; init; }
-    public required string GasCost { get; init; }
-    public string? Contract { get; init; }
-}
-
-public sealed record LogEntry
-{
-    public required byte[] Address { get; init; }
-    public required List<byte[]> Topics { get; init; }
-    public required byte[] Data { get; init; }
-}
-
-public struct UInt256
-{
-    public static UInt256 FromBytes(byte[] bytes) => default;
 }

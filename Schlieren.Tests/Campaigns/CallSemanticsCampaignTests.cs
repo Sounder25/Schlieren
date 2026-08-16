@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 using Schlieren.UI.Services;
 
 namespace Schlieren.Tests.Campaigns;
@@ -15,6 +16,12 @@ namespace Schlieren.Tests.Campaigns;
 /// </summary>
 public class CallSemanticsCampaignTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public CallSemanticsCampaignTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
     [Fact]
     public async Task Campaign_GenerateMatrix()
     {
@@ -60,7 +67,89 @@ public class CallSemanticsCampaignTests
         Assert.True(child.Length > 4);
     }
 
-    [Fact(Skip = "Execution engine integration pending")]
+    [Fact]
+    public async Task Campaign_FirstCase_CALL_Cold_NoOp_STOP()
+    {
+        // Simplest possible case: CALL to child that just STOPs
+        var testCase = CallSemanticsMatrixGenerator.GenerateMatrix()
+            .First(c => c.CaseId.Contains("CALL") && 
+                       c.CaseId.Contains("COLD") && 
+                       c.CaseId.Contains("NOOP") &&
+                       c.CaseId.Contains("SUCCESS"));
+
+        var (parentCode, childCode) = CallSemanticsMatrixGenerator.GenerateBytecode(testCase);
+
+        // Debug bytecode
+        _output.WriteLine($"Test: {testCase.CaseId}");
+        _output.WriteLine($"Parent code: {parentCode}");
+        _output.WriteLine($"Child code: {childCode}");
+
+        var request = new CampaignExecutionRequest
+        {
+            Fork = testCase.Fork.ToString(),
+            Caller = DeterministicAddresses.Caller,
+            Target = DeterministicAddresses.Parent,
+            Calldata = "0x",
+            Value = 0,
+            GasLimit = 10_000_000,
+            Prestate = new[]
+            {
+                new CampaignAccount
+                {
+                    Address = DeterministicAddresses.Parent,
+                    Code = parentCode,
+                    Balance = "0x0",
+                    Nonce = 0
+                },
+                new CampaignAccount
+                {
+                    Address = DeterministicAddresses.Child,
+                    Code = childCode,
+                    Balance = "0x0",
+                    Nonce = 0
+                }
+            }
+        };
+
+        // Wire to actual execution core
+        var machine = BuildEvmMachine();
+        var pipeline = new Core.Execution.StateTransition(machine);
+        var harness = new SchlierenExecutionHarness(pipeline);
+
+        var result = await harness.ExecuteAsync(request);
+
+        // Debug output
+        _output.WriteLine($"Success: {result.Success}");
+        _output.WriteLine($"GasUsed: {result.GasUsed}");
+        _output.WriteLine($"ReturnData: {result.ReturnData}");
+        if (!result.Success && result.RawTrace.Error != Core.Execution.EvmError.None)
+        {
+            _output.WriteLine($"Error: {result.RawTrace.Error}");
+        }
+
+        // Validate basic execution
+        Assert.True(result.Success, $"Execution should succeed but got: {result.RawTrace.Error}");
+        Assert.NotNull(result.Fingerprint);
+        Assert.NotEmpty(result.Fingerprint.FrameTree);
+        
+        // Validate depth-2 frame (parent → child)
+        var maxDepth = result.Fingerprint.FrameTree.Max(f => f.Depth);
+        Assert.Equal(2, maxDepth);
+    }
+
+    private static Core.Execution.EvmMachine BuildEvmMachine()
+    {
+        var opcodeInstances = typeof(Core.Execution.IOpcode).Assembly
+            .GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && 
+                       typeof(Core.Execution.IOpcode).IsAssignableFrom(t))
+            .Select(t => (Core.Execution.IOpcode)Activator.CreateInstance(t)!)
+            .ToList();
+
+        return new Core.Execution.EvmMachine(opcodeInstances);
+    }
+
+    [Fact(Skip = "Enable after first case passes")]
     public async Task Campaign_RunSingleCase_CALL_Success()
     {
         // TODO: Integrate with actual execution engine
