@@ -12,16 +12,15 @@ namespace Schlieren.Tests.Campaigns.Synthetic;
 /// <summary>
 /// Orchestrates a synthetic campaign: generate → execute → compare → cluster → persist.
 ///
-/// Never throws on a divergence. A divergence is data. The campaign completes
-/// its full batch before any analysis happens.
+/// Never throws on a divergence. A divergence is data.
 ///
-/// When an oracle harness is null, runs Schlieren-only invariant checks.
-/// When an oracle is provided, runs full differential comparison.
+/// Layer 1 — structural invariants (no oracle needed)
+/// Layer 2 — REVM differential (consensus fields: success, gas, returndata, storage, logs)
 /// </summary>
 public sealed class SyntheticDifferentialRunner
 {
-    private readonly IEvmExecutionHarness             _schlieren;
-    private readonly IEvmExecutionHarness?            _oracle;
+    private readonly IEvmExecutionHarness  _schlieren;
+    private readonly IEvmExecutionHarness? _oracle;
 
     public SyntheticDifferentialRunner(
         IEvmExecutionHarness schlieren,
@@ -35,7 +34,8 @@ public sealed class SyntheticDifferentialRunner
         IReadOnlyList<SyntheticCase> cases,
         CancellationToken ct = default)
     {
-        var failures = new List<SyntheticFailureRecord>();
+        var invariantFailures  = new List<SyntheticFailureRecord>();
+        var differentialFails  = new List<SyntheticFailureRecord>();
         int passes = 0;
 
         foreach (var syntheticCase in cases)
@@ -43,60 +43,49 @@ public sealed class SyntheticDifferentialRunner
             ct.ThrowIfCancellationRequested();
             try
             {
-                var request  = SyntheticCaseMaterializer.Materialize(syntheticCase);
+                var request   = SyntheticCaseMaterializer.Materialize(syntheticCase);
                 var schlieren = await _schlieren.ExecuteAsync(request, ct);
 
+                // Layer 1: structural invariants — always run
+                var violations = InvariantChecker.Check(syntheticCase, schlieren);
+                foreach (var v in violations)
+                {
+                    invariantFailures.Add(new SyntheticFailureRecord
+                    {
+                        Case      = syntheticCase,
+                        Request   = request,
+                        Schlieren = schlieren,
+                        Signature = FailureSignatureBuilder.FromInvariant(syntheticCase, schlieren, v),
+                        Exception = v,
+                    });
+                }
+
+                // Layer 2: REVM differential — only when oracle available
                 if (_oracle != null)
                 {
-                    // Full differential: Schlieren vs oracle
                     var oracle = await _oracle.ExecuteAsync(request, ct);
-                    var diff   = DivergenceAnalyzer.Compare(schlieren.Fingerprint, oracle.Fingerprint);
+                    var diff   = ExecutionComparator.Compare(schlieren, oracle);
 
-                    if (diff.Category == DivergenceAnalyzer.DivergenceCategory.None)
+                    if (!diff.IsMatch)
                     {
-                        passes++;
-                    }
-                    else
-                    {
-                        failures.Add(new SyntheticFailureRecord
+                        differentialFails.Add(new SyntheticFailureRecord
                         {
                             Case      = syntheticCase,
                             Request   = request,
                             Schlieren = schlieren,
                             Oracle    = oracle,
-                            Diff      = diff,
-                            Signature = FailureSignatureBuilder.Build(syntheticCase, schlieren, oracle, diff),
+                            ExecutionDiff = diff,
+                            Signature = FailureSignatureBuilder.FromDiff(syntheticCase, schlieren, diff),
                         });
                     }
                 }
-                else
-                {
-                    // Invariant-only: no oracle, check internal consistency
-                    var violations = InvariantChecker.Check(syntheticCase, schlieren);
-                    if (violations.Count == 0)
-                    {
-                        passes++;
-                    }
-                    else
-                    {
-                        foreach (var v in violations)
-                        {
-                            var sig = FailureSignatureBuilder.FromInvariant(syntheticCase, schlieren, v);
-                            failures.Add(new SyntheticFailureRecord
-                            {
-                                Case      = syntheticCase,
-                                Request   = request,
-                                Schlieren = schlieren,
-                                Signature = sig,
-                                Exception = v,
-                            });
-                        }
-                    }
-                }
+
+                if (violations.Count == 0 && (_oracle == null || differentialFails.LastOrDefault()?.Case.CaseId != syntheticCase.CaseId))
+                    passes++;
             }
             catch (Exception ex)
             {
-                failures.Add(new SyntheticFailureRecord
+                invariantFailures.Add(new SyntheticFailureRecord
                 {
                     Case      = syntheticCase,
                     Signature = FailureSignature.Infrastructure(syntheticCase, ex),
@@ -105,15 +94,16 @@ public sealed class SyntheticDifferentialRunner
             }
         }
 
-        var clusters = FailureClusterer.Cluster(failures);
+        var allFailures = invariantFailures.Concat(differentialFails).ToList();
 
         return new SyntheticCampaignResult
         {
-            Total    = cases.Count,
-            Passed   = passes,
-            Failed   = failures.Count,
-            Failures = failures,
-            Clusters = clusters,
+            Total                    = cases.Count,
+            Passed                   = passes,
+            InvariantFailureCount    = invariantFailures.Count,
+            DifferentialFailureCount = differentialFails.Count,
+            Failures                 = allFailures,
+            Clusters                 = FailureClusterer.Cluster(allFailures),
         };
     }
 }
@@ -213,6 +203,24 @@ public static class FailureSignatureBuilder
             GasMismatch:          diff.Category == DivergenceAnalyzer.DivergenceCategory.GasMismatch,
             ReturnDataMismatch:   diff.Category == DivergenceAnalyzer.DivergenceCategory.ReturnDataMismatch,
             LogsMismatch:         diff.Category == DivergenceAnalyzer.DivergenceCategory.LogMismatch);
+    }
+
+    public static FailureSignature FromDiff(
+        SyntheticCase c,
+        CampaignExecutionResult schlieren,
+        ExecutionComparator.ExecutionDiff diff)
+    {
+        var category = $"{c.CallKind}-{c.ChildBehavior}";
+        return new FailureSignature(
+            Category:             category,
+            DifferenceKind:       diff.Category,
+            FirstDivergentOpcode: diff.FirstDivergentField,
+            FrameType:            schlieren.Fingerprint.FrameTree.FirstOrDefault(f => f.Depth == 2)?.CallType,
+            SuccessMismatch:      diff.SuccessMismatch,
+            StateMismatch:        diff.StorageMismatch,
+            GasMismatch:          diff.GasMismatch,
+            ReturnDataMismatch:   diff.ReturnDataMismatch,
+            LogsMismatch:         diff.LogsMismatch);
     }
 
     public static FailureSignature FromInvariant(

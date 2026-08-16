@@ -81,13 +81,14 @@ public sealed record FailureSignature(
 /// <summary>Full record of one divergence.</summary>
 public sealed record SyntheticFailureRecord
 {
-    public required SyntheticCase            Case      { get; init; }
-    public          CampaignExecutionRequest? Request  { get; init; }
-    public          CampaignExecutionResult?  Schlieren { get; init; }
-    public          CampaignExecutionResult?  Oracle   { get; init; }
-    public          DivergenceAnalyzer.Divergence? Diff { get; init; }
-    public required FailureSignature         Signature { get; init; }
-    public          string?                  Exception { get; init; }
+    public required SyntheticCase             Case          { get; init; }
+    public          CampaignExecutionRequest? Request       { get; init; }
+    public          CampaignExecutionResult?  Schlieren     { get; init; }
+    public          CampaignExecutionResult?  Oracle        { get; init; }
+    public          ExecutionComparator.ExecutionDiff? ExecutionDiff { get; init; }
+    public          DivergenceAnalyzer.Divergence?     Diff          { get; init; }
+    public required FailureSignature          Signature     { get; init; }
+    public          string?                   Exception     { get; init; }
 }
 
 /// <summary>One cluster of structurally-similar failures.</summary>
@@ -106,11 +107,13 @@ public sealed record FailureCluster
 /// <summary>Complete result from one campaign run.</summary>
 public sealed record SyntheticCampaignResult
 {
-    public required int                                   Total    { get; init; }
-    public required int                                   Passed   { get; init; }
-    public required int                                   Failed   { get; init; }
-    public required IReadOnlyList<SyntheticFailureRecord> Failures { get; init; }
-    public required IReadOnlyList<FailureCluster>         Clusters { get; init; }
+    public required int                                   Total                    { get; init; }
+    public required int                                   Passed                   { get; init; }
+    public required int                                   InvariantFailureCount    { get; init; }
+    public required int                                   DifferentialFailureCount { get; init; }
+    public required IReadOnlyList<SyntheticFailureRecord> Failures                 { get; init; }
+    public required IReadOnlyList<FailureCluster>         Clusters                 { get; init; }
 
+    public int Failed                => InvariantFailureCount + DifferentialFailureCount;
     public int UniqueFailureFamilies => Clusters.Count;
 }

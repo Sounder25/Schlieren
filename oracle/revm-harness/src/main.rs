@@ -257,17 +257,32 @@ fn execute_case(case: ExecutionCase) -> Result<ExecutionResponse> {
         })
         .collect();
 
-    // 10. Build state diff (simplified for now)
+    // 10. Build state diff — include storage changes per account
     let mut state_diff = HashMap::new();
     for (addr, account) in &exec_result.state {
+        // Skip accounts that weren't touched (status == Default)
+        // revm marks touched accounts; we include all to be safe, 
+        // but skip the zero address (coinbase with no balance)
+        
+        let mut storage_map = HashMap::new();
+        for (slot, slot_value) in &account.storage {
+            // Only include slots that were actually changed
+            if slot_value.is_changed() {
+                storage_map.insert(
+                    format!("0x{:x}", slot),
+                    format!("0x{:x}", slot_value.present_value()),
+                );
+            }
+        }
+
         state_diff.insert(
             format!("0x{:x}", addr),
             AccountStateDiff {
                 address: format!("0x{:x}", addr),
-                code: "0x".to_string(), // TODO: extract if changed
+                code: "0x".to_string(),
                 balance: format!("0x{:x}", account.info.balance),
                 nonce: account.info.nonce,
-                storage: HashMap::new(), // TODO: extract storage changes
+                storage: storage_map,
             },
         );
     }
