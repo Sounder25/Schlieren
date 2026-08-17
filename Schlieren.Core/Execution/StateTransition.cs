@@ -77,7 +77,11 @@ public sealed class StateTransition : IStateTransition
             // EIP-7825 (Osaka+): pre-execution reject when tx.gas exceeds TX_MAX_GAS_LIMIT (2^24).
             // EELS: TransactionGasLimitExceededError — transaction is invalid; no state mutation.
             // Single-dimensional: entire tx.gas is compared (not Amsterdam exec/state split).
-            if (block.Rules.HasEip7825TxGasLimitCap && tx.GasLimit > block.Rules.TxMaxGasLimit)
+            // System calls (EIP-4788 / EIP-2935) use SYSTEM_CALL_GAS = 30_000_000 via
+            // process_system_transaction and are not subject to the user-tx cap.
+            if (block.Rules.HasEip7825TxGasLimitCap
+                && tx.Authorization != TransactionAuthorization.System
+                && tx.GasLimit > block.Rules.TxMaxGasLimit)
                 return ExecutionResult.Failure(EvmError.InvalidTransaction, 0);
 
             // EIP-3860 (Shanghai+): reject contract-creating transactions whose initcode exceeds
@@ -117,9 +121,10 @@ public sealed class StateTransition : IStateTransition
         //    and the net effect was a free transaction.
 
         var isSigned = tx.Authorization == TransactionAuthorization.Signed;
-        var isImpersonated = tx.Authorization == TransactionAuthorization.Impersonated;
-        var isInternal = tx.Authorization == TransactionAuthorization.Internal;
-        var isSimulation = tx.Authorization == TransactionAuthorization.Simulation;
+                var isImpersonated = tx.Authorization == TransactionAuthorization.Impersonated;
+                var isInternal = tx.Authorization == TransactionAuthorization.Internal;
+                var isSimulation = tx.Authorization == TransactionAuthorization.Simulation;
+                var isSystem = tx.Authorization == TransactionAuthorization.System;
 
         // ── Validation (Signed only) ────────────────────────────────────────────
         ulong senderNonceForDeduction = 0;
@@ -185,7 +190,7 @@ public sealed class StateTransition : IStateTransition
         // ── Deduction (all externally-submitted txs: Signed + Impersonated) ────
         // Internal and Simulation never deduct — they are read-only probes or
         // recursive sub-calls that get their gas budget from the parent frame.
-        if (!isInternal && !isSimulation)
+        if (!isInternal && !isSimulation && !isSystem)
         {
             // EIP-7702: type-4 structural validity for Impersonated txs (Signed path checked above).
             // EELS: TransactionTypeContractCreationError — type-4 must have a target.

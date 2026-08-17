@@ -24,6 +24,8 @@ node_modules/
 # Downloaded EELS fixtures and local reference checkouts
 fixtures/
 fixtures.tar.gz
+# Misplaced local extract (keep out of the test project)
+Schlieren.Tests/ELLS HARNESS/
 fixtures.tar.gz.partial
 fixtures_stable.tar.gz
 fixtures_develop.tar.gz

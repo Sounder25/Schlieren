@@ -55,6 +55,12 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip7825TxGasLimitCap     => false;  // Osaka+: tx.gas ≤ 2^24
     public virtual ulong TxMaxGasLimit              => 16_777_216UL; // EIP-7825 constant
 
+    // Block-level system operations (run before transactions, cost no gas)
+    public virtual bool HasEip4788BeaconRoot         => false;  // Cancun+: beacon block root write
+    public virtual bool HasEip2935BlockHashHistory   => false;  // Prague+: block-hash history write
+    public virtual bool HasEip4895Withdrawals        => false;  // Shanghai+: validator withdrawals
+    public virtual bool HasEip7685Requests           => false;  // Prague+: 7002/7251 request system calls
+
     // Intrinsic gas calldata costs
     public virtual ulong CalldataZeroByteCost       => 4;   // unchanged all forks
     public virtual ulong CalldataNonZeroByteCost    => 68;  // EIP-2028 (Istanbul) drops to 16
@@ -381,6 +387,7 @@ public class ShanghaiRules : ParisRules
     public override bool HasPush0               => true;
     public override bool HasEip3651WarmCoinbase => true;
     public override bool HasEip3860InitcodeLimit => true;
+    public override bool HasEip4895Withdrawals   => true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -399,6 +406,7 @@ public class CancunRules : ShanghaiRules
     public override bool HasEip6780SelfdestructRestriction => true; // EIP-6780
     public override int  PrecompileCount  => 10; // +KZG point eval (0x0A)
     public override int  MaxBlobsPerTransaction => 6; // Cancun: MAX_BLOB_GAS_PER_BLOCK=786432 / GAS_PER_BLOB=131072
+    public override bool HasEip4788BeaconRoot => true;  // EIP-4788: beacon block root system call
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -417,6 +425,8 @@ public class PragueRules : CancunRules
     public override int  PrecompileCount         => 17; // 0x01–0x11
     // Prague raised MAX_BLOB_GAS_PER_BLOCK from 786432 (6 blobs) to 1179648 (9 blobs)
     public override int  MaxBlobsPerTransaction  => 9;
+    public override bool HasEip2935BlockHashHistory => true; // EIP-2935: block-hash history system call
+    public override bool HasEip7685Requests         => true; // EIP-7685/7002/7251 request system calls
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

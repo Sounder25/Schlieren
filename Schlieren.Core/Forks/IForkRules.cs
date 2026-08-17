@@ -66,6 +66,16 @@ public interface IForkRules
     /// <summary>EIP-7825 cap when <see cref="HasEip7825TxGasLimitCap"/> is true; otherwise unused.</summary>
     ulong TxMaxGasLimit { get; }
 
+    // ── Block-level system operations ────────────────────────────────────────
+    /// <summary>EIP-4788 (Cancun+): write beacon block root into system contract before transactions.</summary>
+    bool HasEip4788BeaconRoot       { get; }
+    /// <summary>EIP-2935 (Prague+): write parent block hash into history contract before transactions.</summary>
+    bool HasEip2935BlockHashHistory { get; }
+    /// <summary>EIP-4895 (Shanghai+): process validator withdrawals after transactions.</summary>
+    bool HasEip4895Withdrawals { get; }
+    /// <summary>EIP-7685 / 7002 / 7251 (Prague+): end-of-block request system calls.</summary>
+    bool HasEip7685Requests { get; }
+
     // ── Intrinsic gas ────────────────────────────────────────────────────────
     /// <summary>Cost per zero byte of calldata (Frontier–Istanbul=4, unchanged).</summary>
     ulong CalldataZeroByteCost    { get; }

@@ -22,6 +22,12 @@ public sealed class BlockContext
     public ulong ExcessBlobGas { get; init; }
 
     /// <summary>
+    /// EIP-4788: parentBeaconBlockRoot passed into the beacon-roots system contract
+    /// at the start of block processing. 32 bytes. Zero/empty = skip system call.
+    /// </summary>
+    public byte[] ParentBeaconBlockRoot { get; init; } = Array.Empty<byte>();
+
+    /// <summary>
     /// Recent block hashes keyed by block number (populated from fixture env.blockHashes).
     /// BLOCKHASH(n) looks up this dictionary; returns 0 if absent.
     /// </summary>

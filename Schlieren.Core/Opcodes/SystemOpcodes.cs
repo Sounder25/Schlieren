@@ -1433,15 +1433,11 @@ internal static class PrecompileExecutor
 
         var gasCost = ComputeModExpGas(baseLen, expLen, modLen, input);
 
-        if (gasLimit < gasCost)
-        {
+        if (!OperandValidation.TryGasCost(gasCost, gasLimit, out var gasUsedCost))
             return ExecutionResult.Failure(EvmError.OutOfGas, gasLimit);
-        }
 
         if (modLen.IsZero)
-        {
-            return ExecutionResult.Success((ulong)gasCost, Array.Empty<byte>());
-        }
+            return ExecutionResult.Success(gasUsedCost, Array.Empty<byte>());
 
         if (baseLen > int.MaxValue || expLen > int.MaxValue || modLen > int.MaxValue ||
             baseLen + expLen + modLen > int.MaxValue - 96)
@@ -1470,7 +1466,7 @@ internal static class PrecompileExecutor
             output = ToFixedLengthWord(result, (int)modLen);
         }
 
-        return ExecutionResult.Success((ulong)gasCost, output);
+        return ExecutionResult.Success(gasUsedCost, output);
     }
 
     private static BigInteger ReadLengthWord(byte[] input, int start)

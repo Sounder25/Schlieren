@@ -42,7 +42,13 @@ public enum TransactionAuthorization
     Signed,
     Impersonated,
     Simulation,
-    Internal
+    Internal,
+    /// <summary>
+    /// Block-level system call (EIP-4788, EIP-2935, etc.).
+    /// Bypasses all sender validation, fee checks, and balance deduction.
+    /// CALLER is set to SYSTEM_ADDRESS (0xffff...fffe) inside the contract.
+    /// </summary>
+    System
 }
 
 public enum StoragePresence

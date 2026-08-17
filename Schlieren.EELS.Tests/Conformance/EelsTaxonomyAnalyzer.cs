@@ -103,8 +103,39 @@ public static class EelsTaxonomyAnalyzer
         });
 
         var reports = allReports.ToList();
-        var failed  = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToList();
         var layer1Buckets = Layer1DiagnosisBridge.Aggregate(layer1Hits);
+        return BuildReport(opts, reports, layer1Buckets);
+    }
+
+    public static async Task<TaxonomyReport> RunBlockchainAsync(
+        EelsHarnessOptions opts,
+        CancellationToken ct = default)
+    {
+        var loader = new EelsBlockchainFixtureLoader();
+        var cases = loader.LoadCases(opts);
+        var allReports = new ConcurrentBag<EelsCaseExecutionReport>();
+
+        var parallelOpts = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = Environment.ProcessorCount,
+            CancellationToken = ct
+        };
+
+        await Parallel.ForEachAsync(cases, parallelOpts, async (testCase, innerCt) =>
+        {
+            var executor = new EelsBlockchainFixtureExecutor();
+            allReports.Add(await executor.ExecuteAsync(testCase, innerCt));
+        });
+
+        return BuildReport(opts, allReports.ToList(), Array.Empty<Layer1DiagnosisBucket>());
+    }
+
+    private static TaxonomyReport BuildReport(
+        EelsHarnessOptions opts,
+        List<EelsCaseExecutionReport> reports,
+        IReadOnlyList<Layer1DiagnosisBucket> layer1Buckets)
+    {
+        var failed  = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToList();
 
         // ----------------------------------------------------------------
         // 1. Category taxonomy  (what field diverges)

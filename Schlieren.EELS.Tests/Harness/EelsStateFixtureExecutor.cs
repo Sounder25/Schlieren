@@ -74,7 +74,8 @@ public sealed class EelsStateFixtureExecutor
             mismatches.Add(
                 $"Unhandled engine exception: " +
                 $"{unhandledException.GetType().FullName}: " +
-                $"{unhandledException.Message}");
+                $"{unhandledException.Message}\n" +
+                $"StackTrace: {unhandledException.StackTrace}");
         }
 
         var stateMatches = CompareExpectedState(testCase, globalState, mismatches);
@@ -185,7 +186,7 @@ public sealed class EelsStateFixtureExecutor
         return false;
     }
 
-    private static bool CompareExpectedState(EelsStateCase testCase, GlobalState actualState, List<string> mismatches)
+    internal static bool CompareExpectedState(EelsStateCase testCase, GlobalState actualState, List<string> mismatches)
     {
         var actualSnapshot = actualState.Snapshot();
 

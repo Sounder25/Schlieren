@@ -55,4 +55,29 @@ internal static class OperandValidation
         // Final check: end must fit within our addressable range
         return endExclusive <= int.MaxValue;
     }
+
+    /// <summary>
+    /// Safely converts a BigInteger gas cost to ulong, treating values exceeding
+    /// the available gas as OutOfGas. This is the only correct way to narrow a
+    /// computed BigInteger gas cost — a "required > available" condition is always
+    /// OutOfGas, never a CLR OverflowException.
+    /// </summary>
+    /// <param name="required">Computed gas cost (BigInteger, may be huge)</param>
+    /// <param name="available">Gas budget (ulong)</param>
+    /// <param name="cost">Narrowed cost — only valid when method returns true</param>
+    /// <returns>True if execution can proceed; false means OutOfGas</returns>
+    internal static bool TryGasCost(BigInteger required, ulong available, out ulong cost)
+    {
+        if (required.Sign < 0)
+            throw new InvalidOperationException($"Negative gas cost computed: {required}");
+
+        if (required > available)
+        {
+            cost = available;
+            return false;   // OOG — caller should return Failure(OutOfGas, available)
+        }
+
+        cost = (ulong)required;   // safe: required <= available <= ulong.MaxValue
+        return true;
+    }
 }

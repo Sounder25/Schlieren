@@ -641,7 +641,7 @@ public sealed class EelsStateFixtureLoader
             .ToArray();
     }
 
-    private static IReadOnlyList<AccessListEntry> ParseFlatAccessList(JsonElement listNode)
+    internal static IReadOnlyList<AccessListEntry> ParseFlatAccessList(JsonElement listNode)
     {
         if (listNode.ValueKind != JsonValueKind.Array) return Array.Empty<AccessListEntry>();
         var result = new List<AccessListEntry>();
@@ -665,7 +665,7 @@ public sealed class EelsStateFixtureLoader
         return result;
     }
 
-    private static Dictionary<Address, EelsFixtureAccount> ParseAccountMap(
+    internal static Dictionary<Address, EelsFixtureAccount> ParseAccountMap(
         JsonElement accountsNode,
         IReadOnlyDictionary<Address, EelsFixtureAccount>? baseState,
         bool allowPartial)
@@ -790,7 +790,7 @@ public sealed class EelsStateFixtureLoader
         return GetJsonText(property);
     }
 
-    private static string GetJsonText(JsonElement node) =>
+    internal static string GetJsonText(JsonElement node) =>
         node.ValueKind switch
         {
             JsonValueKind.String => node.GetString() ?? string.Empty,
@@ -845,7 +845,7 @@ public sealed class EelsStateFixtureLoader
     /// - type 2: EIP-1559 (has maxFeePerGas field, no gasPrice or an empty gasPrice)
     /// - type 3: EIP-4844 (has maxFeePerGas + blobVersionedHashes)
     /// </summary>
-    private static byte DetectTxType(JsonElement txNode, IReadOnlyList<AccessListEntry> accessList)
+    internal static byte DetectTxType(JsonElement txNode, IReadOnlyList<AccessListEntry> accessList)
     {
         bool hasMaxFeePerGas = txNode.TryGetProperty("maxFeePerGas", out _);
         bool hasGasPrice = txNode.TryGetProperty("gasPrice", out _);
@@ -867,7 +867,7 @@ public sealed class EelsStateFixtureLoader
     /// Parses EIP-7702 authorizationList from a transaction node.
     /// Each entry has chainId, address, nonce, yParity, r, s, signer (pre-recovered).
     /// </summary>
-    private static IReadOnlyList<Eip7702Authorization> ParseAuthorizationList(JsonElement txNode)
+    internal static IReadOnlyList<Eip7702Authorization> ParseAuthorizationList(JsonElement txNode)
     {
         if (!txNode.TryGetProperty("authorizationList", out var authListNode) ||
             authListNode.ValueKind != JsonValueKind.Array)

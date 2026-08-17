@@ -194,16 +194,19 @@ public sealed class OpcodeBlockHash : IOpcode
         // BLOCKHASH returns 0 for:
         //   - requested block >= current block (future / current)
         //   - requested block < current block - 256 (too old)
+        //   - requested block number > ulong.MaxValue (impossible, return 0)
         // Otherwise look up from the block's hash table.
         var currentBlock = context.Block.Number;
         BigInteger hash = BigInteger.Zero;
-        var requested = (ulong)blockNum;
-        if (blockNum >= 0 && requested < currentBlock &&
-            (currentBlock <= 256 || requested >= currentBlock - 256))
+        if (blockNum >= 0 && blockNum <= (BigInteger)ulong.MaxValue)
         {
-            if (context.Block.BlockHashes.TryGetValue(requested, out var hashBytes))
-                hash = new BigInteger(hashBytes, isUnsigned: true, isBigEndian: true);
-            // else hash stays 0 (no entry provided — valid in tests that don't care)
+            var requested = (ulong)blockNum;
+            if (requested < currentBlock &&
+                (currentBlock <= 256 || requested >= currentBlock - 256))
+            {
+                if (context.Block.BlockHashes.TryGetValue(requested, out var hashBytes))
+                    hash = new BigInteger(hashBytes, isUnsigned: true, isBigEndian: true);
+            }
         }
 
         if (!context.Stack.TryPush(hash))

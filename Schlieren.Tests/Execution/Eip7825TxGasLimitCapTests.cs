@@ -120,4 +120,30 @@ public sealed class Eip7825TxGasLimitCapTests
         Assert.Equal(TxMax, OsakaRules.Instance.TxMaxGasLimit);
         Assert.False(PragueRules.Instance.HasEip7825TxGasLimitCap);
     }
+
+    [Fact]
+    public async Task Osaka_SystemTx_MayExceed2Pow24()
+    {
+        // EELS process_system_transaction uses SYSTEM_CALL_GAS = 30_000_000 and
+        // never goes through apply_transaction / EIP-7825. Prelude (4788/2935)
+        // must not be rejected as InvalidTransaction.
+        var state = new GlobalState();
+        var tx = new Transaction
+        {
+            From = Address.FromHex("0xfffffffffffffffffffffffffffffffffffffffe"),
+            To = To,
+            Value = BigInteger.Zero,
+            Nonce = 0,
+            GasPrice = 0,
+            GasLimit = 30_000_000,
+            Data = Array.Empty<byte>(),
+            TxType = 0,
+            Authorization = TransactionAuthorization.System,
+        };
+
+        var result = await Transition().ApplyTransactionAsync(tx, state, OsakaBlock());
+
+        Assert.True(result.IsSuccess, $"system tx rejected: {result.Error}");
+        Assert.Equal(0UL, await state.GetNonceAsync(tx.From));
+    }
 }
