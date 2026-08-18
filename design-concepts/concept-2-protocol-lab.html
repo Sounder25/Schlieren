@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCHLIEREN — Concept 2: Protocol Laboratory</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONCEPT 2: PROTOCOL LABORATORY
+   
+   Dense professional workstation. Information-rich, spatially economical.
+   Think: Bloomberg terminal meets Keysight oscilloscope firmware meets
+   a CERN ROOT analysis session.
+   
+   Multi-pane with resizable splits. Monospace-dominant. Extremely dense
+   data tables. Color is purely functional — no branding in the workspace.
+   
+   Palette: Warm grey instrument chassis + cool white data + amber for
+   warnings, blue for flow, red for faults. Every color means one thing.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Instrument chassis — warm grey, not blue-grey */
+  --chassis: #0A0A09;
+  --panel: #111110;
+  --panel-raised: #191918;
+  --panel-inset: #080807;
+  --bezel: #2A2A28;
+  --bezel-light: #353532;
+  --bezel-groove: #1E1E1C;
+  
+  /* Data text */
+  --data-bright: #F2F0EC;
+  --data-normal: #C8C4BC;
+  --data-dim: #7A7770;
+  --data-ghost: #4A4845;
+  
+  /* Functional signal colors — each means exactly one thing */
+  --sig-flow: #5B9BD5;       /* control flow, jumps, calls */
+  --sig-state: #D4A843;      /* state change: SSTORE, SELFDESTRUCT, CREATE */
+  --sig-fault: #D45B5B;      /* reverts, errors, out-of-gas */
+  --sig-memory: #6BC077;     /* MSTORE, MLOAD, memory expansion */
+  --sig-match: #5BB89A;      /* oracle agreement, pass */
+  --sig-diverge: #C75A8A;    /* oracle divergence, fail */
+  
+  /* Typography */
+  --font-data: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-chrome: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--chassis);
+  color: var(--data-normal);
+  font-family: var(--font-data);
+  font-size: 11px;
+  line-height: 1.4;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 26px auto 1fr auto 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── TOP CHROME ──────────────────────────────────────────────────────── */
+.top-chrome {
+  background: var(--panel);
+  border-bottom: 1px solid var(--bezel);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 16px;
+}
+
+.brand-mark {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--data-dim);
+  text-transform: uppercase;
+}
+
+.top-tabs {
+  display: flex;
+  gap: 0;
+}
+
+.top-tab {
+  padding: 4px 14px;
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--data-dim);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.top-tab.active {
+  color: var(--data-bright);
+  border-bottom-color: var(--data-bright);
+}
+
+.top-tab:hover:not(.active) {
+  color: var(--data-normal);
+}
+
+.top-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 10px;
+  color: var(--data-ghost);
+}
+
+/* ─── COMMAND LINE ────────────────────────────────────────────────────── */
+.command-bar {
+  background: var(--panel-inset);
+  border-bottom: 1px solid var(--bezel-groove);
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cmd-prompt {
+  color: var(--data-ghost);
+  font-size: 10px;
+}
+
+.cmd-input {
+  flex: 1;
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--data-bright);
+  letter-spacing: 0.3px;
+}
+
+.cmd-hint {
+  font-size: 9px;
+  color: var(--data-ghost);
+  letter-spacing: 0.5px;
+}
+
+/* ─── MAIN GRID ───────────────────────────────────────────────────────── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1px 380px;
+  grid-template-rows: 1fr 1px 240px;
+  overflow: hidden;
+}
+
+.divider-v { background: var(--bezel); }
+.divider-h { background: var(--bezel); grid-column: 1 / -1; }
+
+/* ─── DISASSEMBLY PANE (top-left) ─────────────────────────────────────── */
+.disassembly {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pane-toolbar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--bezel-groove);
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.pane-title {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--data-ghost);
+  text-transform: uppercase;
+}
+
+.toolbar-btn {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  color: var(--data-dim);
+  padding: 2px 8px;
+  border: 1px solid var(--bezel);
+  border-radius: 2px;
+  background: var(--panel-raised);
+  cursor: pointer;
+}
+
+.toolbar-btn:hover {
+  border-color: var(--bezel-light);
+  color: var(--data-normal);
+}
+
+.toolbar-btn.active-btn {
+  border-color: var(--sig-flow);
+  color: var(--sig-flow);
+}
+
+.disasm-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* Instruction table */
+.instr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.instr-row {
+  height: 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+
+.instr-row:hover {
+  background: var(--panel-raised);
+}
+
+.instr-row.current {
+  background: rgba(91, 155, 213, 0.08);
+}
+
+.instr-row.current td {
+  color: var(--data-bright);
+}
+
+.instr-row.breakpoint .instr-bp {
+  background: var(--sig-fault);
+}
+
+.instr-cell {
+  padding: 0 8px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.instr-bp {
+  width: 6px;
+  padding: 0;
+}
+
+.instr-bp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin: 0 auto;
+}
+
+.instr-pc {
+  color: var(--data-ghost);
+  font-size: 10px;
+  width: 40px;
+  text-align: right;
+}
+
+.instr-hex {
+  color: var(--data-dim);
+  font-size: 10px;
+  width: 100px;
+  letter-spacing: 0.5px;
+}
+
+.instr-mnemonic {
+  font-weight: 600;
+  color: var(--data-bright);
+  width: 80px;
+}
+
+.instr-mnemonic.op-flow { color: var(--sig-flow); }
+.instr-mnemonic.op-state { color: var(--sig-state); }
+.instr-mnemonic.op-fault { color: var(--sig-fault); }
+.instr-mnemonic.op-mem { color: var(--sig-memory); }
+
+.instr-args {
+  color: var(--data-normal);
+}
+
+.instr-gas {
+  color: var(--data-dim);
+  font-size: 10px;
+  width: 56px;
+  text-align: right;
+}
+
+.instr-annotation {
+  color: var(--data-ghost);
+  font-size: 10px;
+  font-style: italic;
+}
+
+/* Arrow indicator for current instruction */
+.instr-row.current .instr-bp::after {
+  content: '▶';
+  color: var(--sig-flow);
+  font-size: 8px;
+}
+
+/* ─── RIGHT PANEL: MACHINE STATE ──────────────────────────────────────── */
+.machine-state {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.state-sections {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.state-section {
+  border-bottom: 1px solid var(--bezel-groove);
+}
+
+.state-section-header {
+  background: var(--panel);
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--bezel-groove);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.state-section-title {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--data-ghost);
+  text-transform: uppercase;
+}
+
+.state-section-meta {
+  font-size: 9px;
+  color: var(--data-ghost);
+}
+
+.state-content {
+  padding: 6px 12px;
+  background: var(--panel-inset);
+}
+
+/* Register-style display */
+.register-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+}
+
+.reg-label {
+  font-size: 10px;
+  color: var(--data-ghost);
+  text-align: right;
+  padding: 2px 0;
+}
+
+.reg-value {
+  font-size: 11px;
+  color: var(--data-bright);
+  padding: 2px 0;
+  letter-spacing: 0.5px;
+}
+
+.reg-value.changed {
+  color: var(--sig-state);
+}
+
+/* Stack as a vertical register file */
+.stack-file {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stack-entry {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 8px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.stack-entry:nth-child(1) {
+  background: rgba(91, 155, 213, 0.05);
+}
+
+.stack-depth {
+  font-size: 9px;
+  color: var(--data-ghost);
+  text-align: right;
+}
+
+.stack-val {
+  font-size: 10px;
+  color: var(--data-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stack-val.new { color: var(--sig-flow); }
+.stack-val.consumed { color: var(--data-ghost); text-decoration: line-through; }
+
+.stack-decoded {
+  font-size: 9px;
+  color: var(--data-dim);
+}
+
+/* ─── BOTTOM: TRACE LOG / CONSOLE ─────────────────────────────────────── */
+.bottom-pane {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bottom-tabs {
+  background: var(--panel);
+  border-top: 1px solid var(--bezel);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 0;
+}
+
+.bottom-tab {
+  padding: 4px 12px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--data-dim);
+  border-top: 2px solid transparent;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.bottom-tab.active {
+  color: var(--data-bright);
+  border-top-color: var(--data-dim);
+}
+
+.trace-log {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--panel-inset);
+  padding: 4px 0;
+}
+
+.trace-entry {
+  display: grid;
+  grid-template-columns: 48px 56px 72px 72px 1fr auto;
+  gap: 8px;
+  padding: 2px 12px;
+  height: 20px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.015);
+}
+
+.trace-entry:hover { background: var(--panel-raised); }
+
+.trace-step { color: var(--data-ghost); font-size: 10px; text-align: right; }
+.trace-pc { color: var(--data-dim); font-size: 10px; }
+.trace-op { font-weight: 600; font-size: 10px; }
+.trace-op.t-flow { color: var(--sig-flow); }
+.trace-op.t-state { color: var(--sig-state); }
+.trace-op.t-mem { color: var(--sig-memory); }
+.trace-op.t-fault { color: var(--sig-fault); }
+.trace-gas { color: var(--data-dim); font-size: 10px; text-align: right; }
+.trace-stack-top { color: var(--data-normal); font-size: 10px; overflow: hidden; text-overflow: ellipsis; }
+.trace-annotation { color: var(--data-ghost); font-size: 9px; font-style: italic; }
+
+/* ─── CONFORMANCE BAR ─────────────────────────────────────────────────── */
+.conformance-bar {
+  background: var(--panel);
+  border-top: 1px solid var(--bezel);
+  border-bottom: 1px solid var(--bezel);
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.conf-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.conf-badge.pass {
+  background: rgba(91, 184, 154, 0.1);
+  border: 1px solid rgba(91, 184, 154, 0.3);
+  color: var(--sig-match);
+}
+
+.conf-badge.fail {
+  background: rgba(199, 90, 138, 0.1);
+  border: 1px solid rgba(199, 90, 138, 0.3);
+  color: var(--sig-diverge);
+}
+
+.conf-badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.conf-badge.pass .conf-badge-dot { background: var(--sig-match); }
+.conf-badge.fail .conf-badge-dot { background: var(--sig-diverge); }
+
+.conf-stats {
+  font-size: 10px;
+  color: var(--data-dim);
+  display: flex;
+  gap: 12px;
+}
+
+.conf-stat-val { color: var(--data-normal); font-weight: 600; }
+
+/* ─── STATUS BAR ──────────────────────────────────────────────────────── */
+.status-bar {
+  background: var(--panel);
+  border-top: 1px solid var(--bezel);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 16px;
+  font-size: 9px;
+  color: var(--data-ghost);
+}
+
+.status-led {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sig-match);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--panel-inset); }
+::-webkit-scrollbar-thumb { background: var(--bezel); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bezel-light); }
+</style>
+</head>
+<body>
+
+<!-- TOP CHROME -->
+<div class="top-chrome">
+  <span class="brand-mark">Schlieren</span>
+  <div class="top-tabs">
+    <div class="top-tab active">Workbench</div>
+    <div class="top-tab">Conformance</div>
+    <div class="top-tab">Diff</div>
+    <div class="top-tab">Topology</div>
+  </div>
+  <div class="top-right">
+    <span>osaka</span>
+    <span>|</span>
+    <span>0xdead…beef</span>
+    <span>|</span>
+    <span>step 847 / 2,014</span>
+  </div>
+</div>
+
+<!-- COMMAND BAR -->
+<div class="command-bar">
+  <span class="cmd-prompt">▸</span>
+  <span class="cmd-input">run 0x600560030160005260206000f3 --fork osaka --gas 10000000</span>
+  <span class="cmd-hint">F5 run · F10 step · F11 step-in · Shift+F11 step-out · Ctrl+G goto PC</span>
+</div>
+
+<!-- MAIN WORKSPACE -->
+<div class="main-grid">
+  
+  <!-- DISASSEMBLY -->
+  <div class="disassembly">
+    <div class="pane-toolbar">
+      <span class="pane-title">Disassembly</span>
+      <div class="toolbar-btn active-btn">Live</div>
+      <div class="toolbar-btn">Hex</div>
+      <div class="toolbar-btn">CFG</div>
+      <span style="margin-left: auto; font-size: 9px; color: var(--data-ghost);">0xdead…beef · 1,247 bytes</span>
+    </div>
+    <div class="disasm-scroll">
+      <table class="instr-table">
+        <tr class="instr-row breakpoint">
+          <td class="instr-cell instr-bp"><div class="instr-bp-dot" style="background: var(--sig-fault);"></div></td>
+          <td class="instr-cell instr-pc">0x340</td>
+          <td class="instr-cell instr-hex">60 05</td>
+          <td class="instr-cell instr-mnemonic">PUSH1</td>
+          <td class="instr-cell instr-args">0x05</td>
+          <td class="instr-cell instr-gas">3</td>
+          <td class="instr-cell instr-annotation"></td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x342</td>
+          <td class="instr-cell instr-hex">60 03</td>
+          <td class="instr-cell instr-mnemonic">PUSH1</td>
+          <td class="instr-cell instr-args">0x03</td>
+          <td class="instr-cell instr-gas">3</td>
+          <td class="instr-cell instr-annotation"></td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x344</td>
+          <td class="instr-cell instr-hex">01</td>
+          <td class="instr-cell instr-mnemonic">ADD</td>
+          <td class="instr-cell instr-args"></td>
+          <td class="instr-cell instr-gas">3</td>
+          <td class="instr-cell instr-annotation">// 5 + 3 = 8</td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x345</td>
+          <td class="instr-cell instr-hex">60 00</td>
+          <td class="instr-cell instr-mnemonic op-mem">MSTORE</td>
+          <td class="instr-cell instr-args">offset=0x00</td>
+          <td class="instr-cell instr-gas">6</td>
+          <td class="instr-cell instr-annotation">// expand +32B</td>
+        </tr>
+        <tr class="instr-row current">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x347</td>
+          <td class="instr-cell instr-hex">55</td>
+          <td class="instr-cell instr-mnemonic op-state">SSTORE</td>
+          <td class="instr-cell instr-args">slot=0x00 val=0x08</td>
+          <td class="instr-cell instr-gas">20,000</td>
+          <td class="instr-cell instr-annotation">// cold, 0→nonzero</td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x348</td>
+          <td class="instr-cell instr-hex">60 20</td>
+          <td class="instr-cell instr-mnemonic">PUSH1</td>
+          <td class="instr-cell instr-args">0x20</td>
+          <td class="instr-cell instr-gas">3</td>
+          <td class="instr-cell instr-annotation"></td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x34A</td>
+          <td class="instr-cell instr-hex">60 00</td>
+          <td class="instr-cell instr-mnemonic">PUSH1</td>
+          <td class="instr-cell instr-args">0x00</td>
+          <td class="instr-cell instr-gas">3</td>
+          <td class="instr-cell instr-annotation"></td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x34C</td>
+          <td class="instr-cell instr-hex">F1</td>
+          <td class="instr-cell instr-mnemonic op-flow">CALL</td>
+          <td class="instr-cell instr-args">gas=63/64 to=0xcafe…</td>
+          <td class="instr-cell instr-gas">2,600+</td>
+          <td class="instr-cell instr-annotation">// → depth 3</td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x34D</td>
+          <td class="instr-cell instr-hex">15</td>
+          <td class="instr-cell instr-mnemonic op-flow">ISZERO</td>
+          <td class="instr-cell instr-args"></td>
+          <td class="instr-cell instr-gas">3</td>
+          <td class="instr-cell instr-annotation"></td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x34E</td>
+          <td class="instr-cell instr-hex">61 03 80</td>
+          <td class="instr-cell instr-mnemonic op-flow">JUMPI</td>
+          <td class="instr-cell instr-args">→ 0x380</td>
+          <td class="instr-cell instr-gas">10</td>
+          <td class="instr-cell instr-annotation">// revert handler</td>
+        </tr>
+        <tr class="instr-row">
+          <td class="instr-cell instr-bp"></td>
+          <td class="instr-cell instr-pc">0x351</td>
+          <td class="instr-cell instr-hex">F3</td>
+          <td class="instr-cell instr-mnemonic op-flow">RETURN</td>
+          <td class="instr-cell instr-args">offset=0 size=32</td>
+          <td class="instr-cell instr-gas">0</td>
+          <td class="instr-cell instr-annotation">// success path</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider-v"></div>
+
+  <!-- MACHINE STATE -->
+  <div class="machine-state">
+    <div class="pane-toolbar">
+      <span class="pane-title">Machine State</span>
+      <span style="margin-left: auto; font-size: 9px; color: var(--data-ghost);">pc: 0x347 · depth: 2 · gas remaining: 7,241,308</span>
+    </div>
+    <div class="state-sections">
+      <!-- Registers -->
+      <div class="state-section">
+        <div class="state-section-header">
+          <span class="state-section-title">Context</span>
+        </div>
+        <div class="state-content">
+          <div class="register-grid">
+            <span class="reg-label">PC</span><span class="reg-value changed">0x0347</span>
+            <span class="reg-label">GAS</span><span class="reg-value">7,241,308</span>
+            <span class="reg-label">DEPTH</span><span class="reg-value">2</span>
+            <span class="reg-label">CALLER</span><span class="reg-value">0x7a25…e91b</span>
+            <span class="reg-label">ADDRESS</span><span class="reg-value">0xdead…beef</span>
+            <span class="reg-label">VALUE</span><span class="reg-value">0 wei</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stack -->
+      <div class="state-section">
+        <div class="state-section-header">
+          <span class="state-section-title">Stack</span>
+          <span class="state-section-meta">depth 6</span>
+        </div>
+        <div class="state-content">
+          <div class="stack-file">
+            <div class="stack-entry">
+              <span class="stack-depth">0</span>
+              <span class="stack-val new">0x0000…0000…0008</span>
+              <span class="stack-decoded">= 8</span>
+            </div>
+            <div class="stack-entry">
+              <span class="stack-depth">1</span>
+              <span class="stack-val new">0x0000…0000…0000</span>
+              <span class="stack-decoded">slot 0</span>
+            </div>
+            <div class="stack-entry">
+              <span class="stack-depth">2</span>
+              <span class="stack-val">0x0000…dead…beef</span>
+              <span class="stack-decoded">address</span>
+            </div>
+            <div class="stack-entry">
+              <span class="stack-depth">3</span>
+              <span class="stack-val">0x0000…0000…2710</span>
+              <span class="stack-decoded">= 10000</span>
+            </div>
+            <div class="stack-entry">
+              <span class="stack-depth">4</span>
+              <span class="stack-val">0x0000…0000…0020</span>
+              <span class="stack-decoded">= 32</span>
+            </div>
+            <div class="stack-entry">
+              <span class="stack-depth">5</span>
+              <span class="stack-val">0x0000…0000…0000</span>
+              <span class="stack-decoded">= 0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Storage -->
+      <div class="state-section">
+        <div class="state-section-header">
+          <span class="state-section-title">Storage</span>
+          <span class="state-section-meta">1 warm, 1 cold</span>
+        </div>
+        <div class="state-content">
+          <div class="register-grid">
+            <span class="reg-label" style="color: var(--sig-state);">0x00</span><span class="reg-value changed">0x0000…0000 → 0x0000…0008</span>
+            <span class="reg-label">0x01</span><span class="reg-value">0x0000…dead…beef</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Memory -->
+      <div class="state-section">
+        <div class="state-section-header">
+          <span class="state-section-title">Memory</span>
+          <span class="state-section-meta">64 bytes allocated</span>
+        </div>
+        <div class="state-content">
+          <div style="font-size: 10px; color: var(--data-dim); line-height: 1.6;">
+            <span style="color: var(--data-ghost);">0x00:</span> <span style="color: var(--sig-memory);">00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000008</span><br>
+            <span style="color: var(--data-ghost);">0x20:</span> 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+          </div>
+        </div>
+      </div>
+
+      <!-- Gas Accounting -->
+      <div class="state-section">
+        <div class="state-section-header">
+          <span class="state-section-title">Gas Accounting</span>
+          <span class="state-section-meta">this step: 20,000</span>
+        </div>
+        <div class="state-content">
+          <div class="register-grid">
+            <span class="reg-label">INTRINSIC</span><span class="reg-value">21,000</span>
+            <span class="reg-label">THIS OP</span><span class="reg-value changed">20,000 (SSTORE cold 0→nz)</span>
+            <span class="reg-label">TOTAL USED</span><span class="reg-value">2,758,692</span>
+            <span class="reg-label">REMAINING</span><span class="reg-value">7,241,308</span>
+            <span class="reg-label">REFUND</span><span class="reg-value">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider-h"></div>
+
+  <!-- BOTTOM: TRACE LOG -->
+  <div class="bottom-pane">
+    <div class="bottom-tabs">
+      <div class="bottom-tab active">Trace</div>
+      <div class="bottom-tab">Events</div>
+      <div class="bottom-tab">Oracle Diff</div>
+      <div class="bottom-tab">Output</div>
+    </div>
+    <div class="trace-log">
+      <div class="trace-entry">
+        <span class="trace-step">843</span>
+        <span class="trace-pc">0x340</span>
+        <span class="trace-op">PUSH1</span>
+        <span class="trace-gas">9,999,985</span>
+        <span class="trace-stack-top">→ [0x05]</span>
+        <span class="trace-annotation"></span>
+      </div>
+      <div class="trace-entry">
+        <span class="trace-step">844</span>
+        <span class="trace-pc">0x342</span>
+        <span class="trace-op">PUSH1</span>
+        <span class="trace-gas">9,999,982</span>
+        <span class="trace-stack-top">→ [0x03, 0x05]</span>
+        <span class="trace-annotation"></span>
+      </div>
+      <div class="trace-entry">
+        <span class="trace-step">845</span>
+        <span class="trace-pc">0x344</span>
+        <span class="trace-op">ADD</span>
+        <span class="trace-gas">9,999,979</span>
+        <span class="trace-stack-top">→ [0x08]</span>
+        <span class="trace-annotation">5 + 3 = 8</span>
+      </div>
+      <div class="trace-entry">
+        <span class="trace-step">846</span>
+        <span class="trace-pc">0x345</span>
+        <span class="trace-op t-mem">MSTORE</span>
+        <span class="trace-gas">9,999,973</span>
+        <span class="trace-stack-top">mem[0x00] = 0x08</span>
+        <span class="trace-annotation">+32B expansion</span>
+      </div>
+      <div class="trace-entry" style="background: rgba(212, 168, 67, 0.04);">
+        <span class="trace-step">847</span>
+        <span class="trace-pc" style="color: var(--sig-state);">0x347</span>
+        <span class="trace-op t-state">SSTORE</span>
+        <span class="trace-gas" style="color: var(--sig-state);">7,241,308</span>
+        <span class="trace-stack-top" style="color: var(--sig-state);">slot[0x00] = 0x08 (cold, 0→nz)</span>
+        <span class="trace-annotation">20,000 gas</span>
+      </div>
+      <div class="trace-entry">
+        <span class="trace-step">848</span>
+        <span class="trace-pc">0x348</span>
+        <span class="trace-op">PUSH1</span>
+        <span class="trace-gas">7,241,305</span>
+        <span class="trace-stack-top">→ [0x20]</span>
+        <span class="trace-annotation"></span>
+      </div>
+      <div class="trace-entry">
+        <span class="trace-step">849</span>
+        <span class="trace-pc">0x34A</span>
+        <span class="trace-op">PUSH1</span>
+        <span class="trace-gas">7,241,302</span>
+        <span class="trace-stack-top">→ [0x00, 0x20]</span>
+        <span class="trace-annotation"></span>
+      </div>
+      <div class="trace-entry">
+        <span class="trace-step">850</span>
+        <span class="trace-pc">0x34C</span>
+        <span class="trace-op t-flow">CALL</span>
+        <span class="trace-gas">7,238,702</span>
+        <span class="trace-stack-top">→ depth 3 (0xcafe…1234)</span>
+        <span class="trace-annotation">alloc 63/64</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFORMANCE BAR -->
+<div class="conformance-bar">
+  <div class="conf-badge pass">
+    <div class="conf-badge-dot"></div>
+    <span>EELS MATCH</span>
+  </div>
+  <div class="conf-badge pass">
+    <div class="conf-badge-dot"></div>
+    <span>REVM MATCH</span>
+  </div>
+  <div class="conf-stats">
+    <span>Passed: <span class="conf-stat-val">1,124</span></span>
+    <span>Failed: <span class="conf-stat-val" style="color: var(--sig-diverge);">2</span></span>
+    <span>Suite: osaka/v20.1</span>
+  </div>
+  <span style="margin-left: auto; font-size: 9px; color: var(--data-ghost);">Last run: 4m 32s · 100.0% (2 known REVM Berlin SSTORE)</span>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="status-led"></div>
+  <span>Connected · EELS oracle · REVM oracle</span>
+  <span style="margin-left: auto;">Schlieren 1.0.0 · .NET 8 · osaka</span>
+</div>
+
+</body>
+</html>

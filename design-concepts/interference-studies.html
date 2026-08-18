@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCHLIEREN — Interference Visual Studies</title>
+<style>
+:root {
+  --s-void: #060607;
+  --s-chassis: #0B0C0D;
+  --s-panel: #111214;
+  --s-raised: #181A1D;
+  --b-hard: #2A2D32;
+  --b-subtle: #1E2125;
+  --t-primary: #E4E0DC;
+  --t-secondary: #A0A8B4;
+  --t-tertiary: #6A7280;
+  --t-ghost: #454B54;
+  --sig-fracture: #C43A52;
+  --font-data: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', monospace;
+  --font-chrome: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--s-void);
+  color: var(--t-primary);
+  font-family: var(--font-chrome);
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 40px 1fr;
+}
+
+.header {
+  background: var(--s-chassis);
+  border-bottom: 1px solid var(--b-hard);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 32px;
+}
+
+.header h1 {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--t-tertiary);
+  text-transform: uppercase;
+}
+
+.header span {
+  font-size: 11px;
+  color: var(--t-ghost);
+}
+
+.studies {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--b-hard);
+}
+
+.study {
+  background: var(--s-void);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.study-label {
+  background: var(--s-panel);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--b-subtle);
+}
+
+.study-label h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--t-secondary);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.study-label p {
+  font-size: 10px;
+  color: var(--t-ghost);
+  line-height: 1.5;
+  max-width: 400px;
+}
+
+.study canvas {
+  flex: 1;
+  width: 100%;
+  display: block;
+}
+
+.study-footer {
+  background: var(--s-panel);
+  padding: 8px 20px;
+  border-top: 1px solid var(--b-subtle);
+  font-size: 9px;
+  color: var(--t-ghost);
+  line-height: 1.6;
+}
+
+.study-footer strong {
+  color: var(--t-tertiary);
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Schlieren</h1>
+  <span>Interference Visual Studies — Three approaches to execution-as-field</span>
+  <span style="margin-left: auto; font-family: var(--font-data); font-size: 10px;">2,014 steps · osaka · 0xdead…beef</span>
+</div>
+
+<div class="studies">
+
+  <!-- ═══ STUDY A: REFRACTIVE DENSITY ═══ -->
+  <div class="study">
+    <div class="study-label">
+      <h2>A — Refractive Density</h2>
+      <p>Execution as a heated medium. Gas consumption raises local "temperature" creating refractive-index gradients. The field shimmers where computation is expensive. State mutations produce thermal plumes. CALLs create boundary layers.</p>
+    </div>
+    <canvas id="study-a"></canvas>
+    <div class="study-footer">
+      <strong>Luminance</strong> = instantaneous gas rate · <strong>Vertical displacement</strong> = accumulated state change · <strong>Turbulence</strong> = memory expansion pressure · <strong>Sharp boundary</strong> = CALL/RETURN context change · <strong>Continuous gradient</strong> = no discrete elements
+    </div>
+  </div>
+
+  <!-- ═══ STUDY B: KNIFE-EDGE SCHLIEREN ═══ -->
+  <div class="study">
+    <div class="study-label">
+      <h2>B — Knife-Edge Schlieren</h2>
+      <p>Literal Schlieren technique. A knife-edge cutoff renders the first derivative of execution density. Smooth execution is mid-grey. Sudden changes (gas spikes, state writes, halts) appear as bright/dark bands. The result looks like real Schlieren photography of supersonic flow.</p>
+    </div>
+    <canvas id="study-b"></canvas>
+    <div class="study-footer">
+      <strong>Mid-grey</strong> = steady execution · <strong>Bright band</strong> = positive gas-rate-of-change (cost spike) · <strong>Dark band</strong> = negative change (return to cheap ops) · <strong>Vertical streak</strong> = state mutation · <strong>Horizontal shear</strong> = depth transition
+    </div>
+  </div>
+
+  <!-- ═══ STUDY C: CAUSTIC INTERFERENCE ═══ -->
+  <div class="study">
+    <div class="study-label">
+      <h2>C — Caustic Interference</h2>
+      <p>Execution as light passing through a disturbed medium. Every opcode contributes a wave. Where waves concentrate, caustic bright lines form. Each transaction produces a unique interference fingerprint — visually compelling even with no errors.</p>
+    </div>
+    <canvas id="study-c"></canvas>
+    <div class="study-footer">
+      <strong>Bright caustic lines</strong> = constructive interference from periodic patterns (loops, repeated ops) · <strong>Diffuse glow</strong> = high cumulative gas · <strong>Dark voids</strong> = untouched state regions · <strong>Fracture</strong> = phase discontinuity (rare red)
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// SYNTHETIC EXECUTION DATA
+// Simulates a 2,014-step execution with realistic gas patterns
+// ═══════════════════════════════════════════════════════════════════════════
+
+function generateExecution(steps) {
+  const data = [];
+  let gas = 10000000;
+  let depth = 0;
+  let memSize = 0;
+  let stateWrites = 0;
+  
+  for (let i = 0; i < steps; i++) {
+    // Simulate realistic opcode distribution
+    let cost, opClass, isStateWrite = false, isCall = false, isReturn = false;
+    const r = Math.random();
+    const phase = i / steps;
+    
+    // Create structure: setup → main computation → subcall → return
+    if (i < 50) {
+      // Setup phase
+      cost = 3 + Math.random() * 5;
+      opClass = 0; // arithmetic
+    } else if (i > 800 && i < 850) {
+      // SSTORE cluster
+      if (r < 0.3) {
+        cost = 20000;
+        opClass = 3; // state
+        isStateWrite = true;
+        stateWrites++;
+      } else {
+        cost = 3;
+        opClass = 0;
+      }
+    } else if (i === 850) {
+      // The CALL (fracture point)
+      cost = 2600;
+      opClass = 1; // flow
+      isCall = true;
+      depth++;
+    } else if (i > 850 && i < 1100 && depth > 0) {
+      // Subcall execution
+      if (r < 0.1) {
+        cost = 5000 + Math.random() * 15000;
+        opClass = 3;
+        isStateWrite = true;
+        stateWrites++;
+      } else if (r < 0.15) {
+        cost = 200 + Math.random() * 500;
+        opClass = 2; // memory
+        memSize += 32;
+      } else {
+        cost = 3 + Math.random() * 8;
+        opClass = 0;
+      }
+    } else if (i === 1100) {
+      // Return
+      cost = 0;
+      opClass = 1;
+      isReturn = true;
+      depth = Math.max(0, depth - 1);
+    } else if (i > 1400 && i < 1500) {
+      // Late computation burst
+      if (r < 0.2) {
+        cost = 3000 + Math.random() * 8000;
+        opClass = 3;
+        isStateWrite = true;
+        stateWrites++;
+      } else {
+        cost = 3 + Math.random() * 20;
+        opClass = r < 0.6 ? 0 : 2;
+      }
+    } else {
+      // General computation
+      if (r < 0.02) {
+        cost = 20000; opClass = 3; isStateWrite = true; stateWrites++;
+      } else if (r < 0.05) {
+        cost = 100 + Math.random() * 2500; opClass = 1;
+      } else if (r < 0.12) {
+        cost = 3 + Math.random() * 36; opClass = 2;
+        memSize += r < 0.08 ? 32 : 0;
+      } else {
+        cost = 3 + Math.random() * 8; opClass = 0;
+      }
+    }
+    
+    gas -= cost;
+    
+    data.push({
+      step: i,
+      gasCost: cost,
+      gasRemaining: gas,
+      depth: depth,
+      opClass: opClass,
+      memSize: memSize,
+      stateWrites: stateWrites,
+      isStateWrite: isStateWrite,
+      isCall: isCall,
+      isReturn: isReturn
+    });
+  }
+  return data;
+}
+
+const execution = generateExecution(2014);
+const maxCost = Math.max(...execution.map(e => e.gasCost));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STUDY A: REFRACTIVE DENSITY FIELD
+// Execution as heated medium with refractive-index gradients
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderStudyA() {
+  const canvas = document.getElementById('study-a');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const toolbarH = canvas.parentElement.querySelector('.study-label').offsetHeight;
+  const footerH = canvas.parentElement.querySelector('.study-footer').offsetHeight;
+  canvas.width = rect.width * 2;
+  canvas.height = (rect.height - toolbarH - footerH) * 2;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  // Base: dark void
+  ctx.fillStyle = '#060607';
+  ctx.fillRect(0, 0, w, h);
+  
+  // Build a density field from execution data
+  const fieldW = 400;
+  const fieldH = 200;
+  const field = new Float32Array(fieldW * fieldH);
+  
+  // Each step contributes heat to the field
+  for (let i = 0; i < execution.length; i++) {
+    const e = execution[i];
+    const x = Math.floor((i / execution.length) * fieldW);
+    const intensity = Math.log1p(e.gasCost) / Math.log1p(maxCost);
+    const yCenter = 30 + e.depth * 40 + Math.sin(i * 0.05) * 10;
+    const spread = 8 + intensity * 25 + (e.memSize / 2000) * 15;
+    
+    // Gaussian contribution
+    for (let dy = -spread; dy <= spread; dy++) {
+      const y = Math.floor(yCenter + dy);
+      if (y < 0 || y >= fieldH) continue;
+      const gaussian = Math.exp(-(dy * dy) / (2 * (spread * 0.4) * (spread * 0.4)));
+      const idx = y * fieldW + x;
+      field[idx] += intensity * gaussian * 0.8;
+      
+      // State writes create upward plumes
+      if (e.isStateWrite) {
+        for (let py = y; py > y - 30 && py >= 0; py--) {
+          const plumeFade = 1 - (y - py) / 30;
+          field[py * fieldW + x] += intensity * 0.4 * plumeFade * gaussian;
+        }
+      }
+    }
+    
+    // CALLs create boundary distortion
+    if (e.isCall || e.isReturn) {
+      for (let row = 0; row < fieldH; row++) {
+        field[row * fieldW + x] += 0.3;
+        if (x + 1 < fieldW) field[row * fieldW + x + 1] += 0.15;
+        if (x - 1 >= 0) field[row * fieldW + x - 1] += 0.15;
+      }
+    }
+  }
+  
+  // Render field with Schlieren-like coloring
+  const imgData = ctx.createImageData(w, h);
+  
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const fx = (px / w) * fieldW;
+      const fy = (py / h) * fieldH;
+      
+      // Bilinear sample
+      const ix = Math.min(Math.floor(fx), fieldW - 2);
+      const iy = Math.min(Math.floor(fy), fieldH - 2);
+      const tx = fx - ix;
+      const ty = fy - iy;
+      
+      const v00 = field[iy * fieldW + ix];
+      const v10 = field[iy * fieldW + ix + 1];
+      const v01 = field[(iy + 1) * fieldW + ix];
+      const v11 = field[(iy + 1) * fieldW + ix + 1];
+      
+      let val = v00 * (1-tx)*(1-ty) + v10 * tx*(1-ty) + v01 * (1-tx)*ty + v11 * tx*ty;
+      val = Math.min(val, 2.5);
+      
+      // Schlieren coloring: density gradient → luminance
+      // Also compute local gradient for "knife-edge" effect
+      const vRight = ix + 2 < fieldW ? field[iy * fieldW + ix + 2] : val;
+      const gradient = (vRight - v00) * 2;
+      
+      // Base luminance from density
+      let lum = val * 0.35;
+      // Add gradient contribution (makes edges visible)
+      lum += gradient * 0.15;
+      
+      // Color: warm neutral base, trending amber at high intensity
+      const r = Math.min(255, Math.floor((lum * 0.95 + val * 0.08) * 255));
+      const g = Math.min(255, Math.floor((lum * 0.88 + val * 0.04) * 255));
+      const b = Math.min(255, Math.floor((lum * 0.75) * 255));
+      
+      const idx = (py * w + px) * 4;
+      imgData.data[idx] = r;
+      imgData.data[idx + 1] = g;
+      imgData.data[idx + 2] = b;
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  
+  ctx.putImageData(imgData, 0, 0);
+  
+  // Fracture: subtle red vertical at step 850
+  const fractureX = (850 / 2014) * w;
+  const grad = ctx.createLinearGradient(fractureX - 2, 0, fractureX + 2, 0);
+  grad.addColorStop(0, 'rgba(196, 58, 82, 0)');
+  grad.addColorStop(0.5, 'rgba(196, 58, 82, 0.25)');
+  grad.addColorStop(1, 'rgba(196, 58, 82, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(fractureX - 4, 0, 8, h);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STUDY B: KNIFE-EDGE SCHLIEREN
+// First derivative of execution density → light/dark bands
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderStudyB() {
+  const canvas = document.getElementById('study-b');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const toolbarH = canvas.parentElement.querySelector('.study-label').offsetHeight;
+  const footerH = canvas.parentElement.querySelector('.study-footer').offsetHeight;
+  canvas.width = rect.width * 2;
+  canvas.height = (rect.height - toolbarH - footerH) * 2;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  // Mid-grey base (knife-edge neutral)
+  ctx.fillStyle = '#1A1A18';
+  ctx.fillRect(0, 0, w, h);
+  
+  // Compute gas-cost signal and its derivative
+  const signal = new Float32Array(execution.length);
+  const derivative = new Float32Array(execution.length);
+  const stateSignal = new Float32Array(execution.length);
+  
+  // Smooth the gas signal
+  const smoothWindow = 5;
+  for (let i = 0; i < execution.length; i++) {
+    let sum = 0, count = 0;
+    for (let j = Math.max(0, i - smoothWindow); j <= Math.min(execution.length - 1, i + smoothWindow); j++) {
+      sum += Math.log1p(execution[j].gasCost);
+      count++;
+    }
+    signal[i] = sum / count;
+    stateSignal[i] = execution[i].isStateWrite ? 1 : 0;
+  }
+  
+  // First derivative
+  for (let i = 1; i < execution.length - 1; i++) {
+    derivative[i] = (signal[i + 1] - signal[i - 1]) * 0.5;
+  }
+  
+  // Render as vertical stripes with derivative-driven luminance
+  const imgData = ctx.createImageData(w, h);
+  
+  for (let px = 0; px < w; px++) {
+    const stepF = (px / w) * execution.length;
+    const step = Math.min(Math.floor(stepF), execution.length - 2);
+    const t = stepF - step;
+    
+    // Interpolated derivative
+    const dv = derivative[step] * (1 - t) + derivative[step + 1] * t;
+    // Interpolated absolute intensity
+    const intensity = signal[step] * (1 - t) + signal[step + 1] * t;
+    const normIntensity = intensity / Math.log1p(maxCost);
+    
+    // State write proximity (creates vertical distortion)
+    let stateProximity = 0;
+    for (let s = Math.max(0, step - 3); s <= Math.min(execution.length - 1, step + 3); s++) {
+      if (execution[s].isStateWrite) {
+        stateProximity = Math.max(stateProximity, 1 - Math.abs(s - step) / 4);
+      }
+    }
+    
+    // Depth information creates horizontal banding
+    const depthHere = execution[step].depth;
+    
+    for (let py = 0; py < h; py++) {
+      const yNorm = py / h;
+      
+      // Knife-edge: derivative drives luminance around mid-grey
+      // Positive derivative (cost increasing) → bright
+      // Negative derivative (cost decreasing) → dark
+      let baseLum = 0.12; // mid-grey
+      baseLum += dv * 0.08; // derivative contribution
+      
+      // Vertical structure from depth
+      const depthBand = Math.sin((yNorm - depthHere * 0.2) * Math.PI * 4);
+      baseLum += depthBand * normIntensity * 0.06;
+      
+      // State writes create bright vertical streaks with vertical spread
+      if (stateProximity > 0) {
+        const streakFade = Math.exp(-Math.pow(yNorm - 0.3 - depthHere * 0.15, 2) * 8);
+        baseLum += stateProximity * 0.25 * streakFade;
+      }
+      
+      // Call/return creates horizontal shear (offset the pattern)
+      if (execution[step].isCall || execution[step].isReturn) {
+        baseLum += 0.15 * Math.exp(-Math.pow(yNorm - 0.5, 2) * 3);
+      }
+      
+      // Gentle noise for organic feel
+      const noise = (Math.sin(px * 0.7 + py * 1.3) * Math.sin(px * 0.3 - py * 0.9)) * 0.008;
+      baseLum += noise;
+      
+      baseLum = Math.max(0, Math.min(1, baseLum));
+      
+      // Schlieren coloring: neutral warm grey
+      const r = Math.floor(baseLum * 240);
+      const g = Math.floor(baseLum * 232);
+      const b = Math.floor(baseLum * 218);
+      
+      const idx = (py * w + px) * 4;
+      imgData.data[idx] = r;
+      imgData.data[idx + 1] = g;
+      imgData.data[idx + 2] = b;
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  
+  ctx.putImageData(imgData, 0, 0);
+  
+  // Fracture: thin red line
+  const fx = (850 / 2014) * w;
+  ctx.strokeStyle = 'rgba(196, 58, 82, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(fx, 0);
+  ctx.lineTo(fx, h);
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STUDY C: CAUSTIC INTERFERENCE
+// Each opcode emits a wave; constructive interference creates caustics
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderStudyC() {
+  const canvas = document.getElementById('study-c');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const toolbarH = canvas.parentElement.querySelector('.study-label').offsetHeight;
+  const footerH = canvas.parentElement.querySelector('.study-footer').offsetHeight;
+  canvas.width = rect.width * 2;
+  canvas.height = (rect.height - toolbarH - footerH) * 2;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  ctx.fillStyle = '#030304';
+  ctx.fillRect(0, 0, w, h);
+  
+  const imgData = ctx.createImageData(w, h);
+  const fieldData = new Float32Array(w * h);
+  
+  // Each significant step emits a circular wave
+  // Waves from nearby steps with similar gas costs interfere constructively
+  const emitters = [];
+  
+  for (let i = 0; i < execution.length; i += 2) { // sample every 2nd step
+    const e = execution[i];
+    const x = (i / execution.length) * w;
+    const y = (0.15 + e.depth * 0.2 + Math.sin(i * 0.02) * 0.05) * h;
+    const amplitude = Math.log1p(e.gasCost) / Math.log1p(maxCost);
+    const frequency = 0.02 + e.opClass * 0.008; // different classes have different wavelengths
+    
+    if (amplitude > 0.15) { // only significant operations emit
+      emitters.push({ x, y, amp: amplitude, freq: frequency, phase: i * 0.1 });
+    }
+  }
+  
+  // Compute interference field (subsample for performance)
+  const scale = 2;
+  const sw = Math.ceil(w / scale);
+  const sh = Math.ceil(h / scale);
+  const smallField = new Float32Array(sw * sh);
+  
+  for (let py = 0; py < sh; py++) {
+    for (let px = 0; px < sw; px++) {
+      let waveSum = 0;
+      const worldX = px * scale;
+      const worldY = py * scale;
+      
+      // Sum contributions from nearby emitters (limit range for performance)
+      for (let ei = 0; ei < emitters.length; ei++) {
+        const em = emitters[ei];
+        const dx = worldX - em.x;
+        const dy = worldY - em.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 300) continue; // range limit
+        
+        const attenuation = em.amp / (1 + dist * 0.01);
+        const wave = Math.sin(dist * em.freq + em.phase) * attenuation;
+        waveSum += wave;
+      }
+      
+      smallField[py * sw + px] = waveSum;
+    }
+  }
+  
+  // Normalize and render
+  let maxVal = 0;
+  for (let i = 0; i < smallField.length; i++) {
+    maxVal = Math.max(maxVal, Math.abs(smallField[i]));
+  }
+  
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const sx = Math.min(Math.floor(px / scale), sw - 1);
+      const sy = Math.min(Math.floor(py / scale), sh - 1);
+      let val = smallField[sy * sw + sx] / (maxVal || 1);
+      
+      // Caustic effect: square the positive values to create bright lines
+      const caustic = val > 0 ? val * val * 1.8 : 0;
+      const shadow = val < 0 ? val * val * 0.3 : 0;
+      
+      let lum = 0.02 + caustic - shadow;
+      lum = Math.max(0, Math.min(1, lum));
+      
+      // Cool blue-white for caustics
+      const r = Math.floor(lum * 200 + caustic * 55);
+      const g = Math.floor(lum * 210 + caustic * 45);
+      const b = Math.floor(lum * 235 + caustic * 20);
+      
+      const idx = (py * w + px) * 4;
+      imgData.data[idx] = Math.min(255, r);
+      imgData.data[idx + 1] = Math.min(255, g);
+      imgData.data[idx + 2] = Math.min(255, b);
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  
+  ctx.putImageData(imgData, 0, 0);
+  
+  // Fracture: red phase discontinuity
+  const fx = (850 / 2014) * w;
+  const grad = ctx.createLinearGradient(fx - 6, 0, fx + 6, 0);
+  grad.addColorStop(0, 'rgba(196, 58, 82, 0)');
+  grad.addColorStop(0.3, 'rgba(196, 58, 82, 0.15)');
+  grad.addColorStop(0.5, 'rgba(196, 58, 82, 0.4)');
+  grad.addColorStop(0.7, 'rgba(196, 58, 82, 0.15)');
+  grad.addColorStop(1, 'rgba(196, 58, 82, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(fx - 6, 0, 12, h);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════════════════════════════════════
+
+window.addEventListener('load', () => {
+  // Small delay to ensure layout is settled
+  requestAnimationFrame(() => {
+    renderStudyA();
+    renderStudyB();
+    renderStudyC();
+  });
+});
+
+window.addEventListener('resize', () => {
+  renderStudyA();
+  renderStudyB();
+  renderStudyC();
+});
+</script>
+
+</body>
+</html>
