@@ -1,7 +1,7 @@
 ---
 name: eels-single-case-tracer
 description: >
-  Runs ONE fixture case in complete isolation through Scrutor and emits a full
+  Runs ONE fixture case in complete isolation through Schlieren and emits a full
   EIP-3155 structLog JSON (PC, opcode, gas, gasCost, stack, memory, storage at
   every step), a gas accounting breakdown (intrinsic + EVM + refund + account
   deltas), and a pre→post account state diff. Use this to find the exact opcode
@@ -12,7 +12,7 @@ description: >
 
 ## Purpose
 Produce a step-by-step EIP-3155 structLog for ONE fixture case so you can find
-the exact opcode where Scrutor diverges from EELS expectations.
+the exact opcode where Schlieren diverges from EELS expectations.
 
 ## When to use
 - `eels-taxonomy-drill` has identified a failing case or a consistent delta.
@@ -23,11 +23,11 @@ the exact opcode where Scrutor diverges from EELS expectations.
 
 ```powershell
 # Minimal: point at a fixture directory and filter to one case
-$env:EELS_FIXTURES_ROOT  = "C:/projects/Scrutor/fixtures/state_tests/cancun/eip1153_tstore"
+$env:EELS_FIXTURES_ROOT  = "C:/projects/Schlieren/fixtures/state_tests/cancun/eip1153_tstore"
 $env:EELS_CASE_FILTER    = "test_basic_tload_after_store"
 $env:EELS_REQUIRED_FORK  = "Cancun"
 $env:EELS_INCLUDE_SUBDIRS = "1"
-dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj --filter "SingleCaseTrace"
+dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj --filter "SingleCaseTrace"
 ```
 
 ### Environment Variables
@@ -92,31 +92,31 @@ Written to `TestResults/struct_log_<timestamp>.json`:
 ```
 
 ## Comparing Against Geth structLog
-To find the FIRST diverging step between Scrutor and Geth:
+To find the FIRST diverging step between Schlieren and Geth:
 
 ```python
 import json
 
-scrutor = json.load(open("TestResults/struct_log_scrutor.json"))["structLogs"]
+schlieren = json.load(open("TestResults/struct_log_schlieren.json"))["structLogs"]
 geth    = json.load(open("geth_trace.json"))["result"]["structLogs"]
 
-for i, (s, g) in enumerate(zip(scrutor, geth)):
+for i, (s, g) in enumerate(zip(schlieren, geth)):
     if s["pc"] != g["pc"] or s["gas"] != g["gas"]:
         print(f"DIVERGENCE at step {i}:")
-        print(f"  Scrutor: PC={s['pc']} op={s['op']} gas={s['gas']} gasCost={s['gasCost']}")
+        print(f"  Schlieren: PC={s['pc']} op={s['op']} gas={s['gas']} gasCost={s['gasCost']}")
         print(f"  Geth:    PC={g['pc']} op={g['op']} gas={g['gas']} gasCost={g['gasCost']}")
         break
 ```
 
 ## Escalation: EELS Python Reference Tracer
-When the Scrutor structLog looks correct step-by-step but the delta accumulates
+When the Schlieren structLog looks correct step-by-step but the delta accumulates
 across many nested frames (e.g. a recursive CALL loop), use the EELS Python
 reference tracer to get ground-truth gas at every opcode:
 
 ```bash
 # Requires: pip install eth-keys  (in C:\projects\execution-specs env)
 cd C:\projects\execution-specs
-python C:\projects\Scrutor\tools\eels_loop_trace.py \
+python C:\projects\Schlieren\tools\eels_loop_trace.py \
   --fixture <path/to/fixture.json> \
   --out TestResults/eels_trace.jsonl
 ```
@@ -134,7 +134,7 @@ eels-single-case-tracer      ←── Get structLog, find diverging opcode
        ↓
 EELS Python reference tracer ←── Ground-truth trace when delta spans many frames
        ↓
-Fix in Scrutor.Core          ←── Edit gas schedule or opcode implementation
+Fix in Schlieren.Core          ←── Edit gas schedule or opcode implementation
        ↓
 eels-taxonomy-drill (again)  ←── Verify delta bucket disappeared
 ```

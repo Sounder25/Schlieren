@@ -1,0 +1,17 @@
+[package]
+name = "revm-harness"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Pin revm 42.x (July 2026 release line)
+revm = { version = "42", default-features = false, features = ["std"] }
+# Alloy primitives must match revm's version (1.x for revm 42)
+alloy-primitives = "1.6"
+# JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Error handling
+anyhow = "1.0"
+# Hex encoding
+hex = "0.4"

@@ -2,7 +2,7 @@
 """
 eels-trace-compare — Two-Trace Divergence Finder & EELS Ground Truth Runner
 =============================================================================
-Compares two EIP-3155 structLog JSON files step-by-step (e.g. Scrutor trace vs
+Compares two EIP-3155 structLog JSON files step-by-step (e.g. Schlieren trace vs
 EELS Python reference or Geth debug_traceTransaction output) to pinpoint the EXACT step,
 PC, and opcode where gas, stack, memory, or storage diverge.
 
@@ -10,8 +10,8 @@ Optionally runs `ethereum-spec-evm statetest --trace` directly against the fixtu
 file to generate the canonical EELS Python reference trace as ground truth!
 
 Usage:
-    python tools/eels_trace_compare.py <trace1.json> <trace2.json> [--label1 Scrutor] [--label2 Reference]
-    python tools/eels_trace_compare.py <scrutor_trace.json> --eels-fixture <fixture.json> [--case-id ID]
+    python tools/eels_trace_compare.py <trace1.json> <trace2.json> [--label1 Schlieren] [--label2 Reference]
+    python tools/eels_trace_compare.py <schlieren_trace.json> --eels-fixture <fixture.json> [--case-id ID]
 
 Exit codes:
     0 = traces match perfectly
@@ -195,10 +195,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Compare two EIP-3155 structLog JSON files step-by-step against EELS ground truth."
     )
-    parser.add_argument("trace1", help="Path to first structLog JSON (e.g. Scrutor trace)")
+    parser.add_argument("trace1", help="Path to first structLog JSON (e.g. Schlieren trace)")
     parser.add_argument("trace2", nargs="?", default=None, help="Path to second structLog JSON (optional if --eels-fixture is used)")
     parser.add_argument("--eels-fixture", help="Path to fixture file to generate EELS Python reference trace automatically")
-    parser.add_argument("--label1", default="Scrutor", help="Label for first trace (default: Scrutor)")
+    parser.add_argument("--label1", default="Schlieren", help="Label for first trace (default: Schlieren)")
     parser.add_argument("--label2", default="Reference", help="Label for second trace (default: Reference)")
     args = parser.parse_args()
 

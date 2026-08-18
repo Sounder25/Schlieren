@@ -1,14 +1,14 @@
 {
-  "name": "scrutor-muscle",
+  "name": "schlieren-muscle",
   "version": "0.1.0",
   "private": true,
-  "description": "Hardhat Muscle against Scrutor (Anvil-for-Windows) local node",
+  "description": "Hardhat Muscle against Schlieren (Anvil-for-Windows) local node",
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test --network scrutor",
-    "test:local": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.js --network scrutor",
-    "smoke": "hardhat run scripts/smoke.js --network scrutor"
+    "test": "hardhat test --network schlieren",
+    "test:local": "hardhat test --network hardhat",
+    "deploy": "hardhat run scripts/deploy.js --network schlieren",
+    "smoke": "hardhat run scripts/smoke.js --network schlieren"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 DOC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "EELs-NotebookLM")
 OUT_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..",
-    "Scrutor.EELS.Tests", "SpecData", "ForkGasData.g.cs")
+    "Schlieren.EELS.Tests", "SpecData", "ForkGasData.g.cs")
 
 MEMBER_RE = re.compile(
     r"^\s+(?P<name>[A-Z][A-Z0-9_]*)\s*:\s*Final\[(?P<kind>Uint|U256|U64|int|bool)\]\s*=\s*(?P<expr>.+?)\s*$")
@@ -216,7 +216,7 @@ def emit_cs(forks: list[tuple[str, str, list[Constant]]]) -> str:
     out.append("")
     out.append("using System.Collections.Generic;")
     out.append("")
-    out.append("namespace Scrutor.EELS.Tests.SpecData;")
+    out.append("namespace Schlieren.EELS.Tests.SpecData;")
     out.append("")
     out.append("/// <summary>")
     out.append("/// A single normative gas constant from the EELS GasCosts class.")

@@ -6,7 +6,7 @@
       <EELS_INCLUDE_SUBDIRS>1</EELS_INCLUDE_SUBDIRS>
       <EELS_MAX_CASES>99999</EELS_MAX_CASES>
       <EELS_REQUIRED_FORK>Osaka</EELS_REQUIRED_FORK>
-      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/for_osaka/osaka/eip7883_modexp_gas_increase</EELS_FIXTURES_ROOT>
+      <EELS_FIXTURES_ROOT>C:/projects/Schlieren/fixtures/state_tests/for_osaka/osaka/eip7883_modexp_gas_increase</EELS_FIXTURES_ROOT>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

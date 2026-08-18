@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCHLIEREN — Concept 3: Interference Pattern</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONCEPT 3: INTERFERENCE PATTERN
+   
+   Radical departure. The entire execution is a continuous field, not a list.
+   
+   Inspired by: interferometry, spectral analysis, seismography, medical
+   imaging (MRI cross-sections), and the literal Schlieren technique —
+   where refractive index changes become visible as light/dark bands.
+   
+   Core idea: every execution step exists in a 2D space where:
+   - X axis = time (step number)  
+   - Y axis = address space / call depth
+   - Intensity = gas expenditure
+   - Color channel = operation class
+   - Disruptions in the field = divergences from oracle
+   
+   The user reads execution the way a physicist reads an interferogram:
+   smooth regions are understood, discontinuities demand investigation.
+   
+   Typography: extremely minimal. The visualization IS the data.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --void: #020203;
+  --ground: #080809;
+  --surface: #0E0F10;
+  --raised: #161718;
+  --edge: #222324;
+  --edge-focus: #3A3B3D;
+  
+  --ink: #D8D4D0;
+  --ink-soft: #8A8682;
+  --ink-ghost: #4A4845;
+  
+  /* Interference bands — NOT brand colors. These are measurement encodings. */
+  --band-cold: #1A2844;
+  --band-warm: #442818;
+  --band-flow: #283844;
+  --band-state: #443828;
+  --band-hot: #6B3A1A;
+  --band-peak: #C87038;
+  
+  /* The single true accent: divergence. Only appears when oracles disagree. */
+  --fracture: #E03050;
+  --fracture-glow: rgba(224, 48, 80, 0.15);
+  
+  /* Agreement is absence of signal — shown as faint positive */
+  --coherent: #2A5040;
+  
+  --font-instrument: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', monospace;
+  --font-label: 'Inter', 'SF Pro Text', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-instrument);
+  font-size: 11px;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 28px 1fr 180px 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── INSTRUMENT HEADER ───────────────────────────────────────────────── */
+.instrument-header {
+  background: var(--ground);
+  border-bottom: 1px solid var(--edge);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+}
+
+.ih-wordmark {
+  font-family: var(--font-label);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--ink-ghost);
+  text-transform: uppercase;
+  margin-right: 32px;
+}
+
+.ih-field {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-right: 24px;
+}
+
+.ih-field-label {
+  font-size: 8px;
+  color: var(--ink-ghost);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.ih-field-value {
+  font-size: 10px;
+  color: var(--ink-soft);
+  letter-spacing: 0.5px;
+}
+
+.ih-spacer { flex: 1; }
+
+.ih-coherence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ih-coherence-bar {
+  width: 40px;
+  height: 3px;
+  background: var(--edge);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ih-coherence-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--coherent);
+  border-radius: 2px;
+}
+
+.ih-coherence-label {
+  font-size: 9px;
+  color: var(--ink-ghost);
+}
+
+/* ─── MAIN FIELD: THE INTERFEROGRAM ───────────────────────────────────── */
+.field-view {
+  display: grid;
+  grid-template-columns: 48px 1fr 200px;
+  overflow: hidden;
+}
+
+/* Y-axis: depth/address ruler */
+.y-ruler {
+  background: var(--ground);
+  border-right: 1px solid var(--edge);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 8px;
+}
+
+.y-tick {
+  font-size: 8px;
+  color: var(--ink-ghost);
+  text-align: right;
+  letter-spacing: 0.5px;
+}
+
+/* The interference field itself */
+.interference-canvas {
+  position: relative;
+  overflow: hidden;
+  background: var(--void);
+}
+
+/* Rendered as horizontal bands — each row is a step, color-encoded by operation class */
+.field-bands {
+  position: absolute;
+  inset: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.field-band {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-height: 3px;
+  position: relative;
+}
+
+/* Each band is a horizontal bar showing gas intensity via width/opacity */
+.band-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 0 1px 1px 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.field-band:hover .band-fill {
+  opacity: 1;
+}
+
+.field-band:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+/* Current position marker */
+.field-band.current {
+  background: rgba(255,255,255,0.03);
+}
+
+.field-band.current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ink-soft);
+}
+
+/* Fracture line — where oracles diverge */
+.field-band.fractured::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--fracture);
+  box-shadow: 0 0 6px var(--fracture-glow), 0 0 12px var(--fracture-glow);
+}
+
+/* PC annotations on hover */
+.band-label {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 8px;
+  color: var(--ink-ghost);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.field-band:hover .band-label {
+  opacity: 1;
+}
+
+/* Right: field legend + measurements */
+.field-sidebar {
+  background: var(--ground);
+  border-left: 1px solid var(--edge);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.sidebar-section-title {
+  font-family: var(--font-label);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--ink-ghost);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* Legend */
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-swatch {
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.legend-label {
+  font-size: 9px;
+  color: var(--ink-soft);
+}
+
+/* Measurement readout */
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.readout-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.readout-key {
+  font-size: 8px;
+  color: var(--ink-ghost);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.readout-val {
+  font-size: 10px;
+  color: var(--ink);
+  letter-spacing: 0.5px;
+}
+
+.readout-val.warn { color: var(--band-peak); }
+.readout-val.fault { color: var(--fracture); }
+
+/* ─── BOTTOM: DETAIL STRIP ────────────────────────────────────────────── */
+.detail-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border-top: 1px solid var(--edge);
+  overflow: hidden;
+}
+
+.detail-panel {
+  background: var(--ground);
+  border-right: 1px solid var(--edge);
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
+.detail-panel:last-child { border-right: none; }
+
+.detail-title {
+  font-family: var(--font-label);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--ink-ghost);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* Stack in the detail strip */
+.detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detail-stack-row {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.dsr-idx {
+  color: var(--ink-ghost);
+  width: 12px;
+  text-align: right;
+}
+
+.dsr-val {
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dsr-val.fresh { color: var(--ink); }
+
+/* Gas spectrum — mini bar chart */
+.gas-spectrum {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gas-spec-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gas-spec-label {
+  font-size: 9px;
+  color: var(--ink-ghost);
+  width: 64px;
+}
+
+.gas-spec-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--edge);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.gas-spec-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+.gas-spec-val {
+  font-size: 9px;
+  color: var(--ink-soft);
+  width: 56px;
+  text-align: right;
+}
+
+/* Oracle diff in the detail strip */
+.oracle-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oracle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 2px;
+}
+
+.oracle-row.match { background: rgba(42, 80, 64, 0.2); }
+.oracle-row.mismatch { background: var(--fracture-glow); }
+
+.oracle-name {
+  font-size: 9px;
+  color: var(--ink-ghost);
+  width: 40px;
+}
+
+.oracle-verdict {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.oracle-verdict.ok { color: var(--coherent); }
+.oracle-verdict.fail { color: var(--fracture); }
+
+.oracle-detail {
+  font-size: 9px;
+  color: var(--ink-soft);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── STATUS ──────────────────────────────────────────────────────────── */
+.status-strip {
+  background: var(--ground);
+  border-top: 1px solid var(--edge);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 9px;
+  color: var(--ink-ghost);
+  gap: 20px;
+}
+
+.status-coherence {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.status-dot.green { background: var(--coherent); }
+.status-dot.red { background: var(--fracture); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- INSTRUMENT HEADER -->
+<div class="instrument-header">
+  <span class="ih-wordmark">Schlieren</span>
+  
+  <div class="ih-field">
+    <span class="ih-field-label">Fork</span>
+    <span class="ih-field-value">osaka</span>
+  </div>
+  <div class="ih-field">
+    <span class="ih-field-label">Target</span>
+    <span class="ih-field-value">0xdead…beef</span>
+  </div>
+  <div class="ih-field">
+    <span class="ih-field-label">Steps</span>
+    <span class="ih-field-value">2,014</span>
+  </div>
+  <div class="ih-field">
+    <span class="ih-field-label">Cursor</span>
+    <span class="ih-field-value">847</span>
+  </div>
+  
+  <div class="ih-spacer"></div>
+  
+  <div class="ih-coherence">
+    <span class="ih-coherence-label">Oracle coherence</span>
+    <div class="ih-coherence-bar"><div class="ih-coherence-fill"></div></div>
+    <span class="ih-coherence-label">100%</span>
+  </div>
+</div>
+
+<!-- MAIN FIELD -->
+<div class="field-view">
+  
+  <!-- Y Ruler -->
+  <div class="y-ruler">
+    <span class="y-tick">d:0</span>
+    <span class="y-tick">d:1</span>
+    <span class="y-tick">d:2</span>
+    <span class="y-tick">d:3</span>
+  </div>
+
+  <!-- Interference Canvas -->
+  <div class="interference-canvas">
+    <div class="field-bands">
+      <!-- Each band = one execution step. Width = gas cost normalized. Color = op class. -->
+      <!-- Low-cost ops: narrow, dim bands. High-cost: wide, bright. -->
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">ADD · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">DUP1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 8%; background: var(--band-flow);"></div><span class="band-label">MSTORE · 6</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 92%; background: linear-gradient(90deg, var(--band-state), var(--band-hot), var(--band-peak));"></div><span class="band-label">SSTORE · 20,000</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH2 · 3</span></div>
+      <div class="field-band fractured"><div class="band-fill" style="width: 55%; background: linear-gradient(90deg, var(--band-flow), var(--band-hot));"></div><span class="band-label">CALL · 2,600</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">ISZERO · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 12%; background: var(--band-flow);"></div><span class="band-label">JUMPI · 10</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">POP · 2</span></div>
+      <div class="field-band current"><div class="band-fill" style="width: 72%; background: linear-gradient(90deg, var(--band-state), var(--band-hot));"></div><span class="band-label">SSTORE · 5,000</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH2 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 10%; background: var(--band-flow);"></div><span class="band-label">JUMP · 8</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 8%; background: var(--band-flow);"></div><span class="band-label">MLOAD · 6</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">ADD · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 45%; background: linear-gradient(90deg, var(--band-state), var(--band-hot));"></div><span class="band-label">SSTORE · 2,900</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-cold);"></div><span class="band-label">PUSH1 · 3</span></div>
+      <div class="field-band"><div class="band-fill" style="width: 4%; background: var(--band-flow);"></div><span class="band-label">RETURN · 0</span></div>
+    </div>
+  </div>
+
+  <!-- Field Sidebar -->
+  <div class="field-sidebar">
+    <div>
+      <div class="sidebar-section-title">Signal Legend</div>
+      <div class="legend-items">
+        <div class="legend-item"><div class="legend-swatch" style="background: var(--band-cold);"></div><span class="legend-label">Arithmetic / Stack</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background: var(--band-flow);"></div><span class="legend-label">Control flow / Memory</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background: var(--band-state);"></div><span class="legend-label">State mutation</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background: linear-gradient(90deg, var(--band-hot), var(--band-peak));"></div><span class="legend-label">High gas intensity</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background: var(--fracture);"></div><span class="legend-label">Oracle divergence</span></div>
+        <div class="legend-item"><div class="legend-swatch" style="background: var(--coherent);"></div><span class="legend-label">Oracle agreement</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sidebar-section-title">Cursor Measurement</div>
+      <div class="readout">
+        <div class="readout-row"><span class="readout-key">Step</span><span class="readout-val">847 / 2,014</span></div>
+        <div class="readout-row"><span class="readout-key">PC</span><span class="readout-val">0x0347</span></div>
+        <div class="readout-row"><span class="readout-key">Op</span><span class="readout-val">SSTORE</span></div>
+        <div class="readout-row"><span class="readout-key">Gas cost</span><span class="readout-val warn">5,000</span></div>
+        <div class="readout-row"><span class="readout-key">Remaining</span><span class="readout-val">7,241,308</span></div>
+        <div class="readout-row"><span class="readout-key">Depth</span><span class="readout-val">2</span></div>
+        <div class="readout-row"><span class="readout-key">Slot</span><span class="readout-val">0x01</span></div>
+        <div class="readout-row"><span class="readout-key">Value</span><span class="readout-val">0x…2710</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sidebar-section-title">Fracture Points</div>
+      <div class="readout">
+        <div class="readout-row"><span class="readout-key">Total</span><span class="readout-val fault">1</span></div>
+        <div class="readout-row"><span class="readout-key">At step</span><span class="readout-val fault">850 (CALL)</span></div>
+        <div class="readout-row"><span class="readout-key">Cause</span><span class="readout-val fault">gas_remaining ≠</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL STRIP -->
+<div class="detail-strip">
+  
+  <!-- Stack -->
+  <div class="detail-panel">
+    <div class="detail-title">Stack · Depth 6</div>
+    <div class="detail-stack">
+      <div class="detail-stack-row"><span class="dsr-idx">0</span><span class="dsr-val fresh">0x00…0000…0001 (slot)</span></div>
+      <div class="detail-stack-row"><span class="dsr-idx">1</span><span class="dsr-val fresh">0x00…0000…2710 (value)</span></div>
+      <div class="detail-stack-row"><span class="dsr-idx">2</span><span class="dsr-val">0x00…dead…beef</span></div>
+      <div class="detail-stack-row"><span class="dsr-idx">3</span><span class="dsr-val">0x00…0000…0020</span></div>
+      <div class="detail-stack-row"><span class="dsr-idx">4</span><span class="dsr-val">0x00…0000…0000</span></div>
+      <div class="detail-stack-row"><span class="dsr-idx">5</span><span class="dsr-val">0x00…cafe…1234</span></div>
+    </div>
+  </div>
+
+  <!-- Gas Spectrum -->
+  <div class="detail-panel">
+    <div class="detail-title">Gas Spectrum</div>
+    <div class="gas-spectrum">
+      <div class="gas-spec-row">
+        <span class="gas-spec-label">Intrinsic</span>
+        <div class="gas-spec-bar"><div class="gas-spec-fill" style="width: 21%; background: var(--band-cold);"></div></div>
+        <span class="gas-spec-val">21,000</span>
+      </div>
+      <div class="gas-spec-row">
+        <span class="gas-spec-label">Execution</span>
+        <div class="gas-spec-bar"><div class="gas-spec-fill" style="width: 38%; background: var(--band-flow);"></div></div>
+        <span class="gas-spec-val">1,241,392</span>
+      </div>
+      <div class="gas-spec-row">
+        <span class="gas-spec-label">Storage</span>
+        <div class="gas-spec-bar"><div class="gas-spec-fill" style="width: 82%; background: linear-gradient(90deg, var(--band-state), var(--band-hot));"></div></div>
+        <span class="gas-spec-val">1,480,000</span>
+      </div>
+      <div class="gas-spec-row">
+        <span class="gas-spec-label">Memory exp.</span>
+        <div class="gas-spec-bar"><div class="gas-spec-fill" style="width: 6%; background: var(--band-flow);"></div></div>
+        <span class="gas-spec-val">16,300</span>
+      </div>
+      <div class="gas-spec-row">
+        <span class="gas-spec-label">Sub-calls</span>
+        <div class="gas-spec-bar"><div class="gas-spec-fill" style="width: 12%; background: var(--band-flow);"></div></div>
+        <span class="gas-spec-val">215,000</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Oracle Agreement -->
+  <div class="detail-panel">
+    <div class="detail-title">Oracle Coherence</div>
+    <div class="oracle-diff">
+      <div class="oracle-row match">
+        <span class="oracle-name">EELS</span>
+        <span class="oracle-verdict ok">MATCH</span>
+        <span class="oracle-detail">gas_remaining, storage, output ✓</span>
+      </div>
+      <div class="oracle-row match">
+        <span class="oracle-name">REVM</span>
+        <span class="oracle-verdict ok">MATCH</span>
+        <span class="oracle-detail">gas_remaining, storage, output ✓</span>
+      </div>
+      <div class="oracle-row mismatch">
+        <span class="oracle-name">REVM</span>
+        <span class="oracle-verdict fail">DIVERGE</span>
+        <span class="oracle-detail">step 850: gas_remaining ≠ (REVM: 7,238,700 vs 7,238,702)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS STRIP -->
+<div class="status-strip">
+  <div class="status-coherence">
+    <div class="status-dot green"></div>
+    <span>EELS coherent</span>
+  </div>
+  <div class="status-coherence">
+    <div class="status-dot red"></div>
+    <span>REVM 1 fracture</span>
+  </div>
+  <span>osaka · depth 2 · 2,014 steps · 2.76M gas used</span>
+  <span style="margin-left: auto;">Schlieren 1.0 · interference mode</span>
+</div>
+
+</body>
+</html>

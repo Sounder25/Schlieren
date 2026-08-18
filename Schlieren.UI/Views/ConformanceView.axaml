@@ -1,0 +1,478 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Schlieren.UI.ViewModels"
+             x:Class="Schlieren.UI.Views.ConformanceView"
+             x:Name="confRoot"
+             x:DataType="vm:ConformanceViewModel"
+             Background="{DynamicResource Schlieren.ShellBg}">
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="10"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextDim}"/>
+      <Setter Property="LetterSpacing" Value="2"/>
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.PanelElevated}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Border}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+      <Setter Property="Height" Value="34"/>
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.PanelDeep}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Border}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.Accent}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Padding" Value="20,0"/>
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.AccentHover}"/>
+    </Style>
+    <Style Selector="Button.cancel">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.PanelElevated}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextMuted}"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Padding" Value="16,0"/>
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+    <Style Selector="Button.row">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="12,8"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="CornerRadius" Value="0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.row:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.SelectionBg}"/>
+    </Style>
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="6,2"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="0">
+
+    <!-- ── TOP BAR: controls ─────────────────────────────────── -->
+    <Border Grid.Row="0" Background="{DynamicResource Schlieren.PanelDeep}"
+            BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
+            Padding="20,14">
+      <Grid ColumnDefinitions="Auto,16,*,16,Auto,8,Auto,8,Auto,8,Auto,12,Auto">
+
+        <!-- Fork selector -->
+        <StackPanel Grid.Column="0" Spacing="4" Width="140">
+          <TextBlock Classes="label" Text="FORK"/>
+          <ComboBox ItemsSource="{Binding AvailableForks}"
+                    SelectedItem="{Binding SelectedFork}"
+                    Width="140"/>
+        </StackPanel>
+
+        <!-- Fixture path -->
+        <StackPanel Grid.Column="2" Spacing="4">
+          <TextBlock Classes="label" Text="FIXTURES BASE PATH"/>
+          <TextBox Text="{Binding FixturesBasePath}" Watermark="e.g. C:\projects\Schlieren\fixtures\state_tests"/>
+          <CheckBox Content="Exclude ported_static (avoids 2-min CREATE2 hangs)"
+                    IsChecked="{Binding ExcludePortedStatic}"
+                    FontSize="11" Foreground="{DynamicResource Schlieren.TextMuted}"
+                    ToolTip.Tip="Official Prague/Osaka v20 gate excludes this folder. Uncheck only if you want the full 13k+ suite."/>
+        </StackPanel>
+
+        <!-- Run button -->
+        <Button Grid.Column="4" Classes="primary"
+                Command="{Binding RunCommand}"
+                VerticalAlignment="Bottom">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="▶" FontSize="11"/>
+            <TextBlock Text="RUN"/>
+          </StackPanel>
+        </Button>
+
+        <!-- Cancel button -->
+        <Button Grid.Column="6" Classes="cancel"
+                Command="{Binding CancelCommand}"
+                IsVisible="{Binding IsRunning}"
+                VerticalAlignment="Bottom">
+          <TextBlock Text="■  STOP"/>
+        </Button>
+
+        <Button Grid.Column="8" Classes="cancel"
+                Click="OnOpenSuiteFixtureClick"
+                VerticalAlignment="Bottom"
+                ToolTip.Tip="Load a state_test JSON from this suite into the workbench and run it">
+          <TextBlock Text="OPEN FIXTURE"/>
+        </Button>
+
+        <Button Grid.Column="10" Classes="cancel"
+                Command="{Binding ResetResultsCommand}"
+                VerticalAlignment="Bottom"
+                ToolTip.Tip="Clear suite results, failures, and selection (Ctrl+Shift+R)">
+          <TextBlock Text="RESET"/>
+        </Button>
+
+        <!-- Elapsed -->
+        <Border Grid.Column="12" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                BorderThickness="1" CornerRadius="6" Padding="12,0"
+                VerticalAlignment="Bottom" Height="36">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="⏱" FontSize="13" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding ElapsedText}"
+                       FontFamily="Consolas, Cascadia Mono, monospace"
+                       FontSize="14" FontWeight="Bold"
+                       Foreground="{DynamicResource Schlieren.TextPrimary}" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Border>
+
+      </Grid>
+    </Border>
+
+    <!-- ── RESOLVED PATH + STATUS ────────────────────────────── -->
+    <Border Grid.Row="1" Background="{DynamicResource Schlieren.ShellBg}"
+            BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
+            Padding="20,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="📁" FontSize="11" VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding ResolvedFixturePath}"
+                     FontFamily="Consolas, Cascadia Mono, monospace"
+                     FontSize="11" Foreground="{DynamicResource Schlieren.TextDim}"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+        <TextBlock Grid.Column="1"
+                   Text="{Binding StatusMessage}"
+                   Foreground="{Binding StatusColor}"
+                   FontSize="12" FontWeight="SemiBold"
+                   VerticalAlignment="Center" Margin="20,0,0,0"/>
+      </Grid>
+    </Border>
+
+    <!-- ── MAIN BODY ──────────────────────────────────────────── -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,1,380">
+
+      <!-- LEFT: stats + progress + failures list -->
+      <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*" Margin="20,16,12,16">
+
+        <!-- Big stats row -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,*,*,*" Margin="0,0,0,16">
+
+          <!-- Passed -->
+          <Border Grid.Column="0" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                  BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label" Text="PASSED"/>
+              <TextBlock Text="{Binding Passed, StringFormat=N0}"
+                         FontSize="32" FontWeight="Black"
+                         Foreground="{DynamicResource Schlieren.Success}"
+                         FontFamily="Consolas, Cascadia Mono, monospace"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Failed -->
+          <Border Grid.Column="1" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                  BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label" Text="FAILED"/>
+              <TextBlock Text="{Binding Failed, StringFormat=N0}"
+                         FontSize="32" FontWeight="Black"
+                         Foreground="{DynamicResource Schlieren.Danger}"
+                         FontFamily="Consolas, Cascadia Mono, monospace"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Total -->
+          <Border Grid.Column="2" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                  BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label" Text="TOTAL CASES"/>
+              <TextBlock Text="{Binding Total, StringFormat=N0}"
+                         FontSize="32" FontWeight="Black"
+                         Foreground="{DynamicResource Schlieren.TextPrimary}"
+                         FontFamily="Consolas, Cascadia Mono, monospace"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Pass Rate -->
+          <Border Grid.Column="3" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                  BorderThickness="1" CornerRadius="8" Padding="16,12">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label" Text="PASS RATE"/>
+              <TextBlock Text="{Binding PassRateText}"
+                         FontSize="32" FontWeight="Black"
+                         Foreground="{Binding PassRateColor}"
+                         FontFamily="Consolas, Cascadia Mono, monospace"/>
+            </StackPanel>
+          </Border>
+
+        </Grid>
+
+        <!-- Progress bar -->
+        <Border Grid.Row="1" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,16">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="label" Text="PROGRESS" VerticalAlignment="Center"/>
+              <TextBlock Grid.Column="1"
+                         Text="{Binding ProgressText}"
+                         FontFamily="Consolas, Cascadia Mono, monospace"
+                         FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+            </Grid>
+            <ProgressBar Minimum="0" Maximum="1"
+                         Value="{Binding ProgressRatio}"
+                         Height="12"
+                         Background="{DynamicResource Schlieren.Border}"
+                         Foreground="{DynamicResource Schlieren.Accent}"
+                         CornerRadius="6"/>
+            <TextBlock Text="{Binding CurrentCase}"
+                       FontFamily="Consolas, Cascadia Mono, monospace"
+                       FontSize="11" Foreground="{DynamicResource Schlieren.AccentAlt}"
+                       TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Failures list (clickable) -->
+        <Border Grid.Row="2" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+          <DockPanel>
+            <Border DockPanel.Dock="Top" Background="{DynamicResource Schlieren.PanelDeep}"
+                    BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
+                    Padding="16,8">
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                  <TextBlock Classes="label" Text="FAILURES" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding ClusterFilterLabel}"
+                             FontSize="11" Foreground="{DynamicResource Schlieren.AccentSoft}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Failures.Count, StringFormat='{}{0} shown'}"
+                           FontSize="11" Foreground="{DynamicResource Schlieren.TextDim}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <Button Grid.Column="2" Classes="link" Content="Clear filter"
+                        Command="{Binding ClearClusterFilterCommand}"
+                        VerticalAlignment="Center"/>
+              </Grid>
+            </Border>
+            <TextBlock DockPanel.Dock="Top"
+                       Text="No failures yet — live results stream here. Click a row for Layer 1 diagnoses + mismatches."
+                       IsVisible="{Binding ShowEmptyFailures}"
+                       Foreground="{DynamicResource Schlieren.TextDim}" FontSize="12"
+                       Margin="16,20" TextWrapping="Wrap" TextAlignment="Center"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding Failures}" Margin="0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConformanceFailureRow">
+                    <Button Classes="row"
+                            Click="OnFailureClick"
+                            BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
+                            ToolTip.Tip="Click for Layer 1 diagnosis, mismatches, and cluster">
+                      <StackPanel Spacing="4">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                          <Border Background="{DynamicResource Schlieren.SelectionBg}" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
+                            <TextBlock Text="{Binding CategoryBadge}"
+                                       FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Schlieren.AccentSoft}"
+                                       FontFamily="Consolas, Cascadia Mono, monospace"/>
+                          </Border>
+                          <TextBlock Grid.Column="1" Text="{Binding CaseId}"
+                                     FontFamily="Consolas, Cascadia Mono, monospace"
+                                     FontSize="12" Foreground="{DynamicResource Schlieren.Danger}"
+                                     FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                          <TextBlock Grid.Column="2" Text="{Binding EipCluster}"
+                                     FontSize="10" Foreground="{DynamicResource Schlieren.TextDim}" Margin="8,0,0,0"
+                                     FontFamily="Consolas, Cascadia Mono, monospace"/>
+                        </Grid>
+                        <TextBlock Text="{Binding DiagnosisLine}"
+                                   IsVisible="{Binding HasLayer1}"
+                                   FontFamily="Consolas, Cascadia Mono, monospace"
+                                   FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.Accent}"
+                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Detail}"
+                                   FontFamily="Consolas, Cascadia Mono, monospace"
+                                   FontSize="11" Foreground="{DynamicResource Schlieren.TextMuted}"
+                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding GasLine}"
+                                   FontFamily="Consolas, Cascadia Mono, monospace"
+                                   FontSize="10" Foreground="{DynamicResource Schlieren.TextDim}"/>
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+
+      </Grid>
+
+      <!-- Vertical divider -->
+      <Border Grid.Column="1" Background="{DynamicResource Schlieren.Border}" Width="1"/>
+
+      <!-- RIGHT: clusters + detail inspector -->
+      <Border Grid.Column="2" Background="{DynamicResource Schlieren.PanelDeep}"
+              BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="1,0,0,0"
+              Padding="12,10,12,8">
+        <Grid RowDefinitions="Auto,Auto,*">
+
+          <!-- Fork strip -->
+          <Border Grid.Row="0" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Accent}"
+                  BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding SelectedFork}"
+                           FontSize="18" FontWeight="Black" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                <Border Grid.Column="1" IsVisible="{Binding IsRunning}"
+                        Background="#0d2a30" CornerRadius="4" Padding="8,3">
+                  <TextBlock Text="LIVE" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
+                </Border>
+              </Grid>
+              <TextBlock Text="{Binding ReadySummary}"
+                         FontSize="11" Foreground="{DynamicResource Schlieren.AccentSoft}" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding FixtureSuiteVersion}"
+                         FontFamily="Consolas, Cascadia Mono, monospace"
+                         FontSize="11" Foreground="{DynamicResource Schlieren.TextDim}"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Failure clusters (capped height so inspector keeps room) -->
+          <Border Grid.Row="1" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                  BorderThickness="1" CornerRadius="8" Margin="0,0,0,8" MaxHeight="140">
+            <Grid RowDefinitions="Auto,*">
+              <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="label" Text="FAILURE CLUSTERS" VerticalAlignment="Center"
+                             ToolTip.Tip="Grouped by first causal divergence (phase / inventory rule / fork), not final mismatch type"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Clusters.Count, StringFormat='{}{0}'}"
+                             FontSize="11" Foreground="{DynamicResource Schlieren.TextDim}"/>
+                </Grid>
+              </Border>
+              <TextBlock Grid.Row="1"
+                         Text="Clusters appear as failures stream — click to filter."
+                         IsVisible="{Binding !HasClusters}"
+                         Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" Margin="12,10" TextWrapping="Wrap"/>
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                            IsVisible="{Binding HasClusters}">
+                <ItemsControl ItemsSource="{Binding Clusters}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ConformanceClusterRow">
+                      <Button Classes="row"
+                              Click="OnClusterClick"
+                              BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
+                              ToolTip.Tip="Filter failures to this cluster">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                          <TextBlock Text="{Binding Count, StringFormat=N0}"
+                                     FontFamily="Consolas, Cascadia Mono, monospace"
+                                     FontSize="13" FontWeight="Bold" Foreground="{DynamicResource Schlieren.Warning}"
+                                     Width="40"/>
+                          <StackPanel Grid.Column="1" Spacing="1">
+                            <TextBlock Text="{Binding PrimaryCategory}"
+                                       FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                            <TextBlock Text="{Binding EipCluster}"
+                                       FontSize="10" Foreground="{DynamicResource Schlieren.TextMuted}"
+                                       FontFamily="Consolas, Cascadia Mono, monospace"
+                                       TextTrimming="CharacterEllipsis"/>
+                          </StackPanel>
+                          <TextBlock Grid.Column="2" Text="→" Foreground="{DynamicResource Schlieren.Accent}" Margin="8,0,0,0"/>
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+
+          <!-- Case inspector: takes remaining height; content fully scrollable -->
+          <Border Grid.Row="2" Background="{DynamicResource Schlieren.PanelElevated}" BorderBrush="{DynamicResource Schlieren.Border}"
+                  BorderThickness="1" CornerRadius="8" MinHeight="160">
+            <Grid RowDefinitions="Auto,*">
+              <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1"
+                      Background="{DynamicResource Schlieren.PanelDeep}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="label" Text="CASE INSPECTOR" VerticalAlignment="Center"/>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="link" Content="OPEN IN WORKBENCH"
+                            Command="{Binding OpenSelectedInWorkbenchCommand}"
+                            IsVisible="{Binding HasSelectedFailure}"
+                            ToolTip.Tip="Load this fixture into the workbench (same StateTransition as the suite)"/>
+                    <Button Classes="link" Content="Clear"
+                            Command="{Binding ClearSelectionCommand}"
+                            IsVisible="{Binding HasSelectedFailure}"/>
+                  </StackPanel>
+                </Grid>
+              </Border>
+              <!-- Padding on ScrollViewer does not extend scroll extent in Avalonia —
+                   put bottom margin on the content so the gas hint is never clipped. -->
+              <ScrollViewer Grid.Row="1"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled"
+                            AllowAutoHide="False">
+                <StackPanel Spacing="10" Margin="12,10,16,36">
+                  <TextBlock Text="{Binding DetailTitle}"
+                             FontFamily="Consolas, Cascadia Mono, monospace"
+                             FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                             TextWrapping="Wrap"/>
+                  <TextBlock Text="{Binding DetailSubtitle}"
+                             FontSize="11" Foreground="{DynamicResource Schlieren.AccentAlt}" TextWrapping="Wrap"/>
+                  <!-- Phase 2: Layer 1 DivergenceDiagnostics — primary product signal -->
+                  <Border Background="{DynamicResource Schlieren.SelectionBg}"
+                          BorderBrush="{DynamicResource Schlieren.Accent}" BorderThickness="1"
+                          CornerRadius="6" Padding="10,10"
+                          IsVisible="{Binding HasLayer1Diagnosis}">
+                    <StackPanel Spacing="6">
+                      <TextBlock Classes="label" Text="ROOT CAUSE"/>
+                      <TextBlock Text="{Binding Layer1Headline}"
+                                 FontSize="12" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                 TextWrapping="Wrap"/>
+                      <SelectableTextBlock Text="{Binding Layer1Body}"
+                                           FontFamily="Consolas, Cascadia Mono, monospace"
+                                           FontSize="11" Foreground="{DynamicResource Schlieren.AccentSoft}"
+                                           TextWrapping="Wrap"/>
+                    </StackPanel>
+                  </Border>
+                  <Border Background="{DynamicResource Schlieren.PanelDeep}" CornerRadius="6" Padding="10,8"
+                          IsVisible="{Binding HasSelectedFailure}">
+                    <SelectableTextBlock Text="{Binding DetailBody}"
+                                         FontFamily="Consolas, Cascadia Mono, monospace"
+                                         FontSize="11" Foreground="{DynamicResource Schlieren.TextPrimary}"
+                                         TextWrapping="Wrap"/>
+                  </Border>
+                  <Border Background="{DynamicResource Schlieren.SelectionBg}" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="1"
+                          CornerRadius="6" Padding="10,10"
+                          IsVisible="{Binding HasSelectedFailure}">
+                    <StackPanel Spacing="4">
+                      <TextBlock Classes="label" Text="GAS / CATEGORY HINT"/>
+                      <TextBlock Text="{Binding GasHint}"
+                                 FontSize="11" Foreground="{DynamicResource Schlieren.AccentSoft}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                  </Border>
+                  <TextBlock Text="{Binding DetailSubtitle}"
+                             IsVisible="{Binding !HasSelectedFailure}"
+                             FontSize="11" Foreground="{DynamicResource Schlieren.TextDim}" TextWrapping="Wrap"/>
+                  <TextBlock Text="{Binding FixtureSuiteSource}"
+                             FontFamily="Consolas, Cascadia Mono, monospace"
+                             FontSize="10" Foreground="{DynamicResource Schlieren.TextDim}"
+                             HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+
+    </Grid>
+  </Grid>
+</UserControl>

@@ -1,7 +1,7 @@
 ---
 name: eels-trace-compare
 description: >
-  Diffs two EIP-3155 structLog JSON files step-by-step (e.g., Scrutor trace vs
+  Diffs two EIP-3155 structLog JSON files step-by-step (e.g., Schlieren trace vs
   EELS Python reference output via ethereum-spec-evm.exe) and prints the exact step
   index, PC, opcode, and gas delta where execution diverges.
 ---
@@ -16,12 +16,12 @@ canonical EELS Python reference trace directly using `ethereum-spec-evm.exe`.
 
 ### Mode A: Trace file vs EELS Python Reference (Ground Truth)
 ```powershell
-python tools/eels_trace_compare.py TestResults/struct_log_scrutor.json --eels-fixture fixtures/state_tests/cancun/stExample/add11.json
+python tools/eels_trace_compare.py TestResults/struct_log_schlieren.json --eels-fixture fixtures/state_tests/cancun/stExample/add11.json
 ```
 
 ### Mode B: Direct Trace JSON File Comparison
 ```powershell
-python tools/eels_trace_compare.py TestResults/struct_log_scrutor.json geth_trace.json --label1 Scrutor --label2 Geth
+python tools/eels_trace_compare.py TestResults/struct_log_schlieren.json geth_trace.json --label1 Schlieren --label2 Geth
 ```
 
 ## Output Structure
@@ -29,7 +29,7 @@ python tools/eels_trace_compare.py TestResults/struct_log_scrutor.json geth_trac
 ```
 ══════════════════════════════════════════════════════════════════════
   COMPARING TRACES
-  Scrutor    : TestResults/struct_log_scrutor.json  (142 steps)
+  Schlieren    : TestResults/struct_log_schlieren.json  (142 steps)
   EELS Spec  : TestResults/struct_log_eels.json     (142 steps)
 ══════════════════════════════════════════════════════════════════════
 
@@ -37,7 +37,7 @@ python tools/eels_trace_compare.py TestResults/struct_log_scrutor.json geth_trac
   Step Index : 43
   Reason     : Remaining gas mismatch: 76,400 vs 78,500 (Δ = -2,100)
 
-  Field           | Scrutor                   | EELS Spec               
+  Field           | Schlieren                   | EELS Spec               
   ----------------+---------------------------+--------------------------
   PC              | 102                       | 102                      
   Opcode          | SLOAD                     | SLOAD                    

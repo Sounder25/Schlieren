@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <!-- DO NOT put <AvaloniaResource> for .axaml — Avalonia 11 auto-includes those. -->
+  <!-- Images / icons under Assets must be explicit AvaloniaResources. -->
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Schlieren.Core\Schlieren.Core.csproj" />
+    <ProjectReference Include="..\Schlieren.EELS.Tests\Schlieren.EELS.Tests.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ApplicationIcon Condition="Exists('Assets\\schlieren-icon.ico')">Assets\schlieren-icon.ico</ApplicationIcon>
+  </PropertyGroup>
+</Project>

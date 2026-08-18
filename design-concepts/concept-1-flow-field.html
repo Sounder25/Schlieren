@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCHLIEREN — Concept 1: Flow Field</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONCEPT 1: FLOW FIELD
+   
+   Execution as a spatial phenomenon. Call frames are regions. Gas is a fluid
+   that flows through opcode channels. State mutations are density changes.
+   Divergences are visible shear lines.
+   
+   Visual reference: Schlieren photography of supersonic flow, weather radar,
+   fluid dynamics simulation, topographic pressure maps.
+   
+   Palette: Near-black field + warm white text + single signal color (thermal
+   orange-to-white gradient for intensity). No decoration — only data.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'System';
+  src: local('Inter'), local('SF Pro Text'), local('Segoe UI');
+}
+
+:root {
+  --field: #060606;
+  --surface-1: #0C0C0C;
+  --surface-2: #141414;
+  --surface-3: #1C1C1C;
+  --border: #252525;
+  --border-active: #3A3A3A;
+  
+  --text-primary: #E8E4E0;
+  --text-secondary: #9A9590;
+  --text-tertiary: #5A5550;
+  
+  /* Thermal gradient — signal intensity */
+  --thermal-cold: #1B3A4B;
+  --thermal-cool: #2E6B8A;
+  --thermal-warm: #C85A28;
+  --thermal-hot: #F0A050;
+  --thermal-peak: #FFF0D8;
+  
+  /* Divergence */
+  --diverge-left: #3B82C4;
+  --diverge-right: #C84B3B;
+  
+  --font-ui: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+  
+  --radius-sm: 2px;
+  --radius-md: 4px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--field);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 32px 1fr 28px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── TITLE BAR ───────────────────────────────────────────────────────── */
+.titlebar {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  user-select: none;
+}
+
+.titlebar-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.titlebar-context {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.5px;
+}
+
+.titlebar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.titlebar-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--thermal-warm);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* ─── MAIN WORKSPACE ──────────────────────────────────────────────────── */
+.workspace {
+  display: grid;
+  grid-template-columns: 240px 1fr 320px;
+  overflow: hidden;
+}
+
+/* ─── LEFT: EXECUTION TIMELINE ────────────────────────────────────────── */
+.timeline {
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 12px 16px 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.panel-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.panel-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.frame-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px;
+}
+
+.frame-item {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-bottom: 2px;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+}
+
+.frame-item:hover {
+  background: var(--surface-2);
+}
+
+.frame-item.active {
+  background: var(--surface-2);
+  border-left-color: var(--thermal-warm);
+}
+
+.frame-item.active .frame-depth-bar {
+  background: var(--thermal-warm);
+}
+
+.frame-address {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.frame-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.frame-type {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.frame-depth-bar {
+  height: 2px;
+  background: var(--border);
+  flex: 1;
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.frame-depth-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--thermal-cool), var(--thermal-warm));
+  border-radius: 1px;
+}
+
+.frame-gas {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+}
+
+/* ─── CENTER: FLOW FIELD ──────────────────────────────────────────────── */
+.flow-field {
+  position: relative;
+  overflow: hidden;
+  background: var(--field);
+}
+
+/* The actual flow visualization canvas */
+.flow-canvas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Flow lanes represent sequential opcode execution */
+.flow-region {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Gas pressure visualization — the core Schlieren metaphor */
+.gas-field {
+  position: absolute;
+  inset: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+
+.gas-field-header {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  z-index: 2;
+}
+
+.gas-field-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-tertiary);
+}
+
+.gas-field-value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.gas-field-unit {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* Simulated flow visualization */
+.flow-visualization {
+  position: absolute;
+  inset: 0;
+  top: 48px;
+}
+
+.flow-row {
+  display: flex;
+  height: 32px;
+  align-items: center;
+  padding: 0 16px;
+  gap: 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+
+.flow-row:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+.flow-pc {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-tertiary);
+  width: 32px;
+  text-align: right;
+  margin-right: 12px;
+}
+
+.flow-opcode {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  width: 80px;
+}
+
+.flow-bar-container {
+  flex: 1;
+  height: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.flow-bar {
+  height: 4px;
+  border-radius: 2px;
+  position: relative;
+  transition: width 0.3s ease;
+}
+
+.flow-bar.high {
+  background: linear-gradient(90deg, var(--thermal-warm), var(--thermal-hot));
+  box-shadow: 0 0 8px rgba(200, 90, 40, 0.3);
+}
+
+.flow-bar.medium {
+  background: linear-gradient(90deg, var(--thermal-cool), var(--thermal-warm));
+}
+
+.flow-bar.low {
+  background: var(--thermal-cold);
+}
+
+.flow-gas-cost {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+  width: 48px;
+  text-align: right;
+  margin-left: 8px;
+}
+
+/* Divergence shear line */
+.divergence-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--diverge-left), transparent 40%, transparent 60%, var(--diverge-right));
+  z-index: 3;
+}
+
+.divergence-label {
+  position: absolute;
+  right: 16px;
+  transform: translateY(-12px);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--diverge-right);
+  background: var(--surface-1);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+/* Active step indicator */
+.flow-row.active {
+  background: rgba(200, 90, 40, 0.06);
+}
+
+.flow-row.active .flow-opcode {
+  color: var(--thermal-hot);
+}
+
+.flow-row.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--thermal-warm);
+}
+
+/* State mutation pulse */
+.flow-row.mutation::after {
+  content: 'STATE';
+  position: absolute;
+  right: 80px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--thermal-peak);
+  opacity: 0.7;
+}
+
+/* ─── RIGHT: INSPECTOR ────────────────────────────────────────────────── */
+.inspector {
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.inspector-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.section-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--thermal-warm);
+  background: rgba(200, 90, 40, 0.1);
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+
+/* Stack display */
+.stack-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stack-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.stack-index {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-tertiary);
+  width: 16px;
+}
+
+.stack-value {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-item.changed .stack-value {
+  color: var(--thermal-hot);
+}
+
+/* Memory heatmap */
+.memory-heatmap {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 1px;
+}
+
+.mem-cell {
+  aspect-ratio: 1;
+  border-radius: 1px;
+  background: var(--surface-2);
+  transition: background 0.2s;
+}
+
+.mem-cell.written { background: var(--thermal-warm); }
+.mem-cell.read { background: var(--thermal-cold); }
+.mem-cell.hot { background: var(--thermal-hot); }
+
+/* Storage slots */
+.storage-slot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+}
+
+.slot-key, .slot-value {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-key { color: var(--text-secondary); }
+.slot-value { color: var(--text-primary); text-align: right; }
+
+.slot-value.mutated {
+  color: var(--thermal-hot);
+  position: relative;
+}
+
+/* Gas decomposition */
+.gas-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gas-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gas-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 72px;
+}
+
+.gas-bar-track {
+  flex: 1;
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.gas-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--thermal-cool), var(--thermal-warm));
+}
+
+.gas-number {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+  width: 48px;
+  text-align: right;
+}
+
+/* ─── STATUS BAR ──────────────────────────────────────────────────────── */
+.statusbar {
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 20px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.status-dot.ok { background: #4a9; }
+.status-dot.warn { background: var(--thermal-warm); }
+
+.status-separator {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+}
+
+/* ─── SCRUBBER ────────────────────────────────────────────────────────── */
+.scrubber {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: linear-gradient(transparent, var(--surface-1));
+  display: flex;
+  align-items: flex-end;
+  padding: 0 16px 12px;
+  gap: 12px;
+  z-index: 5;
+}
+
+.scrub-track {
+  flex: 1;
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+
+.scrub-progress {
+  height: 100%;
+  width: 42%;
+  background: linear-gradient(90deg, var(--thermal-cool), var(--thermal-warm));
+  border-radius: 2px;
+}
+
+.scrub-head {
+  position: absolute;
+  top: -4px;
+  left: 42%;
+  width: 2px;
+  height: 11px;
+  background: var(--thermal-hot);
+  border-radius: 1px;
+}
+
+.scrub-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
+</style>
+</head>
+<body>
+
+<!-- TITLE BAR -->
+<div class="titlebar">
+  <span class="titlebar-brand">Schlieren</span>
+  <span class="titlebar-context">osaka · 0xaa…f3c2 · step 847 / 2,014</span>
+  <div class="titlebar-right">
+    <span class="titlebar-context">gas: 7,241,308 remaining</span>
+    <div class="titlebar-indicator"></div>
+  </div>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+  
+  <!-- LEFT: CALL FRAME TIMELINE -->
+  <div class="timeline">
+    <div class="panel-header">
+      <span class="panel-label">Call Frames</span>
+      <span class="panel-count">4 active</span>
+    </div>
+    <div class="frame-list">
+      <div class="frame-item">
+        <div class="frame-address">0x7a25…e91b</div>
+        <div class="frame-meta">
+          <span class="frame-type">origin</span>
+          <div class="frame-depth-bar"><div class="frame-depth-fill" style="width: 100%"></div></div>
+          <span class="frame-gas">10,000,000</span>
+        </div>
+      </div>
+      <div class="frame-item active">
+        <div class="frame-address">0xdead…beef</div>
+        <div class="frame-meta">
+          <span class="frame-type">call</span>
+          <div class="frame-depth-bar"><div class="frame-depth-fill" style="width: 72%"></div></div>
+          <span class="frame-gas">7,241,308</span>
+        </div>
+      </div>
+      <div class="frame-item">
+        <div class="frame-address">0x0000…0009</div>
+        <div class="frame-meta">
+          <span class="frame-type">precompile</span>
+          <div class="frame-depth-bar"><div class="frame-depth-fill" style="width: 12%"></div></div>
+          <span class="frame-gas">3,450</span>
+        </div>
+      </div>
+      <div class="frame-item">
+        <div class="frame-address">0xcafe…1234</div>
+        <div class="frame-meta">
+          <span class="frame-type">delegatecall</span>
+          <div class="frame-depth-bar"><div class="frame-depth-fill" style="width: 45%"></div></div>
+          <span class="frame-gas">4,100,200</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: FLOW FIELD -->
+  <div class="flow-field">
+    <div class="gas-field">
+      <div class="gas-field-header">
+        <span class="gas-field-label">GAS FLOW</span>
+        <span class="gas-field-value">7,241,308</span>
+        <span class="gas-field-unit">remaining</span>
+      </div>
+      <div class="flow-visualization">
+        <div class="flow-row">
+          <span class="flow-pc">840</span>
+          <span class="flow-opcode">PUSH1</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 8%"></div></div>
+          <span class="flow-gas-cost">3</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">842</span>
+          <span class="flow-opcode">MLOAD</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 8%"></div></div>
+          <span class="flow-gas-cost">3</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">843</span>
+          <span class="flow-opcode">DUP2</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 8%"></div></div>
+          <span class="flow-gas-cost">3</span>
+        </div>
+        <div class="flow-row mutation">
+          <span class="flow-pc">844</span>
+          <span class="flow-opcode">SSTORE</span>
+          <div class="flow-bar-container"><div class="flow-bar high" style="width: 92%"></div></div>
+          <span class="flow-gas-cost">20,000</span>
+        </div>
+        <div class="flow-row" style="position: relative;">
+          <div class="divergence-marker" style="top: -1px;">
+            <span class="divergence-label">DIVERGENCE — gas mismatch</span>
+          </div>
+          <span class="flow-pc">845</span>
+          <span class="flow-opcode">PUSH1</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 8%"></div></div>
+          <span class="flow-gas-cost">3</span>
+        </div>
+        <div class="flow-row active" style="position: relative;">
+          <span class="flow-pc">847</span>
+          <span class="flow-opcode">CALL</span>
+          <div class="flow-bar-container"><div class="flow-bar high" style="width: 78%"></div></div>
+          <span class="flow-gas-cost">2,600</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">848</span>
+          <span class="flow-opcode">ISZERO</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 8%"></div></div>
+          <span class="flow-gas-cost">3</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">849</span>
+          <span class="flow-opcode">JUMPI</span>
+          <div class="flow-bar-container"><div class="flow-bar medium" style="width: 25%"></div></div>
+          <span class="flow-gas-cost">10</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">850</span>
+          <span class="flow-opcode">POP</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 6%"></div></div>
+          <span class="flow-gas-cost">2</span>
+        </div>
+        <div class="flow-row mutation">
+          <span class="flow-pc">851</span>
+          <span class="flow-opcode">SSTORE</span>
+          <div class="flow-bar-container"><div class="flow-bar high" style="width: 70%"></div></div>
+          <span class="flow-gas-cost">5,000</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">852</span>
+          <span class="flow-opcode">PUSH2</span>
+          <div class="flow-bar-container"><div class="flow-bar low" style="width: 8%"></div></div>
+          <span class="flow-gas-cost">3</span>
+        </div>
+        <div class="flow-row">
+          <span class="flow-pc">855</span>
+          <span class="flow-opcode">JUMP</span>
+          <div class="flow-bar-container"><div class="flow-bar medium" style="width: 22%"></div></div>
+          <span class="flow-gas-cost">8</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Scrubber -->
+    <div class="scrubber">
+      <span class="scrub-label">0</span>
+      <div class="scrub-track">
+        <div class="scrub-progress"></div>
+        <div class="scrub-head"></div>
+      </div>
+      <span class="scrub-label">2,014</span>
+    </div>
+  </div>
+
+  <!-- RIGHT: INSPECTOR -->
+  <div class="inspector">
+    <div class="inspector-section">
+      <div class="inspector-section-header">
+        <span class="section-label">Stack</span>
+        <span class="section-badge">depth 8</span>
+      </div>
+      <div class="stack-items">
+        <div class="stack-item changed"><span class="stack-index">0</span><span class="stack-value">0x00000000000000000000000000000000000000000000000000000000deadbeef</span></div>
+        <div class="stack-item changed"><span class="stack-index">1</span><span class="stack-value">0x0000000000000000000000000000000000000000000000000000000000002710</span></div>
+        <div class="stack-item"><span class="stack-index">2</span><span class="stack-value">0x0000000000000000000000000000000000000000000000000000000000000000</span></div>
+        <div class="stack-item"><span class="stack-index">3</span><span class="stack-value">0x0000000000000000000000000000000000000000000000000000000000000020</span></div>
+      </div>
+    </div>
+
+    <div class="inspector-section">
+      <div class="inspector-section-header">
+        <span class="section-label">Memory</span>
+        <span class="section-badge">128 bytes</span>
+      </div>
+      <div class="memory-heatmap">
+        <div class="mem-cell read"></div><div class="mem-cell read"></div><div class="mem-cell"></div><div class="mem-cell"></div>
+        <div class="mem-cell written"></div><div class="mem-cell written"></div><div class="mem-cell hot"></div><div class="mem-cell"></div>
+        <div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div>
+        <div class="mem-cell"></div><div class="mem-cell read"></div><div class="mem-cell"></div><div class="mem-cell"></div>
+        <div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell written"></div><div class="mem-cell written"></div>
+        <div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div>
+        <div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div>
+        <div class="mem-cell read"></div><div class="mem-cell"></div><div class="mem-cell"></div><div class="mem-cell"></div>
+      </div>
+    </div>
+
+    <div class="inspector-section">
+      <div class="inspector-section-header">
+        <span class="section-label">Storage</span>
+        <span class="section-badge">2 mutations</span>
+      </div>
+      <div class="storage-slot">
+        <span class="slot-key">0x00</span>
+        <span class="slot-value mutated">0x…0001 → 0x…0002</span>
+      </div>
+      <div class="storage-slot">
+        <span class="slot-key">0x01</span>
+        <span class="slot-value">0x…dead…beef</span>
+      </div>
+      <div class="storage-slot">
+        <span class="slot-key">0x03</span>
+        <span class="slot-value mutated">0x…0000 → 0x…2710</span>
+      </div>
+    </div>
+
+    <div class="inspector-section">
+      <div class="inspector-section-header">
+        <span class="section-label">Gas Decomposition</span>
+      </div>
+      <div class="gas-breakdown">
+        <div class="gas-row">
+          <span class="gas-label">Intrinsic</span>
+          <div class="gas-bar-track"><div class="gas-bar-fill" style="width: 21%"></div></div>
+          <span class="gas-number">21,000</span>
+        </div>
+        <div class="gas-row">
+          <span class="gas-label">Execution</span>
+          <div class="gas-bar-track"><div class="gas-bar-fill" style="width: 45%"></div></div>
+          <span class="gas-number">1,241,392</span>
+        </div>
+        <div class="gas-row">
+          <span class="gas-label">Storage</span>
+          <div class="gas-bar-track"><div class="gas-bar-fill" style="width: 82%"></div></div>
+          <span class="gas-number">1,480,000</span>
+        </div>
+        <div class="gas-row">
+          <span class="gas-label">Memory</span>
+          <div class="gas-bar-track"><div class="gas-bar-fill" style="width: 8%"></div></div>
+          <span class="gas-number">16,300</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <div class="status-item">
+    <div class="status-dot ok"></div>
+    <span>EELS oracle connected</span>
+  </div>
+  <div class="status-separator"></div>
+  <div class="status-item">
+    <div class="status-dot ok"></div>
+    <span>REVM agreement</span>
+  </div>
+  <div class="status-separator"></div>
+  <span>fork: osaka · depth: 2 · pc: 847 · gas used: 2,758,692</span>
+  <div style="margin-left: auto;">
+    <span>Schlieren 1.0.0 · .NET 8</span>
+  </div>
+</div>
+
+</body>
+</html>

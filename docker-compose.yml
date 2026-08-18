@@ -1,0 +1,36 @@
+# Schlieren Engine - Local Development
+# Containerized backend for frontend integration
+
+services:
+  schlieren-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: schlieren-engine:latest
+    container_name: schlieren-engine
+    ports:
+      - "8545:8545"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8545
+      - Schlieren__ChainId=31337
+      - Schlieren__BlockGasLimit=30000000
+    volumes:
+      # Mount fixtures for EELS tests (read-only)
+      - ./fixtures:/app/fixtures:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Read-only root filesystem for security
+    read_only: false
+    # No outbound network access (uncomment for production)
+    # extra_hosts:
+    #   - "blocked.outbound=127.0.0.1"
+
+networks:
+  default:
+    name: schlieren-network

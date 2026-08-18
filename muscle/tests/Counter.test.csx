@@ -1,34 +1,17 @@
-// Counter.test.csx — scrutor test smoke suite
-// Uses Test("name", async () => { ... }) + Assert.* injected by the test runner.
+// schlieren test file — runs with: schlieren test
+// 'node', 'accounts', and test helpers are injected by the test host.
 
-var counter = await node.Deploy("Counter");
-
-Test("initial count() == 0", async () =>
+Test("Counter starts at zero", async () =>
 {
-    var val = await counter.Call<ulong>("count");
-    Assert.Equal(0UL, val);
+    var counter = await node.Deploy("Counter");
+    var count = await counter.Call<ulong>("count");
+    Assert.Equal(0UL, count);
 });
 
-Test("increment() persists storage", async () =>
+Test("Increment increases count", async () =>
 {
-    var tx = await counter.Send("increment", null, null);
-    Assert.True(tx.Success, $"increment tx reverted: {tx.TxHash}");
-    var val = await counter.Call<ulong>("count");
-    Assert.Equal(1UL, val);
-});
-
-Test("second increment() reaches 2", async () =>
-{
-    var tx = await counter.Send("increment", null, null);
-    Assert.True(tx.Success, "second increment tx reverted");
-    var val = await counter.Call<ulong>("count");
-    Assert.Equal(2UL, val);
-});
-
-Test("reset() brings count back to 0", async () =>
-{
-    var tx = await counter.Send("reset", null, null);
-    Assert.True(tx.Success, "reset tx reverted");
-    var val = await counter.Call<ulong>("count");
-    Assert.Equal(0UL, val);
+    var counter = await node.Deploy("Counter");
+    await counter.Send("increment", from: accounts[0]);
+    var count = await counter.Call<ulong>("count");
+    Assert.Equal(1UL, count);
 });

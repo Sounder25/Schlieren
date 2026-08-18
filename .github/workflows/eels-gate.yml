@@ -21,10 +21,10 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Build solution
-        run: dotnet build Scrutor.sln -c Release
+        run: dotnet build Schlieren.sln -c Release
 
       - name: Run Core Unit Tests
-        run: dotnet test Scrutor.Tests/Scrutor.Tests.csproj -c Release --no-build
+        run: dotnet test Schlieren.Tests/Schlieren.Tests.csproj -c Release --no-build
 
       - name: Run EELS Cancun Conformance & Taxonomy Drill
         env:
@@ -33,7 +33,7 @@ jobs:
           EELS_INCLUDE_SUBDIRS: "1"
           EELS_MAX_CASES: "99999"
         run: |
-          dotnet test Scrutor.EELS.Tests/Scrutor.EELS.Tests.csproj \
+          dotnet test Schlieren.EELS.Tests/Schlieren.EELS.Tests.csproj \
             -c Release \
             --no-build \
             --filter "EelsTaxonomyDrill|CancunOpcodeGasConformanceTests" \
@@ -45,5 +45,5 @@ jobs:
         with:
           name: eels-conformance-results
           path: |
-            Scrutor.EELS.Tests/TestResults/*.md
-            Scrutor.EELS.Tests/TestResults/*.trx
+            Schlieren.EELS.Tests/TestResults/*.md
+            Schlieren.EELS.Tests/TestResults/*.trx

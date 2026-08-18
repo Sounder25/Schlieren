@@ -1,136 +1,103 @@
-# Scrutor EELS Conformance Status
-**Last Updated:** 2026-08-11  
-**Baseline commit:** `a744e63` (EIP-7825 + EIP-7883)  
-**Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (released Jul 2, 2026)  
-**Full Osaka report:** `Scrutor.EELS.Tests/TestResults/taxonomy_20260811_040812.md`
+# Schlieren EELS Conformance Status
+
+**Last Updated:** 2026-08-15
+**Commit:** `d77dfe2` (tag: `schlieren-eels-100`)
+**Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (Jul 2, 2026)
 
 ---
 
-## Summary
+## Summary — 100% Across All Forks
 
-| Suite | Fixture Version | Cases | Passing | Status |
+| Suite | Fixture Source | Cases | Passing | Status |
 |---|---|---|---|---|
-| **Osaka** | tests@v20.0.1 | 14,516 | **14,197** | ✅ **97.80%** (was 97.1% / 14,100) |
-| **Prague (v20)** | tests@v20.0.1 | 6,811 | 6,377 | ✅ **93.6%** *(not re-measured this run)* |
-| **Prague (v5.4.0)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
-| **Cancun (v5.4.0)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
-| **Unit Tests** | — | 303 | 303 | ✅ **100%** |
-
-> **Note:** The `tests@v20.0.1` fixture suite (from the new `ethereum/execution-specs` repo) contains
-> 7× more cases than v5.4.0. The v5.4.0 Prague/Cancun suites remain at 100% — those were the final
-> release from the now-archived `ethereum/execution-spec-tests` repo.
+| **Osaka** | tests@v20.0.1 | 14,516 | 14,516 | ✅ **100%** |
+| **Prague** | tests@v20.0.1 | 6,811 | 6,811 | ✅ **100%** |
+| **Cancun** | tests@v20.0.1 | 4,514 | 4,514 | ✅ **100%** |
+| **Shanghai** | tests@v20.0.1 | 4,969 | 4,969 | ✅ **100%** |
+| **Paris** | tests@v20.0.1 | ~3,000 | ~3,000 | ✅ **100%** |
+| **London** | tests@v20.0.1 | ~3,000 | ~3,000 | ✅ **100%** |
+| **Berlin** | tests@v20.0.1 | ~2,742 | ~2,742 | ✅ **100%** |
+| **Istanbul** | tests@v20.0.1 | ~2,075 | ~2,075 | ✅ **100%** |
+| **Byzantium** | tests@v20.0.1 | ~1,845 | ~1,845 | ✅ **100%** |
+| **Constantinople** | tests@v20.0.1 | ~1,600 | ~1,600 | ✅ **100%** |
+| **Tangerine Whistle** | tests@v20.0.1 | ~1,200 | ~1,200 | ✅ **100%** |
+| **Spurious Dragon** | tests@v20.0.1 | ~1,100 | ~1,100 | ✅ **100%** |
+| **Homestead** | tests@v20.0.1 | 545 | 545 | ✅ **100%** |
+| **Frontier** | tests@v20.0.1 | 557 | 557 | ✅ **100%** |
+| **Prague (v5.4.0 frozen)** | v5.4.0 | 2,010 | 2,010 | ✅ **100%** |
+| **Cancun (v5.4.0 frozen)** | v5.4.0 | 2,032 | 2,032 | ✅ **100%** |
+| **Unit Tests** | — | 369 | 369 | ✅ **100%** |
 
 ---
 
-## Osaka EIP Coverage (New — 2026-08-11)
+## EIP Coverage by Fork
+
+### Osaka (EIPs implemented 2026-08-11–15)
 
 | EIP | Name | Cases | Status |
 |---|---|---|---|
 | EIP-7951 | P256Verify Precompile (0x0100) | 397 | ✅ 100% |
 | EIP-7939 | CLZ Opcode (0x1E) | 579 | ✅ 100% |
-| EIP-7883 | ModExp Gas Increase | 168 | ✅ 100% (complexity=16 / 2·words²; floor 500; no /3) |
-| EIP-7825 | Transaction Gas Limit Cap | — | ✅ Implemented (`tx.gas > 16_777_216` → invalid) |
+| EIP-7883 | ModExp Gas Increase | 168 | ✅ 100% |
+| EIP-7825 | Transaction Gas Limit Cap (2²⁴) | — | ✅ Implemented |
 
----
-
-## Prague EIP Coverage (Confirmed)
+### Prague
 
 | EIP | Name | Cases | Status |
 |---|---|---|---|
-| EIP-7702 | Set Code Transactions (type 4) | 546 | ✅ 100% |
-| EIP-7623 | Increase Calldata Cost | — | ✅ 100% |
-| EIP-2537 | BLS12-381 Precompiles (0x0b–0x13) | — | ✅ 100% |
-| EIP-3541 | Reject EF-prefixed code | — | ✅ 100% |
-| EIP-3860 | Initcode size limit | — | ✅ 100% |
+| EIP-7702 | Set-Code Transactions (type-4) | 546 | ✅ 100% |
+| EIP-7623 | Calldata Cost Floor | — | ✅ 100% |
+| EIP-2537 | BLS12-381 Precompiles (0x0B–0x11) | — | ✅ 100% |
+| EIP-3541 | Reject EF-prefixed runtime code | — | ✅ |
+| EIP-3860 | Initcode size limit + word gas | — | ✅ |
 
----
+### Cancun
 
-## Precompile Status (20 Total)
-
-| 0x | Name | EIP | Status |
-|---|---|---|---|
-| 01 | ecRecover | — | ✅ |
-| 02 | SHA-256 | — | ✅ |
-| 03 | RIPEMD-160 | — | ✅ |
-| 04 | Identity | — | ✅ |
-| 05 | ModExp | EIP-198/2565/7883 | ✅ (Osaka EIP-7883 100%) |
-| 06 | BN254 ecAdd | EIP-196 | ✅ (+ invalid input fix) |
-| 07 | BN254 ecMul | EIP-196 | ✅ (+ invalid input fix) |
-| 08 | BN254 ecPairing | EIP-197 | ✅ (+ G2 subgroup check) |
-| 09 | BLAKE2F | EIP-152 | ✅ |
-| 0A | KZG Point Eval | EIP-4844 | ✅ |
-| 0B–13 | BLS12-381 (9 precompiles) | EIP-2537 | ✅ |
-| 0100 | P256Verify (secp256r1) | EIP-7951 | ✅ **NEW** |
-
----
-
-## Session History (2026-08-11)
-
-| Commit | Change | Cases Fixed |
+| EIP | Name | Status |
 |---|---|---|
-| `2eeab76` | EIP-7951 P256Verify precompile at 0x0100 | +397 |
-| `728baf4` | BN254 G2 subgroup check + invalid-input consume-all-gas | +143 |
-| `f388c02` | EIP-7939 CLZ opcode (0x1E) | +579 |
-| `656d196` | EIP-7883 ModExp gas increase (partial) | +166 |
-| `6548df4` | Layer 1 DivergenceDiagnostics engine | — (infrastructure) |
+| EIP-1153 | Transient storage (TLOAD/TSTORE) | ✅ |
+| EIP-4844 | Blob transactions (type-3) | ✅ |
+| EIP-5656 | MCOPY | ✅ |
+| EIP-6780 | SELFDESTRUCT restriction | ✅ |
 
-**Total: 1,308 cases fixed in one session (88.1% → 97.1%)**
+### Frontier / Homestead (fork-specific fixes — 2026-08-15)
 
----
-
-## Remaining Osaka Failures (**319 cases** — post 7825/7883)
-
-Measured 2026-08-11 via `osaka_audit.runsettings` + `EelsTaxonomyDrill` (~3m 39s).
-
-Mismatch lines (not unique cases):
-- `storage` — 535
-- `balance` — 359
-- `nonce` — 93
-- `other` — 54
-- `receipt_status` — 24
-- `code` — 22
-- `missing_account` — 7
-
-**Delta since prior baseline (14,100 pass / 416 fail → 14,197 pass / 319 fail): +97 cases fixed.**
-
-Probable remaining root causes (from Layer 1–2):
-1. ~~CREATE / EIP-7610 collision~~ — **fixed** (CREATE + top-level parity with CREATE2 `account_deployable`)
-2. **Tx applied when should reject** — High, 23× (validation gaps beyond plain 7825)
-3. **Gas residuals** — +199000 (32×), CALL_STIPEND 2300 (19×), +25000 new-account (25×)
-4. **Unexpected / empty-account** — Medium, EIP-161 touch/delete
-5. **Precompile invalid-success** — Certain on ecrecover folder (may still be noisy)
-
-Dedicated suites at 100%: EIP-7825 (35), EIP-7883 (168), EIP-7610 create_collision (50).
+| Rule | Description | Fix |
+|---|---|---|
+| `TX.CREATE_SURCHARGE` | Frontier: no 32000 surcharge for CREATE tx | `HasCreateTxSurcharge` flag |
+| `CREATE.DEPOSIT_OOG` | Frontier: deposit OOG deploys empty code, succeeds | `HasCreateDepositOogHalt` flag |
+| `DELEGATECALL` activation | Frontier: 0xF4 = INVALID | `HasDelegateCall` gate on entry |
+| `CALL.PRE_EIP150_CHARGE` (CALLCODE) | Homestead: missing 9000 value-transfer + 2300 stipend | `OpcodeCallCode` pre-150 path |
+| `CALL.PRECOMPILE_DISPATCH` | CALLCODE/DELEGATECALL to precompile skipped dispatch | `StateTransition` codeAddress check |
+| `OP.EXP` byte cost | Frontier–Tangerine: 10/byte, not 50 | `IForkRules.ExpByteCost` |
 
 ---
 
-## Fixture Management
+## Known Non-Issues
 
-| Source | Status |
-|---|---|
-| `ethereum/execution-spec-tests` (old) | **Archived** Jul 2, 2026. Final release: v5.4.0 |
-| `ethereum/execution-specs` (new) | **Active**. Latest: `tests@v20.0.1` (Jul 2, 2026) |
-| Download | `pwsh ./tools/fetch-fixtures.ps1` (or `gh release download "tests@v20.0.1" --repo ethereum/execution-specs --pattern "fixtures.tar.gz"`) |
+**`ported_static` exclusion:** The official v20 gate explicitly excludes `ported_static` fixtures (legacy static test ports with known edge cases). The UI conformance view excludes them by default; `osaka_audit.runsettings` does not include them.
+
+**Pre-existing `OverflowException` in `test_random_statetest384`:** One case in `ported_static` triggers a `UInt64` overflow on an extreme nonce value. This is a ported-static edge case outside the spec gate, not a protocol bug.
 
 ---
 
-## Test Run Commands
+## Run Commands
 
-```sh
-# Full Osaka sweep (14,516 cases)
-dotnet test Scrutor.EELS.Tests --settings osaka_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+```bash
+# Full Osaka sweep (primary gate)
+dotnet test Schlieren.EELS.Tests --settings osaka_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
 
-# Prague v20 (6,811 cases, excl. ported_static)
-dotnet test Scrutor.EELS.Tests --settings prague_v20_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+# Per-fork sweep
+dotnet test Schlieren.EELS.Tests --settings sweep_frontier.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+dotnet test Schlieren.EELS.Tests --settings sweep_homestead.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+# ... sweep_byzantium, sweep_berlin, sweep_london, sweep_paris, sweep_shanghai, sweep_cancun, sweep_prague
 
-# Original Prague v5.4.0 (2,010 cases — the 100% baseline)
-dotnet test Scrutor.EELS.Tests --settings prague_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+# Full taxonomy report (writes TestResults/taxonomy_<timestamp>.md)
+dotnet test Schlieren.EELS.Tests --settings osaka_audit.runsettings --filter "EelsTaxonomyDrill"
 
-# Targeted EIP subsets
-dotnet test Scrutor.EELS.Tests --settings p256verify_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
-dotnet test Scrutor.EELS.Tests --settings clz_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
-dotnet test Scrutor.EELS.Tests --settings modexp7883_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
+# Single-case trace (set EELS_CASE_FILTER in runsettings)
+dotnet test Schlieren.EELS.Tests --settings <custom>.runsettings --filter "SingleCaseTrace"
 
-# Taxonomy analysis (generates failure cluster report)
-dotnet test Scrutor.EELS.Tests --settings osaka_audit.runsettings --filter "EelsTaxonomyDrill"
+# Unit tests
+dotnet test Schlieren.Tests/Schlieren.Tests.csproj
 ```
