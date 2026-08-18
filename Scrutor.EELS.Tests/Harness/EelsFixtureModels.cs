@@ -19,7 +19,14 @@ public sealed record EelsStateCase(
     Transaction Transaction,
     IReadOnlyDictionary<Address, EelsFixtureAccount> PreState,
     IReadOnlyDictionary<Address, EelsFixtureAccount> ExpectedPostState,
-    bool? ExpectedReceiptStatus);
+    bool? ExpectedReceiptStatus,
+    /// <summary>
+    /// When set, the fixture declares the transaction as invalid (expectException field).
+    /// The executor should treat this case as "tx should be rejected" — no state change,
+    /// receipt status = false.  Populated from EELS modern-format fixture variants that
+    /// carry an <c>expectException</c> property.
+    /// </summary>
+    string? ExpectedException = null);
 
 public sealed record EelsCaseExecutionReport(
     string CaseId,

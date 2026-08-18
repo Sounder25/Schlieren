@@ -22,6 +22,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Scrutor.Core\Scrutor.Core.csproj" />
+    <ProjectReference Include="..\Scrutor.EELS.Tests\Scrutor.EELS.Tests.csproj" />
   </ItemGroup>
   <PropertyGroup>
     <ApplicationIcon Condition="Exists('Assets\\scrutor-icon.ico')">Assets\scrutor-icon.ico</ApplicationIcon>

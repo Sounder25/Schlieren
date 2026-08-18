@@ -23,6 +23,8 @@ public static class CryptoUtils
 
     /// <summary>
     /// Recovers the sender address from a signed transaction.
+    /// Enforces EIP-2 Low-S rule (s ≤ n/2) — use for transaction validation only.
+    /// For the ecRecover precompile use <see cref="RecoverAddressForPrecompile"/>.
     /// </summary>
     public static Address RecoverAddress(byte[] hash32, int v, byte[] r, byte[] s)
     {
@@ -46,7 +48,7 @@ public static class CryptoUtils
         if (sBI.CompareTo(BigInteger.One) < 0 || sBI.CompareTo(n) >= 0)
             throw new ArgumentException("s out of range");
         
-        // Low-S check
+        // Low-S check (transaction validation — EIP-2 Homestead+)
         var halfN = n.ShiftRight(1);
         if (sBI.CompareTo(halfN) > 0)
             throw new ArgumentException("s must be in lower half of n (Low-S rule)");
@@ -86,6 +88,58 @@ public static class CryptoUtils
         }
 
         throw new InvalidOperationException("Failed to recover public key from signature using any recovery id (0..3).");
+    }
+
+    /// <summary>
+    /// Recovers an address from a signature — for use by the ecRecover precompile (0x01) ONLY.
+    /// Unlike <see cref="RecoverAddress"/>, this does NOT enforce the Low-S rule, because
+    /// EELS ecrecover accepts any s in [1, N) (the Low-S rule only applies to tx signing).
+    /// Returns null for out-of-range r/s or if recovery produces no valid key.
+    /// </summary>
+    public static Address? RecoverAddressForPrecompile(byte[] hash32, int v, byte[] r, byte[] s)
+    {
+        if (hash32 is null || hash32.Length != 32) return null;
+        if (r is null || s is null) return null;
+
+        r = Pad32(r);
+        s = Pad32(s);
+
+        var rBI = new BigInteger(1, r);
+        var sBI = new BigInteger(1, s);
+
+        var curve = Org.BouncyCastle.Asn1.X9.ECNamedCurveTable.GetByName("secp256k1");
+        var n = curve.N;
+        // Range check: r and s must be in [1, N)  (but NO Low-S enforcement)
+        if (rBI.CompareTo(BigInteger.One) < 0 || rBI.CompareTo(n) >= 0) return null;
+        if (sBI.CompareTo(BigInteger.One) < 0 || sBI.CompareTo(n) >= 0) return null;
+
+        var sig = new ECDSASignature(rBI, sBI);
+        int? preferred = TryMapVToRecoveryId(v);
+
+        foreach (var recId in RecoveryIdCandidates(preferred))
+        {
+            try
+            {
+                var ecKey = ECKey.RecoverFromSignature(recId, sig, hash32, false);
+                if (ecKey == null) continue;
+
+                var pubKey65 = ecKey.GetPubKey(false);
+                var pubKeyNoPrefix = pubKey65.Skip(1).ToArray();
+                var keccak = _keccak.CalculateHash(pubKeyNoPrefix);
+                var addrBytes = keccak.Skip(12).ToArray();
+                return new Address(addrBytes);
+            }
+            catch (ArgumentException ex) when (ex.Message.Contains("Invalid point compression", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            catch
+            {
+                continue;
+            }
+        }
+
+        return null; // no valid recovery id found
     }
 
     public static Address DeriveContractAddress(Address sender, ulong nonce)

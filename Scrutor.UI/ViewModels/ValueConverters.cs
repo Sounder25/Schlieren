@@ -75,10 +75,28 @@ public class BoolToRunLabelConverter : IValueConverter
 public class BoolToPlayLabelConverter : IValueConverter
 {
     public static readonly BoolToPlayLabelConverter Instance = new();
-
+    
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is true ? "⏸ PAUSE" : "▶ PLAY";
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();
+}
+
+// Progress ratio × container width → pixel width for the progress bar fill
+public class ProgressWidthConverter : IMultiValueConverter
+{
+    public static readonly ProgressWidthConverter Instance = new();
+
+    public object Convert(System.Collections.Generic.IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (values.Count >= 2
+            && values[0] is double ratio
+            && values[1] is double containerWidth
+            && containerWidth > 0)
+        {
+            return Math.Max(0, Math.Min(containerWidth, ratio * containerWidth));
+        }
+        return 0.0;
+    }
 }

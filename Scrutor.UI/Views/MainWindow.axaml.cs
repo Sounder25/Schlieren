@@ -1,7 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Scrutor.UI.Branding;
+using Scrutor.UI.Services;
 using Scrutor.UI.ViewModels;
 
 namespace Scrutor.UI.Views;
@@ -12,11 +15,119 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         KeyDown += OnWindowKeyDown;
+        BuildAppearanceMenu();
+        ApplyWatermarkArt(SkinService.Current);
+        SkinService.SkinChanged += OnSkinChanged;
     }
 
     public MainWindow(WorkbenchViewModel viewModel) : this()
     {
         DataContext = viewModel;
+    }
+
+    private void OnSkinChanged(UiSkin skin)
+    {
+        RefreshAppearanceChecks();
+        ApplyWatermarkArt(skin);
+    }
+
+    private void BuildAppearanceMenu()
+    {
+        var menu = this.FindControl<MenuItem>("AppearanceMenu");
+        if (menu is null) return;
+
+        menu.Items.Clear();
+
+        // Category order for eth/sounder storytelling
+        var order = new[] { "Comfort", "Brand", "Sounder", "Ethereum Dev", "Utility" };
+        foreach (var cat in order)
+        {
+            var skins = SkinCatalog.All.Where(s => s.Category == cat).ToList();
+            if (skins.Count == 0) continue;
+
+            var group = new MenuItem { Header = cat, IsEnabled = true };
+            foreach (var skin in skins)
+            {
+                var item = new MenuItem
+                {
+                    Header = skin.DisplayName,
+                    Tag = skin.Id,
+                    ToggleType = MenuItemToggleType.Radio,
+                    GroupName = "ScrutorSkin",
+                };
+                ToolTip.SetTip(item, skin.Description);
+                item.Click += (_, _) => SkinService.Apply(skin.Id);
+                group.Items.Add(item);
+            }
+            menu.Items.Add(group);
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Tip: Arctic Night = long sessions · Eth Violet / Void = screenshots",
+            IsEnabled = false
+        });
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Sounder Field Ops uses #FF6A00 blaze + navy from Sounder brand",
+            IsEnabled = false
+        });
+
+        RefreshAppearanceChecks();
+    }
+
+    private void RefreshAppearanceChecks()
+    {
+        var menu = this.FindControl<MenuItem>("AppearanceMenu");
+        if (menu is null) return;
+        var current = SkinService.Current.Id;
+        foreach (var obj in menu.Items)
+        {
+            if (obj is not MenuItem group) continue;
+            foreach (var child in group.Items)
+            {
+                if (child is MenuItem { Tag: string id } mi)
+                    mi.IsChecked = string.Equals(id, current, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    /// <summary>Swap center-panel watermark art to match the active skin motif.</summary>
+    private void ApplyWatermarkArt(UiSkin skin)
+    {
+        var scrutor = this.FindControl<Control>("WatermarkScrutor");
+        var eth = this.FindControl<Control>("WatermarkEth");
+        var sounder = this.FindControl<Control>("WatermarkSounder");
+        var voidSigil = this.FindControl<Control>("WatermarkVoid");
+
+        void Show(Control? c, bool on)
+        {
+            if (c is not null) c.IsVisible = on;
+        }
+
+        Show(scrutor, false);
+        Show(eth, false);
+        Show(sounder, false);
+        Show(voidSigil, false);
+
+        switch (skin.ArtMotif)
+        {
+            case SkinArtMotif.EthDiamond:
+                Show(eth, true);
+                break;
+            case SkinArtMotif.SounderSigil:
+                Show(sounder, true);
+                break;
+            case SkinArtMotif.VoidSigil:
+                Show(voidSigil, true);
+                break;
+            case SkinArtMotif.None:
+                break;
+            default:
+                Show(scrutor, true);
+                break;
+        }
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -90,14 +201,57 @@ public partial class MainWindow : Window
 
     private void OnCallGraphClick(object? sender, PointerPressedEventArgs e)
     {
+        SetConformanceMode(false);
         if (DataContext is WorkbenchViewModel vm)
             vm.ShowCallGraphCommand.Execute(null);
     }
 
     private void OnSourceClick(object? sender, PointerPressedEventArgs e)
     {
+        SetConformanceMode(false);
         if (DataContext is WorkbenchViewModel vm)
             vm.ShowSourceCommand.Execute(null);
+    }
+
+    private void OnConformanceClick(object? sender, PointerPressedEventArgs e)
+    {
+        var panel = this.FindControl<ConformanceView>("ConformancePanel");
+        if (panel is null) return;
+
+        // Toggle: open if closed, close if already open
+        SetConformanceMode(!panel.IsVisible);
+    }
+
+    /// <summary>
+    /// Conformance and workbench use different fork state. Hide workbench-only
+    /// controls (especially the top FORK combo) so they can't look "live" for the suite.
+    /// </summary>
+    private void SetConformanceMode(bool enabled)
+    {
+        if (this.FindControl<ConformanceView>("ConformancePanel") is { } panel)
+            panel.IsVisible = enabled;
+
+        if (this.FindControl<Grid>("MainWorkbenchGrid") is { } grid)
+            grid.IsVisible = !enabled;
+
+        SetVisible("WorkbenchTopCenter", !enabled);
+        SetVisible("WorkbenchTopActions", !enabled);
+        SetVisible("WorkbenchTabActions", !enabled);
+        SetVisible("WorkbenchBytecodeBar", !enabled);
+        SetVisible("WorkbenchFindingsBar", !enabled);
+        SetVisible("ConformanceModeBadge", enabled);
+
+        if (this.FindControl<Border>("ConformanceTab") is { } tab)
+        {
+            var hex = enabled ? SkinService.Current.SelectionBg : SkinService.Current.PanelBg;
+            tab.Background = new SolidColorBrush(Color.Parse(hex));
+        }
+    }
+
+    private void SetVisible(string name, bool visible)
+    {
+        if (this.FindControl<Control>(name) is { } c)
+            c.IsVisible = visible;
     }
 
     private void OnInstructionClick(object? sender, PointerPressedEventArgs e)

@@ -39,25 +39,48 @@ public sealed class OpcodeCreate : IOpcode
         // Derive address
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
         var newAddress = CryptoUtils.DeriveContractAddress(context.ContractAddress, nonce);
-        context.Access.WarmAddress(newAddress);
-        
-        // Increment nonce of creator
-        context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
-        // Sub-call for initialization
-        if (context.SubCall == null)
-             return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-
-        // EIP-150: forward at most 63/64 of remaining gas to child.
+        // EELS pre-checks (identical to the balance/nonce/depth guards in EELS create opcode):
+        //   • sender.balance < endowment
+        //   • sender.nonce == u64::MAX  (would overflow if bumped)
+        //   • depth exceeded
+        // On any of these: refund forwarded gas, push 0, no nonce bump.
+        // IMPORTANT: DO NOT warm contractAddress here — EELS only adds to accessed_addresses
+        // AFTER these checks pass (line 99 of generic_create). Warming before the check
+        // poisons the access list, causing downstream BALANCE/EXTCODE to use warm cost (100)
+        // instead of cold (2600), producing a 2500-gas delta.
+        var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
         var parentGasBeforeChild = context.GasLimit - context.GasUsed;
         var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
-        var parentReserve = parentGasBeforeChild - forwardedGas;
+
+        if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
+        {
+            // EIP-211: Clear return data buffer even on early-exit pre-checks.
+            context.LastReturnData = Array.Empty<byte>();
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // EIP-2929: warm the contract address AFTER pre-checks pass (EELS generic_create line 99)
+        context.Access.WarmAddress(newAddress);
+
+        // Increment nonce of creator (after guards pass)
+        context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
 
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
+
+        // EELS account_deployable() / EIP-7610: CREATE collides when destination has
+        // nonzero nonce, existing code, or any storage. Message gas already reserved
+        // (EIP-150) remains consumed; creator nonce already bumped.
+        if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
+        {
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
 
         // Construct internal tx for creation
         var tx = new Transaction
@@ -95,7 +118,18 @@ public sealed class OpcodeCreate : IOpcode
                 // Exceptional halt: out of gas during code deposit.
                 // The child's remaining gas is consumed (not refunded to parent).
                 // EIP-161 / EELS: the creation frame's state must be fully reverted —
-                // the account (nonce=1, any balance credit) must not exist in final state.
+                // the account (nonce=1, any balance, storage) must not exist in final state.
+                // DeleteAccount alone doesn't zero overlay buffer writes (nonce=1, value credit).
+                // Explicitly reset nonce + code + balance so the overlay buffer doesn't commit them.
+                var depositOogBal = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                if (depositOogBal > 0)
+                {
+                    var callerBalOog = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                    context.GlobalState.SetBalance(context.ContractAddress, callerBalOog + depositOogBal);
+                }
+                context.GlobalState.SetNonce(newAddress, 0);
+                context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
                 context.GlobalState.DeleteAccount(newAddress);
                 context.Stack.TryPush(0);
                 // No RefundGas — child gas is consumed by exceptional halt.
@@ -356,7 +390,9 @@ public sealed class OpcodeCall : IOpcode
             if (callerBalance < value)
             {
                 // The CALL extras remain charged; return the unused child allocation.
+                // EELS: evm.gas_left += message_call_gas.sub_call; evm.return_data = b""
                 context.RefundGas(forwardedGas + stipend);
+                context.LastReturnData = Array.Empty<byte>();
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
             }
@@ -475,19 +511,30 @@ public sealed class OpcodeCreate2 : IOpcode
 
         // Derive address using salt
         var newAddress = CryptoUtils.DeriveContractAddress2(context.ContractAddress, paddedSalt, initCode);
-        context.Access.WarmAddress(newAddress);
-        
-        // Increment nonce of creator
+
+        // EELS pre-checks before nonce bump (balance, nonce overflow, depth)
+        // IMPORTANT: DO NOT warm contractAddress before these checks — same as CREATE.
         var nonce = await context.GlobalState.GetNonceAsync(context.ContractAddress, ct);
+        var senderBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+        var parentGasBeforeChild = context.GasLimit - context.GasUsed;
+        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
+
+        if (senderBalance < value || nonce == ulong.MaxValue || context.CallDepth >= 1024)
+        {
+            // EIP-211: Clear return data buffer even on early-exit pre-checks.
+            context.LastReturnData = Array.Empty<byte>();
+            context.Stack.TryPush(0);
+            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+        }
+
+        // EIP-2929: warm the contract address AFTER pre-checks pass (EELS generic_create line 99)
+        context.Access.WarmAddress(newAddress);
+
+        // Increment nonce of creator (after guards pass)
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
         if (context.SubCall == null)
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-
-        // EIP-150: forward at most 63/64 of remaining gas to child.
-        var parentGasBeforeChild = context.GasLimit - context.GasUsed;
-        var forwardedGas = parentGasBeforeChild - (parentGasBeforeChild / 64UL);
-        var parentReserve = parentGasBeforeChild - forwardedGas;
 
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas);
@@ -495,16 +542,9 @@ public sealed class OpcodeCreate2 : IOpcode
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
 
-        // EELS account_deployable(): CREATE2 collides when the destination has
-        // a nonzero nonce, existing code, or any storage. The EIP-150 message
-        // gas has already been reserved and remains consumed on collision.
-        var destinationNonce = await context.GlobalState.GetNonceAsync(newAddress, ct);
-        var destinationCode = await context.GlobalState.GetCodeAsync(newAddress, ct);
-        var destinationStorage =
-            await context.GlobalState.GetStoragePresenceAsync(newAddress, ct);
-        if (destinationNonce != 0 ||
-            destinationCode.Length != 0 ||
-            destinationStorage != StoragePresence.Empty)
+        // EELS account_deployable() / EIP-7610: CREATE2 collides when destination
+        // has nonzero nonce, existing code, or any storage. Message gas reserved.
+        if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
         {
             context.Stack.TryPush(0);
             return (ExecutionResult.Success(0), context.ProgramCounter + 1);
@@ -544,7 +584,17 @@ public sealed class OpcodeCreate2 : IOpcode
             {
                 // Exceptional halt: out of gas during code deposit.
                 // EIP-161 / EELS: creation frame state must be fully reverted —
-                // the account (nonce=1, any balance credit) must not exist in final state.
+                // the account (nonce=1, any balance, storage) must not exist in final state.
+                // DeleteAccount alone doesn't zero overlay buffer writes (nonce=1, value credit).
+                var depositOogBal2 = await context.GlobalState.GetBalanceAsync(newAddress, ct);
+                if (depositOogBal2 > 0)
+                {
+                    var callerBalOog2 = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
+                    context.GlobalState.SetBalance(newAddress, BigInteger.Zero);
+                    context.GlobalState.SetBalance(context.ContractAddress, callerBalOog2 + depositOogBal2);
+                }
+                context.GlobalState.SetNonce(newAddress, 0);
+                context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
                 context.GlobalState.DeleteAccount(newAddress);
                 context.Stack.TryPush(0);
                 // No RefundGas — child gas consumed by exceptional halt.
@@ -802,9 +852,10 @@ public sealed class OpcodeCallCode : IOpcode
             if (callerBalance < value)
             {
                 // The CALLCODE extras (access + value-transfer cost) remain charged.
-                // Only return the unused child gas allocation (forwardedGas), not extraCost.
-                // EELS: evm.gas_left += message_call_gas.sub_call  (sub_call = forwardedGas only)
-                context.RefundGas(forwardedGas);
+                // EELS: evm.gas_left += message_call_gas.sub_call  (sub_call = forwardedGas + stipend)
+                var stipendEarly = 2300UL;
+                context.RefundGas(forwardedGas + stipendEarly);
+                context.LastReturnData = Array.Empty<byte>();
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
             }
@@ -1126,9 +1177,14 @@ internal static class PrecompileExecutor
 
         try
         {
-            var recovered = CryptoUtils.RecoverAddress(hash, vInt, r, s);
+            var recovered = CryptoUtils.RecoverAddressForPrecompile(hash, vInt, r, s);
+            if (recovered is null)
+            {
+                // Invalid signature inputs return empty output while still charging gas.
+                return ExecutionResult.Success(gasCost, Array.Empty<byte>());
+            }
             var output = new byte[32];
-            Array.Copy(recovered.Bytes, 0, output, 12, 20);
+            Array.Copy(recovered.Value.Bytes, 0, output, 12, 20);
             return ExecutionResult.Success(gasCost, output);
         }
         catch

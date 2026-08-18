@@ -16,6 +16,28 @@ This project runs published EELS `state_test` fixtures against Scrutor.
 - `EELS_MAX_CASES`: max number of cases to load (default: `25`).
 - `EELS_INCLUDE_SUBDIRS`: `1`/`true` to recurse fixture folders.
 
+## Layer 1 diagnostics (Phase 2)
+
+Failed cases in `EelsTaxonomyDrill` are fed through `DivergenceDiagnostics` (Scrutor.Core)
+via `Layer1DiagnosisBridge`. The markdown report includes a **Layer 1 Diagnoses** section
+with confidence, protocol rule, code boundary, and sample case IDs.
+
+```powershell
+dotnet test Scrutor.EELS.Tests --filter "EelsTaxonomyDrill"
+# → TestResults/taxonomy_*.md  (includes Layer 1 table)
+```
+
+## Fixture setup (fresh clone)
+
+Fixtures are large (~400 MB compressed) and are **not** in git. Download and extract with:
+
+```powershell
+pwsh ./tools/fetch-fixtures.ps1
+```
+
+Default source: `ethereum/execution-specs` release `tests@v20.0.1` → `./fixtures`.
+Use `-Force` to re-download/re-extract. The archive stays local and gitignored.
+
 ## Running
 
 ```powershell

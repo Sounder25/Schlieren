@@ -46,6 +46,10 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasEip4844BlobTx            => false;
     public virtual bool HasEip7623CalldataFloor     => false;
     public virtual bool HasEip7702SetCode           => false;
+    public virtual bool HasEip7951P256Verify        => false;  // Osaka+
+    public virtual bool HasEip7883ModExpIncrease    => false;  // Osaka+: ModExp gas increase
+    public virtual bool HasEip7825TxGasLimitCap     => false;  // Osaka+: tx.gas ≤ 2^24
+    public virtual ulong TxMaxGasLimit              => 16_777_216UL; // EIP-7825 constant
 
     // Intrinsic gas calldata costs
     public virtual ulong CalldataZeroByteCost       => 4;   // unchanged all forks
@@ -377,7 +381,7 @@ public class CancunRules : ShanghaiRules
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Prague — EIP-7702: set-code tx, EIP-7623: calldata floor,
-//           EIP-2537: BLS12-381 precompiles (+0x0B–0x13)
+//           EIP-2537: BLS12-381 precompiles (0x0B–0x11 = 7 precompiles)
 // ═══════════════════════════════════════════════════════════════════════════
 public class PragueRules : CancunRules
 {
@@ -385,16 +389,22 @@ public class PragueRules : CancunRules
     public override Fork Fork => Fork.Prague;
     public override bool HasEip7702SetCode      => true;
     public override bool HasEip7623CalldataFloor => true;
-    public override int  PrecompileCount         => 19; // +9 BLS12-381
+    // EIP-2537 BLS12-381: 7 precompiles at 0x0b–0x11.
+    // 0x01–0x09 = 9, 0x0A = KZG = 10, 0x0b–0x11 = 7 BLS → total 17.
+    // NOTE: 0x12 and 0x13 are NOT defined precompiles in EIP-2537 (EELS confirms).
+    public override int  PrecompileCount         => 17; // 0x01–0x11
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Osaka — placeholder; inherits all Prague rules
+//  Osaka — EIP-7951 P256Verify, EIP-7883 ModExp reprice, EIP-7825 tx gas cap
 // ═══════════════════════════════════════════════════════════════════════════
 public class OsakaRules : PragueRules
 {
     public static new readonly OsakaRules Instance = new();
     public override Fork Fork => Fork.Osaka;
+    public override bool HasEip7951P256Verify => true;
+    public override bool HasEip7883ModExpIncrease => true;  // EIP-7883: ModExp gas increase
+    public override bool HasEip7825TxGasLimitCap => true;   // EIP-7825: tx.gas ≤ 16_777_216
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

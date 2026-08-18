@@ -23,7 +23,7 @@ public sealed class BytecodeRunOptions
     /// <summary>Calldata hex (optional 0x).</summary>
     public string CallDataHex { get; init; } = "";
     /// <summary>Report label only until Core exposes hard-fork gating.</summary>
-    public string ForkLabel { get; init; } = "Cancun";
+    public string ForkLabel { get; init; } = "Osaka";
     /// <summary>Starting wei balance funded to the caller (default 1e24).</summary>
     public string CallerFundWei { get; init; } = "1000000000000000000000000";
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <EELS_ENFORCE_TRUTH>1</EELS_ENFORCE_TRUTH>
+      <EELS_INCLUDE_SUBDIRS>1</EELS_INCLUDE_SUBDIRS>
+      <EELS_MAX_CASES>50</EELS_MAX_CASES>
+      <EELS_REQUIRED_FORK>Prague</EELS_REQUIRED_FORK>
+      <EELS_FIXTURES_ROOT>C:/projects/Scrutor/fixtures/state_tests/for_prague/osaka</EELS_FIXTURES_ROOT>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

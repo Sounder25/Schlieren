@@ -23,9 +23,14 @@ node_modules/
 
 # Downloaded EELS fixtures and local reference checkouts
 fixtures/
+fixtures.tar.gz
+fixtures.tar.gz.partial
 fixtures_stable.tar.gz
 fixtures_develop.tar.gz
 fixtures_static.tar.gz
+fixtures_v20.tar.gz
+fixtures_*.tar.gz
+test_config.zip
 EELs/
 EELs-NotebookLM/
 temp_fixture/

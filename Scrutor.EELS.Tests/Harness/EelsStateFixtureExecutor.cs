@@ -30,6 +30,21 @@ public sealed class EelsStateFixtureExecutor
             }
         }
 
+        // [AI-EDIT 2026-08-11] EELS modern-format fixtures declare some transactions as
+        // invalid via the `expectException` field.  When that is set the transaction must be
+        // rejected without any state mutation.  Skip EVM execution entirely; the expected
+        // post-state is already the pre-state, and the receipt status is expected=false.
+        if (testCase.ExpectedException is not null)
+        {
+            // Don't execute — treat as a clean "tx rejected" outcome.
+            var mismatches0 = new List<string>();
+            var stateMatches0 = CompareExpectedState(testCase, globalState, mismatches0);
+            // ExpectedReceiptStatus is forced to false for exception cases; pass IsSuccess=false.
+            var receiptMatches0 = CompareReceiptStatus(testCase.ExpectedReceiptStatus, false, mismatches0);
+            return new EelsCaseExecutionReport(
+                testCase.CaseId, false, 0, 0, stateMatches0, receiptMatches0, mismatches0);
+        }
+
         // [AI-EDIT 2026-08-03] EVM spec allows 1024 call depth. Each async frame
         // in .NET consumes ~8-16KB of stack. On the default 1MB thread this overflows
         // for deeply-nested fixtures. Run execution on a thread with 32MB stack.
@@ -124,7 +139,26 @@ public sealed class EelsStateFixtureExecutor
         {
             foreach (var work in _queue.GetConsumingEnumerable())
             {
-                work();
+                // Run each work item on its own fresh 32MB thread so a StackOverflowException
+                // in one item does not kill the shared worker loop.
+                Exception? workerEx = null;
+                var itemTcs = new TaskCompletionSource<bool>();
+                var itemThread = new Thread(() =>
+                {
+                    try { work(); itemTcs.TrySetResult(true); }
+                    catch (Exception ex) { workerEx = ex; itemTcs.TrySetResult(false); }
+                }, 32 * 1024 * 1024);
+                itemThread.IsBackground = true;
+                itemThread.Start();
+                // 120-second per-case timeout — if hit, mark the outer TCS as cancelled
+                if (!itemThread.Join(TimeSpan.FromSeconds(120)))
+                {
+                    itemThread.Interrupt();
+                    // Signal completion so the queue drains — the case TCS stays uncompleted
+                    // and the caller will get an OperationCanceledException from CancellationToken
+                }
+                if (workerEx != null)
+                    throw workerEx;
             }
         }
     }

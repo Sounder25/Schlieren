@@ -45,14 +45,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<string> AvailableForks { get; } = new()
     {
-        "Cancun", "Prague", "Shanghai", "London", "Berlin"
+        "Osaka", "Prague", "Cancun", "Shanghai", "Paris", "London", "Berlin", "Istanbul"
     };
 
     [ObservableProperty] private ProjectFileViewModel? _selectedFile;
     [ObservableProperty] private string _searchQuery = string.Empty;
     [ObservableProperty] private bool _isInspectorExpanded = true;
     [ObservableProperty] private bool _isCallGraphVisible;
-    [ObservableProperty] private string _selectedFork = "Cancun";
+    [ObservableProperty] private string _selectedFork = "Osaka";
     [ObservableProperty] private ulong _baseFeeGwei = 1;
     [ObservableProperty] private ulong _blockGasLimit = 30_000_000;
     [ObservableProperty] private ulong _txGasLimit = 10_000_000;
@@ -99,9 +99,18 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _lastContractAddress = "";
 
     /// <summary>
-    /// Full brand mark as a soft center watermark. Stronger when empty, ghosted when code is up.
+    /// Soft center watermark. Stronger when empty, ghosted when code is up.
+    /// Multiplied by the active skin's WatermarkBoost (art skins can go bolder).
     /// </summary>
-    public double WatermarkOpacity => HasOpenFiles || HasTrace ? 0.07 : 0.20;
+    public double WatermarkOpacity
+    {
+        get
+        {
+            var bas = HasOpenFiles || HasTrace ? 0.07 : 0.20;
+            var boost = Services.SkinService.Current.WatermarkBoost;
+            return Math.Clamp(bas * boost, 0.02, 0.42);
+        }
+    }
 
     public string CurrentFileTitle =>
         SelectedFile != null
@@ -134,12 +143,17 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     {
         ApplyOpSec();
         RefreshFilteredFiles();
+        Services.SkinService.SkinChanged += OnSkinChanged;
     }
+
+    private void OnSkinChanged(Branding.UiSkin _)
+        => OnPropertyChanged(nameof(WatermarkOpacity));
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+        Services.SkinService.SkinChanged -= OnSkinChanged;
         StopAutoPlay();
         try { _runCts?.Cancel(); } catch { /* ignore */ }
         _runCts?.Dispose();

@@ -4,14 +4,14 @@ public sealed record EelsHarnessOptions(
     string FixturesRoot,
     string ForkName,
     int MaxCases,
-    bool IncludeSubdirectories)
+    bool IncludeSubdirectories,
+    string? ExcludeFolder = null)
 {
     public static EelsHarnessOptions FromEnvironment()
     {
         var fixturesRoot = Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT");
         if (string.IsNullOrWhiteSpace(fixturesRoot))
         {
-            // [AI-EDIT 2026-07-24] Default to in-repo fixtures/state_tests location.
             fixturesRoot = Path.GetFullPath(Path.Combine(
                 AppContext.BaseDirectory,
                 "..", "..", "..", "..",
@@ -35,6 +35,8 @@ public sealed record EelsHarnessOptions(
         var includeSubdirs = string.Equals(includeSubdirsRaw, "1", StringComparison.Ordinal) ||
                              string.Equals(includeSubdirsRaw, "true", StringComparison.OrdinalIgnoreCase);
 
-        return new EelsHarnessOptions(fixturesRoot, fork, maxCases, includeSubdirs);
+        var excludeFolder = Environment.GetEnvironmentVariable("EELS_FIXTURES_EXCLUDE");
+
+        return new EelsHarnessOptions(fixturesRoot, fork, maxCases, includeSubdirs, excludeFolder);
     }
 }

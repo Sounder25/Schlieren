@@ -74,6 +74,12 @@ public sealed class StateTransition : IStateTransition
 
         if (tx.Authorization != TransactionAuthorization.Internal)
         {
+            // EIP-7825 (Osaka+): pre-execution reject when tx.gas exceeds TX_MAX_GAS_LIMIT (2^24).
+            // EELS: TransactionGasLimitExceededError — transaction is invalid; no state mutation.
+            // Single-dimensional: entire tx.gas is compared (not Amsterdam exec/state split).
+            if (block.Rules.HasEip7825TxGasLimitCap && tx.GasLimit > block.Rules.TxMaxGasLimit)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction, 0);
+
             // EIP-3860 (Shanghai+): reject contract-creating transactions whose initcode exceeds
             // 2 × MAX_CODE_SIZE (49152 bytes). Pre-Shanghai: no limit.
             if (!tx.To.HasValue && block.Rules.HasEip3860InitcodeLimit && tx.Data.Length > 2 * 24576)
@@ -131,6 +137,8 @@ public sealed class StateTransition : IStateTransition
             if (tx.TxType >= 2)
             {
                 if (tx.MaxFeePerGas < baseFeePerGas) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                // EIP-1559: maxPriorityFeePerGas must not exceed maxFeePerGas
+                if (tx.MaxPriorityFeePerGas > tx.MaxFeePerGas) return ExecutionResult.Failure(EvmError.InvalidTransaction);
             }
             else
             {
@@ -261,6 +269,13 @@ public sealed class StateTransition : IStateTransition
                 precompileBytes[19] = (byte)i;
                 accessTracker.WarmAddress(new Address(precompileBytes));
             }
+            // EIP-7951: P256Verify at 0x0100 is a separate two-byte address (Osaka+)
+            if (block.Rules.HasEip7951P256Verify)
+            {
+                var p256Bytes = new byte[20];
+                p256Bytes[18] = 0x01; p256Bytes[19] = 0x00;
+                accessTracker.WarmAddress(new Address(p256Bytes));
+            }
             // EIP-3651: pre-warm coinbase address so COINBASE access is always warm.
             if (!block.Coinbase.Equals(Address.Zero))
                 accessTracker.WarmAddress(block.Coinbase);
@@ -335,19 +350,32 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
-        var result = await ExecuteInternalAsync(
-            tx,
-            txOverlay,
-            block,
-            tx.From,
-            topLevelCreation,
-            null,
-            false,
-            commit,
-            ct,
-            0,
-            executionGasLimit,
-            accessTracker: accessTracker);
+        ExecutionResult result;
+
+        // EELS process_message_call: top-level CREATE with non-deployable target
+        // (nonce/code/storage — EIP-7610) → AddressCollision, gas_left = 0 (all
+        // execution gas consumed). Sender nonce was already bumped above.
+        if (topLevelCreation.HasValue &&
+            !await AccountDeployability.IsDeployableAsync(txOverlay, topLevelCreation.Value, ct))
+        {
+            result = ExecutionResult.Failure(EvmError.InvalidTransaction, executionGasLimit);
+        }
+        else
+        {
+            result = await ExecuteInternalAsync(
+                tx,
+                txOverlay,
+                block,
+                tx.From,
+                topLevelCreation,
+                null,
+                false,
+                commit,
+                ct,
+                0,
+                executionGasLimit,
+                accessTracker: accessTracker);
+        }
 
         // Merge EIP-7702 authorization refund into result
         if (authRefund > 0)
@@ -610,9 +638,19 @@ public sealed class StateTransition : IStateTransition
             foreach (var entry in tx.AccessList) { accessTracker.WarmAddress(entry.Address); foreach (var slot in entry.StorageKeys) accessTracker.WarmSlot(entry.Address, slot); }
         }
 
-        var result = await ExecuteInternalAsync(
-            tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
-            executionGasLimit, accessTracker: accessTracker, parentGasFrame: rootFrame);
+        ExecutionResult result;
+        if (topLevelCreation.HasValue &&
+            !await AccountDeployability.IsDeployableAsync(state, topLevelCreation.Value, ct))
+        {
+            // EIP-7610 / AddressCollision: all execution gas consumed.
+            result = ExecutionResult.Failure(EvmError.InvalidTransaction, executionGasLimit);
+        }
+        else
+        {
+            result = await ExecuteInternalAsync(
+                tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
+                executionGasLimit, accessTracker: accessTracker, parentGasFrame: rootFrame);
+        }
 
         if (topLevelCreation.HasValue && result.IsSuccess)
         {
@@ -779,7 +817,9 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
         // not by the EVM bytecode interpreter. Only CALL-type frames qualify (not CREATE).
-        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue && Precompiles.IsPrecompile(tx.To.Value, block.Rules.PrecompileCount))
+        // EIP-7951: also check 0x0100 (P256Verify) which uses IForkRules overload.
+        if (!creationAddress.HasValue && !codeAddress.HasValue && tx.To.HasValue &&
+            Precompiles.IsPrecompile(tx.To.Value, block.Rules))
         {
             var (preOutput, preGas) = Precompiles.Execute(tx.To.Value, tx.Data, executionGasLimit ?? 0UL, block.Rules);
             if (preOutput == null)

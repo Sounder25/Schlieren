@@ -1,22 +1,21 @@
+using Scrutor.UI.Services;
+
 namespace Scrutor.UI.Branding;
 
 /// <summary>
-/// Scrutor brand system from the official brand board.
-/// Source: Assets/brand-board-source.png
+/// Scrutor brand tokens. Static consts remain the official board defaults;
+/// live UI chrome should prefer <see cref="SkinService.Current"/> / DynamicResource.
+/// Source board: Assets/brand-board-source.png
 /// </summary>
 public static class ScrutorBrand
 {
-    // Primary palette
+    // Official board defaults (Brand Classic skin)
     public const string ExecutionIndigo = "#4A00E0";
     public const string BlobAqua = "#19D7E5";
     public const string TracingWhite = "#F0F4F8";
-
-    // Functional accents
     public const string WarmAccessYellow = "#FFD700";
     public const string ColdAccessGrey = "#A9A9A9";
     public const string LogRevertOrange = "#FF4500";
-
-    // Shell / surfaces (dark IDE chrome)
     public const string ShellBackground = "#0D0D0D";
     public const string PanelBackground = "#1A1A2E";
     public const string PanelElevated = "#1E1E2E";
@@ -28,11 +27,14 @@ public static class ScrutorBrand
     public const string ProductTagline = ".NET 8 Ethereum Execution & Verification Engine";
     public const string WindowTitle = "SCRUTOR — .NET 8 Ethereum Execution & Verification Engine";
 
-    // Asset paths (avares) — different marks for different sizes
-    /// <summary>Simple low-density mark for header / window icon (stays crisp at 32–48px).</summary>
+    // Asset paths (avares)
     public const string IconAvares = "avares://Scrutor.UI/Assets/scrutor-icon.png";
-    /// <summary>Full detailed mark for large watermark / splash (never force into tiny chrome).</summary>
     public const string WatermarkAvares = "avares://Scrutor.UI/Assets/scrutor-watermark.png";
     public const string LogoFullAvares = "avares://Scrutor.UI/Assets/scrutor-logo-full.png";
     public const string LockupAvares = "avares://Scrutor.UI/Assets/scrutor-lockup.png";
+
+    /// <summary>Live accent from the active skin (for code-behind brushes).</summary>
+    public static string LiveAccent => SkinService.Current.Accent;
+    public static string LiveAccentAlt => SkinService.Current.AccentAlt;
+    public static string LiveShell => SkinService.Current.ShellBg;
 }

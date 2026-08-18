@@ -34,6 +34,9 @@ public sealed class EelsStateFixtureLoader
 
         var searchOption = options.IncludeSubdirectories ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var fixtureFiles = Directory.EnumerateFiles(options.FixturesRoot, "*.json", searchOption)
+            .Where(path => string.IsNullOrWhiteSpace(options.ExcludeFolder) ||
+                           !path.Replace('\\', '/').Contains($"/{options.ExcludeFolder}/",
+                               StringComparison.OrdinalIgnoreCase))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -267,6 +270,21 @@ public sealed class EelsStateFixtureLoader
             expectedReceiptStatus = statusNode.GetBoolean();
         }
 
+        // EELS modern format: when `expectException` is present the transaction is declared
+        // invalid — it should be rejected without any state change.  Override the receipt
+        // status to false so the executor treats this as a "must-reject" case.
+        string? expectedException = null;
+        if (firstPostVariant.TryGetProperty("expectException", out var excNode) &&
+            excNode.ValueKind == JsonValueKind.String)
+        {
+            var excText = excNode.GetString();
+            if (!string.IsNullOrEmpty(excText))
+            {
+                expectedException  = excText;
+                expectedReceiptStatus = false; // tx should be rejected — no success receipt
+            }
+        }
+
         var parsedCase = new EelsStateCase(
             fixturePath,
             caseId,
@@ -276,7 +294,8 @@ public sealed class EelsStateFixtureLoader
             tx,
             preState,
             expectedState,
-            expectedReceiptStatus);
+            expectedReceiptStatus,
+            expectedException);
 
         return new[] { parsedCase };
     }

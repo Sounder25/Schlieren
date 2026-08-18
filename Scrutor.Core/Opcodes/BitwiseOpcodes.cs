@@ -183,3 +183,36 @@ public sealed class OpcodeSar : IOpcode
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
     }
 }
+
+/// <summary>
+/// CLZ (0x1E): Count leading zeros. Pushes the number of leading zero bits in a 256-bit word.
+/// If x is zero, pushes 256. EIP-7939 (Osaka+).
+/// Gas: 5
+/// </summary>
+public sealed class OpcodeClz : IOpcode
+{
+    public byte Code => 0x1E;
+    public string Name => "CLZ";
+
+    public ValueTask<(ExecutionResult, int)> ExecuteAsync(ExecutionContext context, CancellationToken ct = default)
+    {
+        if (!context.Stack.TryPop(out var value))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
+
+        BigInteger result;
+        if (value.IsZero)
+        {
+            result = 256;
+        }
+        else
+        {
+            int bitLength = (int)value.GetBitLength();
+            result = 256 - bitLength;
+        }
+
+        if (!context.Stack.TryPush(result))
+            return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
+
+        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+    }
+}
