@@ -13,8 +13,10 @@ public class BoolToColorConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isSelected && isSelected)
-            return new SolidColorBrush(Color.Parse("#241B47")); // indigo-tinted selected
-        return new SolidColorBrush(Color.Parse("#0C0D14"));
+            return new SolidColorBrush(Color.Parse(
+                Services.SkinService.Current.ActiveLineBg));
+        return new SolidColorBrush(Color.Parse(
+            Services.SkinService.Current.PanelDeep));
     }
     
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -31,8 +33,10 @@ public class BoolToFGConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isSelected && isSelected)
-            return new SolidColorBrush(Color.Parse("#19D7E5")); // Blob Aqua
-        return new SolidColorBrush(Color.Parse("#A9A9A9")); // Cold Access Grey
+            return new SolidColorBrush(Color.Parse(
+                Services.SkinService.Current.AccentAlt));
+        return new SolidColorBrush(Color.Parse(
+            Services.SkinService.Current.TextMuted));
     }
     
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

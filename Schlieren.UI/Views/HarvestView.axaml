@@ -1,0 +1,363 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Schlieren.UI.ViewModels"
+             x:Class="Schlieren.UI.Views.HarvestView"
+             x:DataType="vm:HarvestViewModel"
+             Background="{DynamicResource Schlieren.Void}">
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ═══ PIPELINE CONTROL BAR ═══ -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource Schlieren.Panel}"
+            BorderBrush="{DynamicResource Schlieren.BorderHard}"
+            BorderThickness="0,0,0,1"
+            Padding="20,10">
+      <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+        <!-- Run Harvest button -->
+        <Button Command="{Binding TogglePipelineCommand}"
+                IsEnabled="{Binding !IsHarvesting}"
+                Padding="14,6" Margin="0,0,16,0"
+                CornerRadius="3"
+                Background="{DynamicResource Schlieren.SigAgree}"
+                Foreground="{DynamicResource Schlieren.Void}"
+                FontFamily="Inter,Segoe UI,sans-serif"
+                FontSize="12" FontWeight="Bold">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="▶" VerticalAlignment="Center"/>
+            <TextBlock Text="Run Harvest" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+
+        <!-- WF-A status -->
+        <Border Padding="8,4" Margin="0,0,8,0" CornerRadius="3"
+                Background="{DynamicResource Schlieren.Raised}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource Schlieren.BorderHard}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                     Fill="{DynamicResource Schlieren.SigAgree}"
+                     IsVisible="{Binding WfAActive}"/>
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                     Fill="{DynamicResource Schlieren.TextGhost}"
+                     IsVisible="{Binding !WfAActive}"/>
+            <TextBlock Text="WF-A · Scanner"
+                       FontFamily="Inter,Segoe UI,sans-serif"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Schlieren.TextSecondary}"/>
+          </StackPanel>
+        </Border>
+
+        <!-- WF-B status -->
+        <Border Padding="8,4" Margin="0,0,20,0" CornerRadius="3"
+                Background="{DynamicResource Schlieren.Raised}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource Schlieren.BorderHard}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                     Fill="{DynamicResource Schlieren.SigAgree}"
+                     IsVisible="{Binding WfBActive}"/>
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                     Fill="{DynamicResource Schlieren.TextGhost}"
+                     IsVisible="{Binding !WfBActive}"/>
+            <TextBlock Text="WF-B · Capture"
+                       FontFamily="Inter,Segoe UI,sans-serif"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Schlieren.TextSecondary}"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Stats -->
+        <StackPanel Orientation="Horizontal" Spacing="20">
+          <StackPanel Spacing="2">
+            <TextBlock Text="QUEUE" FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextGhost}" LetterSpacing="1.2"/>
+            <TextBlock Text="{Binding QueueDepth}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+          </StackPanel>
+          <StackPanel Spacing="2">
+            <TextBlock Text="TOTAL REPLAYED" FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextGhost}" LetterSpacing="1.2"/>
+            <TextBlock Text="{Binding TotalReplayed}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+          </StackPanel>
+          <StackPanel Spacing="2">
+            <TextBlock Text="PASS" FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextGhost}" LetterSpacing="1.2"/>
+            <TextBlock Text="{Binding PassCount}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Schlieren.SigAgree}"/>
+          </StackPanel>
+          <StackPanel Spacing="2">
+            <TextBlock Text="DIVERGENCE" FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextGhost}" LetterSpacing="1.2"/>
+            <TextBlock Text="{Binding DivergenceCount}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Schlieren.SigFracture}"/>
+          </StackPanel>
+          <StackPanel Spacing="2">
+            <TextBlock Text="FAILED" FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextGhost}" LetterSpacing="1.2"/>
+            <TextBlock Text="{Binding FailedCount}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource Schlieren.TextSecondary}"/>
+          </StackPanel>
+          <StackPanel Spacing="2">
+            <TextBlock Text="LAST RUN" FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Schlieren.TextGhost}" LetterSpacing="1.2"/>
+            <TextBlock Text="{Binding LastRunText}" FontSize="12" Foreground="{DynamicResource Schlieren.TextSecondary}"/>
+          </StackPanel>
+        </StackPanel>
+
+      </WrapPanel>
+    </Border>
+
+    <!-- ═══ FEED ═══ -->
+    <Grid Grid.Row="1" RowDefinitions="Auto,*">
+
+      <!-- Filter toolbar -->
+      <!-- Filter + Sort toolbar -->
+      <Border Grid.Row="0"
+              Background="{DynamicResource Schlieren.Panel}"
+              BorderBrush="{DynamicResource Schlieren.BorderSubtle}"
+              BorderThickness="0,0,0,1"
+              Padding="16,6">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="CORPUS" VerticalAlignment="Center"
+                       FontFamily="Inter,Segoe UI,sans-serif"
+                       FontSize="10" FontWeight="Bold" LetterSpacing="1.8"
+                       Foreground="{DynamicResource Schlieren.TextGhost}"/>
+
+            <!-- Filter buttons -->
+            <Button Command="{Binding SetFilterCommand}" CommandParameter="all"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.TextSecondary}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">All</Button>
+            <Button Command="{Binding SetFilterCommand}" CommandParameter="divergence"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.SigFracture}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">Divergence</Button>
+            <Button Command="{Binding SetFilterCommand}" CommandParameter="pass"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.SigAgree}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">Pass</Button>
+            <Button Command="{Binding SetFilterCommand}" CommandParameter="failed"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.SigHalt}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">Failed</Button>
+
+            <!-- Sort buttons -->
+            <Border Width="1" Height="12" Background="{DynamicResource Schlieren.BorderHard}"
+                    VerticalAlignment="Center" Margin="4,0"/>
+            <TextBlock Text="SORT" VerticalAlignment="Center"
+                       FontFamily="Inter,Segoe UI,sans-serif"
+                       FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                       Foreground="{DynamicResource Schlieren.TextGhost}"/>
+            <Button Command="{Binding SetSortCommand}" CommandParameter="score"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.SigDiagnosis}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">Priority</Button>
+            <Button Command="{Binding SetSortCommand}" CommandParameter="block"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.TextSecondary}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">Block</Button>
+            <Button Command="{Binding SetSortCommand}" CommandParameter="type"
+                    Padding="8,2" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.TextSecondary}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10" FontWeight="SemiBold">Type</Button>
+
+            <Button Command="{Binding RefreshNowCommand}"
+                    Padding="8,2" Margin="4,0,0,0" CornerRadius="3"
+                    Background="{DynamicResource Schlieren.Raised}"
+                    Foreground="{DynamicResource Schlieren.TextTertiary}"
+                    FontFamily="Inter,Segoe UI,sans-serif" FontSize="10">↺ Refresh</Button>
+
+              <Button Command="{Binding ClearAllCommand}"
+                      Padding="8,2" Margin="4,0,0,0" CornerRadius="3"
+                      Background="{DynamicResource Schlieren.Raised}"
+                      Foreground="{DynamicResource Schlieren.SigFracture}"
+                      FontFamily="Inter,Segoe UI,sans-serif" FontSize="10">Clear All</Button>
+          </StackPanel>
+
+          <!-- Status indicator -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+            <Ellipse Width="5" Height="5"
+                     Fill="{DynamicResource Schlieren.SigAgree}"
+                     IsVisible="{Binding N8nReachable}"/>
+            <Ellipse Width="5" Height="5"
+                     Fill="{DynamicResource Schlieren.SigFracture}"
+                     IsVisible="{Binding !N8nReachable}"/>
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontFamily="Inter,Segoe UI,sans-serif" FontSize="11"
+                       Foreground="{DynamicResource Schlieren.TextGhost}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Corpus list -->
+      <!-- Corpus list + detail -->
+      <Grid Grid.Row="1" RowDefinitions="*,Auto">
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding VisibleEntries}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:HarvestEntry">
+                <Grid ColumnDefinitions="3,*,Auto,Auto"
+                      MinHeight="48"
+                      Background="Transparent"
+                      Cursor="Hand"
+                      PointerPressed="OnHarvestRowPressed">
+
+                  <!-- Accent bar -->
+                  <Border Grid.Column="0"
+                          Background="{Binding Outcome, Converter={x:Static vm:OutcomeToAccentConverter.Instance}}"/>
+
+                  <!-- Row body -->
+                  <StackPanel Grid.Column="1" Margin="14,6" Spacing="3">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <Border Padding="5,1" CornerRadius="2"
+                              Background="{Binding Outcome, Converter={x:Static vm:OutcomeToBadgeBgConverter.Instance}}">
+                        <TextBlock Text="{Binding BadgeText}"
+                                   FontFamily="Inter,Segoe UI,sans-serif"
+                                   FontSize="10" FontWeight="Bold"
+                                   Foreground="{Binding Outcome, Converter={x:Static vm:OutcomeToFgConverter.Instance}}"/>
+                      </Border>
+                      <!-- Contract name or type -->
+                      <TextBlock Text="{Binding DisplayName}"
+                                 FontFamily="Inter,Segoe UI,sans-serif"
+                                 FontSize="13" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+                      <!-- Function called -->
+                      <TextBlock Text="{Binding FunctionDisplay}"
+                                 FontFamily="Consolas,Cascadia Mono,monospace"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource Schlieren.SigFlow}"/>
+                      <!-- ETH value -->
+                      <TextBlock Text="{Binding ValueDisplay}"
+                                 FontFamily="Consolas,Cascadia Mono,monospace"
+                                 FontSize="11"
+                                 Foreground="{DynamicResource Schlieren.SigState}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                      <TextBlock FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextTertiary}">
+                        <Run Text="Block " Foreground="{DynamicResource Schlieren.TextGhost}"/>
+                        <Run Text="{Binding BlockNumber}"/>
+                      </TextBlock>
+                      <TextBlock Text="{Binding BlockDate}"
+                                 FontFamily="Inter,Segoe UI,sans-serif"
+                                 FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+                      <TextBlock FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextTertiary}">
+                        <Run Text="Gas " Foreground="{DynamicResource Schlieren.TextGhost}"/>
+                        <Run Text="{Binding GasDisplay}"/>
+                      </TextBlock>
+                      <TextBlock Text="{Binding ShortHash}"
+                                 FontFamily="Consolas,Cascadia Mono,monospace"
+                                 FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+                    </StackPanel>
+                  </StackPanel>
+
+                  <!-- Load button -->
+                  <Button Grid.Column="2"
+                          Command="{Binding $parent[UserControl].((vm:HarvestViewModel)DataContext).LoadInWorkbenchCommand}"
+                          CommandParameter="{Binding}"
+                          Margin="0,0,6,0" Padding="10,4" CornerRadius="3"
+                          Background="{DynamicResource Schlieren.Raised}"
+                          Foreground="{DynamicResource Schlieren.SigFlow}"
+                          BorderBrush="{DynamicResource Schlieren.BorderHard}"
+                          BorderThickness="1"
+                          FontFamily="Inter,Segoe UI,sans-serif"
+                          FontSize="10" FontWeight="SemiBold"
+                          VerticalAlignment="Center">
+                    Load →
+                  </Button>
+
+                  <!-- Delete button -->
+                  <Button Grid.Column="3"
+                          Command="{Binding $parent[UserControl].((vm:HarvestViewModel)DataContext).DeleteEntryCommand}"
+                          CommandParameter="{Binding}"
+                          Margin="0,0,12,0" Padding="8,4" CornerRadius="3"
+                          Background="Transparent"
+                          Foreground="{DynamicResource Schlieren.TextGhost}"
+                          FontFamily="Inter,Segoe UI,sans-serif"
+                          FontSize="12" VerticalAlignment="Center"
+                          ToolTip.Tip="Remove from list">
+                    ×
+                  </Button>
+
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Detail panel — shown when a row is selected -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource Schlieren.Panel}"
+                BorderBrush="{DynamicResource Schlieren.BorderHard}"
+                BorderThickness="0,1,0,0"
+                Padding="16,12"
+                IsVisible="{Binding SelectedEntry, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <StackPanel Spacing="6">
+
+            <!-- Row 1: contract name + verified + function -->
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <TextBlock Text="{Binding SelectedEntry.DisplayName}"
+                         FontFamily="Inter,Segoe UI,sans-serif"
+                         FontSize="13" FontWeight="Bold"
+                         Foreground="{DynamicResource Schlieren.TextPrimary}"/>
+              <TextBlock Text="{Binding SelectedEntry.VerifiedBadge}"
+                         FontFamily="Inter,Segoe UI,sans-serif"
+                         FontSize="11" Foreground="{DynamicResource Schlieren.SigAgree}"
+                         VerticalAlignment="Center"/>
+              <TextBlock Text="{Binding SelectedEntry.FunctionDisplay}"
+                         FontFamily="Consolas,Cascadia Mono,monospace"
+                         FontSize="12" Foreground="{DynamicResource Schlieren.SigFlow}"
+                         VerticalAlignment="Center"/>
+              <TextBlock Text="{Binding SelectedEntry.ValueDisplay}"
+                         FontFamily="Consolas,Cascadia Mono,monospace"
+                         FontSize="12" Foreground="{DynamicResource Schlieren.SigState}"
+                         VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Row 2: tx hash + block date -->
+            <StackPanel Orientation="Horizontal" Spacing="16">
+              <TextBlock Text="{Binding SelectedEntry.TxHash}"
+                         FontFamily="Consolas,Cascadia Mono,monospace"
+                         FontSize="11" Foreground="{DynamicResource Schlieren.TextSecondary}"/>
+              <TextBlock Text="{Binding SelectedEntry.BlockDate}"
+                         FontFamily="Inter,Segoe UI,sans-serif"
+                         FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+            </StackPanel>
+
+            <!-- Row 3: from → to, deployed by, deploy date -->
+            <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*">
+              <TextBlock Grid.Column="0" Text="FROM " FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+              <TextBlock Grid.Column="1" Text="{Binding SelectedEntry.FromAddress}" FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextSecondary}" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Grid.Column="2" Text="  TO " FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+              <TextBlock Grid.Column="3" Text="{Binding SelectedEntry.ToAddress}" FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextSecondary}" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Grid.Column="4" Text="  GAS " FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+              <TextBlock Grid.Column="5" Text="{Binding SelectedEntry.GasDisplay}" FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.SigState}"/>
+            </Grid>
+
+            <!-- Row 4: deployer + deployed date -->
+            <StackPanel Orientation="Horizontal" Spacing="16"
+                        IsVisible="{Binding SelectedEntry.Deployer, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+              <TextBlock FontFamily="Consolas,Cascadia Mono,monospace" FontSize="11" Foreground="{DynamicResource Schlieren.TextTertiary}">
+                <Run Text="Deployed by " Foreground="{DynamicResource Schlieren.TextGhost}"/>
+                <Run Text="{Binding SelectedEntry.Deployer}"/>
+              </TextBlock>
+              <TextBlock Text="{Binding SelectedEntry.DeployedAt}"
+                         FontFamily="Inter,Segoe UI,sans-serif"
+                         FontSize="11" Foreground="{DynamicResource Schlieren.TextGhost}"/>
+            </StackPanel>
+
+            <!-- Row 5: calldata preview -->
+            <TextBlock Text="{Binding SelectedEntry.CalldataPreview}"
+                       FontFamily="Consolas,Cascadia Mono,monospace"
+                       FontSize="11" Foreground="{DynamicResource Schlieren.TextTertiary}"
+                       TextWrapping="Wrap"/>
+
+          </StackPanel>
+        </Border>
+
+      </Grid>
+
+    </Grid>
+
+  </Grid>
+</UserControl>

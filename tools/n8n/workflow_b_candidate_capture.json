@@ -1,0 +1,297 @@
+{
+  "name": "Schlieren - Workflow B: Candidate Capture & Ingestion",
+  "nodes": [
+    {
+      "id": "capture-0001",
+      "name": "Manual Trigger (run from n8n)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "capture-0002",
+      "name": "Worker Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateOutput": false,
+        "fields": {
+          "values": [
+            {
+              "name": "ethRpc",
+              "stringValue": "https://rpc.ankr.com/eth"
+            },
+            {
+              "name": "debugRpc",
+              "stringValue": "https://rpc.ankr.com/eth"
+            },
+            {
+              "name": "batchSize",
+              "numberValue": 3
+            },
+            {
+              "name": "corpusDir",
+              "stringValue": "C:/projects/Schlieren/muscle/corpus"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "capture-0003",
+      "name": "Claim Batch from HarvestQueue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst config = $('Worker Config').first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData.candidateQueue || staticData.candidateQueue.length === 0) {\n  return [];\n}\n\n// Only process candidates above a priority threshold\n// Skip anything that scored below 40 (generic low-gas contract calls)\nconst MIN_PRIORITY = 40;\nconst eligible = staticData.candidateQueue.filter(c => (c.priorityScore || 0) >= MIN_PRIORITY);\n\nif (eligible.length === 0) {\n  // Queue has items but all are low quality \u2014 drain them silently\n  staticData.candidateQueue = [];\n  return [];\n}\n\n// Sort best first and claim top N\neligible.sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));\nconst batchSize = config.batchSize || 3;\nconst batch = eligible.slice(0, batchSize);\n\n// Remove claimed items from queue\nconst claimedHashes = new Set(batch.map(c => c.txHash));\nstaticData.candidateQueue = staticData.candidateQueue.filter(c => !claimedHashes.has(c.txHash));\n\nreturn batch.map(tx => ({\n  json: {\n    ...config,\n    ...tx,\n    status: 'IN_PROGRESS',\n    startedAt: new Date().toISOString()\n  }\n}));\n"
+      }
+    },
+    {
+      "id": "capture-0004",
+      "name": "Fetch Transaction Receipt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getTransactionReceipt",
+          "params": [
+            "={{ $json.txHash }}"
+          ],
+          "id": 1
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "capture-0005",
+      "name": "Fetch Block Header",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getBlockByNumber",
+          "params": [
+            "={{ '0x' + $json.blockNumber.toString(16) }}",
+            false
+          ],
+          "id": 1
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "capture-0006",
+      "name": "debug_traceTransaction (diffMode=false)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.debugRpc || $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "debug_traceTransaction",
+          "params": [
+            "={{ $json.txHash }}",
+            {
+              "tracer": "prestateTracer",
+              "tracerConfig": {
+                "diffMode": false
+              }
+            }
+          ],
+          "id": 1
+        },
+        "options": {
+          "timeout": 45000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "onError": "continueRegularOutput"
+      }
+    },
+    {
+      "id": "capture-0007",
+      "name": "Reconstruct Prestate & Build Fixture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\nconst receipt = $('Fetch Transaction Receipt').item.json.result;\nconst block   = $('Fetch Block Header').item.json.result;\nconst debugRes = item.result;\nif (!receipt || !block) return [{ json: { ...item, status: 'CAPTURE_FAILED', lastError: 'Missing receipt or block' } }];\nlet prestate = {};\nlet prestateMethod = 'eth_fallback';\nif (debugRes && !item.error) {\n  prestateMethod = 'debug_prestateTracer_diffMode_false';\n  for (const [addr, acct] of Object.entries(debugRes)) {\n    const storage = {};\n    for (const [slot, val] of Object.entries(acct.storage || {})) {\n      const k = slot.startsWith('0x') ? slot : '0x' + slot;\n      const v = val.startsWith('0x') ? val : '0x' + val;\n      if (parseInt(v, 16) !== 0) storage[k] = v;\n    }\n    prestate[addr.toLowerCase()] = { balance: acct.balance || '0x0', nonce: acct.nonce || '0x0', code: acct.code || '0x', storage };\n  }\n} else {\n  if (item.fromAddress) prestate[item.fromAddress] = { balance: '0x1000000000000000000', nonce: '0x0', code: '0x', storage: {} };\n  if (item.toAddress)   prestate[item.toAddress]   = { balance: '0x0', nonce: '0x1', code: '0x', storage: {} };\n}\nfunction detectFork(n) {\n  if (n >= 22000000) return 'Osaka';\n  if (n >= 20000000) return 'Prague';\n  if (n >= 19426587) return 'Cancun';\n  if (n >= 17034870) return 'Shanghai';\n  if (n >= 15537394) return 'Paris';\n  return 'Berlin';\n}\nconst fork = detectFork(item.blockNumber);\nconst fixture = { [`mainnet::${item.txHash}`]: {\n  _provenance: { chain: 'mainnet', chainId: '0x1', txHash: item.txHash, blockNumber: block.number, blockNumberDec: item.blockNumber, fork, prestateMethod, candidateType: item.candidateType, harvestedAt: new Date().toISOString() },\n  env: { currentCoinbase: block.miner || '0x0000000000000000000000000000000000000000', currentNumber: block.number, currentTimestamp: block.timestamp, currentGasLimit: block.gasLimit, currentBaseFee: block.baseFeePerGas || '0x0', currentDifficulty: '0x0' },\n  pre: prestate,\n  transaction: { from: item.fromAddress, to: item.toAddress || null, value: item.value || '0x0', data: item.inputData || '0x', gasLimit: '0x' + item.gasLimit.toString(16), gasPrice: block.baseFeePerGas || '0x1' }\n}};\nconst corpusDir = item.corpusDir || 'C:/projects/Schlieren/muscle/corpus';\nconst safeTxHash = item.txHash.replace(/[^a-zA-Z0-9]/g, '_');\nconst fixturePath = `${corpusDir}/${safeTxHash}.json`;\nreturn [{ json: { ...item, fixture: JSON.stringify(fixture, null, 2), fixturePath, fork, status: 'FIXTURE_BUILT' } }];"
+      }
+    },
+    {
+      "id": "capture-0008",
+      "name": "Write Fixture to Corpus",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [
+        1720,
+        300
+      ],
+      "parameters": {
+        "fileName": "={{ $json.fixturePath }}",
+        "dataPropertyName": "fixture",
+        "options": {}
+      }
+    },
+    {
+      "id": "capture-0009",
+      "name": "Mark Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return [{ json: { ...($input.item.json), status: 'FIXTURE_WRITTEN', completedAt: new Date().toISOString() } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger (run from n8n)": {
+      "main": [
+        [
+          {
+            "node": "Worker Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worker Config": {
+      "main": [
+        [
+          {
+            "node": "Claim Batch from HarvestQueue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Batch from HarvestQueue": {
+      "main": [
+        [
+          {
+            "node": "Fetch Transaction Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Transaction Receipt": {
+      "main": [
+        [
+          {
+            "node": "Fetch Block Header",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Block Header": {
+      "main": [
+        [
+          {
+            "node": "debug_traceTransaction (diffMode=false)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "debug_traceTransaction (diffMode=false)": {
+      "main": [
+        [
+          {
+            "node": "Reconstruct Prestate & Build Fixture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconstruct Prestate & Build Fixture": {
+      "main": [
+        [
+          {
+            "node": "Write Fixture to Corpus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Fixture to Corpus": {
+      "main": [
+        [
+          {
+            "node": "Mark Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "maxActiveWorkflows": 1
+  }
+}

@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCHLIEREN — Unified Prototype</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCHLIEREN — UNIFIED DESIGN SYSTEM
+   
+   One product. Three analytical lenses. Synchronized cursor.
+   
+   SIGNAL MODEL (every color means exactly one thing):
+   ─────────────────────────────────────────────────────
+   Neutral execution    → cool steel (#A0A8B4 text, #1E2228 bg)
+   Control flow         → slate blue (#5B8EC9)
+   Memory operations    → teal (#4BA89A)
+   State mutation       → amber (#C8943C)
+   Gas pressure         → thermal scale (dark→amber→white)
+   Success/agreement    → muted sage (#5A8A6C)
+   Divergence/fracture  → singular crimson (#C43A52) — RARE
+   Exceptional halt     → burnt signal (#B85A32)
+   Selected cursor      → high luminance white + left border
+   Security finding     → deep violet (#7B5EA7)
+   Diagnostic insight   → warm gold (#B89B4A)
+   
+   TYPOGRAPHY SCALE (Comfortable density — default):
+   ─────────────────────────────────────────────────────
+   Display value        → 22px mono, weight 400
+   Section value        → 14px mono, weight 500
+   Body data            → 12px mono, weight 400
+   Label                → 10px sans, weight 600, letter-spacing 1.5px
+   Annotation           → 11px mono, weight 400
+   Chrome               → 11px sans, weight 500
+   
+   LAYOUT ARCHITECTURE:
+   ─────────────────────────────────────────────────────
+   ┌─────────────────────────────────────────────────────────┐
+   │ TOP: Brand + View Tabs + Case Context + Run Controls    │ 32px
+   ├─────────────────────────────────────────────────────────┤
+   │ CASE BAR: target, fork, step/total, oracle status       │ 28px
+   ├────────────────────────────────────────┬────────────────┤
+   │                                        │                │
+   │  MAIN VIEW AREA                        │  DIAGNOSTICS   │
+   │  (Workbench / Flow / Interference)     │  PANEL         │
+   │                                        │                │
+   │                                        │  - Diagnosis   │
+   │                                        │  - Security    │
+   │                                        │  - Oracle Diff │
+   │                                        │  - Evidence    │
+   │                                        │                │
+   ├────────────────────────────────────────┴────────────────┤
+   │ STATUS: oracle connection, conformance summary          │ 24px
+   └─────────────────────────────────────────────────────────┘
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── Surface system (warm instrument grey) ─── */
+  --s-void: #060607;
+  --s-chassis: #0B0C0D;
+  --s-panel: #111214;
+  --s-raised: #181A1D;
+  --s-elevated: #1F2225;
+  --s-inset: #090A0B;
+  
+  /* ─── Border system ─── */
+  --b-hard: #2A2D32;
+  --b-subtle: #1E2125;
+  --b-focus: #3A3E44;
+  
+  /* ─── Text system ─── */
+  --t-primary: #E4E0DC;
+  --t-secondary: #A0A8B4;
+  --t-tertiary: #6A7280;
+  --t-ghost: #454B54;
+  
+  /* ─── SIGNAL MODEL ─── */
+  --sig-flow: #5B8EC9;          /* control flow, jumps, calls, returns */
+  --sig-memory: #4BA89A;        /* MLOAD, MSTORE, memory expansion */
+  --sig-state: #C8943C;         /* SSTORE, SLOAD, CREATE, SELFDESTRUCT */
+  --sig-thermal-low: #2A3848;   /* gas: cold */
+  --sig-thermal-mid: #6B5030;   /* gas: warm */
+  --sig-thermal-high: #C88040;  /* gas: hot */
+  --sig-thermal-peak: #F0D8A0;  /* gas: peak */
+  --sig-agree: #5A8A6C;         /* oracle match, test pass */
+  --sig-fracture: #C43A52;      /* oracle divergence — THE rare red */
+  --sig-halt: #B85A32;          /* REVERT, OOG, INVALID */
+  --sig-security: #7B5EA7;      /* security findings */
+  --sig-diagnosis: #B89B4A;     /* diagnostic insights */
+  --sig-cursor: #FFFFFF;        /* selected item */
+  
+  /* ─── Typography ─── */
+  --font-data: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+  --font-chrome: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  
+  /* ─── Spacing (comfortable density — default) ─── */
+  --row-h: 26px;
+  --trace-h: 22px;
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --gap-xl: 24px;
+
+  /* ─── Resizable pane dimensions ─── */
+  --diag-width: 320px;
+  --upper-flex: 1;
+  --lower-h: 200px;
+}
+
+/* Compact density */
+body[data-density="compact"] {
+  --row-h: 20px;
+  --trace-h: 17px;
+  --gap-xs: 2px;
+  --gap-sm: 5px;
+  --gap-md: 8px;
+  --gap-lg: 10px;
+}
+
+/* Instrument density */
+body[data-density="instrument"] {
+  --row-h: 16px;
+  --trace-h: 14px;
+  --gap-xs: 1px;
+  --gap-sm: 3px;
+  --gap-md: 6px;
+  --gap-lg: 8px;
+  font-size: 11px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--s-void);
+  color: var(--t-primary);
+  font-family: var(--font-data);
+  font-size: 12px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 34px 30px 1fr 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOP NAVIGATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+.top-nav {
+  background: var(--s-chassis);
+  border-bottom: 1px solid var(--b-hard);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 24px;
+  user-select: none;
+}
+
+.nav-brand {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 4.5px;
+  color: var(--t-tertiary);
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.nav-views {
+  display: flex;
+  gap: 0;
+  height: 100%;
+}
+
+.nav-view-tab {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-family: var(--font-chrome);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--t-tertiary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+  letter-spacing: 0.3px;
+  height: 100%;
+}
+
+.nav-view-tab:hover { color: var(--t-secondary); }
+.nav-view-tab.active { color: var(--t-primary); border-bottom-color: var(--t-primary); }
+
+.nav-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--b-hard);
+}
+
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-run-btn {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--s-chassis);
+  background: var(--t-primary);
+  padding: 4px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.nav-run-btn:hover { background: #FFFFFF; }
+
+.nav-secondary-btn {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--t-tertiary);
+  padding: 4px 10px;
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.nav-secondary-btn:hover { border-color: var(--b-focus); color: var(--t-secondary); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CASE CONTEXT BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+.case-bar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 20px;
+  font-size: 11px;
+}
+
+.case-field {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.case-label {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.case-value {
+  color: var(--t-secondary);
+  letter-spacing: 0.3px;
+}
+
+.case-value.highlight { color: var(--t-primary); font-weight: 500; }
+
+.case-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--b-subtle);
+}
+
+.case-oracle-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.case-oracle-badge.agree {
+  background: rgba(90, 138, 108, 0.12);
+  border: 1px solid rgba(90, 138, 108, 0.3);
+  color: var(--sig-agree);
+}
+
+.case-oracle-badge.fracture {
+  background: rgba(196, 58, 82, 0.1);
+  border: 1px solid rgba(196, 58, 82, 0.3);
+  color: var(--sig-fracture);
+}
+
+.oracle-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.oracle-dot.agree { background: var(--sig-agree); }
+.oracle-dot.fracture { background: var(--sig-fracture); animation: fracture-pulse 2s ease-in-out infinite; }
+
+@keyframes fracture-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN WORKSPACE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr var(--diag-width);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Vertical drag handle between main and diagnostics */
+.diag-resize-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  right: var(--diag-width);
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.1s;
+}
+.diag-resize-handle:hover,
+.diag-resize-handle.dragging { background: var(--b-focus); }
+
+/* ─── VIEW CONTENT ──────────────────────────────── */
+.view-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ═══ WORKBENCH VIEW ═══ */
+.workbench-view {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr var(--lower-h);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Horizontal drag handle between upper/lower */
+.wb-resize-handle {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: var(--lower-h);
+  height: 5px;
+  cursor: row-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.1s;
+}
+.wb-resize-handle:hover,
+.wb-resize-handle.dragging { background: var(--b-focus); }
+
+.wb-upper {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  overflow: hidden;
+}
+
+/* Disassembly */
+.disasm-pane {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--b-hard);
+  overflow: hidden;
+}
+
+.pane-toolbar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.pane-title {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.8px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.pane-meta {
+  font-size: 10px;
+  color: var(--t-ghost);
+  margin-left: auto;
+}
+
+.toolbar-pill {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--t-tertiary);
+  padding: 2px 8px;
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.toolbar-pill:hover { border-color: var(--b-focus); color: var(--t-secondary); }
+.toolbar-pill.active { border-color: var(--sig-flow); color: var(--sig-flow); }
+
+.disasm-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+.instr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.instr-row {
+  height: var(--row-h);
+  border-bottom: 1px solid rgba(255,255,255,0.015);
+  transition: background 0.08s;
+}
+
+.instr-row:hover { background: var(--s-raised); }
+
+.instr-row.cursor-row {
+  background: rgba(255,255,255,0.04);
+}
+
+.instr-row.cursor-row td { color: var(--t-primary); }
+
+.instr-row.cursor-row .i-pc { color: var(--sig-cursor); }
+
+.instr-row.cursor-row::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--sig-cursor);
+}
+
+/* Make rows position: relative for the cursor indicator */
+.instr-row { position: relative; }
+
+td {
+  padding: 0 8px;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 12px;
+}
+
+.i-bp { width: 8px; padding: 0 4px; }
+.i-bp-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.i-pc { 
+  color: var(--t-ghost); 
+  font-size: 11px; 
+  width: 48px; 
+  text-align: right;
+  padding-right: 12px;
+}
+
+.i-hex {
+  color: var(--t-ghost);
+  font-size: 10px;
+  width: 72px;
+  letter-spacing: 0.5px;
+}
+
+.i-op {
+  font-weight: 600;
+  width: 80px;
+  color: var(--t-primary);
+}
+
+.i-op.op-flow { color: var(--sig-flow); }
+.i-op.op-mem { color: var(--sig-memory); }
+.i-op.op-state { color: var(--sig-state); }
+.i-op.op-halt { color: var(--sig-halt); }
+
+.i-args { color: var(--t-secondary); }
+
+.i-gas {
+  color: var(--t-ghost);
+  font-size: 11px;
+  width: 64px;
+  text-align: right;
+}
+
+.i-gas.expensive { color: var(--sig-state); }
+
+.i-note {
+  color: var(--t-ghost);
+  font-size: 10px;
+  font-style: italic;
+  padding-left: 12px;
+}
+
+/* Machine State */
+.machine-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.machine-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+.state-section {
+  border-bottom: 1px solid var(--b-subtle);
+}
+
+.state-header {
+  background: var(--s-panel);
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--b-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.state-title {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.state-meta {
+  font-size: 10px;
+  color: var(--t-ghost);
+}
+
+.state-body {
+  padding: 8px 14px;
+}
+
+.reg-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 14px;
+}
+
+.reg-k {
+  font-size: 11px;
+  color: var(--t-ghost);
+  text-align: right;
+  padding: 2px 0;
+}
+
+.reg-v {
+  font-size: 12px;
+  color: var(--t-primary);
+  padding: 2px 0;
+  letter-spacing: 0.3px;
+}
+
+.reg-v.changed { color: var(--sig-state); }
+.reg-v.flow-change { color: var(--sig-flow); }
+
+/* Stack entries */
+.stack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stack-entry {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 2px;
+  align-items: center;
+}
+
+.stack-entry:first-child { background: rgba(255,255,255,0.02); }
+
+.se-idx { font-size: 10px; color: var(--t-ghost); text-align: right; }
+.se-val { font-size: 11px; color: var(--t-secondary); overflow: hidden; text-overflow: ellipsis; }
+.se-val.new { color: var(--t-primary); }
+.se-decode { font-size: 10px; color: var(--t-ghost); }
+
+/* ─── TRACE LOG (bottom) ─── */
+.trace-pane {
+  border-top: 1px solid var(--b-hard);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.trace-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+.trace-row {
+  display: grid;
+  grid-template-columns: 44px 52px 72px 72px 1fr auto;
+  gap: 8px;
+  padding: 0 14px;
+  height: var(--trace-h);
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.012);
+  font-size: 11px;
+}
+
+.trace-row:hover { background: var(--s-raised); }
+.trace-row.cursor-trace { background: rgba(255,255,255,0.03); }
+
+.tr-step { color: var(--t-ghost); text-align: right; }
+.tr-pc { color: var(--t-tertiary); }
+.tr-op { font-weight: 600; }
+.tr-op.t-flow { color: var(--sig-flow); }
+.tr-op.t-state { color: var(--sig-state); }
+.tr-op.t-mem { color: var(--sig-memory); }
+.tr-op.t-halt { color: var(--sig-halt); }
+.tr-gas { color: var(--t-tertiary); text-align: right; }
+.tr-effect { color: var(--t-secondary); overflow: hidden; text-overflow: ellipsis; }
+.tr-note { color: var(--t-ghost); font-size: 10px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIAGNOSTICS PANEL (persistent right column)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.diagnostics-panel {
+  background: var(--s-chassis);
+  border-left: 1px solid var(--b-hard);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: width 0.15s ease;
+}
+
+/* Collapsed rail */
+.diagnostics-panel.collapsed {
+  overflow: visible;
+}
+.diagnostics-panel.collapsed .diag-scroll,
+.diagnostics-panel.collapsed .pane-toolbar .pane-title { display: none; }
+
+.diag-collapse-btn {
+  position: absolute;
+  top: 8px;
+  left: -12px;
+  width: 12px;
+  height: 28px;
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  border-right: none;
+  border-radius: 3px 0 0 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--t-ghost);
+  z-index: 5;
+}
+.diag-collapse-btn:hover { color: var(--t-secondary); background: var(--s-raised); }
+
+/* Rail counts shown when collapsed */
+.diag-rail {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 44px 0 0;
+}
+.diagnostics-panel.collapsed .diag-rail { display: flex; }
+
+.rail-count {
+  writing-mode: vertical-rl;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.rail-count:hover { opacity: 0.8; }
+
+.diag-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.diag-section {
+  border-bottom: 1px solid var(--b-hard);
+  padding: 14px 16px;
+}
+
+.diag-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.diag-section-icon {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.diag-section-icon.diagnosis { background: var(--sig-diagnosis); }
+.diag-section-icon.security { background: var(--sig-security); }
+.diag-section-icon.oracle { background: var(--sig-fracture); }
+.diag-section-icon.evidence { background: var(--sig-flow); }
+
+.diag-section-title {
+  font-family: var(--font-chrome);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: var(--t-secondary);
+  text-transform: uppercase;
+}
+
+.diag-confidence {
+  margin-left: auto;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+
+.diag-confidence.high {
+  background: rgba(90, 138, 108, 0.15);
+  color: var(--sig-agree);
+}
+
+.diag-confidence.medium {
+  background: rgba(184, 155, 74, 0.15);
+  color: var(--sig-diagnosis);
+}
+
+/* Diagnosis card */
+.diagnosis-card {
+  background: var(--s-panel);
+  border: 1px solid var(--b-subtle);
+  border-left: 3px solid var(--sig-diagnosis);
+  border-radius: 3px;
+  padding: 12px 14px;
+}
+
+.dx-headline {
+  font-family: var(--font-chrome);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.dx-detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+}
+
+.dx-k {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+  padding: 2px 0;
+}
+
+.dx-v {
+  font-size: 11px;
+  color: var(--t-secondary);
+  padding: 2px 0;
+}
+
+.dx-v.fracture { color: var(--sig-fracture); }
+.dx-v.state { color: var(--sig-state); }
+
+.dx-evidence-link {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--sig-flow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.dx-evidence-link:hover { color: #7AAAD8; text-decoration: underline; }
+
+/* Security finding */
+.security-card {
+  background: var(--s-panel);
+  border: 1px solid var(--b-subtle);
+  border-left: 3px solid var(--sig-security);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.sec-severity {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.sec-severity.critical { color: var(--sig-fracture); }
+.sec-severity.warning { color: var(--sig-state); }
+.sec-severity.info { color: var(--t-tertiary); }
+
+.sec-title {
+  font-size: 11px;
+  color: var(--t-primary);
+  margin-bottom: 4px;
+}
+
+.sec-detail {
+  font-size: 10px;
+  color: var(--t-tertiary);
+  line-height: 1.4;
+}
+
+/* Oracle comparison */
+.oracle-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oracle-row {
+  display: grid;
+  grid-template-columns: 44px auto 1fr;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  align-items: center;
+}
+
+.oracle-row.match { background: rgba(90, 138, 108, 0.06); border: 1px solid rgba(90, 138, 108, 0.15); }
+.oracle-row.diverge { background: rgba(196, 58, 82, 0.06); border: 1px solid rgba(196, 58, 82, 0.2); }
+
+.or-name {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--t-tertiary);
+  letter-spacing: 0.5px;
+}
+
+.or-badge {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.or-badge.ok { color: var(--sig-agree); }
+.or-badge.fail { color: var(--sig-fracture); }
+
+.or-detail {
+  font-size: 10px;
+  color: var(--t-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Evidence section */
+.evidence-item {
+  padding: 8px 10px;
+  background: var(--s-panel);
+  border: 1px solid var(--b-subtle);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.evidence-item:hover { border-color: var(--b-focus); }
+
+.ev-type {
+  font-family: var(--font-chrome);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.ev-type.divergence { color: var(--sig-fracture); }
+.ev-type.gas { color: var(--sig-state); }
+.ev-type.behavior { color: var(--sig-diagnosis); }
+
+.ev-description {
+  font-size: 11px;
+  color: var(--t-secondary);
+  line-height: 1.4;
+}
+
+.ev-location {
+  font-size: 10px;
+  color: var(--t-ghost);
+  margin-top: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATUS BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+.status-bar {
+  background: var(--s-chassis);
+  border-top: 1px solid var(--b-hard);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  color: var(--t-ghost);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.status-dot.green { background: var(--sig-agree); }
+.status-dot.red { background: var(--sig-fracture); }
+.status-dot.neutral { background: var(--t-ghost); }
+
+.status-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--b-hard);
+}
+
+.density-picker {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.density-btn {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--t-ghost);
+  border: 1px solid transparent;
+  text-transform: uppercase;
+}
+.density-btn:hover { color: var(--t-secondary); }
+.density-btn.active { color: var(--t-primary); border-color: var(--b-hard); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW SELECTOR VISUAL (hidden views for demonstration)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.view-label-overlay {
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+  z-index: 5;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b-hard); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--b-focus); }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP NAVIGATION ═══ -->
+<div class="top-nav">
+  <span class="nav-brand">Schlieren</span>
+  
+  <div class="nav-views">
+    <div class="nav-view-tab active">Workbench</div>
+    <div class="nav-view-tab">Flow</div>
+    <div class="nav-view-tab" onclick="location.href='schlieren-interference.html'">Interference</div>
+    <div class="nav-view-tab">Conformance</div>
+    <div class="nav-view-tab" onclick="location.href='schlieren-harvest.html'">Harvest</div>
+  </div>
+  
+  <div class="nav-separator"></div>
+  
+  <div class="nav-right">
+    <div class="nav-secondary-btn">Load Fixture…</div>
+    <div class="nav-secondary-btn">Import Pre-state…</div>
+    <div class="nav-run-btn">RUN</div>
+  </div>
+</div>
+
+<!-- ═══ CASE CONTEXT BAR ═══ -->
+<div class="case-bar">
+  <div class="case-field">
+    <span class="case-label">Target</span>
+    <span class="case-value">0xdead…beef</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Fork</span>
+    <span class="case-value highlight">osaka</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Step</span>
+    <span class="case-value highlight">847 / 2,014</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Depth</span>
+    <span class="case-value">2</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Gas remaining</span>
+    <span class="case-value">7,241,308</span>
+  </div>
+  
+  <div class="case-separator"></div>
+  
+  <div class="case-oracle-badge agree">
+    <div class="oracle-dot agree"></div>
+    EELS
+  </div>
+  <div class="case-oracle-badge fracture">
+    <div class="oracle-dot fracture"></div>
+    REVM · 1 fracture
+  </div>
+</div>
+
+<!-- ═══ MAIN WORKSPACE ═══ -->
+<div class="workspace" id="workspace">
+  <div class="diag-resize-handle" id="diagResizeHandle"></div>
+  
+  <!-- VIEW CONTENT (showing Workbench) -->
+  <div class="view-content">
+    <div class="workbench-view" id="workbenchView">
+      <div class="wb-resize-handle" id="wbResizeHandle"></div>
+      
+      <!-- Upper: Disassembly + Machine State -->
+      <div class="wb-upper">
+        
+        <!-- DISASSEMBLY -->
+        <div class="disasm-pane">
+          <div class="pane-toolbar">
+            <span class="pane-title">Disassembly</span>
+            <div class="toolbar-pill active">Live</div>
+            <div class="toolbar-pill">Hex</div>
+            <div class="toolbar-pill">CFG</div>
+            <span class="pane-meta">0xdead…beef · 1,247 B · depth 2</span>
+          </div>
+          <div class="disasm-scroll">
+            <table class="instr-table">
+              <tr class="instr-row" data-step="843">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x340</td>
+                <td class="i-hex">60 05</td>
+                <td class="i-op">PUSH1</td>
+                <td class="i-args">0x05</td>
+                <td class="i-gas">3</td>
+                <td class="i-note"></td>
+              </tr>
+              <tr class="instr-row" data-step="844">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x342</td>
+                <td class="i-hex">60 03</td>
+                <td class="i-op">PUSH1</td>
+                <td class="i-args">0x03</td>
+                <td class="i-gas">3</td>
+                <td class="i-note"></td>
+              </tr>
+              <tr class="instr-row" data-step="845">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x344</td>
+                <td class="i-hex">01</td>
+                <td class="i-op">ADD</td>
+                <td class="i-args"></td>
+                <td class="i-gas">3</td>
+                <td class="i-note">5 + 3 = 8</td>
+              </tr>
+              <tr class="instr-row" data-step="846">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x345</td>
+                <td class="i-hex">52</td>
+                <td class="i-op op-mem">MSTORE</td>
+                <td class="i-args">offset=0x00</td>
+                <td class="i-gas">6</td>
+                <td class="i-note">expand +32B</td>
+              </tr>
+              <tr class="instr-row cursor-row" data-step="847">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x347</td>
+                <td class="i-hex">55</td>
+                <td class="i-op op-state">SSTORE</td>
+                <td class="i-args">slot=0x00 val=0x08</td>
+                <td class="i-gas expensive">20,000</td>
+                <td class="i-note">cold, 0→nonzero</td>
+              </tr>
+              <tr class="instr-row" data-step="848">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x348</td>
+                <td class="i-hex">60 20</td>
+                <td class="i-op">PUSH1</td>
+                <td class="i-args">0x20</td>
+                <td class="i-gas">3</td>
+                <td class="i-note"></td>
+              </tr>
+              <tr class="instr-row" data-step="849">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x34A</td>
+                <td class="i-hex">60 00</td>
+                <td class="i-op">PUSH1</td>
+                <td class="i-args">0x00</td>
+                <td class="i-gas">3</td>
+                <td class="i-note"></td>
+              </tr>
+              <tr class="instr-row" data-step="850">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x34C</td>
+                <td class="i-hex">F1</td>
+                <td class="i-op op-flow">CALL</td>
+                <td class="i-args">to=0xcafe… gas=63/64</td>
+                <td class="i-gas expensive">2,600+</td>
+                <td class="i-note">→ depth 3</td>
+              </tr>
+              <tr class="instr-row" data-step="851">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x34D</td>
+                <td class="i-hex">15</td>
+                <td class="i-op op-flow">ISZERO</td>
+                <td class="i-args"></td>
+                <td class="i-gas">3</td>
+                <td class="i-note"></td>
+              </tr>
+              <tr class="instr-row" data-step="852">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x34E</td>
+                <td class="i-hex">57</td>
+                <td class="i-op op-flow">JUMPI</td>
+                <td class="i-args">→ 0x380</td>
+                <td class="i-gas">10</td>
+                <td class="i-note">revert handler</td>
+              </tr>
+              <tr class="instr-row" data-step="853">
+                <td class="i-bp"></td>
+                <td class="i-pc">0x351</td>
+                <td class="i-hex">F3</td>
+                <td class="i-op op-flow">RETURN</td>
+                <td class="i-args">offset=0 size=32</td>
+                <td class="i-gas">0</td>
+                <td class="i-note">success path</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- MACHINE STATE -->
+        <div class="machine-pane">
+          <div class="pane-toolbar">
+            <span class="pane-title">Machine State</span>
+            <span class="pane-meta">pc: 0x347 · SSTORE</span>
+          </div>
+          <div class="machine-scroll">
+            <!-- Context -->
+            <div class="state-section">
+              <div class="state-header">
+                <span class="state-title">Context</span>
+              </div>
+              <div class="state-body">
+                <div class="reg-grid">
+                  <span class="reg-k">PC</span><span class="reg-v changed">0x0347</span>
+                  <span class="reg-k">GAS</span><span class="reg-v">7,241,308</span>
+                  <span class="reg-k">DEPTH</span><span class="reg-v">2</span>
+                  <span class="reg-k">CALLER</span><span class="reg-v">0x7a25…e91b</span>
+                  <span class="reg-k">ADDRESS</span><span class="reg-v">0xdead…beef</span>
+                  <span class="reg-k">VALUE</span><span class="reg-v">0 wei</span>
+                </div>
+              </div>
+            </div>
+            <!-- Stack -->
+            <div class="state-section">
+              <div class="state-header">
+                <span class="state-title">Stack</span>
+                <span class="state-meta">depth 6</span>
+              </div>
+              <div class="state-body">
+                <div class="stack-list">
+                  <div class="stack-entry"><span class="se-idx">0</span><span class="se-val new">0x00…0008</span><span class="se-decode">= 8 (value)</span></div>
+                  <div class="stack-entry"><span class="se-idx">1</span><span class="se-val new">0x00…0000</span><span class="se-decode">slot 0</span></div>
+                  <div class="stack-entry"><span class="se-idx">2</span><span class="se-val">0x00…dead…beef</span><span class="se-decode">address</span></div>
+                  <div class="stack-entry"><span class="se-idx">3</span><span class="se-val">0x00…2710</span><span class="se-decode">= 10000</span></div>
+                  <div class="stack-entry"><span class="se-idx">4</span><span class="se-val">0x00…0020</span><span class="se-decode">= 32</span></div>
+                  <div class="stack-entry"><span class="se-idx">5</span><span class="se-val">0x00…0000</span><span class="se-decode">= 0</span></div>
+                </div>
+              </div>
+            </div>
+            <!-- Storage -->
+            <div class="state-section">
+              <div class="state-header">
+                <span class="state-title">Storage</span>
+                <span class="state-meta">1 mutation this step</span>
+              </div>
+              <div class="state-body">
+                <div class="reg-grid">
+                  <span class="reg-k" style="color: var(--sig-state);">0x00</span><span class="reg-v changed">0x…0000 → 0x…0008</span>
+                  <span class="reg-k">0x01</span><span class="reg-v">0x…dead…beef</span>
+                </div>
+              </div>
+            </div>
+            <!-- Gas -->
+            <div class="state-section">
+              <div class="state-header">
+                <span class="state-title">Gas Accounting</span>
+                <span class="state-meta" style="color: var(--sig-state);">this op: 20,000</span>
+              </div>
+              <div class="state-body">
+                <div class="reg-grid">
+                  <span class="reg-k">RULE</span><span class="reg-v">SSTORE cold 0→nonzero</span>
+                  <span class="reg-k">BASE</span><span class="reg-v">20,000</span>
+                  <span class="reg-k">TOTAL USED</span><span class="reg-v">2,758,692</span>
+                  <span class="reg-k">REMAINING</span><span class="reg-v">7,241,308</span>
+                  <span class="reg-k">REFUND</span><span class="reg-v">0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lower: Trace -->
+      <div class="trace-pane">
+        <div class="pane-toolbar">
+          <span class="pane-title">Trace</span>
+          <div class="toolbar-pill active">Steps</div>
+          <div class="toolbar-pill">Events</div>
+          <div class="toolbar-pill">Memory</div>
+          <span class="pane-meta">2,014 steps · 12 state mutations · 4 calls</span>
+        </div>
+        <div class="trace-scroll">
+          <div class="trace-row" data-step="843">
+            <span class="tr-step">843</span><span class="tr-pc">0x340</span>
+            <span class="tr-op">PUSH1</span><span class="tr-gas">9,999,985</span>
+            <span class="tr-effect">→ [0x05]</span><span class="tr-note"></span>
+          </div>
+          <div class="trace-row" data-step="844">
+            <span class="tr-step">844</span><span class="tr-pc">0x342</span>
+            <span class="tr-op">PUSH1</span><span class="tr-gas">9,999,982</span>
+            <span class="tr-effect">→ [0x03, 0x05]</span><span class="tr-note"></span>
+          </div>
+          <div class="trace-row" data-step="845">
+            <span class="tr-step">845</span><span class="tr-pc">0x344</span>
+            <span class="tr-op">ADD</span><span class="tr-gas">9,999,979</span>
+            <span class="tr-effect">→ [0x08]</span><span class="tr-note">5 + 3</span>
+          </div>
+          <div class="trace-row" data-step="846">
+            <span class="tr-step">846</span><span class="tr-pc">0x345</span>
+            <span class="tr-op t-mem">MSTORE</span><span class="tr-gas">9,999,973</span>
+            <span class="tr-effect">mem[0x00] = 0x08</span><span class="tr-note">+32B</span>
+          </div>
+          <div class="trace-row cursor-trace" data-step="847">
+            <span class="tr-step" style="color: var(--t-primary);">847</span>
+            <span class="tr-pc" style="color: var(--sig-state);">0x347</span>
+            <span class="tr-op t-state">SSTORE</span>
+            <span class="tr-gas" style="color: var(--sig-state);">7,241,308</span>
+            <span class="tr-effect" style="color: var(--sig-state);">slot[0x00] = 0x08</span>
+            <span class="tr-note">cold 0→nz · 20k</span>
+          </div>
+          <div class="trace-row" data-step="848">
+            <span class="tr-step">848</span><span class="tr-pc">0x348</span>
+            <span class="tr-op">PUSH1</span><span class="tr-gas">7,241,305</span>
+            <span class="tr-effect">→ [0x20]</span><span class="tr-note"></span>
+          </div>
+          <div class="trace-row" data-step="849">
+            <span class="tr-step">849</span><span class="tr-pc">0x34A</span>
+            <span class="tr-op">PUSH1</span><span class="tr-gas">7,241,302</span>
+            <span class="tr-effect">→ [0x00, 0x20]</span><span class="tr-note"></span>
+          </div>
+          <div class="trace-row" data-step="850">
+            <span class="tr-step">850</span><span class="tr-pc">0x34C</span>
+            <span class="tr-op t-flow">CALL</span><span class="tr-gas">7,238,702</span>
+            <span class="tr-effect">→ depth 3 (0xcafe…)</span><span class="tr-note">63/64 alloc</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ DIAGNOSTICS PANEL ═══ -->
+  <div class="diagnostics-panel" id="diagPanel">
+    <div class="diag-collapse-btn" id="diagCollapseBtn" title="Toggle diagnostics">‹</div>
+    <div class="diag-rail">
+      <span class="rail-count" style="color:var(--sig-diagnosis)" title="Execution Diagnosis">⬥1</span>
+      <span class="rail-count" style="color:var(--sig-security)" title="Security Findings">⬥2</span>
+      <span class="rail-count" style="color:var(--sig-fracture)" title="Oracle Divergences">⬥1</span>
+    </div>
+    <div class="pane-toolbar">
+      <span class="pane-title">Diagnostics</span>
+    </div>
+    <div class="diag-scroll">
+      
+      <!-- EXECUTION DIAGNOSIS -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon diagnosis"></div>
+          <span class="diag-section-title">Execution Diagnosis</span>
+          <span class="diag-confidence high">HIGH</span>
+        </div>
+        <div class="diagnosis-card">
+          <div class="dx-headline">EIP-150 call gas calculation: 2-gas delta at CALL depth transition</div>
+          <div class="dx-detail-grid">
+            <span class="dx-k">First divergence</span>
+            <span class="dx-v fracture">Step 850 · CALL · depth 2 → 3</span>
+            <span class="dx-k">Observed</span>
+            <span class="dx-v">REVM gas_remaining: 7,238,700</span>
+            <span class="dx-k">Expected</span>
+            <span class="dx-v">Schlieren: 7,238,702</span>
+            <span class="dx-k">Delta</span>
+            <span class="dx-v fracture">−2 gas</span>
+            <span class="dx-k">Subsystem</span>
+            <span class="dx-v state">EIP-150 · 63/64 call stipend</span>
+            <span class="dx-k">Confidence</span>
+            <span class="dx-v">EELS agrees with Schlieren</span>
+          </div>
+          <div class="dx-evidence-link">→ Open step 850 in Workbench</div>
+          <div class="dx-evidence-link">→ Show in Interference view</div>
+        </div>
+      </div>
+
+      <!-- SECURITY FINDINGS -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon security"></div>
+          <span class="diag-section-title">Security Findings</span>
+        </div>
+        <div class="security-card">
+          <div class="sec-severity warning">WARNING</div>
+          <div class="sec-title">Unchecked CALL return value</div>
+          <div class="sec-detail">CALL at PC 0x34C returns to stack but ISZERO+JUMPI may not cover all failure modes. Verify revert propagation.</div>
+        </div>
+        <div class="security-card">
+          <div class="sec-severity info">INFO</div>
+          <div class="sec-title">Storage slot 0x00 written from external input</div>
+          <div class="sec-detail">Value derived from calldata flows into SSTORE at step 847. No access control gate observed in this frame.</div>
+        </div>
+      </div>
+
+      <!-- ORACLE COMPARISON -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon oracle"></div>
+          <span class="diag-section-title">Oracle Comparison</span>
+        </div>
+        <div class="oracle-comparison">
+          <div class="oracle-row match">
+            <span class="or-name">EELS</span>
+            <span class="or-badge ok">MATCH</span>
+            <span class="or-detail">All 2,014 steps agree</span>
+          </div>
+          <div class="oracle-row diverge">
+            <span class="or-name">REVM</span>
+            <span class="or-badge fail">DIVERGE</span>
+            <span class="or-detail">gas_remaining ≠ at step 850</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVIDENCE -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon evidence"></div>
+          <span class="diag-section-title">Evidence Chain</span>
+        </div>
+        <div class="evidence-item">
+          <div class="ev-type divergence">ORACLE DIVERGENCE</div>
+          <div class="ev-description">REVM returns gas_remaining = 7,238,700 after CALL at step 850. Schlieren and EELS both compute 7,238,702.</div>
+          <div class="ev-location">Step 850 · PC 0x34C · CALL · depth 2→3</div>
+        </div>
+        <div class="evidence-item">
+          <div class="ev-type gas">GAS RULE</div>
+          <div class="ev-description">EIP-150 stipend: floor(gas/64) remainder handling. Known REVM Berlin-era edge case (REVM-BUG-001).</div>
+          <div class="ev-location">Schlieren.Core/Gas/Eip150.cs:47</div>
+        </div>
+        <div class="evidence-item">
+          <div class="ev-type behavior">EXPECTED BEHAVIOR</div>
+          <div class="ev-description">EELS (authoritative) agrees with Schlieren. This is a known REVM limitation, not a Schlieren bug.</div>
+          <div class="ev-location">REVM_KNOWN_LIMITATIONS.md · REVM-BUG-001</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STATUS BAR ═══ -->
+<div class="status-bar">
+  <div class="status-item">
+    <div class="status-dot green"></div>
+    <span>EELS oracle</span>
+  </div>
+  <div class="status-item">
+    <div class="status-dot green"></div>
+    <span>REVM oracle</span>
+  </div>
+  <div class="status-sep"></div>
+  <span>Conformance: 1,124 passed · 2 known limitations</span>
+  <div class="status-sep"></div>
+  <div class="density-picker">
+    <span style="color:var(--t-ghost);font-size:9px;margin-right:4px;">DENSITY</span>
+    <div class="density-btn active" data-d="comfortable">Comfortable</div>
+    <div class="density-btn" data-d="compact">Compact</div>
+    <div class="density-btn" data-d="instrument">Instrument</div>
+  </div>
+  <span style="margin-left:16px;color:var(--t-ghost)">Schlieren 1.0.0 · .NET 8 · osaka</span>
+</div>
+
+<script>
+// ─── SELECTION SYNC CONTRACT ───────────────────────────────────────────────
+let selectedStep = 847;
+
+function selectStep(n) {
+  selectedStep = n;
+  // Disassembly rows
+  document.querySelectorAll('.instr-row').forEach(r => {
+    const active = parseInt(r.dataset.step) === n;
+    r.classList.toggle('cursor-row', active);
+  });
+  // Trace rows
+  document.querySelectorAll('.trace-row').forEach(r => {
+    const active = parseInt(r.dataset.step) === n;
+    r.classList.toggle('cursor-trace', active);
+    const stepEl = r.querySelector('.tr-step');
+    const pcEl   = r.querySelector('.tr-pc');
+    const gasEl  = r.querySelector('.tr-gas');
+    const effEl  = r.querySelector('.tr-effect');
+    if (stepEl) stepEl.style.color = active ? 'var(--t-primary)' : '';
+    if (pcEl)   pcEl.style.color   = active ? 'var(--sig-state)' : '';
+    if (gasEl)  gasEl.style.color  = active ? 'var(--sig-state)' : '';
+    if (effEl)  effEl.style.color  = active ? 'var(--sig-state)' : '';
+  });
+  // Scroll disassembly selected row into view
+  const disasmRow = document.querySelector(`.instr-row[data-step="${n}"]`);
+  if (disasmRow) disasmRow.scrollIntoView({ block: 'nearest' });
+  const traceRow = document.querySelector(`.trace-row[data-step="${n}"]`);
+  if (traceRow) traceRow.scrollIntoView({ block: 'nearest' });
+}
+
+// Click handlers
+document.querySelectorAll('.instr-row').forEach(r => {
+  r.addEventListener('click', () => selectStep(parseInt(r.dataset.step)));
+});
+document.querySelectorAll('.trace-row').forEach(r => {
+  r.addEventListener('click', () => selectStep(parseInt(r.dataset.step)));
+});
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  const steps = Array.from(document.querySelectorAll('.instr-row'))
+    .map(r => parseInt(r.dataset.step)).filter(Boolean).sort((a,b) => a-b);
+  const idx = steps.indexOf(selectedStep);
+  if (e.key === 'ArrowDown' && idx < steps.length - 1) { e.preventDefault(); selectStep(steps[idx + 1]); }
+  if (e.key === 'ArrowUp'   && idx > 0)                { e.preventDefault(); selectStep(steps[idx - 1]); }
+});
+
+// ─── DENSITY MODES ──────────────────────────────────────────────────────────
+document.querySelectorAll('.density-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.body.dataset.density = btn.dataset.d;
+  });
+});
+
+// ─── DIAGNOSTICS COLLAPSE ───────────────────────────────────────────────────
+const diagPanel = document.getElementById('diagPanel');
+const diagBtn   = document.getElementById('diagCollapseBtn');
+let diagCollapsed = false;
+
+diagBtn.addEventListener('click', () => {
+  diagCollapsed = !diagCollapsed;
+  diagPanel.classList.toggle('collapsed', diagCollapsed);
+  diagBtn.textContent = diagCollapsed ? '›' : '‹';
+  const w = diagCollapsed ? '36px' : 'var(--diag-width)';
+  document.body.style.setProperty('--diag-width-active', diagCollapsed ? '36px' : null);
+  document.getElementById('workspace').style.gridTemplateColumns = diagCollapsed
+    ? '1fr 36px' : '1fr var(--diag-width)';
+  document.getElementById('diagResizeHandle').style.display = diagCollapsed ? 'none' : '';
+});
+
+// ─── RESIZABLE: DIAGNOSTICS (horizontal drag) ────────────────────────────────
+(function() {
+  const handle    = document.getElementById('diagResizeHandle');
+  const workspace = document.getElementById('workspace');
+  let dragging = false, startX = 0, startW = 320;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startW = parseInt(getComputedStyle(document.documentElement)
+      .getPropertyValue('--diag-width')) || 320;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = startX - e.clientX;          // drag left = wider diag
+    const newW  = Math.min(600, Math.max(200, startW + delta));
+    document.documentElement.style.setProperty('--diag-width', newW + 'px');
+    workspace.style.gridTemplateColumns = `1fr ${newW}px`;
+    handle.style.right = newW + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  });
+})();
+
+// ─── RESIZABLE: WORKBENCH UPPER/LOWER (vertical drag) ────────────────────────
+(function() {
+  const handle   = document.getElementById('wbResizeHandle');
+  const wbView   = document.getElementById('workbenchView');
+  if (!handle || !wbView) return;
+  let dragging = false, startY = 0, startH = 200;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = parseInt(getComputedStyle(document.documentElement)
+      .getPropertyValue('--lower-h')) || 200;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = startY - e.clientY;        // drag up = taller lower
+    const newH  = Math.min(500, Math.max(80, startH + delta));
+    document.documentElement.style.setProperty('--lower-h', newH + 'px');
+    wbView.style.gridTemplateRows = `1fr ${newH}px`;
+    handle.style.bottom = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  });
+})();
+</script>
+
+</body>
+</html>

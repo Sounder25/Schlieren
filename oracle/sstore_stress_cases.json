@@ -1,0 +1,2102 @@
+[
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Istanbul_zero_to_zero",
+    "orig": 0,
+    "cur": 0,
+    "new": 0
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Istanbul_zero_to_nonzero",
+    "orig": 0,
+    "cur": 0,
+    "new": 170
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_same_value_write",
+    "orig": 170,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_nonzero_to_different",
+    "orig": 170,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_nonzero_to_zero_CLEAR",
+    "orig": 170,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_dirty_to_zero",
+    "orig": 170,
+    "cur": 187,
+    "new": 0
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_dirty_restore_original",
+    "orig": 170,
+    "cur": 187,
+    "new": 170
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560cc60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_dirty_to_different",
+    "orig": 170,
+    "cur": 187,
+    "new": 204
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Istanbul_dirty_same_value",
+    "orig": 170,
+    "cur": 187,
+    "new": 187
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Istanbul_created_then_cleared",
+    "orig": 0,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Istanbul_created_then_changed",
+    "orig": 0,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "ISTANBUL",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Istanbul_created_same_value",
+    "orig": 0,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Berlin_zero_to_zero",
+    "orig": 0,
+    "cur": 0,
+    "new": 0
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Berlin_zero_to_nonzero",
+    "orig": 0,
+    "cur": 0,
+    "new": 170
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_same_value_write",
+    "orig": 170,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_nonzero_to_different",
+    "orig": 170,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_nonzero_to_zero_CLEAR",
+    "orig": 170,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_dirty_to_zero",
+    "orig": 170,
+    "cur": 187,
+    "new": 0
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_dirty_restore_original",
+    "orig": 170,
+    "cur": 187,
+    "new": 170
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560cc60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_dirty_to_different",
+    "orig": 170,
+    "cur": 187,
+    "new": 204
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Berlin_dirty_same_value",
+    "orig": 170,
+    "cur": 187,
+    "new": 187
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Berlin_created_then_cleared",
+    "orig": 0,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Berlin_created_then_changed",
+    "orig": 0,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "BERLIN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Berlin_created_same_value",
+    "orig": 0,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "London_zero_to_zero",
+    "orig": 0,
+    "cur": 0,
+    "new": 0
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "London_zero_to_nonzero",
+    "orig": 0,
+    "cur": 0,
+    "new": 170
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_same_value_write",
+    "orig": 170,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_nonzero_to_different",
+    "orig": 170,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_nonzero_to_zero_CLEAR",
+    "orig": 170,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_dirty_to_zero",
+    "orig": 170,
+    "cur": 187,
+    "new": 0
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_dirty_restore_original",
+    "orig": 170,
+    "cur": 187,
+    "new": 170
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560cc60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_dirty_to_different",
+    "orig": 170,
+    "cur": 187,
+    "new": 204
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "London_dirty_same_value",
+    "orig": 170,
+    "cur": 187,
+    "new": 187
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "London_created_then_cleared",
+    "orig": 0,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "London_created_then_changed",
+    "orig": 0,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "LONDON",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "London_created_same_value",
+    "orig": 0,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Cancun_zero_to_zero",
+    "orig": 0,
+    "cur": 0,
+    "new": 0
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Cancun_zero_to_nonzero",
+    "orig": 0,
+    "cur": 0,
+    "new": 170
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_same_value_write",
+    "orig": 170,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_nonzero_to_different",
+    "orig": 170,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_nonzero_to_zero_CLEAR",
+    "orig": 170,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_dirty_to_zero",
+    "orig": 170,
+    "cur": 187,
+    "new": 0
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_dirty_restore_original",
+    "orig": 170,
+    "cur": 187,
+    "new": 170
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560cc60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_dirty_to_different",
+    "orig": 170,
+    "cur": 187,
+    "new": 204
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Cancun_dirty_same_value",
+    "orig": 170,
+    "cur": 187,
+    "new": 187
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Cancun_created_then_cleared",
+    "orig": 0,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Cancun_created_then_changed",
+    "orig": 0,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "CANCUN",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Cancun_created_same_value",
+    "orig": 0,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Prague_zero_to_zero",
+    "orig": 0,
+    "cur": 0,
+    "new": 0
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Prague_zero_to_nonzero",
+    "orig": 0,
+    "cur": 0,
+    "new": 170
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_same_value_write",
+    "orig": 170,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_nonzero_to_different",
+    "orig": 170,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_nonzero_to_zero_CLEAR",
+    "orig": 170,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_dirty_to_zero",
+    "orig": 170,
+    "cur": 187,
+    "new": 0
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_dirty_restore_original",
+    "orig": 170,
+    "cur": 187,
+    "new": 170
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560cc60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_dirty_to_different",
+    "orig": 170,
+    "cur": 187,
+    "new": 204
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Prague_dirty_same_value",
+    "orig": 170,
+    "cur": 187,
+    "new": 187
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Prague_created_then_cleared",
+    "orig": 0,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Prague_created_then_changed",
+    "orig": 0,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "PRAGUE",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Prague_created_same_value",
+    "orig": 0,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Osaka_zero_to_zero",
+    "orig": 0,
+    "cur": 0,
+    "new": 0
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Osaka_zero_to_nonzero",
+    "orig": 0,
+    "cur": 0,
+    "new": 170
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_same_value_write",
+    "orig": 170,
+    "cur": 170,
+    "new": 170
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_nonzero_to_different",
+    "orig": 170,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_nonzero_to_zero_CLEAR",
+    "orig": 170,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_dirty_to_zero",
+    "orig": 170,
+    "cur": 187,
+    "new": 0
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_dirty_restore_original",
+    "orig": 170,
+    "cur": 187,
+    "new": 170
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560cc60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_dirty_to_different",
+    "orig": 170,
+    "cur": 187,
+    "new": 204
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60bb60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {
+          "0x0000000000000000000000000000000000000000000000000000000000000000": "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        }
+      }
+    ],
+    "desc": "Osaka_dirty_same_value",
+    "orig": 170,
+    "cur": 187,
+    "new": 187
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa600055600060005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Osaka_created_then_cleared",
+    "orig": 0,
+    "cur": 170,
+    "new": 0
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560bb60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Osaka_created_then_changed",
+    "orig": 0,
+    "cur": 170,
+    "new": 187
+  },
+  {
+    "fork": "OSAKA",
+    "caller": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+    "target": "0x00000000000000000000000000000000000000bb",
+    "calldata": "0x",
+    "value": "0x0",
+    "gas_limit": 10000000,
+    "prestate": [
+      {
+        "address": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+        "code": "0x",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      },
+      {
+        "address": "0x00000000000000000000000000000000000000bb",
+        "code": "0x60aa60005560aa60005500",
+        "balance": "0xDE0B6B3A7640000",
+        "nonce": 0,
+        "storage": {}
+      }
+    ],
+    "desc": "Osaka_created_same_value",
+    "orig": 0,
+    "cur": 170,
+    "new": 170
+  }
+]

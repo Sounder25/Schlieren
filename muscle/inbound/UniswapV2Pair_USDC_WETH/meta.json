@@ -1,0 +1,14 @@
+{
+  "name": "UniswapV2Pair_USDC_WETH",
+  "address": "0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc",
+  "network": "mainnet",
+  "fetchedAtBlock": "0x18977d4",
+  "runtimeBytes": 11293,
+  "note": "Real Uniswap V2 USDC/WETH pair. Confirmed genuine by cross-checking the bytecode's dispatcher: its first branch matches the real mint(address) selector (0x6a627842) computed independently. Reserves are packed into one storage slot (reserve0:112 | reserve1:112 | blockTimestampLast:32, via bit-shifting) — good real-world bitwise-unpack + reentrancy-lock (nonReentrant modifier via a storage flag) coverage. swap()/mint()/burn() all do real external token transfers plus a price-oracle cumulative update.",
+  "knownSelectors": {
+    "0x0902f1ac": "getReserves()",
+    "0x022c0d9f": "swap(uint256,uint256,address,bytes)",
+    "0x6a627842": "mint(address)",
+    "0xfff6cae9": "sync()"
+  }
+}

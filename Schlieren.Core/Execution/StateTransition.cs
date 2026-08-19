@@ -451,6 +451,30 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-01-10] Post-execution accounting on the base state.
         // Total gas used = intrinsic + EVM execution gas.
+        var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
+        var totalGasUsed = intrinsicGas + evmGasUsed;
+
+        // EIP-3529 (London+): apply capped gas refund. Pre-London: max refund = gasUsed/2.
+        if (result.GasRefundCounter > 0)
+        {
+            var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
+            var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
+            totalGasUsed -= (ulong)cappedRefund;
+        }
+
+        // EIP-7623 (Prague+): enforce calldata token floor.
+        // If actual gas consumed is below floor = TX_BASE + tokens×10, charge the floor instead.
+        // Floor applies after EIP-3529 refund to prevent double-benefit.
+        if (block.Rules.HasEip7623CalldataFloor && tx.Authorization != TransactionAuthorization.Internal)
+        {
+            var tokenFloor = IntrinsicGas.ComputeFloor(tx);
+            if (totalGasUsed < tokenFloor)
+                totalGasUsed = tokenFloor;
+        }
+
+        // Return a result that reflects the true total gas used to callers (e.g. eth_getReceipt).
+        result = result with { GasUsed = totalGasUsed };
+
         // 1. Refund unspent gas back to sender (always, success or failure)
         // 2. Credit effective total gas fee to coinbase/miner
         // Only when committing (not dry-run probes like estimateGas).
@@ -458,31 +482,6 @@ public sealed class StateTransition : IStateTransition
             tx.Authorization != TransactionAuthorization.Simulation &&
             commit)
         {
-            // [AI-EDIT 2026-01-10] Cap EVM-reported gas at executionGasLimit.
-            // On OOG, ConsumeGas overshoots (e.g. adds 20000 gas then throws), leaving
-            // context.GasUsed > executionGasLimit. Per spec, a frame that OOGs consumes
-            // ALL its allocated gas — never more. Capping here ensures accounting is correct.
-            var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
-            var totalGasUsed = intrinsicGas + evmGasUsed;
-
-                        // EIP-3529 (London+): apply capped gas refund. Pre-London: max refund = gasUsed/2.
-                        if (result.GasRefundCounter > 0)
-                        {
-                            var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
-                            var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
-                            totalGasUsed -= (ulong)cappedRefund;
-                        }
-
-            // EIP-7623 (Prague+): enforce calldata token floor.
-            // If actual gas consumed is below floor = TX_BASE + tokens×10, charge the floor instead.
-            // Floor applies after EIP-3529 refund to prevent double-benefit.
-            if (block.Rules.HasEip7623CalldataFloor && tx.Authorization != TransactionAuthorization.Internal)
-            {
-                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
-                if (totalGasUsed < tokenFloor)
-                    totalGasUsed = tokenFloor;
-            }
-
             // Sender balance recovery after execution:
             // 1. Refund for UNUSED gas at the effective gas price.
             // 2. For EIP-1559 (type-2/3): also refund the "price-cap" difference.
@@ -524,9 +523,6 @@ public sealed class StateTransition : IStateTransition
                     await txOverlay.TouchAccountAsync(block.Coinbase, ct);
                 }
             }
-
-            // Return a result that reflects the true total gas used to callers (e.g. eth_getReceipt).
-            result = result with { GasUsed = totalGasUsed };
         }
 
         if (commit)

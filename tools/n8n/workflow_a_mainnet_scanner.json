@@ -1,0 +1,222 @@
+{
+  "name": "Schlieren - Workflow A: Mainnet Scanner",
+  "nodes": [
+    {
+      "id": "scanner-0001",
+      "name": "Manual Trigger (run from n8n)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "scanner-0002",
+      "name": "Scanner Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateOutput": false,
+        "fields": {
+          "values": [
+            {
+              "name": "rpcUrl",
+              "stringValue": "https://rpc.ankr.com/eth"
+            },
+            {
+              "name": "safetyLagBlocks",
+              "numberValue": 5
+            },
+            {
+              "name": "maxBlocksPerRun",
+              "numberValue": 25
+            },
+            {
+              "name": "bootstrapLagBlocks",
+              "numberValue": 20
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "scanner-0003",
+      "name": "Get Finalized Block Height",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.rpcUrl }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getBlockByNumber",
+          "params": [
+            "finalized",
+            false
+          ],
+          "id": 1
+        },
+        "options": {
+          "timeout": 20000
+        }
+      }
+    },
+    {
+      "id": "scanner-0004",
+      "name": "Compute Block Range",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const config = $('Scanner Config').first().json;\nconst finalizedHex = $input.first().json.result.number;\nconst finalizedNum = parseInt(finalizedHex, 16);\nconst safeHead = finalizedNum - (config.safetyLagBlocks || 5);\nconst staticData = $getWorkflowStaticData('global');\nlet lastBlock = staticData.lastScannedBlock || 0;\nlet startBlock;\nif (!lastBlock || lastBlock <= 0) {\n  startBlock = safeHead - (config.bootstrapLagBlocks || 20);\n} else {\n  startBlock = lastBlock + 1;\n}\nif (startBlock > safeHead) return [];\nconst maxBlocks = config.maxBlocksPerRun || 25;\nconst endBlock = Math.min(startBlock + maxBlocks - 1, safeHead);\nconst blockItems = [];\nfor (let b = startBlock; b <= endBlock; b++) {\n  blockItems.push({ json: { rpcUrl: config.rpcUrl, blockNumber: b, blockHex: '0x' + b.toString(16), finalizedBlock: finalizedNum, safeHead, startBlock, endBlock } });\n}\nreturn blockItems;"
+      }
+    },
+    {
+      "id": "scanner-0005",
+      "name": "Fetch Full Block Transactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.rpcUrl }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getBlockByNumber",
+          "params": [
+            "={{ $json.blockHex }}",
+            true
+          ],
+          "id": 1
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "scanner-0006",
+      "name": "Score & Extract Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst KNOWN_PROTOCOLS = new Map([\n  ['0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', 'WETH9'],\n  ['0x7a250d5630b4cf539739df2c5dacb4c659f2488d', 'UniswapV2Router'],\n  ['0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45', 'UniswapV3Router2'],\n  ['0xe592427a0aece92de3edee1f18e0157c05861564', 'UniswapV3SwapRouter'],\n  ['0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', 'AaveV3Pool'],\n  ['0xba12222222228d8ba445958a75a0704d566bf2c8', 'BalancerVault'],\n  ['0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7', 'Curve3Pool'],\n  ['0x1111111254eeb25477b68fb85ed929f73a960582', '1inchV5Router'],\n  ['0xdef1c0ded9bec7f1a1670819833240f027b25eff', '0xExchangeProxy'],\n  ['0x000000000022d473030f116ddee9f6b43ac78ba3', 'Permit2'],\n  ['0x00000000219ab540356cbb839cbe05303d7705fa', 'BeaconDeposit'],\n  ['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', 'USDC'],\n  ['0xdac17f958d2ee523a2206206994597c13d831ec7', 'USDT'],\n  ['0x6b175474e89094c44da98b954eedeac495271d0f', 'DAI']\n]);\n\n// Admission thresholds \u2014 these cut ~80% of low-value traffic\nconst MIN_GAS_LIMIT       = 50_000;   // ignore dust txs\nconst MIN_CALLDATA_BYTES  = 36;       // 4-byte selector + at least one 32-byte param (= 72 hex chars + 0x = 74 chars)\nconst MAX_QUEUE_PER_RUN   = 50;       // hard cap on what this single run adds\n\nconst candidates = [];\n\nfor (const item of $input.all()) {\n  const block = item.json.result;\n  if (!block || !block.transactions) continue;\n\n  const blockNum = parseInt(block.number, 16);\n\n  for (const tx of block.transactions) {\n    const to      = (tx.to || '').toLowerCase();\n    const input   = tx.input || '0x';\n    const value   = tx.value || '0x0';\n    const gasLim  = parseInt(tx.gas || '0x0', 16);\n    const hasValue = value !== '0x0' && value !== '0x' && value !== '0';\n    const calldataLen = (input.length - 2) / 2; // bytes\n\n    let keep = false;\n    let candidateType = '';\n    let priorityScore = 0;\n\n    // Tier 1 \u2014 contract creation: always keep\n    if (!tx.to) {\n      keep = true;\n      candidateType = 'CONTRACT_CREATION';\n      priorityScore = 90;\n    }\n\n    // Tier 2 \u2014 known high-value protocol: always keep\n    else if (KNOWN_PROTOCOLS.has(to)) {\n      keep = true;\n      candidateType = 'KNOWN_PROTOCOL:' + KNOWN_PROTOCOLS.get(to);\n      priorityScore = 100;\n    }\n\n    // Tier 3 \u2014 unknown contract call: strict admission\n    // Must have: real calldata (not just a selector), meaningful gas, not a simple ETH transfer\n    else if (\n      calldataLen >= MIN_CALLDATA_BYTES &&\n      gasLim >= MIN_GAS_LIMIT &&\n      input !== '0x'\n    ) {\n      keep = true;\n      candidateType = 'CONTRACT_CALL';\n      priorityScore = 40;\n      if (gasLim >= 200_000)  priorityScore += 20;\n      if (gasLim >= 500_000)  priorityScore += 20;\n      if (hasValue)           priorityScore += 10;\n      if (calldataLen >= 200) priorityScore += 10; // complex calldata\n    }\n\n    // Everything else: ETH transfers, ERC20 approve-only calls, dust \u2014 skip\n    if (!keep) continue;\n\n    candidates.push({\n      json: {\n        txHash: tx.hash,\n        blockNumber: blockNum,\n        fromAddress: (tx.from || '').toLowerCase(),\n        toAddress: to,\n        gasLimit: gasLim,\n        calldataBytes: calldataLen,\n        value: tx.value,\n        candidateType,\n        priorityScore,\n        status: 'DISCOVERED',\n        discoveredAt: new Date().toISOString()\n      }\n    });\n\n    if (candidates.length >= MAX_QUEUE_PER_RUN) break;\n  }\n  if (candidates.length >= MAX_QUEUE_PER_RUN) break;\n}\n\n// Sort best first before returning\ncandidates.sort((a, b) => b.json.priorityScore - a.json.priorityScore);\nreturn candidates;\n"
+      }
+    },
+    {
+      "id": "scanner-0007",
+      "name": "Persist Candidates & Update Checkpoint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.candidateQueue) staticData.candidateQueue = [];\nlet added = 0;\nconst existingHashes = new Set(staticData.candidateQueue.map(c => c.txHash));\nlet highestBlockInBatch = 0;\nfor (const item of items) {\n  const c = item.json;\n  if (c.blockNumber > highestBlockInBatch) highestBlockInBatch = c.blockNumber;\n  if (!existingHashes.has(c.txHash)) { staticData.candidateQueue.push(c); existingHashes.add(c.txHash); added++; }\n}\nif (staticData.candidateQueue.length > 1000) {\n  staticData.candidateQueue.sort((a,b) => b.priorityScore - a.priorityScore);\n  staticData.candidateQueue = staticData.candidateQueue.slice(0, 1000);\n}\nif (highestBlockInBatch > (staticData.lastScannedBlock || 0)) {\n  staticData.lastScannedBlock = highestBlockInBatch;\n  staticData.lastScanTime = new Date().toISOString();\n}\nreturn [{ json: { discoveredThisRun: items.length, newlyQueued: added, totalQueueSize: staticData.candidateQueue.length, lastScannedBlock: staticData.lastScannedBlock, timestamp: new Date().toISOString() } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger (run from n8n)": {
+      "main": [
+        [
+          {
+            "node": "Scanner Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scanner Config": {
+      "main": [
+        [
+          {
+            "node": "Get Finalized Block Height",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Finalized Block Height": {
+      "main": [
+        [
+          {
+            "node": "Compute Block Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Block Range": {
+      "main": [
+        [
+          {
+            "node": "Fetch Full Block Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Full Block Transactions": {
+      "main": [
+        [
+          {
+            "node": "Score & Extract Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score & Extract Candidates": {
+      "main": [
+        [
+          {
+            "node": "Persist Candidates & Update Checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "maxActiveWorkflows": 1
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "TokenLib",
+  "address": "0x4EBF91F140cA186dd49Cbb5F25f157D74178254a",
+  "network": "mainnet",
+  "fetchedAtBlock": "0x18977d4",
+  "runtimeBytes": 3660,
+  "note": "Real EIP-2612 permit token (compiled solc 0.8.28, Cancun target, Sourcify-verified exact match). Opens with an ADDRESS==<hardcoded self address> implementation guard — reverts if reached via DELEGATECALL from another contract, only works when called directly. A prior round (docs/real-world-test-tokenlib.md) only exercised the empty-calldata short-circuit revert (15 steps, 21043 gas) and never reached the real transfer/permit logic — worth going deeper this time. EIP-712 permit() uses ecrecover for signature verification, good precompile-in-context coverage.",
+  "knownSelectors": {
+    "0xc7f62387": "transferFrom-shaped (writes to storage slot 3 keyed by address, emits Transfer topic 0xddf252ad...)",
+    "0x480ff065": "likely transfer(address,uint256) equivalent",
+    "0x20606b70": "DOMAIN_SEPARATOR() (EIP-712)",
+    "0x30adf81f": "PERMIT_TYPEHASH()-shaped (returns a fixed hash constant)",
+    "0x957cae98": "likely balanceOf(address)",
+    "0x19a79b48": "the permit()-shaped function — takes owner/spender/value/deadline/v/r/s and calls ecrecover via a precompile staticcall at 0x01"
+  },
+  "caveat": "Selectors above are inferred from decompiled dispatcher branches, not a fetched ABI (Sourcify source fetch 404'd on the exact path tried). Verify against the real ABI before relying on exact semantics."
+}
