@@ -197,7 +197,35 @@ public static class ConformanceRunService
                     $"Running {c.CaseId}",
                     null, null, c.FixturePath,
                     0, 0, string.Empty, string.Empty, string.Empty));
-                var report = await executor.ExecuteAsync(c, ct);
+
+                EelsCaseExecutionReport report;
+                try
+                {
+                    report = await executor.ExecuteAsync(c, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // real cancellation must still abort the whole run
+                }
+                catch (Exception ex)
+                {
+                    // A crash in a single fixture (e.g. a NullReferenceException deep in the
+                    // executor) must not take down the entire fork sweep via Task.WhenAll and
+                    // silently lose every other case's results — tally it as a failure instead.
+                    int fCrash = Interlocked.Increment(ref failed);
+                    int pCrash = Volatile.Read(ref passed);
+                    progress.Report(new ConformanceProgress(
+                        pCrash, fCrash, total,
+                        c.CaseId,
+                        $"executor crashed: {ex.Message}",
+                        new[] { ex.ToString() },
+                        c.FixturePath,
+                        0, 0,
+                        "other", string.Empty,
+                        BuildClusterKey("other", "executor_crash")));
+                    return;
+                }
+
                 bool ok = report.StateMatches && report.ReceiptStatusMatches;
 
                 int p, f;

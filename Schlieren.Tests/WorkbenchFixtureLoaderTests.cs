@@ -50,4 +50,58 @@ public sealed class WorkbenchFixtureLoaderTests
         Assert.True(WorkbenchQuantity.TryBigInteger("21", out var dec));
         Assert.Equal(21, dec);
     }
+
+    [Fact]
+    public void Parse_FixtureWithSecretKeyNoSender_FallsBackToPreAccount_NotRawKey()
+    {
+        // Standard EELS state-test shape: transaction carries "secretKey" (a 32-byte
+        // private key) but no "sender" field. SenderHex must resolve to the funded
+        // pre-state account's address, never to the raw private key.
+        const string senderAddress = "0xae32ae2ec09b1a1521de4dbc0a846fcd40d9e1fd";
+        const string secretKey = "0xffc684abd3b0e49d1021eee51257767465d91292f29c15df1e25e063daed8b5a";
+        var json = $$"""
+        {
+          "tests/fake::test_no_sender_field[fork_Berlin-state_test]": {
+            "env": {
+              "currentCoinbase": "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+              "currentGasLimit": "0x07270e00",
+              "currentNumber": "0x01",
+              "currentTimestamp": "0x03e8",
+              "currentDifficulty": "0x020000"
+            },
+            "pre": {
+              "{{senderAddress}}": { "nonce": "0x00", "balance": "0x3635c9adc5dea00000", "code": "0x", "storage": {} }
+            },
+            "transaction": {
+              "nonce": "0x00",
+              "gasPrice": "0x0a",
+              "gasLimit": ["0x0186a0"],
+              "to": null,
+              "value": ["0x00"],
+              "data": ["0x"],
+              "secretKey": "{{secretKey}}"
+            },
+            "post": {
+              "Berlin": [
+                {
+                  "hash": "0x0000000000000000000000000000000000000000000000000000000000000",
+                  "logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                  "indexes": { "data": 0, "gas": 0, "value": 0 },
+                  "state": {}
+                }
+              ]
+            }
+          }
+        }
+        """;
+
+        var parsed = WorkbenchFixtureLoader.Parse(json, "Berlin");
+        Assert.True(parsed.Ok, parsed.Error);
+        var fx = parsed.Fixture!;
+
+        Assert.Equal(senderAddress, fx.SenderHex, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual(secretKey, fx.SenderHex, StringComparer.OrdinalIgnoreCase);
+        // A 32-byte private key must never end up where a 20-byte address is expected.
+        Assert.True(fx.SenderHex.Length <= 42, $"SenderHex looks like a raw key, not an address: {fx.SenderHex}");
+    }
 }

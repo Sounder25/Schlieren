@@ -181,9 +181,11 @@ public static class WorkbenchFixtureLoader
             }
         }
 
-        var sender = Text(txNode, "sender") ?? Text(txNode, "secretKey") ?? "";
-        if (txNode.TryGetProperty("sender", out _))
-            sender = Text(txNode, "sender") ?? "";
+        // Standard EELS state-test fixtures carry "secretKey" (a 32-byte private key), not
+        // "sender" — that must never be used as the sender address. When "sender" is absent,
+        // fall through to the PreAccounts[0] address, matching this loader's stated intent
+        // that no secret-key signing is required to run a fixture.
+        var sender = Text(txNode, "sender") ?? "";
         if (string.IsNullOrWhiteSpace(sender) && loaded.PreAccounts.Count > 0)
             sender = loaded.PreAccounts[0].AddressHex;
 
