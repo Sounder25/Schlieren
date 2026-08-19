@@ -96,11 +96,12 @@ namespace Schlieren.Core.Execution
                     // Advance PC to the next instruction
                     context.ProgramCounter = nextPc;
                 }
-                catch (EvmOutOfGasException)
+                catch (Exception ex) when (TryMapProtocolHalt(ex, out var haltError))
                 {
+                    // Exceptional halt: consume the frame allocation, do not crash the tx Task.
                     context.AddTraceStep(pc, opcode.Name, gasBefore, gasBefore);
                     return ExecutionResult.Failure(
-                        EvmError.OutOfGas,
+                        haltError,
                         context.GasLimit) with
                     {
                         TraceSteps = context.TraceSteps
@@ -132,6 +133,31 @@ namespace Schlieren.Core.Execution
 
             // Successfully executed to the end of the code — preserve any RETURN data and gas refund counter
             return ExecutionResult.Success(context.GasUsed, returnData: lastReturnData, logs: context.Logs, traceSteps: context.TraceSteps) with { GasRefundCounter = context.GasRefundCounter };
+        }
+
+        private static bool TryMapProtocolHalt(Exception ex, out EvmError error)
+        {
+            switch (ex)
+            {
+                case EvmOutOfGasException:
+                    error = EvmError.OutOfGas;
+                    return true;
+                case EvmStackUnderflowException:
+                    error = EvmError.StackUnderflow;
+                    return true;
+                case EvmStackOverflowException:
+                    error = EvmError.StackOverflow;
+                    return true;
+                case EvmBadJumpDestinationException:
+                    error = EvmError.BadJumpDestination;
+                    return true;
+                case EvmInvalidOpcodeException:
+                    error = EvmError.InvalidOpcode;
+                    return true;
+                default:
+                    error = EvmError.InternalError;
+                    return false;
+            }
         }
     }
 }
