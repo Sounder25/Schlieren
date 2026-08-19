@@ -128,13 +128,13 @@ public class GoldenCorpusTests
             Calldata = "",
             Fork = "Cancun",
             ExpectedSuccess = true,
-            ExpectedGas = 21074, // 21000 + 3 + 3 + 12 + 3 + 3 + 50
+            ExpectedGas = 21018, // 21000 intrinsic + PUSH1(3)+PUSH1(3)+MSTORE(3+3 mem)+PUSH1(3)+PUSH1(3)+RETURN(0)
             ExpectedReentrancyCount = 0
         };
 
         var result = await DifferentialRegressionRunner.RunCaseAsync(testCase);
         
         Assert.Equal(RegressionStatus.Pass, result.Status);
-        Assert.Equal(21074UL, result.ActualGas);
+        Assert.Equal(21018UL, result.ActualGas);
     }
 }
