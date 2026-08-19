@@ -73,9 +73,17 @@ public static class TraceCommand
         ulong intrinsicGas = 21_000 + calldataGas;
 
         // ── 2. Fetch receipt (actual gas used) ────────────────────────────────
+        // A failed receipt fetch isn't fatal — the gas tree can still render from the
+        // trace alone — but it must be visible, or the tree silently falls back to
+        // intrinsic-only gas with no indication the "actual gas used" annotation was
+        // never applied (and a script checking exit codes couldn't tell either).
         JsonElement receipt;
         try { receipt = await RpcCallAsync(http, resolvedRpc, "eth_getTransactionReceipt", txHash); }
-        catch { receipt = default; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"⚠  eth_getTransactionReceipt failed ({ex.Message}); showing intrinsic/estimated gas only");
+            receipt = default;
+        }
 
         ulong gasUsed = 0;
         if (receipt.ValueKind != JsonValueKind.Null && receipt.ValueKind != JsonValueKind.Undefined)

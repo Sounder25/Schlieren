@@ -1,5 +1,7 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.CommandLine.Parsing;
+using System.Linq;
 using Schlieren.Core.Configuration;
 
 namespace Schlieren.CLI;
@@ -159,8 +161,16 @@ public static class CommandLineParser
                 description: "Write logs to a file"),
             
             // SECTION: CORS Options
+            // AllowMultipleArgumentsPerToken splits on separate CLI tokens (spaces), not
+            // commas — but the help text (and every user's first instinct) says
+            // comma-separated. Accept both: split each token on commas too, so
+            // `--cors-origins "http://a.com,http://b.com"` and
+            // `--cors-origins http://a.com http://b.com` both work.
             new Option<string[]?>(
                 aliases: new[] { "--cors-origins" },
+                parseArgument: result => result.Tokens
+                    .SelectMany(t => t.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    .ToArray(),
                 description: "CORS allowed origins (comma-separated)")
             { AllowMultipleArgumentsPerToken = true },
             
