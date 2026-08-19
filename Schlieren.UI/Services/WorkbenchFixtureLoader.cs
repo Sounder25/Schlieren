@@ -97,6 +97,13 @@ public static class WorkbenchFixtureLoader
         {
             return new(null, $"Invalid JSON: {ex.Message}");
         }
+        catch (FormatException ex)
+        {
+            // A present-but-malformed quantity (balance/nonce) must surface as a load error,
+            // not silently become 0 — that would show the user a materially wrong pre-state
+            // with no indication the fixture data itself was bad.
+            return new(null, $"Invalid fixture data: {ex.Message}");
+        }
     }
 
     private static bool IsCaseNode(JsonElement el) =>
@@ -312,8 +319,12 @@ public static class WorkbenchFixtureLoader
     {
         if (el.ValueKind != JsonValueKind.Object) return null;
         var balRaw = Text(el, "balance") ?? "0";
-        WorkbenchQuantity.TryBigInteger(balRaw, out var bal);
-        WorkbenchQuantity.TryUlong(Text(el, "nonce"), out var nonce);
+        if (!WorkbenchQuantity.TryBigInteger(balRaw, out var bal))
+            throw new FormatException($"malformed balance for account {address}: '{balRaw}'");
+        var nonceRaw = Text(el, "nonce");
+        ulong nonce = 0;
+        if (nonceRaw != null && !WorkbenchQuantity.TryUlong(nonceRaw, out nonce))
+            throw new FormatException($"malformed nonce for account {address}: '{nonceRaw}'");
         var storage = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (el.TryGetProperty("storage", out var st) && st.ValueKind == JsonValueKind.Object)
         {

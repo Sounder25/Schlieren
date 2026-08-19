@@ -104,4 +104,43 @@ public sealed class WorkbenchFixtureLoaderTests
         // A 32-byte private key must never end up where a 20-byte address is expected.
         Assert.True(fx.SenderHex.Length <= 42, $"SenderHex looks like a raw key, not an address: {fx.SenderHex}");
     }
+
+    [Fact]
+    public void Parse_MalformedPreAccountBalance_SurfacesError_NotSilentlyZero()
+    {
+        // Regression test: a present-but-unparseable pre-state account balance used to
+        // silently become 0 instead of surfacing a load error — showing the user a
+        // materially wrong pre-state with no indication the fixture data itself was bad.
+        const string senderAddress = "0xae32ae2ec09b1a1521de4dbc0a846fcd40d9e1fd";
+        var json = $$"""
+        {
+          "tests/fake::test_malformed_balance[fork_Berlin-state_test]": {
+            "env": {
+              "currentCoinbase": "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+              "currentGasLimit": "0x07270e00",
+              "currentNumber": "0x01",
+              "currentTimestamp": "0x03e8",
+              "currentDifficulty": "0x020000"
+            },
+            "pre": {
+              "{{senderAddress}}": { "nonce": "0x00", "balance": "not-a-number", "code": "0x", "storage": {} }
+            },
+            "transaction": {
+              "nonce": "0x00",
+              "gasPrice": "0x0a",
+              "gasLimit": ["0x0186a0"],
+              "to": null,
+              "value": ["0x00"],
+              "data": ["0x"],
+              "sender": "{{senderAddress}}"
+            },
+            "post": { "Berlin": [ { "hash": "0x0", "logs": "0x0", "indexes": { "data": 0, "gas": 0, "value": 0 }, "state": {} } ] }
+          }
+        }
+        """;
+
+        var parsed = WorkbenchFixtureLoader.Parse(json, "Berlin");
+        Assert.False(parsed.Ok);
+        Assert.Contains("balance", parsed.Error, StringComparison.OrdinalIgnoreCase);
+    }
 }

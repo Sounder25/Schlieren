@@ -177,8 +177,23 @@ public static class ConformanceRunService
             return (0, 1, 1);
         }
 
+        progress.Report(LoadTick(cases.Count, $"Loaded {cases.Count:N0} cases — starting {forkName}…", fixtureRoot));
+        return await RunCasesAsync(cases, executor.ExecuteAsync, progress, ct);
+    }
+
+    /// <summary>
+    /// Runs a pre-built list of cases against an executor delegate, streaming progress.
+    /// Extracted from <see cref="RunAsync"/> so the crash-isolation behavior (one case
+    /// throwing must not lose the rest of the batch) can be exercised directly in tests
+    /// without needing real fixture files on disk to force a genuine executor exception.
+    /// </summary>
+    public static async Task<(int Passed, int Failed, int Total)> RunCasesAsync(
+        IReadOnlyList<EelsStateCase> cases,
+        Func<EelsStateCase, CancellationToken, Task<EelsCaseExecutionReport>> execute,
+        IProgress<ConformanceProgress> progress,
+        CancellationToken ct)
+    {
         int total  = cases.Count;
-        progress.Report(LoadTick(total, $"Loaded {total:N0} cases — starting {forkName}…", fixtureRoot));
         int passed = 0;
         int failed = 0;
 
@@ -201,7 +216,7 @@ public static class ConformanceRunService
                 EelsCaseExecutionReport report;
                 try
                 {
-                    report = await executor.ExecuteAsync(c, ct);
+                    report = await execute(c, ct);
                 }
                 catch (OperationCanceledException)
                 {

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Schlieren.UI.Services;
 using Schlieren.UI.ViewModels;
@@ -51,6 +52,15 @@ public sealed class AuditReportExporterTests
             Assert.Contains("Cancun", reportText);
             Assert.Contains("REENTRANCY", reportText);
             Assert.Contains("SLOAD", reportText);
+
+            // Regression test: Details ("Target: Vault.sol | Re-entered at step 23") contains
+            // a raw '|' — this used to be written straight into the table cell, where Markdown
+            // parses it as an extra column boundary and breaks the row. The embedded pipe must
+            // now appear escaped (\|), not as a second unescaped column-delimiting pipe.
+            var findingRow = reportText.Split('\n')
+                .Single(line => line.Contains("REENTRANCY", StringComparison.Ordinal));
+            Assert.Contains(@"Vault.sol \| Re-entered", findingRow);
+            Assert.DoesNotContain("Vault.sol | Re-entered", findingRow); // the unescaped form must be gone
         }
         finally
         {

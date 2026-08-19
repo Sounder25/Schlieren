@@ -56,7 +56,7 @@ public static class AuditReportExporter
             sb.AppendLine("| :------- | :------- | :---------- | :------ |");
             foreach (var f in findingList)
             {
-                sb.AppendLine($"| {f.SeverityEmoji} | `{f.LocationText}` | {f.Description} | {f.Details} |");
+                sb.AppendLine($"| {f.SeverityEmoji} | `{EscapeMarkdownCell(f.LocationText)}` | {EscapeMarkdownCell(f.Description)} | {EscapeMarkdownCell(f.Details)} |");
             }
         }
         sb.AppendLine();
@@ -179,5 +179,20 @@ public static class AuditReportExporter
         var reportContent = sb.ToString();
         await File.WriteAllTextAsync(savePath, reportContent, Encoding.UTF8);
         return reportContent;
+    }
+
+    /// <summary>
+    /// Escapes a value for safe placement inside a Markdown table cell. A raw '|' is parsed
+    /// as a column boundary and a raw newline breaks the row entirely — both occur in normal
+    /// finding text (e.g. "Target: X | re-entry step Y"), not just adversarial input.
+    /// </summary>
+    private static string EscapeMarkdownCell(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value
+            .Replace("|", "\\|")
+            .Replace("\r\n", "<br>")
+            .Replace("\n", "<br>")
+            .Replace("\r", "<br>");
     }
 }

@@ -43,6 +43,29 @@ public sealed class WorkbenchPrestateLoaderTests
     }
 
     [Fact]
+    public void Parse_HexStringNonce_ParsesCorrectly_NotSilentlyZero()
+    {
+        // Regression test: ReadUlong only tried ulong.TryParse (decimal-only) for string
+        // nonces, so any hex-formatted nonce ("0x5") — the normal Ethereum JSON convention —
+        // silently became 0 instead of the real value.
+        var r = WorkbenchPrestateLoader.Parse(
+            """[{ "address": "0x00000000000000000000000000000000000000cc", "nonce": "0x5" }]""");
+        Assert.True(r.Ok, r.Error);
+        Assert.Equal(5ul, r.Accounts[0].Nonce);
+    }
+
+    [Fact]
+    public void Parse_MalformedNonce_SurfacesError_NotSilentlyZero()
+    {
+        // Regression test: a present-but-unparseable nonce used to silently become 0
+        // instead of surfacing a load error.
+        var r = WorkbenchPrestateLoader.Parse(
+            """[{ "address": "0x00000000000000000000000000000000000000cc", "nonce": "not-a-number" }]""");
+        Assert.False(r.Ok);
+        Assert.Contains("nonce", r.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Vm_LoadPrestate_FeedsExtraAccountsOnRunOptions()
     {
         using var vm = new WorkbenchViewModel();

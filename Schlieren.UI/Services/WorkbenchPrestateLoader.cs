@@ -64,6 +64,10 @@ public static class WorkbenchPrestateLoader
         {
             return new([], $"Invalid JSON: {ex.Message}");
         }
+        catch (FormatException ex)
+        {
+            return new([], $"Invalid pre-state data: {ex.Message}");
+        }
     }
 
     public static bool LooksLikePrestate(string? text)
@@ -96,8 +100,16 @@ public static class WorkbenchPrestateLoader
         {
             if (!el.TryGetProperty(n, out var p)) continue;
             if (p.ValueKind == JsonValueKind.Number && p.TryGetUInt64(out var u)) return u;
-            if (p.ValueKind == JsonValueKind.String &&
-                ulong.TryParse(p.GetString(), out var s)) return s;
+            if (p.ValueKind == JsonValueKind.String)
+            {
+                var s = p.GetString();
+                if (ulong.TryParse(s, out var parsed)) return parsed;
+                if (WorkbenchQuantity.TryUlong(s, out var hexParsed)) return hexParsed;
+                // Present but genuinely unparseable (not just absent) — must not silently
+                // become 0, which would show a materially wrong nonce with no indication
+                // the source data was bad.
+                throw new FormatException($"malformed '{n}': '{s}'");
+            }
         }
         return 0;
     }
