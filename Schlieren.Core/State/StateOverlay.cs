@@ -173,6 +173,13 @@ public sealed class StateOverlay : IGlobalState
     public void MarkForDeletion(Address address) => _accountsMarkedForDeletion.Add(address);
     public bool IsMarkedForDeletion(Address address) => _accountsMarkedForDeletion.Contains(address) || _parent.IsMarkedForDeletion(address);
     public IEnumerable<Address> GetAccountsMarkedForDeletion() => _accountsMarkedForDeletion.Concat(_parent.GetAccountsMarkedForDeletion()).Distinct();
+    /// <summary>
+    /// Overlay-local tombstone. Hides the account for the rest of this overlay
+    /// (failed CREATE rollback, nested frames). It is not a block-level lock:
+    /// Commit() applies <see cref="IGlobalState.DeleteAccount"/> on the parent,
+    /// which removes the account from committed state. A later transaction may
+    /// CREATE2-redeploy the address (Yellow Paper metamorphic semantics).
+    /// </summary>
     public void DeleteAccount(Address address)
     {
         _buffer.TryRemove(address, out _);
