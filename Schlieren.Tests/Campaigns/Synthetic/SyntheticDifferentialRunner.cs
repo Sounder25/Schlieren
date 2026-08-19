@@ -427,15 +427,9 @@ public static class KnownOracleLimitations
         // Only suppress for REVM — EELS is authoritative
         if (oracle is not RevmExecutionHarness) return false;
 
-        // REVM-BUG-001: Berlin SSTORE clear refund (EIP-2200 REFUND_STORAGE_CLEAR)
-        // REVM 42.x does not apply the 15000 gas refund when clearing a non-zero slot.
-        // Schlieren=14314 == EELS=14314. REVM=23828 is wrong.
-        // Signature: Berlin + XToZero + GasMismatch + delta=-9514
-        if (c.Fork == "Berlin"
-            && c.StoragePattern == StoragePattern.XToZero
-            && diff.GasMismatch
-            && diff.GasDelta == -9514)
-            return true;
+        // No known limitations remaining after harness fix (2026-08-18).
+        // Previously suppressed REVM-BUG-001 was a harness defect:
+        // ctx.cfg.spec was set without rebuilding gas params table.
 
         return false;
     }

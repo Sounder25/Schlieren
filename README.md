@@ -141,7 +141,7 @@ Schlieren has been hardened against adversarial inputs at every layer:
 - **Memory expansion attacks:** Quadratic gas formula aborts before allocating terabyte-scale arrays
 - **Precompile abuse:** Bad input sizes and insufficient gas handled gracefully; no `IndexOutOfRangeException`
 - **Dirty calldata:** `MAX_UINT256` arguments decoded safely; reverts on contract `require()`, not host crash
-- **SELFDESTRUCT + CREATE2:** Tombstone semantics enforced; re-deploy at same address correctly rejected within block
+- **SELFDESTRUCT + CREATE2:** Overlay tombstones are transaction-scoped, not block-scoped. Same-tx CREATE2 to a SELFDESTRUCTed account is rejected because the account is still visible until finalization (EIP-7610 nonce/code/storage). After the tx commits, `DeleteAccount` removes it; a later transaction in the same block may CREATE2-redeploy (Yellow Paper metamorphic semantics). Cancun+ EIP-6780 only deletes contracts created in the same tx, so a pre-existing contract's code remains and still collides.
 
 ### RPC Server Security
 - **Slowloris defense:** 5-second read timeout on entire request phase; `408 Request Timeout` on stalled connections
