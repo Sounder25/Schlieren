@@ -327,11 +327,10 @@ public sealed class StateTransition : IStateTransition
                 if (signerCode.Length > 0 && !isDelegation)
                     continue;
 
-                // If the authority already exists in state, grant the partial refund
-                // EELS: refund_counter += AUTH_PER_EMPTY_ACCOUNT - REFUND_AUTH_PER_EXISTING_ACCOUNT
-                //                       = 25000 - 12500 = 12500
-                var signerBalance = await txOverlay.GetBalanceAsync(auth.Signer, ct);
-                var accountExists = signerNonce > 0 || !signerBalance.IsZero || signerCode.Length > 0;
+                // If the authority already exists in state, grant the partial refund.
+                // EELS: account_exists(tx_state, authority) — trie presence, not non-emptiness.
+                // An existing-but-empty account (nonce=0, balance=0, no code) still counts.
+                var accountExists = await txOverlay.AccountExistsAsync(auth.Signer, ct);
                 if (accountExists)
                     authRefund += 12500;
 
@@ -539,6 +538,9 @@ public sealed class StateTransition : IStateTransition
             // from GlobalState while the parent CREATE opcode still needs to reference or push it.
             if (tx.Authorization != TransactionAuthorization.Internal)
             {
+                // Transaction-scoped finalization only. GlobalState.DeleteAccount
+                // removes the account; there is no block-level tombstone. A later
+                // tx in the same block may CREATE2-redeploy (EELS / Yellow Paper).
                 foreach (var addr in txOverlay.GetAccountsMarkedForDeletion())
                     state.DeleteAccount(addr);
             }
@@ -654,6 +656,38 @@ public sealed class StateTransition : IStateTransition
             foreach (var entry in tx.AccessList) { accessTracker.WarmAddress(entry.Address); foreach (var slot in entry.StorageKeys) accessTracker.WarmSlot(entry.Address, slot); }
         }
 
+        // EIP-7702 authorization processing (gas-tree path — mirrors ApplyTransactionAsync)
+        ulong authRefundFrame = 0;
+        if (block.Rules.HasEip7702SetCode && tx.TxType == 4 && tx.AuthorizationList.Count > 0)
+        {
+            foreach (var auth in tx.AuthorizationList)
+            {
+                if (auth.ChainId != 0 && auth.ChainId != block.ChainId) continue;
+                if (auth.Nonce == ulong.MaxValue) continue;
+                if (!auth.IsValid) continue;
+                accessTracker.WarmAddress(auth.Signer);
+                var signerNonce = await state.GetNonceAsync(auth.Signer, ct);
+                if (signerNonce != auth.Nonce || signerNonce == ulong.MaxValue) continue;
+                var signerCode = await state.GetCodeAsync(auth.Signer, ct);
+                bool isDelegation = signerCode.Length == 23 &&
+                                    signerCode[0] == 0xEF && signerCode[1] == 0x01 && signerCode[2] == 0x00;
+                if (signerCode.Length > 0 && !isDelegation) continue;
+                // Trie-presence check: empty-but-existing authority still gets the +12,500 refund.
+                var accountExists = await state.AccountExistsAsync(auth.Signer, ct);
+                if (accountExists) authRefundFrame += 12500;
+                byte[] designation;
+                if (auth.DelegateAddress.Equals(Address.Zero))
+                    designation = Array.Empty<byte>();
+                else
+                {
+                    designation = new byte[23];
+                    designation[0] = 0xEF; designation[1] = 0x01; designation[2] = 0x00;
+                    auth.DelegateAddress.Bytes.CopyTo(designation, 3);
+                }
+                if (commit) { state.SetCode(auth.Signer, designation); state.SetNonce(auth.Signer, signerNonce + 1); }
+            }
+        }
+
         ExecutionResult result;
 
         if (topLevelCreation.HasValue &&
@@ -692,6 +726,10 @@ public sealed class StateTransition : IStateTransition
             tx.Authorization != TransactionAuthorization.Simulation &&
             commit)
         {
+            // Apply EIP-7702 auth refund to the result's refund counter (mirrors canonical path).
+            if (authRefundFrame > 0)
+                result = result with { GasRefundCounter = result.GasRefundCounter + (long)authRefundFrame };
+
             var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
             var totalGasUsed = intrinsicGas + evmGasUsed;
             if (result.GasRefundCounter > 0)
@@ -795,7 +833,7 @@ public sealed class StateTransition : IStateTransition
         Dictionary<(Address, BigInteger), BigInteger>? originalStorageSnapshot = null,
         GasFrameNode? parentGasFrame = null)
     {
-        if (depth > 1024)
+        if (depth >= 1024)  // EVM depth limit is 1024 (0-1023). Off-by-one bug fixed.
         {
             // [DIAGNOSTIC] Log call stack depth limit
             Console.WriteLine($"[DEPTH_LIMIT_EXCEEDED] depth={depth} tx={tx} from={tx.From} to={tx.To}");
