@@ -5,10 +5,98 @@ namespace Schlieren.UI.Branding;
 /// </summary>
 public static class SkinCatalog
 {
-    public const string DefaultSkinId = "arctic-night";
+    public const string DefaultSkinId = "volt";
 
     public static IReadOnlyList<UiSkin> All { get; } =
     [
+        // ── VOLT — Default flagship skin ─────────────────────────────────
+        // Pure black chrome. Single volt-yellow accent. Oscilloscope precision.
+        // Every other tool uses indigo/cyan. This doesn't.
+        new UiSkin(
+            Id: "volt",
+            DisplayName: "Volt",
+            Description: "Pure black + volt yellow. Oscilloscope precision. This is the flagship.",
+            Category: "Schlieren",
+            ShellBg:       "#080808",
+            PanelDeep:     "#0D0D0D",
+            PanelBg:       "#131313",
+            PanelElevated: "#1C1C1C",
+            Border:        "#2A2A2A",
+            BorderSubtle:  "#1F1F1F",
+            TextPrimary:   "#F0F0F0",
+            TextMuted:     "#888888",
+            TextDim:       "#505050",
+            Accent:        "#D4FF00",
+            AccentAlt:     "#FFFFFF",
+            AccentHover:   "#E8FF55",
+            AccentSoft:    "#A8CC00",
+            Success:       "#00E87A",
+            Danger:        "#FF3B3B",
+            Warning:       "#FFB800",
+            Alert:         "#FF5500",
+            ActiveLineBg:  "#1A1F00",
+            VulnerableLineBg: "#200A0A",
+            SelectionBg:   "#1C1C1C",
+            ArtMotif: SkinArtMotif.SchlierenMark, WatermarkBoost: 0.6),
+
+        // ── IRON — Alternate: warm steel ─────────────────────────────────
+        // Deep charcoal + hot white. No color at all — pure luminance.
+        new UiSkin(
+            Id: "iron",
+            DisplayName: "Iron",
+            Description: "Zero color. Deep charcoal + pure white. Audit mode.",
+            Category: "Schlieren",
+            ShellBg:       "#090909",
+            PanelDeep:     "#0E0E0E",
+            PanelBg:       "#141414",
+            PanelElevated: "#1E1E1E",
+            Border:        "#303030",
+            BorderSubtle:  "#222222",
+            TextPrimary:   "#EFEFEF",
+            TextMuted:     "#787878",
+            TextDim:       "#484848",
+            Accent:        "#FFFFFF",
+            AccentAlt:     "#CCCCCC",
+            AccentHover:   "#FFFFFF",
+            AccentSoft:    "#AAAAAA",
+            Success:       "#59FF9A",
+            Danger:        "#FF4040",
+            Warning:       "#FFC040",
+            Alert:         "#FF6820",
+            ActiveLineBg:  "#1E1E1E",
+            VulnerableLineBg: "#1E0A0A",
+            SelectionBg:   "#202020",
+            ArtMotif: SkinArtMotif.SchlierenMark, WatermarkBoost: 0.5),
+
+        // ── EMBER — Alternate: forge heat ────────────────────────────────
+        // Near-black + ember orange. Industrial. Expensive-feeling.
+        new UiSkin(
+            Id: "ember",
+            DisplayName: "Ember",
+            Description: "Near-black + ember orange. Forge heat. Industrial.",
+            Category: "Schlieren",
+            ShellBg:       "#090807",
+            PanelDeep:     "#0F0D0B",
+            PanelBg:       "#161310",
+            PanelElevated: "#201C18",
+            Border:        "#2E2820",
+            BorderSubtle:  "#221E18",
+            TextPrimary:   "#F2EDE6",
+            TextMuted:     "#8A7E70",
+            TextDim:       "#504840",
+            Accent:        "#FF6A00",
+            AccentAlt:     "#FFB040",
+            AccentHover:   "#FF8833",
+            AccentSoft:    "#CC5500",
+            Success:       "#50E890",
+            Danger:        "#FF3030",
+            Warning:       "#FFB800",
+            Alert:         "#FF4400",
+            ActiveLineBg:  "#1E1200",
+            VulnerableLineBg: "#1E0800",
+            SelectionBg:   "#201A10",
+            ArtMotif: SkinArtMotif.SchlierenMark, WatermarkBoost: 0.7),
+
         // ── Comfort / work ───────────────────────────────────────────────
         new UiSkin(
             Id: "arctic-night",
