@@ -616,6 +616,11 @@ public sealed class StateTransition : IStateTransition
         {
             intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
             if (tx.GasLimit < intrinsicGas) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+            // EIP-7825 (Osaka+): reject tx.gas > 2^24.
+            if (block.Rules.HasEip7825TxGasLimitCap
+                && tx.Authorization != TransactionAuthorization.Internal
+                && tx.GasLimit > block.Rules.TxMaxGasLimit)
+                return ExecutionResult.Failure(EvmError.InvalidTransaction, tx.GasLimit);
             if (block.Rules.HasEip7623CalldataFloor)
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
@@ -698,9 +703,18 @@ public sealed class StateTransition : IStateTransition
         }
         else
         {
+            // For top-level CREATE: snapshot state before execution so a failed initcode
+            // can roll back sub-call side effects (mirrors txOverlay.RestoreSnapshot in canonical path).
+            IDictionary<Address, Account>? frameCreateSnapshot = topLevelCreation.HasValue
+                ? state.Snapshot()
+                : null;
+
             result = await ExecuteInternalAsync(
                 tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
                 executionGasLimit, accessTracker: accessTracker, parentGasFrame: rootFrame);
+
+            if (topLevelCreation.HasValue && !result.IsSuccess && frameCreateSnapshot != null)
+                state.RestoreSnapshot(frameCreateSnapshot);
         }
 
         if (topLevelCreation.HasValue && result.IsSuccess)
@@ -710,14 +724,22 @@ public sealed class StateTransition : IStateTransition
                 result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
             else
             {
-                var depositGas = 200UL * (ulong)result.ReturnData.Length;
-                var remaining = executionGasLimit > result.GasUsed ? executionGasLimit - result.GasUsed : 0UL;
-                if (depositGas > remaining)
-                    result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
+                // EIP-3541 (London+): reject runtime code whose first byte is 0xEF.
+                if (block.Rules.HasEip3541EfPrefix && result.ReturnData.Length > 0 && result.ReturnData[0] == 0xEF)
+                {
+                    result = ExecutionResult.Failure(EvmError.InvalidOpcode, executionGasLimit);
+                }
                 else
                 {
-                    if (commit) state.SetCode(topLevelCreation.Value, result.ReturnData);
-                    result = ExecutionResult.Success(result.GasUsed + depositGas, result.ReturnData, result.Logs, result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
+                    var depositGas = 200UL * (ulong)result.ReturnData.Length;
+                    var remaining = executionGasLimit > result.GasUsed ? executionGasLimit - result.GasUsed : 0UL;
+                    if (depositGas > remaining)
+                        result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
+                    else
+                    {
+                        if (commit) state.SetCode(topLevelCreation.Value, result.ReturnData);
+                        result = ExecutionResult.Success(result.GasUsed + depositGas, result.ReturnData, result.Logs, result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
+                    }
                 }
             }
         }
@@ -734,7 +756,7 @@ public sealed class StateTransition : IStateTransition
             var totalGasUsed = intrinsicGas + evmGasUsed;
             if (result.GasRefundCounter > 0)
             {
-                var maxRefund = (long)(totalGasUsed / 5);
+                var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
                 totalGasUsed -= (ulong)Math.Min(result.GasRefundCounter, maxRefund);
             }
             // EIP-7623 (Prague+): enforce calldata token floor.
