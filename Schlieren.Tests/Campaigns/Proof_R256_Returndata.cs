@@ -21,7 +21,7 @@ public class Proof_R256_Returndata
     public async Task Inspect_R256_Depth_Anomaly()
     {
         var testCase = CallSemanticsMatrixGenerator.GenerateMatrix()
-            .First(c => c.CaseId == "R6_CALL_COLD_SUCCESS_NOOP_R256_D2_CANCUN");
+            .First(c => c.CaseId == "R6_CALL_COLD_SUCCESS_NOOP_R256_V0_CODE_D2_CANCUN");
 
         var result = await ExecuteCase(testCase);
 

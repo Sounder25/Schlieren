@@ -214,6 +214,12 @@ public static class Precompiles
         if (eip7883 && (bSizeBig > 1024 || eSizeBig > 1024 || mSizeBig > 1024))
             return (null, gasLimit); // ExceptionalHalt: consume all remaining gas
 
+        // If any declared length exceeds int.MaxValue the gas formula produces a value
+        // that will always exceed any realistic gas limit — return OOG without attempting
+        // to allocate multi-gigabyte buffers or overflow a cast.
+        if (bSizeBig > int.MaxValue || eSizeBig > int.MaxValue || mSizeBig > int.MaxValue)
+            return (null, gasLimit);
+
         int bLen = (int)bSizeBig, eLen = (int)eSizeBig, mLen = (int)mSizeBig;
 
         int pos = 96;
