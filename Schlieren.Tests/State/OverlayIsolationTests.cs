@@ -167,6 +167,33 @@ public sealed class OverlayIsolationTests
         // global finally loses the account
         Assert.False(await gs.AccountExistsAsync(addr));
     }
+
+    // ── 8: Reset(Address) must not leak an EIP-6780 deletion mark ──────────────
+    [Fact]
+    public void ResetAddress_ClearsMarkForDeletion_DoesNotLeakThroughCommit()
+    {
+        // Regression test: Reset(Address) cleared _buffer/_createdAccounts/_tombstones for
+        // the address but not _accountsMarkedForDeletion. A per-address rollback (undoing a
+        // CREATE whose SELFDESTRUCT should be fully discarded) would still leak the deletion
+        // mark: Commit() would call MarkForDeletion on the parent for an address whose
+        // creation was supposed to be entirely undone.
+        var addr  = Addr("0x22");
+        var gs    = new GlobalState();
+        var outer = new StateOverlay(gs);
+        var inner = new StateOverlay(outer);
+
+        inner.SetNonce(addr, 1);
+        inner.MarkForDeletion(addr);
+        Assert.True(inner.IsMarkedForDeletion(addr));
+
+        inner.Reset(addr);
+
+        Assert.False(inner.IsMarkedForDeletion(addr));
+
+        inner.Commit();
+
+        Assert.DoesNotContain(addr, outer.GetAccountsMarkedForDeletion());
+    }
 }
 
 // Note: EIP-1153 transient storage isolation for CREATE frames is covered by the

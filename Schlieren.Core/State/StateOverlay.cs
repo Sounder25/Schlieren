@@ -151,6 +151,10 @@ public sealed class StateOverlay : IGlobalState
         _buffer.TryRemove(address, out _);
         _createdAccounts.Remove(address);
         _tombstones.Remove(address);
+        // Without this, a per-address rollback would leak an EIP-6780 deletion mark through
+        // the "discard" path: Commit() would still call MarkForDeletion on the parent for an
+        // address whose creation was supposed to be fully undone.
+        _accountsMarkedForDeletion.Remove(address);
     }
 
     public void Commit()

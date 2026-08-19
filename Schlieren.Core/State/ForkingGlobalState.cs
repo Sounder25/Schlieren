@@ -177,10 +177,20 @@ public sealed class ForkingGlobalState : IGlobalState
                 var nonce = await _forkProvider.GetTransactionCountAsync(addr, _forkBlockNumber, timeoutCts.Token);
                 var code = await _forkProvider.GetCodeAsync(addr, _forkBlockNumber, timeoutCts.Token);
 
-                _localState.SetBalance(addr, balance);
-                _localState.SetNonce(addr, nonce);
-                _localState.SetCode(addr, code);
-                
+                // GlobalState.SetBalance/SetNonce/SetCode all materialize a dictionary entry
+                // for the address (GetOrCreateAccount), even when called with a zero/empty
+                // value. Calling them unconditionally for a genuinely nonexistent remote
+                // account would make AccountExistsAsync report true after a single query
+                // ever touches it, and distort EIP-161 empty-account/new-account-gas-surcharge
+                // accounting. Only materialize the local entry when the remote data proves the
+                // account actually exists.
+                if (balance != BigInteger.Zero || nonce != 0 || code.Length != 0)
+                {
+                    _localState.SetBalance(addr, balance);
+                    _localState.SetNonce(addr, nonce);
+                    _localState.SetCode(addr, code);
+                }
+
                 _fetchedAccounts.TryAdd(addr, true);
             }
             catch
