@@ -158,7 +158,9 @@ public sealed class EthHandlers
             {
                 throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction signature");
             }
-            _mempool.Add(tx);
+            if (!_mempool.Add(tx))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams,
+                    "Transaction rejected: mempool full, duplicate, or underpriced replacement (needs a strictly higher gas price than the pending transaction at this nonce)");
             await MaybeAutomineAsync(ct);
             return EthereumTypes.ToEthHex(tx.Hash);
         }
@@ -810,7 +812,9 @@ public sealed class EthHandlers
 
         tx.Hash = ComputeUnsignedTransactionHash(tx);
 
-        _mempool.Add(tx);
+        if (!_mempool.Add(tx))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams,
+                "Transaction rejected: mempool full, duplicate, or underpriced replacement (needs a strictly higher gas price than the pending transaction at this nonce)");
         await MaybeAutomineAsync(ct);
         return EthereumTypes.ToEthHex(tx.Hash);
     }
@@ -979,13 +983,14 @@ public sealed class EthHandlers
 
         // Fallback: try to find transaction and replay (for un-traced transactions)
         Transaction? tx = null;
+        Block? foundBlock = null;
         foreach (var block in _chainState.BlockStore.GetAllBlocks())
         {
             tx = block.Transactions.FirstOrDefault(t => EthereumTypes.ToEthHex(t.Hash) == normalizedHash);
-            if (tx != null) break;
+            if (tx != null) { foundBlock = block; break; }
         }
 
-        if (tx == null)
+        if (tx == null || foundBlock == null)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Transaction not found");
 
         var replay = new Transaction
@@ -1002,10 +1007,12 @@ public sealed class EthHandlers
             EnableTracing = true
         };
 
+        // Replay in the transaction's own block context (NUMBER/TIMESTAMP/BASEFEE/COINBASE),
+        // not the current head — matches HandleDebugWhyNot/TraceBlockTransactions.
         var result = await _stateTransition.ApplyTransactionAsync(
             replay,
             _globalState,
-            BuildCurrentBlockContext(),
+            BuildBlockContextForTrace(foundBlock),
             commit: false,
             ct: ct);
 
@@ -1351,7 +1358,13 @@ public sealed class EthHandlers
         if (requestedNumber > head)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "eth_call block number is greater than current head");
 
-        // Historical state snapshots are not yet persisted; execution uses current state with validated block context.
+        if (requestedNumber < head)
+            // Historical state snapshots are not yet persisted. Executing against current
+            // state while reporting a past block number would silently return wrong data,
+            // so reject rather than lie about which state was used.
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams,
+                $"Historical state for block {requestedNumber} is not available; only the current head ({head}) can be queried");
+
         return BuildCurrentBlockContext();
     }
 

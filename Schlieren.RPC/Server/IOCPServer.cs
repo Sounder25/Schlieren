@@ -63,26 +63,41 @@ namespace Schlieren.RPC.Server
             // SECTION: Accept loop using async IOCP operations
             while (!_cts.Token.IsCancellationRequested)
             {
+                // Throttle connections to prevent resource exhaustion
                 try
                 {
-                    // Throttle connections to prevent resource exhaustion
                     await _connectionSemaphore.WaitAsync(_cts.Token);
-
-                    // AcceptAsync uses IOCP under the hood on Windows
-                    var clientSocket = await _listenerSocket.AcceptAsync(_cts.Token);
-                    _activeConnections.Add(clientSocket);
-
-                    // Fire and forget - handle each connection independently
-                    _ = Task.Run(() => HandleConnection(clientSocket), _cts.Token);
                 }
                 catch (OperationCanceledException)
                 {
                     break;
                 }
+
+                // The permit is now held. It must be released either by HandleConnection's
+                // finally block (on a successful accept) or right here (on a failed one) —
+                // otherwise a transient accept error permanently shrinks the connection pool.
+                Socket clientSocket;
+                try
+                {
+                    // AcceptAsync uses IOCP under the hood on Windows
+                    clientSocket = await _listenerSocket.AcceptAsync(_cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _connectionSemaphore.Release();
+                    break;
+                }
                 catch (Exception ex)
                 {
+                    _connectionSemaphore.Release();
                     _logger.LogError(ex, "[IOCP Server] Accept error");
+                    continue;
                 }
+
+                _activeConnections.Add(clientSocket);
+
+                // Fire and forget - handle each connection independently
+                _ = Task.Run(() => HandleConnection(clientSocket), _cts.Token);
             }
         }
 
@@ -96,12 +111,12 @@ namespace Schlieren.RPC.Server
                 using (clientSocket)
                 {
                     var buffer = new byte[BufferSize];
-                    var requestBuilder = new StringBuilder();
+                    using var rawBytes = new MemoryStream();
 
                     // SECTION: Read HTTP request using IOCP
                     int bytesRead;
                     int headerEndIndex = -1;
-                    
+
                     // Defense against Slowloris: Enforce an absolute 5-second timeout for the entire request read phase
                     using var readCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
@@ -109,24 +124,33 @@ namespace Schlieren.RPC.Server
                     {
                         while ((bytesRead = await clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None, readCts.Token)) > 0)
                         {
-                            var chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                            requestBuilder.Append(chunk);
+                            rawBytes.Write(buffer, 0, bytesRead);
 
-                            // Check for end of HTTP headers
-                            var currentData = requestBuilder.ToString();
+                            // Decode the FULL accumulated byte stream every time, not just the new
+                            // chunk — a multi-byte UTF-8 sequence split across two TCP reads decodes
+                            // correctly once all its bytes have arrived, instead of turning into
+                            // U+FFFD replacement characters on each half.
+                            var currentData = Encoding.UTF8.GetString(rawBytes.GetBuffer(), 0, (int)rawBytes.Length);
                             headerEndIndex = currentData.IndexOf("\r\n\r\n", StringComparison.Ordinal);
 
                         if (headerEndIndex != -1)
                         {
-                            // Check if we have complete body based on Content-Length
-                            if (HasCompleteBody(currentData, headerEndIndex))
+                            // Check if we have complete body based on Content-Length.
+                            // HTTP headers are ASCII by spec, so the char-length of the header
+                            // portion equals its byte length — use that to get the true byte
+                            // offset where the body starts, since currentData.Length is a UTF-16
+                            // char count and can undercount the real byte size of a non-ASCII body.
+                            var headerText = currentData.Substring(0, headerEndIndex);
+                            var bodyStartByteIndex = Encoding.UTF8.GetByteCount(headerText) + 4;
+                            if (HasCompleteBody(headerText, (int)rawBytes.Length, bodyStartByteIndex))
                             {
                                 break;
                             }
                         }
 
-                        // Prevent infinite reading
-                        if (requestBuilder.Length > 1024 * 1024) // 1MB limit
+                        // Prevent infinite reading — enforce the 1MB cap on actual bytes received,
+                        // not decoded UTF-16 chars (which can undercount a multi-byte body).
+                        if (rawBytes.Length > 1024 * 1024) // 1MB limit
                         {
                             await SendErrorResponse(clientSocket, 413, "Payload Too Large");
                             return;
@@ -146,7 +170,7 @@ namespace Schlieren.RPC.Server
                     }
 
                     // SECTION: Parse HTTP request
-                    var httpRequest = requestBuilder.ToString();
+                    var httpRequest = Encoding.UTF8.GetString(rawBytes.GetBuffer(), 0, (int)rawBytes.Length);
                     var (method, body) = ParseHttpRequest(httpRequest, headerEndIndex);
 
                     if (method != "POST")
@@ -177,11 +201,16 @@ namespace Schlieren.RPC.Server
 
         // SECTION: HTTP Protocol Utilities
 
-        private static bool HasCompleteBody(string data, int headerEndIndex)
+        /// <summary>
+        /// Byte-based body-completeness check. <paramref name="headerText"/> is the ASCII
+        /// header block (used only to extract Content-Length); <paramref name="totalByteCount"/>
+        /// and <paramref name="bodyStartByteIndex"/> are raw byte offsets/counts, not UTF-16
+        /// char counts, so this is correct for bodies containing multi-byte content.
+        /// </summary>
+        private static bool HasCompleteBody(string headerText, int totalByteCount, int bodyStartByteIndex)
         {
-            var headers = data.Substring(0, headerEndIndex);
             var contentLengthMatch = System.Text.RegularExpressions.Regex.Match(
-                headers,
+                headerText,
                 @"Content-Length:\s*(\d+)",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             );
@@ -191,10 +220,18 @@ namespace Schlieren.RPC.Server
                 return true; // No body expected
             }
 
-            var contentLength = int.Parse(contentLengthMatch.Groups[1].Value);
-            var bodyStartIndex = headerEndIndex + 4;
-            var currentBodyLength = data.Length - bodyStartIndex;
+            // Content-Length is attacker-controlled and the regex allows unbounded digits;
+            // int.Parse on something like "99999999999999999999" used to throw an uncaught
+            // OverflowException instead of failing cleanly. Treat anything unparsable or over
+            // the 1MB cap as "not complete yet" — the caller's byte-count cap rejects it with
+            // a clean 413 as soon as the actual body exceeds the limit.
+            if (!long.TryParse(contentLengthMatch.Groups[1].Value, out var contentLength) ||
+                contentLength < 0 || contentLength > 1024 * 1024)
+            {
+                return false;
+            }
 
+            var currentBodyLength = totalByteCount - bodyStartByteIndex;
             return currentBodyLength >= contentLength;
         }
 
