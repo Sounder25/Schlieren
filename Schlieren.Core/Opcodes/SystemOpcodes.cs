@@ -133,10 +133,10 @@ public sealed class OpcodeCreate : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            // EIP-170: oversized code → ExceptionalHalt. Revert creation account only
+            // EIP-170 (SpuriousDragon+): oversized code → ExceptionalHalt. Revert creation account only
             // (sub-call overlay already discarded initcode state changes).
             const int maxCodeSize = 24576;
-            if (runtimeCode.Length > maxCodeSize)
+            if (context.Block.Rules.HasEip170CodeSizeLimit && runtimeCode.Length > maxCodeSize)
             {
                 await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
                 context.Stack.TryPush(0);
@@ -675,10 +675,10 @@ public sealed class OpcodeCreate2 : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            // EIP-170: oversized code → ExceptionalHalt. Revert creation account only
+            // EIP-170 (SpuriousDragon+): oversized code → ExceptionalHalt. Revert creation account only
             // (sub-call overlay already discarded initcode state changes).
             const int maxCodeSize = 24576;
-            if (runtimeCode.Length > maxCodeSize)
+            if (context.Block.Rules.HasEip170CodeSizeLimit && runtimeCode.Length > maxCodeSize)
             {
                 await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
                 context.Stack.TryPush(0);

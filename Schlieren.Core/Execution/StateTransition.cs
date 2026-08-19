@@ -399,7 +399,7 @@ public sealed class StateTransition : IStateTransition
         if (topLevelCreation.HasValue && result.IsSuccess)
         {
             const int maxCodeSize = 24576; // EIP-170
-            if (result.ReturnData.Length > maxCodeSize)
+            if (block.Rules.HasEip170CodeSizeLimit && result.ReturnData.Length > maxCodeSize)
             {
                 // ExceptionalHalt: consume ALL execution gas (same as EELS OutOfGasError in CREATE).
                 result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
@@ -720,7 +720,7 @@ public sealed class StateTransition : IStateTransition
         if (topLevelCreation.HasValue && result.IsSuccess)
         {
             const int maxCodeSize = 24576;
-            if (result.ReturnData.Length > maxCodeSize)
+            if (block.Rules.HasEip170CodeSizeLimit && result.ReturnData.Length > maxCodeSize)
                 result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
             else
             {
