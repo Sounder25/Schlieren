@@ -9,6 +9,7 @@ using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 using Schlieren.RPC.Handlers;
 using Schlieren.RPC.Server;
+using Schlieren.Tests.Execution;
 
 namespace Schlieren.Tests.RPC;
 
@@ -124,6 +125,46 @@ public sealed class JournalTraceRpcTests
         Assert.Equal(childId, sstore.GetProperty("frameId").GetInt64());
     }
 
+    [Fact]
+    public async Task RealReentry_ReturnsProofLinkedFindingsInPrebuiltFrameTree()
+    {
+        var (state, router) = BuildFixture();
+        ReentrancyJournalFixture.Install(state, attackerReverts: false);
+
+        var response = await router.ProcessRequest("""
+            {"jsonrpc":"2.0","id":5,"method":"schlieren_traceJournal","params":[{
+              "from":"0x1000000000000000000000000000000000000001",
+              "to":"0xa00000000000000000000000000000000000000a",
+              "gas":"0x7a120",
+              "fork":"Osaka"
+            }]}
+            """);
+
+        using var document = JsonDocument.Parse(response);
+        var result = document.RootElement.GetProperty("result");
+        var findings = result.GetProperty("securityFindings").EnumerateArray().ToArray();
+        var contact = Assert.Single(findings, finding =>
+            finding.GetProperty("ruleId").GetString() == "SEC.REENTRANCY.STATE_CONTACT");
+        var critical = Assert.Single(findings, finding =>
+            finding.GetProperty("ruleId").GetString() == "SEC.REENTRANCY.POST_WRITE");
+
+        Assert.Equal("critical", critical.GetProperty("severity").GetString());
+        Assert.NotEmpty(contact.GetProperty("supportingEventSequences").EnumerateArray());
+        Assert.True(FrameTreeContainsFinding(
+            result.GetProperty("frameTree"), contact.GetProperty("id").GetString()!));
+        Assert.True(FrameTreeContainsFinding(
+            result.GetProperty("frameTree"), critical.GetProperty("id").GetString()!));
+    }
+
+    private static bool FrameTreeContainsFinding(JsonElement node, string id)
+    {
+        if (node.GetProperty("securityFindingIds").EnumerateArray()
+            .Any(item => item.GetString() == id))
+            return true;
+        return node.GetProperty("children").EnumerateArray()
+            .Any(child => FrameTreeContainsFinding(child, id));
+    }
+
     private static (GlobalState State, RpcRouter Router) BuildFixture()
     {
         var state = new GlobalState();
@@ -137,11 +178,7 @@ public sealed class JournalTraceRpcTests
             GasLimit = 30_000_000,
             BaseFeePerGas = 1
         });
-        var machine = new EvmMachine(
-        [
-            new OpcodeStop(), new OpcodePush1(), new OpcodeMstore(), new OpcodeSstore(),
-            new OpcodePush2(), new OpcodePush20(), new OpcodeCall(), new OpcodeRevert()
-        ]);
+        var machine = new EvmMachine(ReentrancyJournalFixture.Opcodes());
         var handlers = new EthHandlers(
             state,
             new TxMempool(),
