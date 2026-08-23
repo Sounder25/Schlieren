@@ -68,18 +68,7 @@
 
 - [ ] **Step 1: Write failing call-identity tests**
 
-Create integration cases that execute a tiny child (`STOP`) through CALL, STATICCALL, CALLCODE, DELEGATECALL, CREATE, and CREATE2, enable the journal, and assert the child `FrameEnteredEvent.CallType`. Include this architecture assertion:
-
-```csharp
-[Fact]
-public void StateTransition_DoesNotGuessCallType()
-{
-    var method = typeof(StateTransition).GetMethod(
-        "DetermineCallType",
-        BindingFlags.NonPublic | BindingFlags.Static);
-    Assert.Null(method);
-}
-```
+Create integration cases that execute a tiny child (`STOP`) through CALL, STATICCALL, CALLCODE, DELEGATECALL, CREATE, and CREATE2, enable the journal, and assert the child `FrameEnteredEvent.CallType`.
 
 For CALLCODE and DELEGATECALL, assert equal storage-owner address but distinct call types and the expected external `CodeAddress`.
 
@@ -91,7 +80,7 @@ Run:
 dotnet test .\Schlieren.Tests\Schlieren.Tests.csproj --filter "FullyQualifiedName~ExplicitCallTypeJournalTests" --nologo -v minimal
 ```
 
-Expected: FAIL because `DetermineCallType` exists and CALLCODE is journaled as DELEGATECALL.
+Expected: FAIL because CALLCODE is journaled as DELEGATECALL.
 
 - [ ] **Step 3: Pass call type through the recursive interface**
 
@@ -776,36 +765,34 @@ git commit -m "feat(rpc): expose journal security evidence"
 - Rewrite: `Schlieren.Tests/Security/StorageCollisionDetectorTests.cs`
 - Rewrite: `Schlieren.Tests/Security/SecurityDetectorIntegrationTests.cs`
 - Modify: `Schlieren.Tests/WorkbenchAaBbAcceptanceTests.cs`
-- Create: `Schlieren.Tests/Execution/CanonicalSecurityArchitectureTests.cs`
+- Create: `Schlieren.Tests/WorkbenchCanonicalSecurityTests.cs`
 
 **Interfaces:**
 - Consumes: `JournalAnalysis` and `JournalSecurityAnalyzer` only.
 - Removes: active analyzers accepting `IReadOnlyList<ExecutionTraceStep>` and the fabricated Workbench transaction.
 - Produces: explicit-frame topology and canonical security findings for remaining Avalonia views/tests.
 
-- [ ] **Step 1: Write failing architecture gates**
+- [ ] **Step 1: Write failing consumer-cutover tests**
 
-Use reflection and source-presence assertions consistent with `CanonicalExecutionArchitectureTests`:
+Add a real Workbench execution containing nested DELEGATECALL storage evidence. Assert its topology rows use journal frame IDs/parents and its displayed finding carries the same supporting event sequence as `JournalSecurityAnalyzer`. Add an Osaka EIP-7623 calldata-floor regression case and assert the runner's reported audit gas equals journal conservation rather than `21_000 + calldata + depth-one opcodes`.
 
 ```csharp
-[Theory]
-[InlineData("Schlieren.Core.Security.ReentrancyDetector")]
-[InlineData("Schlieren.Core.Security.StorageCollisionDetector")]
-[InlineData("Schlieren.Core.Security.LiveReentrancyDetector")]
-[InlineData("Schlieren.Core.Security.LiveStorageCollisionDetector")]
-public void FlatTraceSecurityAnalyzers_AreDeleted(string typeName) =>
-    Assert.Null(typeof(StateTransition).Assembly.GetType(typeName));
+Assert.Equal(run.Analysis.Frames.Count, vm.CallTopology.Rows.Count);
+Assert.Equal(
+    run.SecurityFindings.Single().SupportingEventSequences,
+    vm.SecurityFindings.Single().SupportingEventSequences);
+Assert.Equal(
+    JournalGasTree.Build(run.Result.Journal!, run.Result).Conservation.SettledGas,
+    regression.ActualGas);
 ```
 
-Add a source scan rejecting `ComputeAuditGas`, `DetectNestedGasDoubleCount`, and `RunFullTransaction`.
-
-- [ ] **Step 2: Run gates to prove legacy paths remain**
+- [ ] **Step 2: Run tests to prove legacy consumers produce the wrong outcomes**
 
 ```powershell
-dotnet test .\Schlieren.Tests\Schlieren.Tests.csproj --filter "FullyQualifiedName~CanonicalSecurityArchitectureTests" --nologo -v minimal
+dotnet test .\Schlieren.Tests\Schlieren.Tests.csproj --filter "FullyQualifiedName~WorkbenchCanonicalSecurityTests|FullyQualifiedName~WorkbenchCanonicalAuditTests" --nologo -v minimal
 ```
 
-Expected: FAIL for each existing heuristic/synthetic artifact.
+Expected: FAIL because Workbench topology/security and regression gas still consume flat-trace heuristics.
 
 - [ ] **Step 3: Migrate Workbench result and topology**
 
@@ -826,18 +813,18 @@ Delete the four heuristic detector files and synthetic Workbench service. Remove
 
 In `DifferentialRegressionRunner`, obtain gas from `JournalGasTree.Build(result.Journal!, result).Conservation.SettledGas`, nested ownership from `JournalAnalysis.Frames`, and security findings from `JournalSecurityAnalyzer`. Delete `ComputeAuditGas`, `ParseGasCost`, `DetectNestedGasDoubleCount`, and the flat-trace reentrancy helper.
 
-- [ ] **Step 6: Verify consumers and architecture**
+- [ ] **Step 6: Verify canonical consumer behavior**
 
 ```powershell
-dotnet test .\Schlieren.Tests\Schlieren.Tests.csproj --filter "FullyQualifiedName~CanonicalSecurityArchitectureTests|FullyQualifiedName~JournalReentrancyAnalyzerTests|FullyQualifiedName~JournalStorageCollisionAnalyzerTests|FullyQualifiedName~Workbench|FullyQualifiedName~GoldenCorpusTests" --nologo -v minimal
+dotnet test .\Schlieren.Tests\Schlieren.Tests.csproj --filter "FullyQualifiedName~WorkbenchCanonicalSecurityTests|FullyQualifiedName~JournalReentrancyAnalyzerTests|FullyQualifiedName~JournalStorageCollisionAnalyzerTests|FullyQualifiedName~Workbench|FullyQualifiedName~GoldenCorpusTests" --nologo -v minimal
 ```
 
-Expected: architecture gates and migrated consumers pass. Record any still-failing golden baseline case by exact name; do not relabel it fixed without a green result.
+Expected: migrated consumer behavior passes. Record any still-failing golden baseline case by exact name; do not relabel it fixed without a green result.
 
 - [ ] **Step 7: Commit consumer cutover and deletion**
 
 ```powershell
-git add -A Schlieren.Core/Security Schlieren.UI/Services Schlieren.UI/ViewModels Schlieren.Tests/Security Schlieren.Tests/Regression Schlieren.Tests/WorkbenchAaBbAcceptanceTests.cs Schlieren.Tests/Execution/CanonicalSecurityArchitectureTests.cs
+git add -A Schlieren.Core/Security Schlieren.UI/Services Schlieren.UI/ViewModels Schlieren.Tests/Security Schlieren.Tests/Regression Schlieren.Tests/WorkbenchAaBbAcceptanceTests.cs Schlieren.Tests/WorkbenchCanonicalSecurityTests.cs
 git commit -m "refactor(security): delete flat trace analyzers"
 ```
 
