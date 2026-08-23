@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Security.Cryptography;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 using ExecutionContext = Schlieren.Core.Execution.ExecutionContext;
@@ -33,7 +34,7 @@ public sealed class OpcodeCreate : IOpcode
         if (lengthInt > 0)
         {
             var memExpGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
-            context.ConsumeGas(memExpGas);
+            context.ConsumeGas(memExpGas, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
         }
 
         // EIP-3860 (Shanghai+) word gas: 2 per 32-byte word of init code, charged before execution.
@@ -41,7 +42,7 @@ public sealed class OpcodeCreate : IOpcode
             ? 2UL * ((ulong)(lengthInt + 31) / 32)
             : 0UL;
         // Base CREATE gas: 32000
-        context.ConsumeGas(32000 + initCodeWordGas);
+        context.ConsumeGas(32000 + initCodeWordGas, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
 
         var initCode = context.Memory.Load(offsetInt, lengthInt);
 
@@ -81,7 +82,7 @@ public sealed class OpcodeCreate : IOpcode
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
 
         // Charge only the gas that enters the child frame.
-        context.ConsumeGas(forwardedGas);
+        context.ConsumeGas(forwardedGas, GasSemantics.Allocation, GasComponents.CallForwarded);
 
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
@@ -149,7 +150,7 @@ public sealed class OpcodeCreate : IOpcode
                     context.CommitLastCreateTransient   = null;
                     context.RollbackLastCreateTransient = null;
                     context.GasRefundCounter += result.GasRefundCounter;
-                    context.RefundGas(childRemaining); // Frontier: child gas is NOT burned
+                    context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn); // Frontier: child gas is NOT burned
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
                 }
                 else
@@ -184,7 +185,7 @@ public sealed class OpcodeCreate : IOpcode
                     context.GasRefundCounter += result.GasRefundCounter;
 
                     // Refund remaining gas to parent.
-                    context.RefundGas(childRemaining);
+                    context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn);
 
                     // Push created address.
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
@@ -196,7 +197,7 @@ public sealed class OpcodeCreate : IOpcode
             // Init code failed (REVERT/OOG during execution): the sub-call overlay was
             // never committed so its writes are already gone. Just refund gas, push 0.
             // No snapshot restore needed — the overlay architecture handles revert.
-            context.RefundGas(childRemaining);
+            context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn);
             context.Stack.TryPush(0);
         }
 
@@ -274,7 +275,7 @@ public sealed class OpcodeCall : IOpcode
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
 
 
-        context.ConsumeGas(memoryCost);
+        context.ConsumeGas(memoryCost, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
         context.Memory.Expand(maxMemoryAccess);
 
         // Load input data
@@ -342,6 +343,10 @@ public sealed class OpcodeCall : IOpcode
             // In Frontier CallBaseCost=40 and ExtAccountCost is NOT part of CALL overhead.
             ulong frontierCost = rules.CallBaseCost + requestedGasFrontier + valueTransferCost + newAccountCost;
             context.ConsumeGas(frontierCost);
+            context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallLocal,
+                rules.CallBaseCost + valueTransferCost + newAccountCost, GasSemantics.ExclusiveCharge);
+            context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallForwarded,
+                requestedGasFrontier, GasSemantics.Allocation);
             var stipendFrontier = value.IsZero ? 0UL : 2300UL;
             var childGasLimitFrontier = requestedGasFrontier + stipendFrontier;
 
@@ -351,7 +356,8 @@ public sealed class OpcodeCall : IOpcode
                 var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
                 if (callerBalance < value)
                 {
-                    context.RefundGas(requestedGasFrontier + stipendFrontier);
+                    context.RefundGas(requestedGasFrontier + stipendFrontier,
+                        GasSemantics.Return, GasComponents.CallUnusedReturn);
                     context.Stack.TryPush(0);
                     return (ExecutionResult.Success(0), context.ProgramCounter + 1);
                 }
@@ -403,7 +409,7 @@ public sealed class OpcodeCall : IOpcode
 
             var childUsedFrontier = frontierResult.GasUsed > childGasLimitFrontier ? childGasLimitFrontier : frontierResult.GasUsed;
             var childRemainingFrontier = childGasLimitFrontier > childUsedFrontier ? childGasLimitFrontier - childUsedFrontier : 0UL;
-            context.RefundGas(childRemainingFrontier);
+            context.RefundGas(childRemainingFrontier, GasSemantics.Return, GasComponents.CallUnusedReturn);
             if (frontierResult.IsSuccess) context.GasRefundCounter += frontierResult.GasRefundCounter;
             context.LastReturnData = frontierResult.ReturnData;
             var copyLenF = Math.Min(retLengthInt, frontierResult.ReturnData.Length);
@@ -426,6 +432,10 @@ public sealed class OpcodeCall : IOpcode
 
         // Parent pays forwarded gas + extra costs (but NOT the stipend).
         context.ConsumeGas(forwardedGas + extraCost);
+        context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallLocal,
+            extraCost, GasSemantics.ExclusiveCharge);
+        context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallForwarded,
+            forwardedGas, GasSemantics.Allocation);
 
         // Value-bearing calls receive a 2,300 gas stipend
         // On a pre-execution failure, EELS returns that full allocation even though
@@ -440,7 +450,8 @@ public sealed class OpcodeCall : IOpcode
             {
                 // The CALL extras remain charged; return the unused child allocation.
                 // EELS: evm.gas_left += message_call_gas.sub_call; evm.return_data = b""
-                context.RefundGas(forwardedGas + stipend);
+                context.RefundGas(forwardedGas + stipend,
+                    GasSemantics.Return, GasComponents.CallUnusedReturn);
                 context.LastReturnData = Array.Empty<byte>();
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
@@ -498,7 +509,7 @@ public sealed class OpcodeCall : IOpcode
         var childRemaining = childGasLimit > childUsed ? childGasLimit - childUsed : 0UL;
         
         
-        context.RefundGas(childRemaining);
+        context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn);
         if (result.IsSuccess)
         {
             context.GasRefundCounter += result.GasRefundCounter;
@@ -552,7 +563,7 @@ public sealed class OpcodeCreate2 : IOpcode
         if (lengthInt > 0)
         {
             var memExpGas = context.Memory.CalculateGasCost(offsetInt + lengthInt);
-            context.ConsumeGas(memExpGas);
+            context.ConsumeGas(memExpGas, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
         }
 
         // EIP-3860 (Shanghai+) word gas: 2 per 32-byte word of init code.
@@ -561,7 +572,8 @@ public sealed class OpcodeCreate2 : IOpcode
             : 0UL;
         // Base CREATE2 gas: 32000 + hash gas (6 per word)
         var hashWordGas = 6UL * ((ulong)(lengthInt + 31) / 32);
-        context.ConsumeGas(32000 + initCodeWordGas + hashWordGas);
+        context.ConsumeGas(32000 + initCodeWordGas + hashWordGas,
+            GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
 
         var initCode = context.Memory.Load(offsetInt, lengthInt);
         
@@ -603,7 +615,7 @@ public sealed class OpcodeCreate2 : IOpcode
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
 
         // Charge only the gas that enters the child frame.
-        context.ConsumeGas(forwardedGas);
+        context.ConsumeGas(forwardedGas, GasSemantics.Allocation, GasComponents.CallForwarded);
 
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
@@ -668,7 +680,7 @@ public sealed class OpcodeCreate2 : IOpcode
                     context.CommitLastCreateTransient   = null;
                     context.RollbackLastCreateTransient = null;
                     context.GasRefundCounter += result.GasRefundCounter;
-                    context.RefundGas(childRemaining); // Frontier: child gas is NOT burned
+                    context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn); // Frontier: child gas is NOT burned
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
                 }
                 else
@@ -703,7 +715,7 @@ public sealed class OpcodeCreate2 : IOpcode
                     context.GasRefundCounter += result.GasRefundCounter;
 
                     // Refund remaining gas to parent.
-                    context.RefundGas(childRemaining);
+                    context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn);
 
                     // Push created address.
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
@@ -713,7 +725,7 @@ public sealed class OpcodeCreate2 : IOpcode
         else
         {
             // Init code failed (REVERT/OOG): overlay handles revert, just refund gas.
-            context.RefundGas(childRemaining);
+            context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn);
             context.Stack.TryPush(0);
         }
 
@@ -758,7 +770,7 @@ public sealed class OpcodeStaticCall : IOpcode
         var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
         var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
-        context.ConsumeGas(memoryCost);
+        context.ConsumeGas(memoryCost, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
         context.Memory.Expand(maxMemoryAccess);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
@@ -784,7 +796,7 @@ public sealed class OpcodeStaticCall : IOpcode
             }
         }
 
-        context.ConsumeGas(accessCost);
+        context.ConsumeGas(accessCost, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
 
         // Gap 1: EIP-150 – forward at most 63/64 of remaining gas.
         var remaining = context.GasLimit - context.GasUsed;
@@ -792,7 +804,7 @@ public sealed class OpcodeStaticCall : IOpcode
         var requestedGas = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
         var gasLimit = Math.Min(requestedGas, maxForward);
 
-        context.ConsumeGas(gasLimit);
+        context.ConsumeGas(gasLimit, GasSemantics.Allocation, GasComponents.CallForwarded);
 
         ExecutionResult result;
         if (Precompiles.IsPrecompile(toAddress, context.Block.Rules))
@@ -822,7 +834,8 @@ public sealed class OpcodeStaticCall : IOpcode
         }
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
-        context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL);
+        context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL,
+            GasSemantics.Return, GasComponents.CallUnusedReturn);
         if (result.IsSuccess)
         {
             context.GasRefundCounter += result.GasRefundCounter;
@@ -878,7 +891,7 @@ public sealed class OpcodeCallCode : IOpcode
         var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
         var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
-        context.ConsumeGas(memoryCost);
+        context.ConsumeGas(memoryCost, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
         context.Memory.Expand(maxMemoryAccess);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
@@ -923,6 +936,10 @@ public sealed class OpcodeCallCode : IOpcode
             // Cost: CALL_BASE + gas_arg + value_transfer_cost (create_gas_cost=0 since to=self)
             ulong frontierCallCodeCost = accessCost + requestedGasPre + valueTransferCost;
             context.ConsumeGas(frontierCallCodeCost); // OOGs if insufficient
+            context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallLocal,
+                accessCost + valueTransferCost, GasSemantics.ExclusiveCharge);
+            context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallForwarded,
+                requestedGasPre, GasSemantics.Allocation);
 
             // Balance check: CALLCODE sends value from self to self; reject if insufficient.
             if (!value.IsZero)
@@ -931,7 +948,8 @@ public sealed class OpcodeCallCode : IOpcode
                 if (callerBalancePre < value)
                 {
                     // Refund the sub_call allocation (gas_arg + stipend) to parent.
-                    context.RefundGas(requestedGasPre + stipendPre);
+                    context.RefundGas(requestedGasPre + stipendPre,
+                        GasSemantics.Return, GasComponents.CallUnusedReturn);
                     context.Stack.TryPush(0);
                     return (ExecutionResult.Success(0), context.ProgramCounter + 1);
                 }
@@ -956,7 +974,7 @@ public sealed class OpcodeCallCode : IOpcode
             if (preResult.IsSuccess && preResult.Logs.Count > 0) context.Logs.AddRange(preResult.Logs);
             var childUsedPre = preResult.GasUsed > childGasLimitPre ? childGasLimitPre : preResult.GasUsed;
             var childRemainingPre = childGasLimitPre > childUsedPre ? childGasLimitPre - childUsedPre : 0UL;
-            context.RefundGas(childRemainingPre);
+            context.RefundGas(childRemainingPre, GasSemantics.Return, GasComponents.CallUnusedReturn);
             if (preResult.IsSuccess) context.GasRefundCounter += preResult.GasRefundCounter;
             context.LastReturnData = preResult.ReturnData;
             var copyLenPre = Math.Min(retLengthInt, preResult.ReturnData.Length);
@@ -974,6 +992,10 @@ public sealed class OpcodeCallCode : IOpcode
 
         // Parent pays forwarded gas + extra costs (but NOT the stipend).
         context.ConsumeGas(forwardedGas + extraCost);
+        context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallLocal,
+            extraCost, GasSemantics.ExclusiveCharge);
+        context.RecordGasComponent(GasComponentScope.Opcode, GasComponents.CallForwarded,
+            forwardedGas, GasSemantics.Allocation);
 
         // Gap 4: Check caller balance BEFORE issuing sub-call.
         if (!value.IsZero)
@@ -984,7 +1006,8 @@ public sealed class OpcodeCallCode : IOpcode
                 // The CALLCODE extras (access + value-transfer cost) remain charged.
                 // EELS: evm.gas_left += message_call_gas.sub_call  (sub_call = forwardedGas + stipend)
                 var stipendEarly = 2300UL;
-                context.RefundGas(forwardedGas + stipendEarly);
+                context.RefundGas(forwardedGas + stipendEarly,
+                    GasSemantics.Return, GasComponents.CallUnusedReturn);
                 context.LastReturnData = Array.Empty<byte>();
                 context.Stack.TryPush(0);
                 return (ExecutionResult.Success(0), context.ProgramCounter + 1);
@@ -1027,7 +1050,7 @@ public sealed class OpcodeCallCode : IOpcode
         // EELS refund semantics: return ALL unused child gas to parent.
         var childUsed = result.GasUsed > childGasLimit ? childGasLimit : result.GasUsed;
         var childRemaining = childGasLimit > childUsed ? childGasLimit - childUsed : 0UL;
-        context.RefundGas(childRemaining);
+        context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn);
         if (result.IsSuccess)
         {
             context.GasRefundCounter += result.GasRefundCounter;
@@ -1086,7 +1109,7 @@ public sealed class OpcodeDelegateCall : IOpcode
         var maxReturnEnd = retLengthInt > 0 ? (long)retOffsetInt + retLengthInt : 0L;
         var maxMemoryAccess = (int)Math.Min(Math.Max(maxInputEnd, maxReturnEnd), int.MaxValue);
         var memoryCost = context.Memory.CalculateGasCost(maxMemoryAccess);
-        context.ConsumeGas(memoryCost);
+        context.ConsumeGas(memoryCost, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
         context.Memory.Expand(maxMemoryAccess);
 
         var input = context.Memory.Load(argsOffsetInt, argsLengthInt);
@@ -1112,14 +1135,15 @@ public sealed class OpcodeDelegateCall : IOpcode
             }
         }
 
-        context.ConsumeGas(accessCost);
+        context.ConsumeGas(accessCost, GasSemantics.ExclusiveCharge, GasComponents.CallLocal);
 
         // Pre-EIP-150 (Frontier/Homestead): cost = CALL_BASE + gas_arg; child gets exactly gas_arg.
         // No 63/64 cap. OOG-burns if insufficient.
         if (rules.HasPreEip150CallGas)
         {
             var requestedGasPre150 = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
-            context.ConsumeGas(requestedGasPre150); // OOGs if gas_left < accessCost + requestedGas
+            context.ConsumeGas(requestedGasPre150, GasSemantics.Allocation,
+                GasComponents.CallForwarded); // OOGs if gas_left < accessCost + requestedGas
             var gasLimit150 = requestedGasPre150;
             ExecutionResult result150;
             if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
@@ -1136,7 +1160,8 @@ public sealed class OpcodeDelegateCall : IOpcode
                 if (result150.IsSuccess && result150.Logs.Count > 0) context.Logs.AddRange(result150.Logs);
             }
             var childUsed150 = result150.GasUsed > gasLimit150 ? gasLimit150 : result150.GasUsed;
-            context.RefundGas(gasLimit150 > childUsed150 ? gasLimit150 - childUsed150 : 0UL);
+            context.RefundGas(gasLimit150 > childUsed150 ? gasLimit150 - childUsed150 : 0UL,
+                GasSemantics.Return, GasComponents.CallUnusedReturn);
             if (result150.IsSuccess) context.GasRefundCounter += result150.GasRefundCounter;
             context.LastReturnData = result150.ReturnData;
             var copyLen150 = Math.Min(retLengthInt, result150.ReturnData.Length);
@@ -1151,7 +1176,7 @@ public sealed class OpcodeDelegateCall : IOpcode
         var requestedGasDC = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
         var gasLimit = Math.Min(requestedGasDC, maxForwardDC);
 
-        context.ConsumeGas(gasLimit);
+        context.ConsumeGas(gasLimit, GasSemantics.Allocation, GasComponents.CallForwarded);
 
         ExecutionResult result;
         if (Precompiles.IsPrecompile(codeAddress, context.Block.Rules))
@@ -1185,7 +1210,8 @@ public sealed class OpcodeDelegateCall : IOpcode
         }
 
         var childUsed = result.GasUsed > gasLimit ? gasLimit : result.GasUsed;
-        context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL);
+        context.RefundGas(gasLimit > childUsed ? gasLimit - childUsed : 0UL,
+            GasSemantics.Return, GasComponents.CallUnusedReturn);
         if (result.IsSuccess)
         {
             context.GasRefundCounter += result.GasRefundCounter;

@@ -122,6 +122,15 @@ public sealed class EvmMachineJournalTests
         var gas = Assert.Single(journal.Events.OfType<OpcodeGasEvent>());
         Assert.Equal("CALL", gas.Name);
         Assert.Equal(GasSemantics.InclusiveFrameDelta, gas.Semantics);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.Component == GasComponents.CallLocal &&
+            component.Semantics == GasSemantics.ExclusiveCharge);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.Component == GasComponents.CallForwarded &&
+            component.Semantics == GasSemantics.Allocation);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.Component == GasComponents.CallUnusedReturn &&
+            component.Semantics == GasSemantics.Return);
     }
 
     [Fact]

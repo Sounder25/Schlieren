@@ -67,7 +67,17 @@ namespace Schlieren.Core.Execution
                     //   evm_trace(evm, OpStart(op))  ← state before
                     //   op_implementation[op](evm)
                     // This makes structLogs show the stack the opcode *received*, not what it left.)
-                    var (execResult, nextPc) = await opcode.ExecuteAsync(context, ct);
+                    context.SetActiveOpcode(pc, opcodeByte, opcode.Name);
+                    (ExecutionResult execResult, int nextPc) execution;
+                    try
+                    {
+                        execution = await opcode.ExecuteAsync(context, ct);
+                    }
+                    finally
+                    {
+                        context.ClearActiveOpcode();
+                    }
+                    var (execResult, nextPc) = execution;
 
                     // Pattern B opcodes charge here.
                     // Pattern A returns 0 because it already charged internally.

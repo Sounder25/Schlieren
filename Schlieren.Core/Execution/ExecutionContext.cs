@@ -162,6 +162,23 @@ namespace Schlieren.Core.Execution
         private CallType? _callType;
         private Address? _callerAddress;
         private Address? _codeAddress;
+        private int? _activeOpcodePc;
+        private byte? _activeOpcode;
+        private string? _activeOpcodeName;
+
+        internal void SetActiveOpcode(int pc, byte opcode, string name)
+        {
+            _activeOpcodePc = pc;
+            _activeOpcode = opcode;
+            _activeOpcodeName = name;
+        }
+
+        internal void ClearActiveOpcode()
+        {
+            _activeOpcodePc = null;
+            _activeOpcode = null;
+            _activeOpcodeName = null;
+        }
 
         internal JournalMachineSnapshot CaptureJournalMachineState(
             IReadOnlyList<BigInteger>? preStack,
@@ -269,14 +286,24 @@ namespace Schlieren.Core.Execution
             return destinations;
         }
 
-        public void ConsumeGas(ulong amount)
+        public void ConsumeGas(
+            ulong amount,
+            GasSemantics semantics = GasSemantics.ExclusiveCharge,
+            string? component = null,
+            GasComponentScope scope = GasComponentScope.Opcode)
         {
             GasUsed += amount;
             if (GasUsed > GasLimit)
                 throw new EvmOutOfGasException($"Out of gas: used {GasUsed}, limit {GasLimit}");
+            if (component is not null)
+                RecordGasComponent(scope, component, amount, semantics);
         }
 
-        public void RefundGas(ulong amount)
+        public void RefundGas(
+            ulong amount,
+            GasSemantics semantics = GasSemantics.Return,
+            string? component = null,
+            GasComponentScope scope = GasComponentScope.Opcode)
         {
             if (amount > GasUsed)
             {
@@ -293,6 +320,31 @@ namespace Schlieren.Core.Execution
             {
                 GasUsed -= amount;
             }
+            if (component is not null)
+                RecordGasComponent(scope, component, amount, semantics);
+        }
+
+        internal void RecordGasComponent(
+            GasComponentScope scope,
+            string component,
+            ulong amount,
+            GasSemantics semantics)
+        {
+            if (Journal is not { } journal || amount == 0)
+                return;
+
+            journal.Record(new GasComponentEvent
+            {
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                Scope = scope,
+                Component = component,
+                Amount = amount,
+                Semantics = semantics,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                OpcodeName = _activeOpcodeName
+            });
         }
 
         public BigInteger LoadTransientStorage(BigInteger key)

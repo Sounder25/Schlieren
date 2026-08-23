@@ -131,7 +131,7 @@ public sealed class StateTransitionJournalTests
             0x73
         };
         callerCode.AddRange(callee.Bytes);
-        callerCode.AddRange([0x61, 0x27, 0x10, 0xf1, 0x00]);
+        callerCode.AddRange([0x61, 0xc3, 0x50, 0xf1, 0x00]);
         state.SetCode(caller, callerCode.ToArray());
 
         var transition = new StateTransition(new EvmMachine(
@@ -200,6 +200,22 @@ public sealed class StateTransitionJournalTests
         Assert.True(childStore.Sequence < childExit.Sequence);
         Assert.True(childExit.Sequence < rootCall.Sequence);
         Assert.True(rootCall.Sequence < rootExit.Sequence);
+
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.FrameId == root.FrameId &&
+            component.OpcodeName == "CALL" &&
+            component.Component == GasComponents.CallLocal &&
+            component.Semantics == GasSemantics.ExclusiveCharge);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.FrameId == root.FrameId &&
+            component.OpcodeName == "CALL" &&
+            component.Component == GasComponents.CallForwarded &&
+            component.Semantics == GasSemantics.Allocation);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.FrameId == root.FrameId &&
+            component.OpcodeName == "CALL" &&
+            component.Component == GasComponents.CallUnusedReturn &&
+            component.Semantics == GasSemantics.Return);
     }
 
     [Fact]
