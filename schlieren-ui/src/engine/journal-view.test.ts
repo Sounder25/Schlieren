@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildFrameRows, buildSecurityRows, gasEffect, getConservationState } from './journal-view';
-import type { JournalFrameTreeNode, JournalSecurityFinding } from './store';
+import { buildFrameRows, buildSecurityRows, findSecurityFindingStepIndex, gasEffect, getConservationState } from './journal-view';
+import type { JournalEvent, JournalFrameTreeNode, JournalSecurityFinding, TraceStep } from './store';
 
 describe('journal view model', () => {
   it('keeps nested frames attached to their explicit parent', () => {
@@ -50,4 +50,47 @@ describe('journal view model', () => {
     expect(getConservationState({ derivedGas: 99, settledGas: 100, delta: '-1', isConserved: false }))
       .toEqual({ tone: 'fracture', label: 'DRIFT -1 GAS' });
   });
+
+  it('navigates a finding through its server instruction link', () => {
+    const finding = makeFinding({ primaryFrameId: 7, primaryInstructionId: 99 });
+    const events = [
+      makeEvent({ kind: 'storageRead', sequence: 12, instructionId: 99, frameId: 7 }),
+      makeEvent({ kind: 'opcodeGas', sequence: 13, instructionId: 99, frameId: 7 }),
+    ];
+    const steps = [makeStep({ sequence: 13, frameId: 7 })];
+
+    expect(findSecurityFindingStepIndex(finding, events, steps)).toBe(0);
+  });
+
+  it('falls back to the first step in the server primary frame', () => {
+    const finding = makeFinding({ primaryFrameId: 7, primaryInstructionId: null });
+    const steps = [makeStep({ sequence: 4, frameId: 1 }), makeStep({ sequence: 8, frameId: 7 })];
+
+    expect(findSecurityFindingStepIndex(finding, [], steps)).toBe(1);
+  });
 });
+
+function makeFinding(override: Partial<JournalSecurityFinding> = {}): JournalSecurityFinding {
+  return {
+    id: 'finding-1', ruleId: 'SEC.REENTRANCY.STATE_CONTACT', category: 'reentrancy', severity: 'medium',
+    factGrade: 'proven', primaryFrameId: 1, primaryInstructionId: null, supportingEventSequences: [],
+    frameAncestry: [], executionDisposition: 'survived', persistenceDisposition: 'simulationDiscarded',
+    addresses: [], storageSlots: [], summary: 'Re-entry observed.', limitation: 'Observed path only.',
+    ...override,
+  };
+}
+
+function makeEvent(override: Partial<JournalEvent> = {}): JournalEvent {
+  return {
+    kind: 'opcodeGas', sequence: 1, instructionId: 1, frameId: 1, parentFrameId: null,
+    semantics: 'exclusive', amount: 3, component: 'opcode', pc: 0, opcode: '0x00',
+    opcodeName: 'STOP', data: {}, ...override,
+  };
+}
+
+function makeStep(override: Partial<TraceStep> = {}): TraceStep {
+  return {
+    sequence: 1, frameId: 1, parentFrameId: null, depth: 0, pc: 0, opcode: '0x00', op: 'STOP',
+    gasBefore: 100, gasAfter: 100, gasCost: 0, semantics: 'exclusive', output: '0x', ...override,
+  };
+}

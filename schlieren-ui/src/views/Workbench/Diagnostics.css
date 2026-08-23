@@ -123,6 +123,54 @@
 .diag-card.ok .diag-headline { color: var(--sig-agree); }
 .diag-card.fracture .diag-headline { color: var(--sig-fracture); }
 
+.diag-findings {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.diag-finding {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--b-subtle);
+  border-left-width: 3px;
+  border-radius: 3px;
+  background: var(--s-panel);
+  color: var(--t-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.diag-finding:hover { background: var(--s-raised); }
+.diag-finding:focus-visible { outline: 2px solid var(--sig-flow); outline-offset: 2px; }
+.diag-finding.severity-info { border-left-color: var(--sig-flow); }
+.diag-finding.severity-medium { border-left-color: var(--sig-diagnosis); }
+.diag-finding.severity-critical { border-left-color: var(--sig-fracture); }
+
+.diag-finding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diag-finding-rule,
+.diag-finding-severity,
+.diag-finding-evidence,
+.diag-finding-limitation {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+}
+
+.diag-finding-rule { font-weight: 700; letter-spacing: 0.4px; }
+.diag-finding-severity { color: var(--t-tertiary); font-weight: 700; }
+.diag-finding-summary { font-size: var(--text-label); line-height: 1.45; }
+.diag-finding-evidence { color: var(--t-tertiary); overflow-wrap: anywhere; }
+.diag-finding-limitation { color: var(--t-ghost); font-style: italic; line-height: 1.4; }
+
 /* ─── Connection ─── */
 .diag-connection {
   margin-top: auto;
