@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useAppStore, type ViewId } from './engine/store';
 import { checkConnection } from './engine/rpc';
 import { TopNav } from './components/TopNav';
@@ -24,7 +24,7 @@ const viewComponents: Record<ViewId, React.FC> = {
   harvest: Harvest,
 };
 
-const viewVariants = {
+const viewVariants: Variants = {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } },
   exit: { opacity: 0, y: -4, transition: { duration: 0.14, ease: [0.65, 0, 0.35, 1] } },

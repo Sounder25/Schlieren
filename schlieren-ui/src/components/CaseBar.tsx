@@ -7,7 +7,6 @@ export function CaseBar() {
   const config = useAppStore((s) => s.config);
 
   const totalSteps = result?.steps.length ?? 0;
-  const step = result?.steps[currentStep];
 
   return (
     <div className="case-bar">

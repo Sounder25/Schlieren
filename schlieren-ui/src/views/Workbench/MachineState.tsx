@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo } from 'react';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useAppStore } from '../../engine/store';
 import './MachineState.css';
 
@@ -35,7 +35,7 @@ function diffStacks(current: string[], previous: string[] | undefined): StackDif
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
-const stackItemVariants = {
+const stackItemVariants: Variants = {
   initial: { opacity: 0, y: 8, scale: 0.97 },
   animate: { 
     opacity: 1, y: 0, scale: 1,
