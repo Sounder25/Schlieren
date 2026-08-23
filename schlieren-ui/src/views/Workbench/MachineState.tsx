@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { useAppStore } from '../../engine/store';
 import './MachineState.css';
 
@@ -35,7 +36,7 @@ function diffStacks(current: string[], previous: string[] | undefined): StackDif
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
-const stackItemVariants = {
+const stackItemVariants: Variants = {
   initial: { opacity: 0, y: 8, scale: 0.97 },
   animate: { 
     opacity: 1, y: 0, scale: 1,
@@ -60,7 +61,7 @@ export function MachineState() {
 
   const stackDiff = useMemo(() => {
     if (!step) return [];
-    return diffStacks(step.stack, prevStep?.stack);
+    return diffStacks(step.stack ?? [], prevStep?.stack);
   }, [step, prevStep]);
 
   return (
@@ -69,7 +70,7 @@ export function MachineState() {
         <span className="pane-title">Machine State</span>
         {step && (
           <span className="pane-meta">
-            pc: 0x{step.pc.toString(16)} · {step.op} · gas {step.gas.toLocaleString()}
+            frame {step.frameId} · pc 0x{step.pc.toString(16)} · {step.op} · gas {step.gasBefore.toLocaleString()}
           </span>
         )}
       </div>
@@ -149,13 +150,15 @@ export function MachineState() {
                   <span className="reg-k">OP</span>
                   <span className="reg-v bright">{step.op}</span>
                   <span className="reg-k">GAS LEFT</span>
-                  <span className="reg-v">{step.gas.toLocaleString()}</span>
+                  <span className="reg-v">{step.gasBefore.toLocaleString()}</span>
                   <span className="reg-k">COST</span>
                   <span className="reg-v" style={{ color: step.gasCost >= 5000 ? 'var(--sig-thermal-high)' : undefined }}>
                     {step.gasCost.toLocaleString()}
                   </span>
                   <span className="reg-k">DEPTH</span>
                   <span className="reg-v">{step.depth}</span>
+                  <span className="reg-k">FRAME</span>
+                  <span className="reg-v">#{step.frameId}</span>
                 </div>
               </div>
             </section>
@@ -164,10 +167,10 @@ export function MachineState() {
             <section className="state-section">
               <header className="state-header">
                 <span className="state-title">Stack</span>
-                <span className="state-meta">depth {step.stack.length}</span>
+                <span className="state-meta">depth {step.stack?.length ?? 0}</span>
               </header>
               <div className="state-body stack-body">
-                {step.stack.length === 0 ? (
+                {!step.stack || step.stack.length === 0 ? (
                   <span className="state-empty-note">(empty)</span>
                 ) : (
                   <div className="stack-list">
@@ -199,16 +202,16 @@ export function MachineState() {
               <header className="state-header">
                 <span className="state-title">Storage</span>
                 <span className="state-meta">
-                  {Object.keys(step.storage).length} slot
-                  {Object.keys(step.storage).length !== 1 ? 's' : ''}
+                  {Object.keys(step.storage ?? {}).length} slot
+                  {Object.keys(step.storage ?? {}).length !== 1 ? 's' : ''}
                 </span>
               </header>
               <div className="state-body">
-                {Object.keys(step.storage).length === 0 ? (
+                {!step.storage || Object.keys(step.storage).length === 0 ? (
                   <span className="state-empty-note">(no mutations observed)</span>
                 ) : (
                   <div className="storage-grid">
-                    {Object.entries(step.storage).map(([slot, val]) => (
+                    {Object.entries(step.storage ?? {}).map(([slot, val]) => (
                       <div key={slot} className="storage-entry">
                         <span className="storage-slot">{truncateHex(slot)}</span>
                         <span className="storage-arrow">→</span>
@@ -231,9 +234,9 @@ export function MachineState() {
                 </header>
                 <div className="state-body">
                   <div className="memory-hex">
-                    {step.memory.slice(0, 128)}
-                    {step.memory.length > 128 && (
-                      <span className="memory-ellipsis"> ···({step.memory.length / 2 - 64} more)</span>
+                    {step.memory.slice(0, 8).join(' ')}
+                    {step.memory.length > 8 && (
+                      <span className="memory-ellipsis"> ···({step.memory.length - 8} more words)</span>
                     )}
                   </div>
                 </div>

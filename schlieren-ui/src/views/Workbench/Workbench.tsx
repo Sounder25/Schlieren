@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback } from 'react';
 import DockLayout from 'rc-dock';
 import type { LayoutData, TabData } from 'rc-dock';
 import 'rc-dock/dist/rc-dock-dark.css';
@@ -18,6 +18,8 @@ const panels: Record<string, { title: string; component: React.FC }> = {
   trace: { title: 'Trace Field', component: TracePanel },
   diagnostics: { title: 'Diagnostics', component: Diagnostics },
 };
+
+const tab = (id: string): TabData => ({ id, title: id, content: <></> });
 
 function loadTab(tab: TabData): TabData {
   const panel = panels[tab.id as string];
@@ -71,18 +73,18 @@ const defaultLayout: LayoutData = {
         children: [
           {
             size: 450,
-            tabs: [{ id: 'disassembly' }],
+            tabs: [tab('disassembly')],
           },
           {
             size: 250,
-            tabs: [{ id: 'trace' }, { id: 'machine-state' }],
+            tabs: [tab('trace'), tab('machine-state')],
           },
         ],
       },
       {
         // Right column: Diagnostics full height
         size: 340,
-        tabs: [{ id: 'diagnostics' }],
+        tabs: [tab('diagnostics')],
       },
     ],
   },
