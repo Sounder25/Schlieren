@@ -47,7 +47,7 @@ Disabled properties are omitted from step JSON rather than returned as `null`.
 
 ## Response
 
-The result has seven journal-derived sections:
+The result has additive journal-derived sections:
 
 ```json
 {
@@ -58,7 +58,10 @@ The result has seven journal-derived sections:
   "frames": [],
   "steps": [],
   "gasTree": {},
-  "conservation": { "derivedGas": 22106, "settledGas": 22106, "delta": "0", "isConserved": true }
+  "conservation": { "derivedGas": 22106, "settledGas": 22106, "delta": "0", "isConserved": true },
+  "stateEffects": [],
+  "securityFindings": [],
+  "frameTree": null
 }
 ```
 
@@ -67,6 +70,9 @@ The result has seven journal-derived sections:
 - `steps` contains opcode observations with frame IDs, PC/opcode, gas before/after/cost, call context, output, and enabled snapshots.
 - `gasTree` is rebuilt exclusively from journal events. It never infers child gas by subtracting legacy inclusive traces.
 - `conservation.delta` is signed decimal `derivedGas - settledGas`. `isConserved` is true only when it is zero.
+- `stateEffects` contains analyzed typed effects with effect/instruction/frame identity and execution/persistence dispositions.
+- `securityFindings` is the proof-linked finding collection. It remains empty until a finding is proven by the journal-native analyzer.
+- `frameTree` is the authoritative server-built hierarchy. Nodes contain ordered ancestors, direct effect/finding IDs, and recursive children. React never rebuilds ancestry from `frames`.
 
 ## Gas semantics
 

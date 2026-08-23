@@ -82,6 +82,7 @@ The primary UI makes one `schlieren_traceJournal` request per execution. Optiona
 - **EELS alignment** — paste EIP-3155 `structLogs` and jump directly to the first PC/op/gas/depth divergence with journal-frame context
 
 See [`docs/rpc/schlieren_traceJournal.md`](docs/rpc/schlieren_traceJournal.md) for the complete request and gas semantics.
+See [`docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md`](docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md) for the journal evidence model, implemented status, and remaining security cutover.
 
 ## Legacy Avalonia IDE (`Schlieren.UI`)
 
