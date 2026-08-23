@@ -28,7 +28,6 @@ public static class DemoBytecodes
 
 public partial class WorkbenchViewModel : ObservableObject, IDisposable
 {
-    private readonly WorkbenchExecutionService _syntheticService = new();
     private List<ExecutionTraceStep> _currentTrace = new();
     private DispatcherTimer? _autoPlayTimer;
     private CancellationTokenSource? _runCts;
@@ -880,7 +879,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             }
 
             AppendExpectedDiff(run);
-            PopulateFromResult(run.Result, isBytecodeRun: true, runMeta: run);
+            PopulateFromResult(run.Result, runMeta: run);
         }
         catch (OperationCanceledException)
         {
@@ -1183,19 +1182,6 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StatusMessage = $"Exported trace ({_currentTrace.Count} steps): {path}";
     }
 
-    [RelayCommand]
-    private void RunSyntheticDemo()
-    {
-        StopAutoPlay();
-        IsBytecodeMode = false;
-        AccountStateRows.Clear();
-        AccountStateRows.Add("(synthetic demo — no live balances)");
-        var result = _syntheticService.RunFullTransaction();
-        PopulateFromResult(result, isBytecodeRun: false);
-        StatusMessage =
-            $"Synthetic demo only: {result.TraceSteps.Count} steps | {CriticalCount} critical | {WarningCount} warnings";
-    }
-
     public async Task GenerateAuditReportAsync(string savePath)
     {
         await AuditReportExporter.GenerateReportAsync(
@@ -1235,7 +1221,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     // ---------- result plumbing ----------
 
-    private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun, WorkbenchRunResult? runMeta = null)
+    private void PopulateFromResult(ExecutionResult result, WorkbenchRunResult? runMeta = null)
     {
         _lastCanonicalGasUsed = result.Journal?.Events
             .OfType<TransactionSettledEvent>()
@@ -1354,12 +1340,6 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             });
         }
 
-        if (!isBytecodeRun)
-        {
-            AccountStateRows.Clear();
-            AccountStateRows.Add("(synthetic demo — no live balances)");
-        }
-
         TotalSteps = _currentTrace.Count;
         HasTrace = _currentTrace.Count > 0;
         OnPropertyChanged(nameof(MaxStepIndex));
@@ -1386,9 +1366,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             NotifyStepProps();
         }
 
-        StatusMessage = isBytecodeRun
-            ? $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {result.GasUsed:N0} gas | refund {result.GasRefundCounter}"
-            : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {result.GasUsed:N0} gas";
+        StatusMessage = $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {result.GasUsed:N0} gas | refund {result.GasRefundCounter}";
         RefreshInspectorTexts();
         RefreshResultExplain();
     }

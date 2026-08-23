@@ -64,7 +64,6 @@
             </MenuItem>
             <MenuItem Header="_EVM Engine" FontSize="11">
                 <MenuItem Header="Run Bytecode (Live EVM)" Command="{Binding RunBytecodeCommand}" InputGesture="F5"/>
-                <MenuItem Header="Synthetic Detector Demo..." Command="{Binding RunSyntheticDemoCommand}"/>
             </MenuItem>
             <MenuItem Header="_View" FontSize="11" Name="ViewMenuRoot">
                 <MenuItem Header="Appearance" Name="AppearanceMenu">
