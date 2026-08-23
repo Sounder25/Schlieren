@@ -76,9 +76,9 @@ These values use the same lifecycle evidence and definitions already applied to 
 
 A frame is a reentrancy candidate when all of the following are true:
 
-1. its call type is `Call`, `CallCode`, or `StaticCall`;
+1. its call type is `Call` or `StaticCall`;
 2. an active ancestor has the same storage-owner address (`ContractAddress`);
-3. the frame is not ordinary `DelegateCall` execution;
+3. the frame is not ordinary `DelegateCall` or `CallCode` execution, both of which intentionally retain the caller's storage context;
 4. the nearest matching ancestor is selected as the original entry.
 
 One candidate is produced per re-entered frame. If several ancestors have the same storage owner, the nearest matching ancestor is used so nested reentry does not generate combinatorial duplicate findings.
@@ -100,7 +100,8 @@ This proves frame reentry only. It does not claim state exposure or exploitabili
 
 Emitted instead of `OBSERVED` when the re-entered frame contains a `StorageReadEvent` or `StorageWriteEvent` whose `StorageAddress` is the re-entered storage owner.
 
-- survived execution: `Medium`;
+- survived mutable `Call` execution: `Medium`;
+- survived read-only `StaticCall` execution: `Info`;
 - reverted execution: `Info`.
 
 The finding lists the distinct contacted slots and the exact effect sequences. This proves that re-entered execution touched the original storage context.
@@ -130,7 +131,7 @@ For `OBSERVED`, the primary frame is the re-entered frame, the primary instructi
 
 For `STATE_CONTACT`, the primary instruction is the first typed storage effect's instruction and supporting evidence includes the entry plus all relevant storage-effect sequences.
 
-For `POST_WRITE`, the primary instruction is the first post-return ancestor write. Supporting evidence includes the child entry sequence, child resolution sequence, and every aggregated post-return write sequence.
+For `POST_WRITE`, the primary frame is the matching ancestor and the primary instruction is its first post-return write. Supporting evidence includes the re-entered child frame's entry sequence, child resolution sequence, and every aggregated post-return write sequence.
 
 Finding IDs remain deterministic: rule ID plus the re-entered frame ID and the primary evidence sequence. Repeated analysis of the same journal produces identical IDs and ordering.
 
@@ -219,7 +220,7 @@ Implementation follows test-driven development. Tests are written and observed f
 - ancestor write after child resolution produces one critical `POST_WRITE` finding;
 - ancestor write before child entry does not produce `POST_WRITE`;
 - different contract does not produce reentrancy;
-- `DELEGATECALL` to different code with the same storage owner does not produce reentrancy;
+- `DELEGATECALL` and `CALLCODE` execution with the same storage owner do not produce reentrancy;
 - rolled-back reentry and rolled-back post-write are informational and non-persistent;
 - nested repeated reentry selects the nearest matching ancestor and avoids duplicate pairs;
 - finding IDs, evidence ordering, slots, and addresses are deterministic.
