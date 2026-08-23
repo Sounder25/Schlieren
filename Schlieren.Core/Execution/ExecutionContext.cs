@@ -146,6 +146,7 @@ namespace Schlieren.Core.Execution
         public ExecutionJournal? Journal { get; init; }
         public long? JournalFrameId { get; init; }
         public long? JournalParentFrameId { get; init; }
+        public long? CurrentInstructionId { get; internal set; }
         public int CallDepth { get; init; } = 1;
         public byte[] Code { get; init; } = Array.Empty<byte>();
         public int ProgramCounter { get; set; }
@@ -330,6 +331,7 @@ namespace Schlieren.Core.Execution
 
             journal.Record(new GasComponentEvent
             {
+                InstructionId = CurrentInstructionId,
                 FrameId = JournalFrameId,
                 ParentFrameId = JournalParentFrameId,
                 Scope = scope,

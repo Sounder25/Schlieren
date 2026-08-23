@@ -61,6 +61,7 @@ namespace Schlieren.Core.Execution
                     };
                 }
 
+                context.CurrentInstructionId = context.Journal?.BeginInstruction();
                 try
                 {
                     // Capture stack snapshot BEFORE opcode executes (EELS OpStart semantics:
@@ -181,6 +182,10 @@ namespace Schlieren.Core.Execution
                     );
                     throw;
                 }
+                finally
+                {
+                    context.CurrentInstructionId = null;
+                }
             }
 
             // Successfully executed to the end of the code — preserve any RETURN data and gas refund counter
@@ -208,6 +213,7 @@ namespace Schlieren.Core.Execution
 
             journal.Record(new OpcodeGasEvent
             {
+                InstructionId = context.CurrentInstructionId,
                 FrameId = context.JournalFrameId,
                 ParentFrameId = context.JournalParentFrameId,
                 Pc = pc,
@@ -241,6 +247,7 @@ namespace Schlieren.Core.Execution
 
             journal.Record(new ExceptionalGasBurnedEvent
             {
+                InstructionId = context.CurrentInstructionId,
                 FrameId = context.JournalFrameId,
                 ParentFrameId = context.JournalParentFrameId,
                 Pc = pc,

@@ -37,6 +37,7 @@ public static class GasComponents
 public abstract record ExecutionJournalEvent
 {
     public long Sequence { get; internal init; }
+    public long? InstructionId { get; init; }
     public long? FrameId { get; init; }
     public long? ParentFrameId { get; init; }
 }
@@ -141,6 +142,8 @@ public sealed class ExecutionJournal
     private readonly List<ExecutionJournalEvent> _events = new();
     private readonly ReadOnlyCollection<ExecutionJournalEvent> _eventView;
     private long _nextFrameId = 1;
+    private long _nextInstructionId = 1;
+    private long _nextEffectId = 1;
     private long _nextSequence;
 
     public ExecutionJournal()
@@ -149,6 +152,13 @@ public sealed class ExecutionJournal
     }
 
     public IReadOnlyList<ExecutionJournalEvent> Events => _eventView;
+
+    internal long BeginInstruction()
+    {
+        long instructionId = _nextInstructionId;
+        _nextInstructionId = checked(_nextInstructionId + 1);
+        return instructionId;
+    }
 
     internal long OpenFrame(long? parentFrameId)
     {
@@ -161,6 +171,11 @@ public sealed class ExecutionJournal
     internal void Record(ExecutionJournalEvent entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (entry is StateEffectEvent effect)
+        {
+            entry = effect with { EffectId = _nextEffectId };
+            _nextEffectId = checked(_nextEffectId + 1);
+        }
         if (entry is OpcodeGasEvent opcode)
         {
             entry = opcode with
