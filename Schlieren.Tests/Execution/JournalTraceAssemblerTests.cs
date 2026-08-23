@@ -25,7 +25,7 @@ public sealed class JournalTraceAssemblerTests
         Assert.Equal([dto.Frames[0].Id], childNode.AncestorIds);
         Assert.Contains(1, childNode.StateEffectIds);
         var finding = Assert.Single(dto.SecurityFindings);
-        Assert.Equal("SEC.REENTRANCY.REENTRY", finding.RuleId);
+        Assert.Equal("SEC.REENTRANCY.STATE_CONTACT", finding.RuleId);
         Assert.Equal("reentrancy", finding.Category);
         Assert.Equal("medium", finding.Severity);
         Assert.Equal("proven", finding.FactGrade);
