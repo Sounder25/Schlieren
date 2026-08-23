@@ -64,7 +64,9 @@ public static class JournalTraceAssembler
             .ToArray();
         var frameDtos = frames.ToDictionary(frame => frame.Id);
         var stateEffects = analysis.StateEffects.Select(MapStateEffect).ToArray();
-        var securityFindings = Array.Empty<JournalSecurityFindingDto>();
+        var securityFindings = JournalSecurityAnalyzer.Analyze(analysis)
+            .Select(MapSecurityFinding)
+            .ToArray();
         var frameEntries = journal.Events.OfType<FrameEnteredEvent>()
             .Where(entry => entry.FrameId.HasValue)
             .ToDictionary(entry => entry.FrameId!.Value);
@@ -190,6 +192,23 @@ public static class JournalTraceAssembler
         Name(analyzed.PersistenceDisposition),
         analyzed.RevertedByFrameId,
         MapStateEffectData(analyzed.Effect));
+
+    private static JournalSecurityFindingDto MapSecurityFinding(SecurityFinding finding) => new(
+        finding.Id,
+        finding.RuleId,
+        Name(finding.Category),
+        Name(finding.Severity),
+        Name(finding.FactGrade),
+        finding.PrimaryFrameId,
+        finding.InstructionId,
+        finding.SupportingEventSequences,
+        finding.FrameAncestry,
+        Name(finding.ExecutionDisposition),
+        Name(finding.PersistenceDisposition),
+        finding.Addresses.Select(address => address.ToString()).ToArray(),
+        finding.StorageSlots.Select(Hex).ToArray(),
+        finding.Summary,
+        finding.Limitation);
 
     private static string StateEffectKind(StateEffectEvent effect) => effect switch
     {

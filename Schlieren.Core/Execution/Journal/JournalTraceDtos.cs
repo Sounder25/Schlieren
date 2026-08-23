@@ -58,9 +58,19 @@ public sealed record JournalStateEffectDto(
 public sealed record JournalSecurityFindingDto(
     string Id,
     string RuleId,
+    string Category,
     string Severity,
+    string FactGrade,
     long PrimaryFrameId,
-    IReadOnlyList<long> SupportingEventSequences);
+    long? PrimaryInstructionId,
+    IReadOnlyList<long> SupportingEventSequences,
+    IReadOnlyList<long> FrameAncestry,
+    string ExecutionDisposition,
+    string PersistenceDisposition,
+    IReadOnlyList<string> Addresses,
+    IReadOnlyList<string> StorageSlots,
+    string Summary,
+    string Limitation);
 
 public sealed record JournalFrameTreeNodeDto(
     JournalFrameDto Frame,

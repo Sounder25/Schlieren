@@ -49,9 +49,19 @@ export interface JournalStateEffect {
 export interface JournalSecurityFinding {
   id: string;
   ruleId: string;
+  category: 'reentrancy' | 'storageCollision';
   severity: string;
+  factGrade: string;
   primaryFrameId: number;
+  primaryInstructionId: number | null;
   supportingEventSequences: number[];
+  frameAncestry: number[];
+  executionDisposition: 'survived' | 'reverted';
+  persistenceDisposition: 'committedToState' | 'simulationDiscarded' | 'notApplicable';
+  addresses: string[];
+  storageSlots: string[];
+  summary: string;
+  limitation: string;
 }
 
 export interface JournalFrameTreeNode {

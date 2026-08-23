@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildFrameRows, gasEffect, getConservationState } from './journal-view';
-import type { JournalFrameTreeNode } from './store';
+import { buildFrameRows, buildSecurityRows, gasEffect, getConservationState } from './journal-view';
+import type { JournalFrameTreeNode, JournalSecurityFinding } from './store';
 
 describe('journal view model', () => {
   it('keeps nested frames attached to their explicit parent', () => {
@@ -22,6 +22,28 @@ describe('journal view model', () => {
     expect(gasEffect({ semantics: 'exclusive', amount: 3 })).toBe('charge');
     expect(gasEffect({ semantics: 'credit', amount: 2 })).toBe('credit');
     expect(gasEffect({ semantics: 'forwarded-allocation', amount: 50 })).toBe('evidence');
+  });
+
+  it('uses server-linked finding IDs and ancestry without rebuilding either', () => {
+    const finding: JournalSecurityFinding = {
+      id: 'SEC.REENTRANCY.REENTRY:12', ruleId: 'SEC.REENTRANCY.REENTRY',
+      category: 'reentrancy', severity: 'medium', factGrade: 'proven',
+      primaryFrameId: 7, primaryInstructionId: 9, supportingEventSequences: [12],
+      frameAncestry: [1], executionDisposition: 'survived',
+      persistenceDisposition: 'simulationDiscarded', addresses: ['0xaa'],
+      storageSlots: ['0x0'], summary: 'Re-entry observed.', limitation: 'Observed path only.',
+    };
+    const tree: JournalFrameTreeNode = {
+      frame: { id: 1, parentId: null, depth: 0, callType: 'ROOT', contractAddress: '0xaa', codeAddress: null, gasLimit: 100, success: true, error: null, gasUsed: 40, gasRemaining: 60 },
+      ancestorIds: [], stateEffectIds: [], securityFindingIds: [], children: [{
+        frame: { id: 7, parentId: 1, depth: 1, callType: 'CALL', contractAddress: '0xaa', codeAddress: '0xaa', gasLimit: 30, success: true, error: null, gasUsed: 9, gasRemaining: 21 },
+        ancestorIds: [1], stateEffectIds: [3], securityFindingIds: [finding.id], children: [],
+      }],
+    };
+
+    expect(buildSecurityRows(tree, [finding])).toEqual([
+      expect.objectContaining({ id: finding.id, frameId: 7, framePath: [1, 7], severity: 'medium' }),
+    ]);
   });
 
   it('makes a conservation failure impossible to miss', () => {

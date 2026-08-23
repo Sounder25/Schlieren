@@ -1,4 +1,4 @@
-import type { JournalConservation, JournalFrame, JournalFrameTreeNode } from './store';
+import type { JournalConservation, JournalFrame, JournalFrameTreeNode, JournalSecurityFinding } from './store';
 
 export interface FrameRow extends JournalFrame {
   indent: number;
@@ -21,6 +21,23 @@ export function buildFrameRows(frameTree: JournalFrameTreeNode | null): FrameRow
   };
   if (frameTree) visit(frameTree, 0);
   return rows;
+}
+
+export interface SecurityRow extends JournalSecurityFinding {
+  frameId: number;
+  framePath: number[];
+}
+
+export function buildSecurityRows(
+  frameTree: JournalFrameTreeNode | null,
+  findings: JournalSecurityFinding[],
+): SecurityRow[] {
+  if (!frameTree) return [];
+  const findingsById = new Map(findings.map((finding) => [finding.id, finding]));
+  return buildFrameRows(frameTree).flatMap((frame) => frame.securityFindingIds.flatMap((id) => {
+    const finding = findingsById.get(id);
+    return finding ? [{ ...finding, frameId: frame.id, framePath: [...finding.frameAncestry, frame.id] }] : [];
+  }));
 }
 
 export function gasEffect(event: Pick<{ semantics: string; amount: number | null }, 'semantics' | 'amount'>): 'charge' | 'credit' | 'evidence' {
