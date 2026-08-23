@@ -20,6 +20,7 @@
 - Reverted attack attempts remain visible but cannot become high-severity committed-vulnerability findings.
 - `debug_inspect` and `debug_traceCall` JSON shapes must remain identical.
 - `schlieren_traceJournal` changes are additive and state/security evidence is returned by default.
+- `schlieren_traceJournal` returns a server-built nested `frameTree`; React may traverse it but must not reconstruct ancestry from flat arrays.
 - No global `IGlobalState` observer may reinterpret low-level setter calls or duplicate overlay propagation.
 - No flat-trace fallback security analyzer may remain in active use at completion.
 - Do not touch the user's main checkout; execute in `C:\projects\Schlieren\.worktrees\journal-gas-tree-rpc-react`.
@@ -689,12 +690,12 @@ git commit -m "feat(security): analyze journal frame evidence"
 
 **Interfaces:**
 - Consumes: `JournalAnalysis.Build` and `JournalSecurityAnalyzer.Analyze`.
-- Produces: additive `stateEffects` and `securityFindings` arrays in `JournalTraceDto`.
-- Produces: React `StateEffect` and `SecurityFinding` interfaces with empty-array defaults during rolling upgrades.
+- Produces: additive `stateEffects`, `securityFindings`, and server-built `frameTree` in `JournalTraceDto`; existing flat `frames` remains unchanged.
+- Produces: React `StateEffect`, `SecurityFinding`, and `JournalFrameTreeNode` interfaces with rolling-upgrade-safe defaults.
 
 - [ ] **Step 1: Write failing assembler and RPC tests**
 
-Assert a storage-write response includes effect/frame/instruction IDs, both dispositions, and rollback frame. Assert a finding links its evidence sequences. Keep the existing golden legacy RPC tests unchanged and run them in the same filter.
+Assert a storage-write response includes effect/frame/instruction IDs, both dispositions, and rollback frame. Assert a finding links its evidence sequences. Assert the server returns ordered nested children, ancestor IDs, effect IDs, and finding IDs without requiring the client to inspect raw events. Keep the existing golden legacy RPC tests unchanged and run them in the same filter.
 
 ```csharp
 Assert.Equal("reverted", dto.StateEffects[0].ExecutionDisposition);
@@ -702,6 +703,10 @@ Assert.Equal("notApplicable", dto.StateEffects[0].PersistenceDisposition);
 Assert.Equal(parentId, dto.StateEffects[0].RevertedByFrameId);
 Assert.Contains(dto.SecurityFindings[0].SupportingEventSequences,
     sequence => sequence == dto.StateEffects[0].Sequence);
+Assert.Equal(childId, dto.FrameTree!.Children[0].Frame.Id);
+Assert.Equal(new[] { rootId }, dto.FrameTree.Children[0].AncestorIds);
+Assert.Contains(dto.StateEffects[0].EffectId, dto.FrameTree.Children[0].StateEffectIds);
+Assert.Contains(dto.SecurityFindings[0].Id, dto.FrameTree.Children[0].SecurityFindingIds);
 ```
 
 - [ ] **Step 2: Write failing React parser/view tests**
@@ -711,7 +716,9 @@ Test full new responses and old journal responses without the additive arrays:
 ```ts
 expect(parseJournalTrace(oldResponse).stateEffects).toEqual([]);
 expect(parseJournalTrace(oldResponse).securityFindings).toEqual([]);
+expect(parseJournalTrace(oldResponse).frameTree).toBeNull();
 expect(securityTone({ severity: 'info', executionDisposition: 'reverted' })).toBe('reverted');
+expect(frameRows(newResponse.frameTree).map((row) => row.frame.id)).toEqual([1, 2, 3]);
 ```
 
 - [ ] **Step 3: Run red tests**
@@ -721,17 +728,28 @@ dotnet test .\Schlieren.Tests\Schlieren.Tests.csproj --filter "FullyQualifiedNam
 Push-Location .\schlieren-ui; npm test -- --run src/engine/security-view.test.ts; Pop-Location
 ```
 
-Expected: FAIL because the additive DTOs and React types are missing; legacy golden assertions remain green.
+Expected: FAIL because the additive DTOs, server-built frame tree, and React types are missing; legacy golden assertions remain green.
 
 - [ ] **Step 4: Map typed events and analyzed evidence**
 
-Add nullable `InstructionId` to raw event DTOs. Add `JournalStateEffectDto` and `JournalSecurityFindingDto`, rendering numeric protocol values consistently with the endpoint's existing conventions. Build `JournalAnalysis` once inside `JournalTraceAssembler`, pass it to the security analyzer, and reuse it for both arrays.
+Add nullable `InstructionId` to raw event DTOs. Add `JournalStateEffectDto`, `JournalSecurityFindingDto`, and this recursive DTO, rendering numeric protocol values consistently with the endpoint's existing conventions:
+
+```csharp
+public sealed record JournalFrameTreeNodeDto(
+    JournalFrameDto Frame,
+    IReadOnlyList<long> AncestorIds,
+    IReadOnlyList<long> StateEffectIds,
+    IReadOnlyList<string> SecurityFindingIds,
+    IReadOnlyList<JournalFrameTreeNodeDto> Children);
+```
+
+Build `JournalAnalysis` once inside `JournalTraceAssembler`, pass it to the security analyzer, and reuse it for all three additive results. Recursively map children in journal sequence order. Return `FrameTree = null` only when execution never opened a frame. Keep the existing flat `Frames` array unchanged.
 
 Malformed analysis must throw `JournalAnalysisException`; the RPC handler maps that to a structured internal RPC error and never falls back to flat traces.
 
 - [ ] **Step 5: Add the React evidence view**
 
-Normalize missing additive arrays to `[]` in `parseJournalTrace`. Render findings with severity, proof grade, frame, opcode/instruction link, execution/persistence badges, supporting effects, and the limitation. Reverted evidence must use informational styling and cannot display a committed-vulnerability badge.
+Normalize missing additive arrays to `[]` and missing `frameTree` to `null` in `parseJournalTrace`. Change `buildFrameRows`/`frameRows` to traverse the supplied `children`; it must not group flat frames by `parentId`. Selecting a node uses its supplied effect/finding IDs to look up derived DTOs. Render findings with severity, proof grade, frame, opcode/instruction link, execution/persistence badges, supporting effects, and the limitation. Reverted evidence must use informational styling and cannot display a committed-vulnerability badge.
 
 - [ ] **Step 6: Verify RPC compatibility and React**
 
@@ -903,4 +921,5 @@ The implementation handoff must state:
 - which heuristic and synthetic files were deleted;
 - one demonstrated surviving effect, one ancestor-reverted effect, and one simulation-discarded effect;
 - one reentrancy and one storage-collision finding with supporting frame/event evidence;
+- one nested `frameTree` example showing supplied ancestors plus effect/finding references;
 - any performance or payload limitation not addressed by this slice.

@@ -141,6 +141,7 @@ This is an observability correction only. It must not change call semantics, gas
 Create one read-only `JournalAnalysis` projection. It indexes the immutable journal once and exposes:
 
 - frames by ID and parent ID;
+- one validated nested frame tree rooted at the transaction frame;
 - exact ancestor paths;
 - instructions and their effects;
 - state observations with execution and persistence dispositions;
@@ -197,11 +198,14 @@ Each finding contains:
 `schlieren_traceJournal` gains additive fields:
 
 - `stateEffects`: the analyzed state observations and dispositions;
-- `securityFindings`: journal-native proof-linked findings.
+- `securityFindings`: journal-native proof-linked findings;
+- `frameTree`: a server-built nested frame tree, or `null` when execution never opened a frame.
+
+Each `frameTree` node contains its complete frame DTO, ordered `ancestorIds`, `stateEffectIds`, `securityFindingIds`, and recursively ordered `children`. Transaction-scoped effects remain in `stateEffects` and are not assigned to a synthetic frame. The existing flat `frames` array remains unchanged for additive compatibility, but React treats `frameTree` as the authoritative navigation structure.
 
 The raw `events` collection also includes the new typed journal event kinds. Existing fields retain their meaning. State effects and findings are returned by default. A future payload-control option may omit derived security findings, but raw state-effect capture remains enabled whenever the journal is enabled.
 
-React uses the derived DTOs rather than reimplementing ancestry or severity rules in TypeScript. It can show:
+React uses the derived DTOs rather than reimplementing ancestry or severity rules in TypeScript. Expanding/collapsing the server-built tree, selecting a node, looking up its referenced effects/findings, and walking its supplied parent/ancestor links are UI traversal, not ancestry reconstruction. React must not rebuild parent-child relationships from the flat event or frame arrays. It can show:
 
 - surviving versus reverted-path effects;
 - simulation-discarded versus persisted effects;
@@ -278,7 +282,8 @@ For each supported effect category, execute the same transaction with journaling
 
 - Golden JSON tests prove `debug_inspect` and `debug_traceCall` do not change.
 - `schlieren_traceJournal` additive DTO tests cover every new event and finding field.
-- Reflection/source architecture tests reject the deleted flat-trace detector algorithms and guessed call-type path.
+- Frame-tree contract tests prove children, ancestor IDs, state-effect references, and finding references are assembled server-side.
+- Behavioral tests prove explicit call identity and canonical consumer outputs; final verification scans confirm deleted heuristic implementations are absent.
 - React parser and view-model tests cover additive fields, missing optional fields during rolling upgrades, and evidence navigation.
 
 ## Delivery boundaries
@@ -307,6 +312,7 @@ The work is complete when:
 6. Reentrancy and storage-collision analysis uses explicit frames and typed effects only.
 7. Reverted attempts remain visible but cannot be graded as committed vulnerabilities.
 8. Findings link to supporting event sequences and state their proof limitations.
-9. Existing RPC JSON contracts remain unchanged.
-10. Journal-disabled and journal-enabled executions remain behaviorally identical.
-11. No duplicate flat-trace security implementation remains in active use.
+9. `schlieren_traceJournal` returns a server-built frame tree with effect and finding references.
+10. Existing RPC JSON contracts remain unchanged.
+11. Journal-disabled and journal-enabled executions remain behaviorally identical.
+12. No duplicate flat-trace security implementation remains in active use.
