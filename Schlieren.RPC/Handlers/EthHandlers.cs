@@ -1128,6 +1128,7 @@ public sealed class EthHandlers
         // Build transaction from request
         var tx = BuildCallTransaction(requestObj.Value, blockContext.GasLimit);
         tx.EnableTracing = true;
+        tx.EnableJournal = true;
         tx.Nonce = requestObj.Value.TryGetProperty("nonce", out var nonceProp)
             ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
             : await _globalState.GetNonceAsync(tx.From, ct);

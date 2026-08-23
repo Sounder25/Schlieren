@@ -1,4 +1,5 @@
 using Schlieren.Core.Execution.Causal;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution.Inspect;
 
@@ -61,7 +62,7 @@ public static class InspectionAssembler
             }
         }
 
-        var tree = GasTreeFromTrace.FromCanonical(request.Tx, request.Block.Rules, result);
+        var tree = LegacyGasTreeProjection.FromCanonical(result);
 
         return new InspectResult
         {

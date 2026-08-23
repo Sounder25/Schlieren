@@ -15,8 +15,11 @@ public sealed class GasTreeNode
     /// <summary>Gas attributed to this node (excludes children).</summary>
     public ulong Gas { get; set; }
 
-    /// <summary>Total gas including all children (computed after build).</summary>
-    public ulong TotalGas => Gas + (ulong)Children.Sum(c => (long)c.TotalGas);
+    /// <summary>Canonical journal total, or the legacy recursively computed total.</summary>
+    public ulong TotalGas => RecordedTotalGas ?? Gas + (ulong)Children.Sum(c => (long)c.TotalGas);
+
+    /// <summary>Exact total copied from the canonical journal compatibility projection.</summary>
+    public ulong? RecordedTotalGas { get; set; }
 
     public List<GasTreeNode> Children { get; } = new();
 
