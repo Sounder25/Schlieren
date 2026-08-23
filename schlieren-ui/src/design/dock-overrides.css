@@ -1,0 +1,95 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   RC-DOCK OVERRIDES — make the docking system match Schlieren's instrument UI
+   
+   rc-dock provides the mechanics (drag, drop, resize, tabs).
+   We override every visual to match our signal model and surface system.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Panels ─── */
+.dock-layout .dock-panel {
+  background: var(--s-panel);
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+}
+
+/* ─── Tab bar ─── */
+.dock-layout .dock-bar {
+  background: var(--s-chassis);
+  border-bottom: 1px solid var(--b-hard);
+}
+
+.dock-layout .dock-tab {
+  font-family: var(--font-chrome);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: var(--t-tertiary);
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  transition: color var(--duration-fast), background var(--duration-fast);
+}
+
+.dock-layout .dock-tab:hover {
+  color: var(--t-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dock-layout .dock-tab-active {
+  color: var(--t-primary);
+  background: var(--s-panel);
+  border-bottom: 2px solid var(--t-primary);
+}
+
+/* ─── Tab content area ─── */
+.dock-layout .dock-tabpane {
+  background: var(--s-inset);
+}
+
+/* ─── Dividers (resize handles) ─── */
+.dock-layout .dock-divider {
+  background: var(--b-hard);
+  opacity: 0.6;
+  transition: opacity var(--duration-fast), background var(--duration-fast);
+}
+
+.dock-layout .dock-divider:hover {
+  background: var(--sig-flow);
+  opacity: 1;
+}
+
+/* ─── Drop indicator ─── */
+.dock-layout .dock-drop-indicator {
+  background: rgba(91, 142, 201, 0.15);
+  border: 1px solid var(--sig-flow);
+  border-radius: 3px;
+}
+
+/* ─── Floating panels ─── */
+.dock-layout .dock-panel.dock-style-float {
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--b-focus);
+  border-radius: 4px;
+}
+
+/* ─── Panel body (where our components render) ─── */
+.dock-layout .dock-panel .dock-content-holder {
+  background: var(--s-inset);
+}
+
+/* ─── Remove default shadows/decorations ─── */
+.dock-layout .dock-panel {
+  box-shadow: none;
+}
+
+.dock-layout .dock-tab .dock-tab-close-btn {
+  color: var(--t-ghost);
+  font-size: 12px;
+  transition: color var(--duration-fast);
+}
+
+.dock-layout .dock-tab .dock-tab-close-btn:hover {
+  color: var(--sig-fracture);
+}

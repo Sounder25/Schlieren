@@ -1,0 +1,47 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRACE PANEL — the seismograph
+   
+   A canvas-rendered spectral view of the full execution. Each step is a 
+   vertical band. Color = operation class. Height = gas cost (log scale).
+   A white cursor line shows current position. Click anywhere to seek.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.trace-panel {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--b-hard);
+  overflow: hidden;
+  background: var(--s-void);
+}
+
+.trace-canvas-container {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.trace-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.trace-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.trace-empty-text {
+  font-family: var(--font-chrome);
+  font-size: 11px;
+  color: var(--t-ghost);
+  text-align: center;
+  max-width: 480px;
+  line-height: 1.7;
+}

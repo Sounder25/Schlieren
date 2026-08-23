@@ -1,0 +1,88 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCHLIEREN — GLOBAL RESET & BASE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--s-void);
+  color: var(--t-primary);
+  font-family: var(--font-data);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* Scrollbar styling — subtle, instrument-grade */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--b-hard);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--b-focus);
+}
+
+/* Selection */
+::selection {
+  background: rgba(91, 142, 201, 0.25);
+  color: var(--t-primary);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 1px solid var(--sig-flow);
+  outline-offset: 1px;
+}
+
+/* Chrome text (labels, buttons, nav) */
+.chrome {
+  font-family: var(--font-chrome);
+}
+
+/* Monospace data */
+.data {
+  font-family: var(--font-data);
+}
+
+/* Prevent text selection on UI chrome */
+button, [role="tab"], [role="button"], nav {
+  user-select: none;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+input, textarea {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+}

@@ -1,0 +1,71 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCHLIEREN — DESIGN TOKENS
+   
+   Signal Model: every color means exactly one thing.
+   Typography: JetBrains Mono (data) + Inter (chrome).
+   Surfaces: warm instrument grey, not blue-grey.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── Surface system (warm instrument grey) ─── */
+  --s-void: #060607;
+  --s-chassis: #0B0C0D;
+  --s-panel: #111214;
+  --s-raised: #181A1D;
+  --s-elevated: #1F2225;
+  --s-inset: #090A0B;
+
+  /* ─── Border system ─── */
+  --b-hard: #2A2D32;
+  --b-subtle: #1E2125;
+  --b-focus: #3A3E44;
+
+  /* ─── Text system ─── */
+  --t-primary: #E4E0DC;
+  --t-secondary: #A0A8B4;
+  --t-tertiary: #6A7280;
+  --t-ghost: #454B54;
+
+  /* ─── SIGNAL MODEL ─── */
+  --sig-flow: #5B8EC9;         /* control flow, jumps, calls, returns */
+  --sig-memory: #4BA89A;       /* MLOAD, MSTORE, memory expansion */
+  --sig-state: #C8943C;        /* SSTORE, SLOAD, CREATE, SELFDESTRUCT */
+  --sig-thermal-low: #2A3848;  /* gas: cold */
+  --sig-thermal-mid: #6B5030;  /* gas: warm */
+  --sig-thermal-high: #C88040; /* gas: hot */
+  --sig-thermal-peak: #F0D8A0; /* gas: peak */
+  --sig-agree: #5A8A6C;        /* oracle match, test pass */
+  --sig-fracture: #C43A52;     /* oracle divergence — THE rare red */
+  --sig-halt: #B85A32;         /* REVERT, OOG, INVALID */
+  --sig-security: #7B5EA7;     /* security findings */
+  --sig-diagnosis: #B89B4A;    /* diagnostic insights */
+  --sig-cursor: #FFFFFF;       /* selected item */
+
+  /* ─── Typography ─── */
+  --font-data: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+  --font-chrome: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+
+  /* ─── Type scale (comfortable reading) ─── */
+  --text-display: 22px;
+  --text-section: 14px;
+  --text-body: 13px;
+  --text-label: 11px;
+  --text-annotation: 11px;
+  --text-chrome: 12px;
+  --text-micro: 10px;
+
+  /* ─── Spacing ─── */
+  --row-h: 26px;
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --gap-xl: 24px;
+
+  /* ─── Motion ─── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 220ms;
+  --duration-slow: 400ms;
+}

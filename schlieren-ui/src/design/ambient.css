@@ -1,0 +1,110 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AMBIENT — the instrument is ON
+   
+   These effects make the app feel alive before any data arrives.
+   A powered instrument hums. The measurement surface is visible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Brand pulse: the instrument is on ─── */
+.nav-brand {
+  position: relative;
+}
+
+.nav-brand::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--sig-agree);
+  box-shadow: 0 0 6px var(--sig-agree), 0 0 12px rgba(90, 138, 108, 0.3);
+  animation: power-breathe 3s ease-in-out infinite;
+}
+
+@keyframes power-breathe {
+  0%, 100% { opacity: 0.5; transform: translateY(-50%) scale(0.9); }
+  50% { opacity: 1; transform: translateY(-50%) scale(1.1); }
+}
+
+/* ─── Measurement grid: the surface exists ─── */
+.disasm-empty,
+.trace-empty {
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(91, 142, 201, 0.02) 0%, transparent 70%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 25px,
+      rgba(255, 255, 255, 0.008) 25px,
+      rgba(255, 255, 255, 0.008) 26px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 25px,
+      rgba(255, 255, 255, 0.008) 25px,
+      rgba(255, 255, 255, 0.008) 26px
+    ),
+    var(--s-inset);
+}
+
+/* ─── Trace panel idle: faint waveform hint ─── */
+.trace-empty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(91, 142, 201, 0.015) 20%,
+    rgba(75, 168, 154, 0.01) 40%,
+    rgba(200, 148, 60, 0.015) 60%,
+    rgba(91, 142, 201, 0.01) 80%,
+    transparent 100%
+  );
+  animation: field-drift 8s ease-in-out infinite alternate;
+}
+
+@keyframes field-drift {
+  0% { transform: translateX(-20px); opacity: 0.5; }
+  100% { transform: translateX(20px); opacity: 1; }
+}
+
+/* ─── Empty state glyph: soft pulse ─── */
+.disasm-empty-glyph,
+.placeholder-glyph,
+.interference-glyph {
+  animation: glyph-pulse 4s ease-in-out infinite;
+}
+
+@keyframes glyph-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.02); }
+}
+
+/* ─── Input bar focus glow ─── */
+.wb-bytecode-input:focus {
+  box-shadow: 
+    0 0 0 1px var(--sig-flow),
+    0 0 8px rgba(91, 142, 201, 0.15),
+    inset 0 0 12px rgba(91, 142, 201, 0.03);
+}
+
+/* ─── Warm the chassis slightly ─── */
+.app-shell {
+  background: 
+    radial-gradient(ellipse at 50% 0%, rgba(91, 142, 201, 0.008) 0%, transparent 50%),
+    var(--s-void);
+}
+
+/* ─── Tab hover warmth ─── */
+.nav-view-tab:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.nav-view-tab.active {
+  background: rgba(255, 255, 255, 0.02);
+}

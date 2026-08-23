@@ -1,0 +1,83 @@
+.case-bar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 20px;
+  font-size: 11px;
+}
+
+.case-field {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.case-label {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.case-value {
+  color: var(--t-secondary);
+  letter-spacing: 0.3px;
+  font-family: var(--font-data);
+  font-size: var(--text-body);
+}
+
+.case-value.highlight {
+  color: var(--t-primary);
+  font-weight: 500;
+}
+
+.case-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--b-subtle);
+}
+
+.case-oracle-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.case-oracle-badge.agree {
+  background: rgba(90, 138, 108, 0.12);
+  border: 1px solid rgba(90, 138, 108, 0.3);
+  color: var(--sig-agree);
+}
+
+.case-oracle-badge.fracture {
+  background: rgba(196, 58, 82, 0.1);
+  border: 1px solid rgba(196, 58, 82, 0.3);
+  color: var(--sig-fracture);
+}
+
+.oracle-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.oracle-dot.agree { background: var(--sig-agree); }
+.oracle-dot.fracture { 
+  background: var(--sig-fracture); 
+  animation: fracture-pulse 2s ease-in-out infinite; 
+}
+
+@keyframes fracture-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}

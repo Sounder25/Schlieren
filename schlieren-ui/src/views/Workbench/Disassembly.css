@@ -1,0 +1,190 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DISASSEMBLY PANE
+   
+   A professional debugger surface. Column headers always visible.
+   The cursor is the user's presence — it glows and slides.
+   Gas costs on thermal gradient. Depth as structural gutter marks.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.disasm-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--s-inset);
+}
+
+/* ─── Column header ─── */
+.disasm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: var(--s-chassis);
+  border-bottom: 1px solid var(--b-hard);
+  flex-shrink: 0;
+}
+
+.disasm-col-labels {
+  display: flex;
+  gap: 0;
+}
+
+.col-label {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.col-label.col-step { width: 36px; text-align: right; padding-right: 10px; }
+.col-label.col-pc { width: 50px; padding: 0 8px; }
+.col-label.col-op { width: 120px; padding: 0 8px; }
+.col-label.col-gas { width: 56px; text-align: right; padding: 0 8px; }
+.col-label.col-depth { padding: 0 8px; }
+
+.disasm-summary {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-ghost);
+}
+
+/* ─── Empty state ─── */
+.disasm-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.disasm-empty-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 320px;
+}
+
+.disasm-empty-glyph {
+  font-size: 36px;
+  color: var(--t-ghost);
+  opacity: 0.3;
+  animation: glyph-pulse 4s ease-in-out infinite;
+}
+
+.disasm-empty-text {
+  font-family: var(--font-chrome);
+  font-size: var(--text-chrome);
+  color: var(--t-tertiary);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.disasm-empty-shortcuts {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-ghost);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.disasm-empty-shortcuts kbd {
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: var(--t-secondary);
+}
+
+.shortcut-sep {
+  color: var(--t-ghost);
+}
+
+/* ─── Scroll area ─── */
+.disasm-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ─── Table ─── */
+.instr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.instr-row {
+  height: var(--row-h);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.012);
+  cursor: pointer;
+  position: relative;
+  transition: background 100ms var(--ease-out);
+}
+
+.instr-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* ─── Cursor row ─── */
+.instr-row.cursor-row {
+  background: rgba(91, 142, 201, 0.07);
+  border-left: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: inset 4px 0 12px rgba(91, 142, 201, 0.06);
+}
+
+/* ─── Cells ─── */
+.instr-row td {
+  padding: 0 8px;
+  white-space: nowrap;
+  font-size: var(--text-body);
+  vertical-align: middle;
+}
+
+.i-step {
+  width: 36px;
+  color: var(--t-ghost);
+  text-align: right;
+  font-size: var(--text-micro);
+  padding-right: 10px;
+}
+
+.i-pc {
+  color: var(--t-tertiary);
+  font-size: var(--text-label);
+  width: 50px;
+  opacity: 0.7;
+}
+
+.i-op {
+  font-weight: 500;
+  color: var(--t-primary);
+  width: 120px;
+}
+
+.i-op.sig-flow { color: var(--sig-flow); }
+.i-op.sig-mem { color: var(--sig-memory); }
+.i-op.sig-state { color: var(--sig-state); font-weight: 600; }
+
+.i-gas {
+  font-size: var(--text-label);
+  text-align: right;
+  width: 56px;
+  font-variant-numeric: tabular-nums;
+}
+
+.i-depth {
+  width: 40px;
+  padding-left: 4px;
+}
+
+.depth-indicator {
+  color: var(--b-hard);
+  font-size: var(--text-micro);
+  letter-spacing: -1px;
+}

@@ -1,0 +1,144 @@
+.workbench {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+/* ─── Input Bar ─── */
+.wb-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+}
+
+.wb-input-label {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.wb-bytecode-input {
+  flex: 1;
+  background: var(--s-inset);
+  border: 1px solid var(--b-subtle);
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-family: var(--font-data);
+  font-size: var(--text-body);
+  color: var(--t-primary);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-normal);
+}
+
+.wb-bytecode-input:focus {
+  border-color: var(--sig-flow);
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--sig-flow),
+    0 0 8px rgba(91, 142, 201, 0.12),
+    inset 0 0 8px rgba(91, 142, 201, 0.02);
+}
+
+.wb-bytecode-input::placeholder {
+  color: var(--t-ghost);
+  font-size: 10px;
+}
+
+.wb-input-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.wb-calldata-btn {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--t-tertiary);
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  padding: 5px 10px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  transition: border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.wb-calldata-btn:hover {
+  border-color: var(--b-focus);
+  color: var(--t-secondary);
+}
+
+.wb-run-btn {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--s-void);
+  background: var(--t-primary);
+  padding: 5px 16px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  transition: background var(--duration-fast), transform 60ms, box-shadow var(--duration-normal);
+}
+
+.wb-run-btn:hover:not(:disabled) {
+  background: #FFFFFF;
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 8px rgba(228, 224, 220, 0.1);
+}
+
+.wb-run-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.wb-run-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.run-spinner {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Dock container ─── */
+.wb-dock-container {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ─── Pane shared ─── */
+.pane-toolbar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 26px;
+}
+
+.pane-title {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 1.8px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.pane-meta {
+  font-size: var(--text-label);
+  color: var(--t-ghost);
+  margin-left: auto;
+}

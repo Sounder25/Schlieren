@@ -1,0 +1,38 @@
+.status-bar {
+  background: var(--s-chassis);
+  border-top: 1px solid var(--b-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  font-family: var(--font-chrome);
+  font-size: var(--text-label);
+  color: var(--t-tertiary);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.status-dot.green {
+  background: var(--sig-agree);
+  box-shadow: 0 0 4px var(--sig-agree);
+}
+
+.status-dot.dim {
+  background: var(--t-ghost);
+}
+
+.status-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--b-hard);
+}
