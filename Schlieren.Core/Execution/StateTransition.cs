@@ -671,194 +671,6 @@ public sealed class StateTransition : IStateTransition
         return Finish(result);
     }
 
-    /// <summary>
-    /// Same as <see cref="ApplyTransactionAsync"/> but also returns a populated
-    /// <see cref="GasFrameNode"/> tree so callers can build a gas causality tree.
-    /// </summary>
-    public async Task<(ExecutionResult result, GasFrameNode rootFrame, ulong intrinsicGas, ulong calldataGas)>
-        ApplyTransactionWithGasTreeAsync(
-            Transaction tx,
-            IGlobalState state,
-            BlockContext block,
-            bool commit = true,
-            CancellationToken ct = default)
-    {
-        // Compute calldata gas separately so the tree can split it from the base 21000.
-        ulong calldataGas = 0;
-        foreach (var b in tx.Data)
-            calldataGas += b == 0 ? 4UL : 16UL;
-
-        var intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
-
-        // Root frame — the top-level call.
-        var rootFrame = new GasFrameNode
-        {
-            Label = tx.To.HasValue
-                ? $"Contract {tx.To.Value} execution"
-                : $"CREATE {CryptoUtils.DeriveContractAddress(tx.From, tx.Nonce)}"
-        };
-
-        // Re-execute ApplyTransactionAsync with the root frame injected so every
-        // sub-call appends its own child node to rootFrame.Children.
-        // We do this by running a modified path: replicate the top-level setup and
-        // pass rootFrame as the parentGasFrame to ExecuteInternalAsync.
-        // Simplest correct approach: just run ApplyTransactionAsync normally to get
-        // the committed result, but wire the gas frame into our own internal call.
-
-        var result = await ApplyTransactionWithFrameAsync(tx, state, block, commit, ct, rootFrame);
-        return (result, rootFrame, intrinsicGas, calldataGas);
-    }
-
-    private async Task<ExecutionResult> ApplyTransactionWithFrameAsync(
-        Transaction tx,
-        IGlobalState state,
-        BlockContext block,
-        bool commit,
-        CancellationToken ct,
-        GasFrameNode rootFrame)
-    {
-        // Mirror the setup from ApplyTransactionAsync, passing rootFrame to ExecuteInternalAsync.
-        if (tx.Authorization == TransactionAuthorization.Signed)
-        {
-            try { tx.From = CryptoUtils.RecoverAddress(tx.GetRecoveryHash(), tx.V, tx.R, tx.S); }
-            catch { throw new Exception("Internal transaction error"); }
-        }
-
-        BigInteger maxGasCost = BigInteger.Zero;
-        BigInteger blobFee = BigInteger.Zero;
-        ulong intrinsicGas = 0;
-        var baseFeePerGas = new BigInteger(block.BaseFeePerGas);
-        BigInteger effectiveGasPrice;
-        if (tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero)
-            effectiveGasPrice = BigInteger.Min(tx.MaxFeePerGas, baseFeePerGas + tx.MaxPriorityFeePerGas);
-        else
-            effectiveGasPrice = tx.GasPrice;
-
-        if (tx.Authorization != TransactionAuthorization.Internal)
-        {
-            intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
-            if (tx.GasLimit < intrinsicGas) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
-            if (block.Rules.HasEip7623CalldataFloor)
-            {
-                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
-                if (tx.GasLimit < tokenFloor) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
-            }
-        }
-
-        if (tx.Authorization != TransactionAuthorization.Internal &&
-            tx.Authorization != TransactionAuthorization.Simulation)
-        {
-            var senderNonce = await state.GetNonceAsync(tx.From, ct);
-            if (tx.Nonce < senderNonce) return ExecutionResult.Failure(EvmError.NonceTooLow);
-            if (tx.Nonce > senderNonce) return ExecutionResult.Failure(EvmError.NonceTooHigh);
-            var senderBalance = await state.GetBalanceAsync(tx.From, ct);
-            var priceForUpfront = tx.TxType >= 2 && tx.MaxFeePerGas > BigInteger.Zero ? tx.MaxFeePerGas : tx.GasPrice;
-            maxGasCost = new BigInteger(tx.GasLimit) * priceForUpfront;
-            blobFee = CalculateBlobFee(tx, block);
-            var maxBlobCost = CalculateMaxBlobCost(tx);
-            if (senderBalance < maxGasCost + maxBlobCost + tx.Value) return ExecutionResult.Failure(EvmError.InsufficientFunds);
-            if (commit) { state.SetBalance(tx.From, senderBalance - maxGasCost - blobFee - tx.Value); state.SetNonce(tx.From, senderNonce + 1); }
-        }
-
-        ulong executionGasLimit = tx.Authorization == TransactionAuthorization.Internal
-            ? tx.GasLimit : (tx.GasLimit - intrinsicGas);
-
-        var accessTracker = new AccessTracker();
-        Address? topLevelCreation = null;
-        if (tx.Authorization != TransactionAuthorization.Internal && !tx.To.HasValue)
-            topLevelCreation = CryptoUtils.DeriveContractAddress(tx.From, tx.Nonce);
-
-        if (tx.Authorization != TransactionAuthorization.Internal)
-        {
-            accessTracker.WarmAddress(tx.From);
-            if (tx.To.HasValue) accessTracker.WarmAddress(tx.To.Value);
-            if (topLevelCreation.HasValue) accessTracker.WarmAddress(topLevelCreation.Value);
-            for (int i = 1; i <= block.Rules.PrecompileCount; i++) { var b = new byte[20]; b[19] = (byte)i; accessTracker.WarmAddress(new Address(b)); }
-            if (block.Rules.HasEip3651WarmCoinbase && !block.Coinbase.Equals(Address.Zero)) accessTracker.WarmAddress(block.Coinbase);
-            foreach (var entry in tx.AccessList) { accessTracker.WarmAddress(entry.Address); foreach (var slot in entry.StorageKeys) accessTracker.WarmSlot(entry.Address, slot); }
-        }
-
-        ExecutionResult result;
-
-        if (topLevelCreation.HasValue &&
-            !await AccountDeployability.IsDeployableAsync(state, topLevelCreation.Value, ct))
-        {
-            // EIP-7610 / AddressCollision: all execution gas consumed.
-            result = ExecutionResult.Failure(EvmError.InvalidTransaction, executionGasLimit);
-        }
-        else
-        {
-            result = await ExecuteInternalAsync(
-                tx, state, block, tx.From, topLevelCreation, null, false, commit, ct, 0,
-                executionGasLimit, accessTracker: accessTracker, parentGasFrame: rootFrame);
-        }
-
-        if (topLevelCreation.HasValue && result.IsSuccess)
-        {
-            const int maxCodeSize = 24576;
-            if (result.ReturnData.Length > maxCodeSize)
-                result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
-            else
-            {
-                var depositGas = 200UL * (ulong)result.ReturnData.Length;
-                var remaining = executionGasLimit > result.GasUsed ? executionGasLimit - result.GasUsed : 0UL;
-                if (depositGas > remaining)
-                    result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
-                else
-                {
-                    if (commit) state.SetCode(topLevelCreation.Value, result.ReturnData);
-                    result = ExecutionResult.Success(result.GasUsed + depositGas, result.ReturnData, result.Logs, result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
-                }
-            }
-        }
-
-        if (tx.Authorization != TransactionAuthorization.Internal &&
-            tx.Authorization != TransactionAuthorization.Simulation &&
-            commit)
-        {
-            var evmGasUsed = result.GasUsed > executionGasLimit ? executionGasLimit : result.GasUsed;
-            var totalGasUsed = intrinsicGas + evmGasUsed;
-            if (result.GasRefundCounter > 0)
-            {
-                var maxRefund = (long)(totalGasUsed / 5);
-                totalGasUsed -= (ulong)Math.Min(result.GasRefundCounter, maxRefund);
-            }
-            // EIP-7623 (Prague+): enforce calldata token floor.
-            if (block.Rules.HasEip7623CalldataFloor && tx.Authorization != TransactionAuthorization.Internal)
-            {
-                var tokenFloor = IntrinsicGas.ComputeFloor(tx);
-                if (totalGasUsed < tokenFloor)
-                    totalGasUsed = tokenFloor;
-            }
-            var gasRefund = tx.GasLimit > totalGasUsed ? tx.GasLimit - totalGasUsed : 0UL;
-            var currentBalance = await state.GetBalanceAsync(tx.From, ct);
-            var gasRefundAmount = new BigInteger(gasRefund) * effectiveGasPrice;
-            BigInteger priceDiffRefund = BigInteger.Zero;
-            if (tx.TxType >= 2 && tx.MaxFeePerGas > effectiveGasPrice)
-                priceDiffRefund = new BigInteger(tx.GasLimit) * (tx.MaxFeePerGas - effectiveGasPrice);
-            var valueRestoration = result.IsSuccess ? BigInteger.Zero : tx.Value;
-            state.SetBalance(tx.From, currentBalance + gasRefundAmount + priceDiffRefund + valueRestoration);
-            if (!block.Coinbase.Equals(Address.Zero))
-            {
-                var priorityFee = effectiveGasPrice > baseFeePerGas ? effectiveGasPrice - baseFeePerGas : BigInteger.Zero;
-                var minerFee = new BigInteger(totalGasUsed) * priorityFee;
-                if (minerFee > 0)
-                {
-                    var cb = await state.GetBalanceAsync(block.Coinbase, ct);
-                    state.SetBalance(block.Coinbase, cb + minerFee);
-                }
-                else if (!block.Rules.HasEip161EmptyAccountDeletion)
-                {
-                    // Frontier/Homestead: touch coinbase even when fee=0
-                    await state.TouchAccountAsync(block.Coinbase, ct);
-                }
-            }
-            result = result with { GasUsed = totalGasUsed };
-        }
-
-        return result;
-    }
-
     private static BigInteger CalculateBlobFee(Transaction tx, BlockContext block)
     {
         if (tx.TxType != 3 || tx.BlobVersionedHashes.Count == 0)
@@ -917,7 +729,6 @@ public sealed class StateTransition : IStateTransition
         ITransientStorageFrame? transientStorage = null,
         AccessTracker? accessTracker = null,
         Dictionary<(Address, BigInteger), BigInteger>? originalStorageSnapshot = null,
-        GasFrameNode? parentGasFrame = null,
         ExecutionJournal? journal = null,
         long? parentFrameId = null)
     {
@@ -1122,19 +933,6 @@ public sealed class StateTransition : IStateTransition
             await overlay.TouchAccountAsync(tx.To.Value, ct);
         }
 
-        // Build a gas frame node for this call, appending to the parent's child list.
-        GasFrameNode? thisFrame = null;
-        if (parentGasFrame != null)
-        {
-            var toLabel = creationAddress.HasValue
-                ? $"CREATE {creationAddress.Value}"
-                : tx.To.HasValue
-                    ? $"Contract {tx.To.Value} execution"
-                    : "root";
-            thisFrame = new GasFrameNode { Label = toLabel };
-            parentGasFrame.Children.Add(thisFrame);
-        }
-
         // 3. Create execution context
         var context = new ExecutionContext
         {
@@ -1158,7 +956,6 @@ public sealed class StateTransition : IStateTransition
             Journal = journal,
             JournalFrameId = frameId,
             JournalParentFrameId = parentFrameId,
-            GasFrame = thisFrame,
             CallDepth = depth + 1,
             Block = block,
             GlobalState = overlay,
@@ -1224,7 +1021,6 @@ public sealed class StateTransition : IStateTransition
                 transientStorage: createTransientStorage,
                 accessTracker: accessTracker,
                 originalStorageSnapshot: originalStorageSnapshot,
-                parentGasFrame: thisFrame,
                 journal: journal,
                 parentFrameId: frameId);
         };

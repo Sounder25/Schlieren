@@ -104,9 +104,6 @@ namespace Schlieren.Core.Execution
                             : GasSemantics.ExclusiveCharge,
                         preStack);
                     // Record into gas frame journal (for gas causality tree)
-                    if (context.GasFrame != null && execResult.GasUsed > 0)
-                        context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));
-
                     // If the opcode execution itself failed, propagate the failure
                     if (!execResult.IsSuccess)
                     {

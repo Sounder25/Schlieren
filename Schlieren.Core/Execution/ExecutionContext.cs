@@ -146,11 +146,6 @@ namespace Schlieren.Core.Execution
         public ExecutionJournal? Journal { get; init; }
         public long? JournalFrameId { get; init; }
         public long? JournalParentFrameId { get; init; }
-        /// <summary>
-        /// When set, the EVM will record per-opcode (op, gasCost) into this frame journal.
-        /// Used by the gas causality tree — lighter-weight than full CaptureTrace.
-        /// </summary>
-        public GasFrameNode? GasFrame { get; init; }
         public int CallDepth { get; init; } = 1;
         public byte[] Code { get; init; } = Array.Empty<byte>();
         public int ProgramCounter { get; set; }
