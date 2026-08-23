@@ -1,6 +1,7 @@
 using System.Numerics;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution;
 
@@ -21,6 +22,16 @@ public sealed class StateTransition : IStateTransition
     public async Task<ExecutionResult> ApplyTransactionAsync(Transaction tx, IGlobalState state, BlockContext block, bool commit = true, CancellationToken ct = default)
     {
         var txOverlay = new StateOverlay(state);
+        var journal = tx.EnableJournal ? new ExecutionJournal() : null;
+        journal?.Record(new TransactionStartedEvent
+        {
+            FrameId = null,
+            ParentFrameId = null,
+            GasLimit = tx.GasLimit,
+            IsInternal = tx.Authorization == TransactionAuthorization.Internal
+        });
+
+        ExecutionResult Finish(ExecutionResult outcome) => outcome with { Journal = journal };
 
         // 0. Signature Recovery — must use signing hash (typed-tx unsigned digest), not tx hash.
         if (tx.Authorization == TransactionAuthorization.Signed)
@@ -44,13 +55,13 @@ public sealed class StateTransition : IStateTransition
             tx.Authorization != TransactionAuthorization.Simulation)
         {
             if (tx.TxType == 1 && !block.Rules.HasEip2930AccessLists)
-                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             if (tx.TxType == 2 && !block.Rules.HasEip1559BaseFee)
-                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             if (tx.TxType == 3 && !block.Rules.HasEip4844BlobTx)
-                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             if (tx.TxType == 4 && !block.Rules.HasEip7702SetCode)
-                return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
         }
 
         BigInteger maxGasCost = BigInteger.Zero;
@@ -82,26 +93,26 @@ public sealed class StateTransition : IStateTransition
             if (block.Rules.HasEip7825TxGasLimitCap
                 && tx.Authorization != TransactionAuthorization.System
                 && tx.GasLimit > block.Rules.TxMaxGasLimit)
-                return ExecutionResult.Failure(EvmError.InvalidTransaction, 0);
+                return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction, 0));
 
             // EIP-3860 (Shanghai+): reject contract-creating transactions whose initcode exceeds
             // 2 × MAX_CODE_SIZE (49152 bytes). Pre-Shanghai: no limit.
             if (!tx.To.HasValue && block.Rules.HasEip3860InitcodeLimit && tx.Data.Length > 2 * 24576)
-                return ExecutionResult.Failure(EvmError.InternalError, 0);
+                return Finish(ExecutionResult.Failure(EvmError.InternalError, 0));
 
             // [AI-EDIT 2026-01-10] Intrinsic gas must be charged before EVM execution.
             // Yellow Paper §6.2 / EIP-2930: base 21000 + calldata bytes + access-list entries.
             intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
             
             if (tx.GasLimit < intrinsicGas)
-                return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+                return Finish(ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit));
 
             // EIP-7623 (Prague+): transaction validity — gasLimit must cover the calldata token floor.
             if (block.Rules.HasEip7623CalldataFloor)
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
                 if (tx.GasLimit < tokenFloor)
-                    return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+                    return Finish(ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit));
             }
         }
 
@@ -135,19 +146,19 @@ public sealed class StateTransition : IStateTransition
             senderNonceForDeduction = await state.GetNonceAsync(tx.From, ct);
 
             // Nonce ordering
-            if (tx.Nonce < senderNonceForDeduction) return ExecutionResult.Failure(EvmError.NonceTooLow);
-            if (tx.Nonce > senderNonceForDeduction) return ExecutionResult.Failure(EvmError.NonceTooHigh);
+            if (tx.Nonce < senderNonceForDeduction) return Finish(ExecutionResult.Failure(EvmError.NonceTooLow));
+            if (tx.Nonce > senderNonceForDeduction) return Finish(ExecutionResult.Failure(EvmError.NonceTooHigh));
 
             // EIP-1559 fee floor
             if (tx.TxType >= 2)
             {
-                if (tx.MaxFeePerGas < baseFeePerGas) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                if (tx.MaxFeePerGas < baseFeePerGas) return Finish(ExecutionResult.Failure(EvmError.InsufficientFunds));
                 // EIP-1559: maxPriorityFeePerGas must not exceed maxFeePerGas
-                if (tx.MaxPriorityFeePerGas > tx.MaxFeePerGas) return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                if (tx.MaxPriorityFeePerGas > tx.MaxFeePerGas) return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             }
             else
             {
-                if (tx.GasPrice < baseFeePerGas) return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                if (tx.GasPrice < baseFeePerGas) return Finish(ExecutionResult.Failure(EvmError.InsufficientFunds));
             }
 
             // EIP-4844 blob hash well-formedness
@@ -155,16 +166,16 @@ public sealed class StateTransition : IStateTransition
             {
                 var maxBlobs = block.Rules.MaxBlobsPerTransaction;
                 if (tx.BlobVersionedHashes == null || tx.BlobVersionedHashes.Count == 0 || tx.BlobVersionedHashes.Count > maxBlobs)
-                    return ExecutionResult.Failure(EvmError.InternalError);
+                    return Finish(ExecutionResult.Failure(EvmError.InternalError));
 
                 foreach (var hash in tx.BlobVersionedHashes)
                 {
                     if (hash == null || hash.Length != 32 || hash[0] != 0x01)
-                        return ExecutionResult.Failure(EvmError.InternalError);
+                        return Finish(ExecutionResult.Failure(EvmError.InternalError));
                 }
 
                 if (tx.MaxFeePerBlobGas < block.GetBlobBaseFee())
-                    return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                    return Finish(ExecutionResult.Failure(EvmError.InsufficientFunds));
             }
 
             // EIP-7702: type-4 (SetCode) structural validity — EELS apply_transaction
@@ -173,9 +184,9 @@ public sealed class StateTransition : IStateTransition
             if (tx.TxType == 4)
             {
                 if (!tx.To.HasValue)
-                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                    return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
                 if (tx.AuthorizationList.Count == 0)
-                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                    return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             }
 
             // Upfront balance sufficiency
@@ -184,7 +195,7 @@ public sealed class StateTransition : IStateTransition
             var maxBlobCost = CalculateMaxBlobCost(tx);
             var upfrontCost = maxGasCost + maxBlobCost + tx.Value;
             if (senderBalanceForDeduction < upfrontCost)
-                return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                return Finish(ExecutionResult.Failure(EvmError.InsufficientFunds));
         }
 
         // ── Deduction (all externally-submitted txs: Signed + Impersonated) ────
@@ -199,9 +210,9 @@ public sealed class StateTransition : IStateTransition
             if (isImpersonated && tx.TxType == 4)
             {
                 if (!tx.To.HasValue)
-                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                    return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
                 if (tx.AuthorizationList.Count == 0)
-                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                    return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             }
 
             // EIP-1559 fee validations for Impersonated txs (Signed path checked above).
@@ -209,9 +220,9 @@ public sealed class StateTransition : IStateTransition
             if (isImpersonated && tx.TxType >= 2)
             {
                 if (tx.MaxFeePerGas < baseFeePerGas)
-                    return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                    return Finish(ExecutionResult.Failure(EvmError.InsufficientFunds));
                 if (tx.MaxPriorityFeePerGas > tx.MaxFeePerGas)
-                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                    return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             }
 
             // EELS: InvalidSenderError — sender must be an EOA (empty code or delegation designator).
@@ -221,7 +232,7 @@ public sealed class StateTransition : IStateTransition
                 bool isDelegation = senderCode.Length == 23 &&
                                     senderCode[0] == 0xEF && senderCode[1] == 0x01 && senderCode[2] == 0x00;
                 if (senderCode.Length > 0 && !isDelegation)
-                    return ExecutionResult.Failure(EvmError.InvalidTransaction);
+                    return Finish(ExecutionResult.Failure(EvmError.InvalidTransaction));
             }
 
             // For Impersonated txs we did not pre-fetch nonce/balance above,
@@ -388,7 +399,9 @@ public sealed class StateTransition : IStateTransition
                 ct,
                 0,
                 executionGasLimit,
-                accessTracker: accessTracker);
+                accessTracker: accessTracker,
+                journal: journal,
+                parentFrameId: null);
         }
 
         // Merge EIP-7702 authorization refund into result
@@ -544,7 +557,7 @@ public sealed class StateTransition : IStateTransition
             }
         }
 
-        return result;
+        return Finish(result);
     }
 
     /// <summary>
@@ -793,13 +806,62 @@ public sealed class StateTransition : IStateTransition
         ITransientStorageFrame? transientStorage = null,
         AccessTracker? accessTracker = null,
         Dictionary<(Address, BigInteger), BigInteger>? originalStorageSnapshot = null,
-        GasFrameNode? parentGasFrame = null)
+        GasFrameNode? parentGasFrame = null,
+        ExecutionJournal? journal = null,
+        long? parentFrameId = null)
     {
         if (depth > 1024)
         {
             // [DIAGNOSTIC] Log call stack depth limit
             Console.WriteLine($"[DEPTH_LIMIT_EXCEEDED] depth={depth} tx={tx} from={tx.From} to={tx.To}");
             return ExecutionResult.Failure(EvmError.InternalError, 0, null); // Call stack depth limit reached
+        }
+
+        ulong gasForExecution = executionGasLimit ?? tx.GasLimit;
+        long? frameId = journal?.OpenFrame(parentFrameId);
+        var executionCallType = DetermineCallType(creationAddress, codeAddress, isStatic);
+        var journalCallType = depth == 0 ? CallType.Root : executionCallType;
+        var journalContractAddress = creationAddress ?? tx.To ?? Address.Zero;
+        journal?.Record(new FrameEnteredEvent
+        {
+            FrameId = frameId,
+            ParentFrameId = parentFrameId,
+            Depth = depth,
+            CallType = journalCallType,
+            ContractAddress = journalContractAddress,
+            CodeAddress = codeAddress,
+            GasLimit = gasForExecution
+        });
+
+        ExecutionResult CompleteFrame(ExecutionResult outcome)
+        {
+            if (journal is null)
+                return outcome;
+
+            if (outcome.GasRefundCounter != 0)
+            {
+                journal.Record(new RefundCounterChangedEvent
+                {
+                    FrameId = frameId,
+                    ParentFrameId = parentFrameId,
+                    Previous = 0,
+                    Current = outcome.GasRefundCounter
+                });
+            }
+
+            journal.Record(new FrameExitedEvent
+            {
+                FrameId = frameId,
+                ParentFrameId = parentFrameId,
+                Depth = depth,
+                Success = outcome.IsSuccess,
+                Error = outcome.Error,
+                GasUsed = outcome.GasUsed,
+                GasRemaining = gasForExecution > outcome.GasUsed
+                    ? gasForExecution - outcome.GasUsed
+                    : 0
+            });
+            return outcome;
         }
 
         // Use a state overlay to ensure snapshot isolation for this execution frame
@@ -823,7 +885,7 @@ public sealed class StateTransition : IStateTransition
             {
                 var senderBalance = await overlay.GetBalanceAsync(tx.From, ct);
                 if (senderBalance < tx.Value)
-                    return ExecutionResult.Failure(EvmError.InsufficientFunds);
+                    return CompleteFrame(ExecutionResult.Failure(EvmError.InsufficientFunds));
                 
                 overlay.SetBalance(tx.From, senderBalance - tx.Value);
             }
@@ -848,7 +910,7 @@ public sealed class StateTransition : IStateTransition
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change
-                return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
+                return CompleteFrame(ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit));
             }
 
             // EELS touch_account: Frontier/Homestead precompile calls still create the account.
@@ -862,7 +924,7 @@ public sealed class StateTransition : IStateTransition
                 overlay.Commit();
             }
 
-            return ExecutionResult.Success(preGas, preOutput);
+            return CompleteFrame(ExecutionResult.Success(preGas, preOutput));
         }
 
         // Determine Code and Contract Address
@@ -929,8 +991,6 @@ public sealed class StateTransition : IStateTransition
 
         // [AI-EDIT 2026-01-10] Use the pre-computed execution gas limit (post-intrinsic deduction)
         // when provided; otherwise fall back to tx.GasLimit (e.g. for internal sub-calls).
-        ulong gasForExecution = executionGasLimit ?? tx.GasLimit;
-
         // EELS touch_account(): in Frontier/Homestead (pre-EIP-161), every CALL touches the
         // callee address, creating an empty account if it didn't previously exist.
         // SpuriousDragon+ deletes empty accounts at tx end — do NOT touch there.
@@ -973,6 +1033,9 @@ public sealed class StateTransition : IStateTransition
             GasLimit = gasForExecution,
             IsStatic = isStatic,
             CaptureTrace = tx.EnableTracing,
+            Journal = journal,
+            JournalFrameId = frameId,
+            JournalParentFrameId = parentFrameId,
             GasFrame = thisFrame,
             CallDepth = depth + 1,
             Block = block,
@@ -985,8 +1048,7 @@ public sealed class StateTransition : IStateTransition
         };
         
         // [AI-EDIT 2026-08-03] Set call context for security analysis
-        var callType = DetermineCallType(creationAddress, codeAddress, isStatic);
-        context.SetCallContext(callType, caller: tx.From, codeAddress: codeAddress);
+        context.SetCallContext(executionCallType, caller: tx.From, codeAddress: codeAddress);
 
         // Wire up recursion — sub-calls receive their own gas stipend from the calling opcode,
         // so no executionGasLimit override is needed (depth > 0 path).
@@ -1040,7 +1102,9 @@ public sealed class StateTransition : IStateTransition
                 transientStorage: createTransientStorage,
                 accessTracker: accessTracker,
                 originalStorageSnapshot: originalStorageSnapshot,
-                parentGasFrame: thisFrame);
+                parentGasFrame: thisFrame,
+                journal: journal,
+                parentFrameId: frameId);
         };
 
         // 4. Execute
@@ -1060,7 +1124,7 @@ public sealed class StateTransition : IStateTransition
             accessTracker.Restore(accessCheckpoint);
         }
         
-        return result;
+        return CompleteFrame(result);
     }
 
     private class OverlayStorage : IEvmStorage
