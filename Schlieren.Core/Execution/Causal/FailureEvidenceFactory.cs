@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.Numerics;
-using System.Text.RegularExpressions;
 using Schlieren.Core.Forks;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
@@ -9,12 +7,6 @@ namespace Schlieren.Core.Execution.Causal;
 
 public static class FailureEvidenceFactory
 {
-    private static readonly Regex HexAddr = new(
-        @"0x[0-9a-fA-F]{40}", RegexOptions.Compiled);
-    private static readonly Regex ExpectedActual = new(
-        @"expected=(0x[0-9a-fA-F]+|\d+|True|False),\s*actual=(0x[0-9a-fA-F]+|\d+|True|False)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     public static FailureEvidence From(
         string caseId,
         string forkName,
@@ -22,7 +14,6 @@ public static class FailureEvidenceFactory
         Transaction tx,
         Address sender,
         Address coinbase,
-        IReadOnlyList<string> mismatches,
         ulong gasUsed,
         long refundCounter,
         bool executionSucceeded,
@@ -30,7 +21,8 @@ public static class FailureEvidenceFactory
         string? lastOpcode = null,
         int lastPc = 0,
         string? expectException = null,
-        bool? expectedReceiptSuccess = null)
+        bool? expectedReceiptSuccess = null,
+        IReadOnlyList<StateDiscrepancy>? discrepancies = null)
     {
         var rules = ForkRulesFactory.For(forkName);
         var price = EffectivePrice(tx, coinbase, rules);
@@ -38,50 +30,43 @@ public static class FailureEvidenceFactory
         BigInteger? senderWei = null, coinbaseWei = null;
         bool missing = false, unexpected = false, storage = false, code = false, nonce = false, balance = false, receipt = false;
         bool recExpOkActFail = false, recExpFailActOk = false;
-        var senderText = sender.ToString();
-        var coinText = coinbase.ToString();
-
-        foreach (var line in mismatches)
+        discrepancies ??= Array.Empty<StateDiscrepancy>();
+        foreach (var discrepancy in discrepancies)
         {
-            if (line.StartsWith("missing account", StringComparison.Ordinal)) missing = true;
-            else if (line.StartsWith("unexpected account", StringComparison.Ordinal)) unexpected = true;
-            else if (line.StartsWith("storage mismatch", StringComparison.Ordinal)) storage = true;
-            else if (line.StartsWith("code mismatch", StringComparison.Ordinal)) code = true;
-            else if (line.StartsWith("nonce mismatch", StringComparison.Ordinal)) nonce = true;
-            else if (line.StartsWith("balance mismatch", StringComparison.Ordinal))
+            switch (discrepancy.Kind)
             {
-                balance = true;
-                var addr = HexAddr.Match(line);
-                if (!addr.Success || !TryParseExpectedActual(line, out var exp, out var act))
-                    continue;
-                var deltaWei = act - exp;
-                if (addr.Value.Equals(senderText, StringComparison.OrdinalIgnoreCase))
-                {
-                    senderWei = deltaWei;
-                    if (price > 0 && deltaWei % price == 0)
+                case DiscrepancyKind.MissingAccount: missing = true; break;
+                case DiscrepancyKind.UnexpectedAccount: unexpected = true; break;
+                case DiscrepancyKind.Storage: storage = true; break;
+                case DiscrepancyKind.Code: code = true; break;
+                case DiscrepancyKind.Nonce: nonce = true; break;
+                case DiscrepancyKind.Balance:
+                    balance = true;
+                    if (discrepancy.Address is not { } address ||
+                        discrepancy.ExpectedNumber is not { } expected ||
+                        discrepancy.ActualNumber is not { } actual)
+                        break;
+                    var deltaWei = actual - expected;
+                    if (address.Equals(sender))
                     {
-                        try { senderResidual = (long)(deltaWei / price); }
-                        catch { /* overflow */ }
+                        senderWei = deltaWei;
+                        if (price > 0 && deltaWei % price == 0)
+                        {
+                            try { senderResidual = (long)(deltaWei / price); }
+                            catch { /* overflow */ }
+                        }
                     }
-                }
-                else if (!coinbase.Equals(default(Address)) &&
-                         addr.Value.Equals(coinText, StringComparison.OrdinalIgnoreCase))
-                {
-                    coinbaseWei = deltaWei;
-                }
-            }
-            else if (line.StartsWith("receipt.status mismatch", StringComparison.Ordinal))
-            {
-                receipt = true;
-                var expM = Regex.Match(line, @"expected=(True|False)", RegexOptions.IgnoreCase);
-                var actM = Regex.Match(line, @"actual=(True|False)", RegexOptions.IgnoreCase);
-                if (expM.Success && actM.Success)
-                {
-                    var expOk = expM.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
-                    var actOk = actM.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
-                    recExpOkActFail = expOk && !actOk;
-                    recExpFailActOk = !expOk && actOk;
-                }
+                    else if (!coinbase.Equals(default(Address)) && address.Equals(coinbase))
+                        coinbaseWei = deltaWei;
+                    break;
+                case DiscrepancyKind.ReceiptStatus:
+                    receipt = true;
+                    if (discrepancy.ExpectedBoolean is { } expOk && discrepancy.ActualBoolean is { } actOk)
+                    {
+                        recExpOkActFail = expOk && !actOk;
+                        recExpFailActOk = !expOk && actOk;
+                    }
+                    break;
             }
         }
 
@@ -111,7 +96,7 @@ public static class FailureEvidenceFactory
             Coinbase = coinbase,
             To = tx.To,
             EffectiveGasPrice = price,
-            Mismatches = mismatches,
+            Discrepancies = discrepancies,
             HasMissingAccount = missing,
             HasUnexpectedAccount = unexpected,
             HasStorageMismatch = storage,
@@ -177,29 +162,4 @@ public static class FailureEvidenceFactory
         return tx.GasPrice > 0 ? tx.GasPrice : BigInteger.One;
     }
 
-    private static bool TryParseExpectedActual(string line, out BigInteger expected, out BigInteger actual)
-    {
-        expected = actual = 0;
-        var m = ExpectedActual.Match(line);
-        if (!m.Success) return false;
-        return TryQty(m.Groups[1].Value, out expected) && TryQty(m.Groups[2].Value, out actual);
-    }
-
-    private static bool TryQty(string raw, out BigInteger value)
-    {
-        value = 0;
-        if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            var hex = raw[2..];
-            if (hex.Length % 2 == 1) hex = "0" + hex;
-            if (hex.Length == 0) return true;
-            try
-            {
-                value = new BigInteger(Convert.FromHexString(hex), isUnsigned: true, isBigEndian: true);
-                return true;
-            }
-            catch { return false; }
-        }
-        return BigInteger.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-    }
 }

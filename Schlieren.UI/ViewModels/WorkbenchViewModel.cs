@@ -6,7 +6,9 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Execution.Inspect;
+using Schlieren.Core.Primitives;
 using Schlieren.Core.Security;
 using Schlieren.UI.Services;
 
@@ -672,9 +674,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         AccountStateRows.Add("fixture expected vs this run (Conformance check):");
         var mismatches = 0;
         var engineMismatches = new List<string>();
+        var discrepancies = new List<StateDiscrepancy>();
         foreach (var exp in _expectedPost)
         {
             var addr = exp.AddressHex;
+            var typedAddress = Address.FromHex(addr);
             run.PostBalances.TryGetValue(addr, out var actualBal);
             actualBal ??= "(missing)";
             WorkbenchQuantity.TryBigInteger(exp.BalanceWei, out var expBal);
@@ -689,6 +693,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                         addr,
                         InspectMapper.ToHex(expBal),
                         InspectMapper.ToHex(actualBalParsed)));
+                    discrepancies.Add(new StateDiscrepancy
+                    {
+                        Kind = DiscrepancyKind.Balance,
+                        Address = typedAddress,
+                        ExpectedNumber = expBal,
+                        ActualNumber = actualBalParsed
+                    });
                 }
             }
 
@@ -696,12 +707,24 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             {
                 AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} account missing (expected nonce {exp.Nonce})");
                 mismatches++;
+                discrepancies.Add(new StateDiscrepancy
+                {
+                    Kind = DiscrepancyKind.MissingAccount,
+                    Address = typedAddress
+                });
             }
             else if (actualNonce != exp.Nonce)
             {
                 AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} nonce expected {exp.Nonce} got {actualNonce}");
                 mismatches++;
                 engineMismatches.Add(InspectMismatchFormat.Nonce(addr, exp.Nonce, actualNonce));
+                discrepancies.Add(new StateDiscrepancy
+                {
+                    Kind = DiscrepancyKind.Nonce,
+                    Address = typedAddress,
+                    ExpectedNumber = exp.Nonce,
+                    ActualNumber = actualNonce
+                });
             }
 
             if (exp.StorageHex.Count == 0) continue;
@@ -716,6 +739,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                 {
                     AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} {want}");
                     mismatches++;
+                    discrepancies.Add(new StateDiscrepancy
+                    {
+                        Kind = DiscrepancyKind.Storage,
+                        Address = typedAddress,
+                        StorageSlot = slot,
+                        ExpectedNumber = word
+                    });
                 }
             }
         }
@@ -731,7 +761,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         if (engineMismatches.Count > 0)
         {
             var inspect = InspectionAssembler.FromCanonical(
-                new InspectRequest { Tx = run.Tx, Block = run.Block, Mismatches = engineMismatches },
+                new InspectRequest
+                {
+                    Tx = run.Tx,
+                    Block = run.Block,
+                    Mismatches = engineMismatches,
+                    Discrepancies = discrepancies
+                },
                 run.Result);
             _lastInspectResult = inspect;  // Store for diagnosis display
             var root = inspect.Diagnosis?.Root;

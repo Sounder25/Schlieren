@@ -95,6 +95,18 @@ See [`docs/rpc/schlieren_traceJournal.md`](docs/rpc/schlieren_traceJournal.md) f
 
 `debug_inspect` and `debug_traceCall` keep their existing JSON shapes for Avalonia compatibility. Journal-native clients should use `schlieren_traceJournal`.
 
+### Typed causal diagnosis
+
+State, receipt, and engine differences are recorded as typed discrepancies at the comparison boundary. Diagnosis, EELS taxonomy, auditors, and both UI paths consume those typed facts; human-readable mismatch lines are rendered only for legacy output and test reports. Changing wording can therefore never change a diagnosis.
+
+Diagnosis grades are derived from an explicit proof basis:
+
+- `PROVEN` requires an applicable rule, an isolated first-divergence phase, exact arithmetic, and independent corroboration.
+- `STRONG` requires an applicable rule and isolated phase plus exact arithmetic, corroboration, or direct execution evidence.
+- `POSSIBLE` covers incomplete or non-isolated evidence.
+
+A sender-only gas residual is `STRONG`; a matching sender/coinbase fee pair can be `PROVEN`. Existing `debug_inspect` JSON remains structurally unchanged.
+
 ---
 
 ## Architecture

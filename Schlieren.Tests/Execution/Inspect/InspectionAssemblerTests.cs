@@ -1,4 +1,5 @@
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Execution.Inspect;
 using Schlieren.Core.Forks;
 using Schlieren.Core.Opcodes;
@@ -15,7 +16,7 @@ public sealed class InspectionAssemblerTests
     private static readonly Address Coin = Address.FromHex(InspectGoldenCase.CoinbaseHex);
 
     [Fact]
-    public void FrontierCreateMismatches_AreProvenSurcharge()
+    public void LegacyMismatchStrings_AreDisplayOnlyAndCannotProveSurcharge()
     {
         var req = FrontierRequest(InspectGoldenCase.Mismatches);
         var result = ExecutionResult.Success(53_000);
@@ -25,11 +26,27 @@ public sealed class InspectionAssemblerTests
         Assert.True(inspect.Ok);
         Assert.Equal("Frontier", inspect.Fork);
         Assert.NotNull(inspect.Diagnosis?.Root);
-        Assert.Equal("TX.CREATE_SURCHARGE", inspect.Diagnosis!.Root!.RuleId);
-        Assert.Equal("PROVEN", inspect.Diagnosis.Root.Grade);
-        Assert.Contains("INTRINSIC", inspect.Diagnosis.Fingerprint, StringComparison.Ordinal);
+        Assert.Equal("POSSIBLE", inspect.Diagnosis!.Root!.Grade);
         Assert.NotNull(inspect.GasTree);
         Assert.StartsWith("0x", inspect.Execution.GasUsed);
+    }
+
+    [Fact]
+    public void TypedFeePair_ProvesFrontierCreateSurcharge()
+    {
+        var request = FrontierRequest(InspectGoldenCase.Mismatches) with
+        {
+            Discrepancies =
+            [
+                Balance(Sender, 1_000_000, 680_000),
+                Balance(Coin, 0, 320_000)
+            ]
+        };
+
+        var inspect = InspectionAssembler.FromCanonical(request, ExecutionResult.Success(53_000));
+
+        Assert.Equal("TX.CREATE_SURCHARGE", inspect.Diagnosis!.Root!.RuleId);
+        Assert.Equal("PROVEN", inspect.Diagnosis.Root.Grade);
     }
 
     [Fact]
@@ -92,7 +109,17 @@ public sealed class InspectionAssemblerTests
 
         var result = await st.ApplyTransactionAsync(tx, state, block, commit: false);
         var inspect = InspectionAssembler.FromCanonical(
-            new InspectRequest { Tx = tx, Block = block, Mismatches = InspectGoldenCase.Mismatches },
+            new InspectRequest
+            {
+                Tx = tx,
+                Block = block,
+                Mismatches = InspectGoldenCase.Mismatches,
+                Discrepancies =
+                [
+                    Balance(sender, 1_000_000, 680_000),
+                    Balance(coin, 0, 320_000)
+                ]
+            },
             result);
 
         Assert.True(inspect.Ok);
@@ -123,4 +150,12 @@ public sealed class InspectionAssemblerTests
         };
         return new InspectRequest { Tx = tx, Block = block, Mismatches = mismatches };
     }
+
+    private static StateDiscrepancy Balance(Address address, long expected, long actual) => new()
+    {
+        Kind = DiscrepancyKind.Balance,
+        Address = address,
+        ExpectedNumber = expected,
+        ActualNumber = actual
+    };
 }

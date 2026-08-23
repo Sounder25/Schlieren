@@ -5,7 +5,8 @@ public sealed class ScoredDiagnosis
     public required string RuleId { get; init; }
     public required string Title { get; init; }
     public required ExecutionPhase Phase { get; init; }
-    public required DiagnosisGrade Grade { get; init; }
+    public required DiagnosisProofBasis Basis { get; init; }
+    public DiagnosisGrade Grade => Basis.Grade;
     public required int Score { get; init; }
     public required string Why { get; init; }
     public required string Proof { get; init; }

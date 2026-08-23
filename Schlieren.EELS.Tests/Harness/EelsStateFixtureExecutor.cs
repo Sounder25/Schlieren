@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Numerics;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
+using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 
 namespace Schlieren.EELS.Tests.Harness;
@@ -37,12 +39,14 @@ public sealed class EelsStateFixtureExecutor
         if (testCase.ExpectedException is not null)
         {
             // Don't execute — treat as a clean "tx rejected" outcome.
-            var mismatches0 = new List<string>();
-            var stateMatches0 = CompareExpectedState(testCase, globalState, mismatches0);
+            var discrepancies0 = new List<StateDiscrepancy>();
+            var stateMatches0 = CompareExpectedState(testCase, globalState, discrepancies0);
             // ExpectedReceiptStatus is forced to false for exception cases; pass IsSuccess=false.
-            var receiptMatches0 = CompareReceiptStatus(testCase.ExpectedReceiptStatus, false, mismatches0);
+            var receiptMatches0 = CompareReceiptStatus(testCase.ExpectedReceiptStatus, false, discrepancies0);
+            var mismatches0 = discrepancies0.Select(item => item.Render()).ToArray();
             return new EelsCaseExecutionReport(
-                testCase.CaseId, false, 0, 0, stateMatches0, receiptMatches0, mismatches0);
+                testCase.CaseId, false, 0, 0, stateMatches0, receiptMatches0, mismatches0,
+                Discrepancies: discrepancies0);
         }
 
         // [AI-EDIT 2026-08-03] EVM spec allows 1024 call depth. Each async frame
@@ -67,19 +71,20 @@ public sealed class EelsStateFixtureExecutor
             result = ExecutionResult.Failure(EvmError.InternalError, testCase.Transaction.GasLimit);
         }
 
-        var mismatches = new List<string>();
+        var discrepancies = new List<StateDiscrepancy>();
 
         if (unhandledException is not null)
         {
-            mismatches.Add(
-                $"Unhandled engine exception: " +
-                $"{unhandledException.GetType().FullName}: " +
-                $"{unhandledException.Message}\n" +
-                $"StackTrace: {unhandledException.StackTrace}");
+            discrepancies.Add(new StateDiscrepancy
+            {
+                Kind = DiscrepancyKind.EngineException,
+                Detail = $"{unhandledException.GetType().FullName}: {unhandledException.Message}\nStackTrace: {unhandledException.StackTrace}"
+            });
         }
 
-        var stateMatches = CompareExpectedState(testCase, globalState, mismatches);
-        var receiptStatusMatches = CompareReceiptStatus(testCase.ExpectedReceiptStatus, result.IsSuccess, mismatches);
+        var stateMatches = CompareExpectedState(testCase, globalState, discrepancies);
+        var receiptStatusMatches = CompareReceiptStatus(testCase.ExpectedReceiptStatus, result.IsSuccess, discrepancies);
+        var mismatches = discrepancies.Select(item => item.Render()).ToArray();
 
         var last = result.TraceSteps is { Count: > 0 } ? result.TraceSteps[^1] : null;
         return new EelsCaseExecutionReport(
@@ -94,7 +99,8 @@ public sealed class EelsStateFixtureExecutor
             mismatches,
             result.Error,
             last?.Op,
-            last?.Pc ?? 0);
+            last?.Pc ?? 0,
+            discrepancies);
     }
 
     /// <summary>
@@ -170,7 +176,7 @@ public sealed class EelsStateFixtureExecutor
         }
     }
 
-    private static bool CompareReceiptStatus(bool? expectedStatus, bool actualStatus, List<string> mismatches)
+    private static bool CompareReceiptStatus(bool? expectedStatus, bool actualStatus, List<StateDiscrepancy> discrepancies)
     {
         if (!expectedStatus.HasValue)
         {
@@ -182,11 +188,16 @@ public sealed class EelsStateFixtureExecutor
             return true;
         }
 
-        mismatches.Add($"receipt.status mismatch: expected={expectedStatus.Value}, actual={actualStatus}");
+        discrepancies.Add(new StateDiscrepancy
+        {
+            Kind = DiscrepancyKind.ReceiptStatus,
+            ExpectedBoolean = expectedStatus.Value,
+            ActualBoolean = actualStatus
+        });
         return false;
     }
 
-    internal static bool CompareExpectedState(EelsStateCase testCase, GlobalState actualState, List<string> mismatches)
+    internal static bool CompareExpectedState(EelsStateCase testCase, GlobalState actualState, List<StateDiscrepancy> discrepancies)
     {
         var actualSnapshot = actualState.Snapshot();
 
@@ -194,27 +205,26 @@ public sealed class EelsStateFixtureExecutor
         {
             if (!actualSnapshot.TryGetValue(expectedAddress, out var actualAccount))
             {
-                mismatches.Add($"missing account in actual state: {expectedAddress}");
+                discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.MissingAccount, Address = expectedAddress });
                 continue;
             }
 
             if (actualAccount.Nonce != expectedAccount.Nonce)
             {
-                mismatches.Add($"nonce mismatch for {expectedAddress}: expected={expectedAccount.Nonce}, actual={actualAccount.Nonce}");
+                discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.Nonce, Address = expectedAddress, ExpectedNumber = expectedAccount.Nonce, ActualNumber = actualAccount.Nonce });
             }
 
             if (actualAccount.Balance != expectedAccount.Balance)
             {
-                mismatches.Add(
-                    $"balance mismatch for {expectedAddress}: expected={EelsHex.ToCanonicalHex(expectedAccount.Balance)}, actual={EelsHex.ToCanonicalHex(actualAccount.Balance)}");
+                discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.Balance, Address = expectedAddress, ExpectedNumber = expectedAccount.Balance, ActualNumber = actualAccount.Balance });
             }
 
             if (!actualAccount.Code.AsSpan().SequenceEqual(expectedAccount.Code))
             {
-                mismatches.Add($"code mismatch for {expectedAddress}");
+                discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.Code, Address = expectedAddress });
             }
 
-            CompareStorage(expectedAddress.ToString(), expectedAccount.Storage, actualAccount.Storage, mismatches);
+            CompareStorage(expectedAddress, expectedAccount.Storage, actualAccount.Storage, discrepancies);
         }
 
         foreach (var (actualAddress, actualAccount) in actualSnapshot)
@@ -225,11 +235,10 @@ public sealed class EelsStateFixtureExecutor
                 continue;
             }
 
-            mismatches.Add(
-                $"unexpected account in actual state: {actualAddress}");
+            discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.UnexpectedAccount, Address = actualAddress });
         }
 
-        return mismatches.Count == 0;
+        return discrepancies.Count == 0;
     }
 
     private static bool IsEmptyAccount(Account account) =>
@@ -239,10 +248,10 @@ public sealed class EelsStateFixtureExecutor
         account.Storage.Values.All(value => value.IsZero);
 
     private static void CompareStorage(
-        string address,
+        Address address,
         IReadOnlyDictionary<BigInteger, BigInteger> expectedStorage,
         IDictionary<BigInteger, BigInteger> actualStorage,
-        List<string> mismatches)
+        List<StateDiscrepancy> discrepancies)
     {
         // [AI-EDIT 2026-01-10] EELS storage map is sparse; compare only declared keys.
         foreach (var (slot, expectedValue) in expectedStorage)
@@ -250,8 +259,7 @@ public sealed class EelsStateFixtureExecutor
             var actualValue = actualStorage.TryGetValue(slot, out var found) ? found : BigInteger.Zero;
             if (actualValue != expectedValue)
             {
-                mismatches.Add(
-                    $"storage mismatch for {address} slot {EelsHex.ToCanonicalHex(slot)}: expected={EelsHex.ToCanonicalHex(expectedValue)}, actual={EelsHex.ToCanonicalHex(actualValue)}");
+                discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.Storage, Address = address, StorageSlot = slot, ExpectedNumber = expectedValue, ActualNumber = actualValue });
             }
         }
 
@@ -262,8 +270,7 @@ public sealed class EelsStateFixtureExecutor
                 continue;
             }
 
-            mismatches.Add(
-                $"storage mismatch for {address} slot {EelsHex.ToCanonicalHex(slot)}: expected=0x0, actual={EelsHex.ToCanonicalHex(actualValue)}");
+            discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.Storage, Address = address, StorageSlot = slot, ExpectedNumber = BigInteger.Zero, ActualNumber = actualValue });
         }
     }
 }

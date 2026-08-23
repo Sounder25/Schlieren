@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Numerics;
 using System.Text;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.EELS.Tests.Harness;
 
 namespace Schlieren.EELS.Tests.Conformance;
@@ -141,15 +142,15 @@ public static class EelsTaxonomyAnalyzer
         // 1. Category taxonomy  (what field diverges)
         // ----------------------------------------------------------------
         var categoryBuckets = failed
-            .SelectMany(r => r.Mismatches.Select(m => (
+            .SelectMany(r => (r.Discrepancies ?? Array.Empty<StateDiscrepancy>()).Select(item => (
                 case_: r,
-                mismatch: m,
-                category: ForkComplianceScorecard.ClassifyMismatch(m))))
+                discrepancy: item,
+                category: item.Category)))
             .GroupBy(x => x.category)
             .OrderByDescending(g => g.Count())
             .ToDictionary(
                 g => g.Key,
-                g => (count: g.Count(), examples: g.Take(5).Select(x => x.mismatch).ToList()),
+                g => (count: g.Count(), examples: g.Take(5).Select(x => x.discrepancy.Render()).ToList()),
                 StringComparer.Ordinal);
 
         // ----------------------------------------------------------------
@@ -158,14 +159,13 @@ public static class EelsTaxonomyAnalyzer
         var deltaBuckets = new Dictionary<BigInteger, int>();
         foreach (var r in failed)
         {
-            foreach (var m in r.Mismatches)
+            foreach (var discrepancy in r.Discrepancies ?? Array.Empty<StateDiscrepancy>())
             {
-                if (!m.StartsWith("balance mismatch", StringComparison.Ordinal))
+                if (discrepancy.Kind != DiscrepancyKind.Balance ||
+                    discrepancy.ExpectedNumber is not { } expected ||
+                    discrepancy.ActualNumber is not { } actual)
                     continue;
-
-                var (exp, act) = ExtractExpectedActual(m);
-                if (exp is null || act is null) continue;
-                var delta = act.Value - exp.Value;
+                var delta = actual - expected;
                 deltaBuckets.TryGetValue(delta, out var cnt);
                 deltaBuckets[delta] = cnt + 1;
             }
@@ -180,10 +180,10 @@ public static class EelsTaxonomyAnalyzer
         // 3. Per-address hot spots
         // ----------------------------------------------------------------
         var addressBuckets = failed
-            .SelectMany(r => r.Mismatches)
-            .Select(m => ExtractAddress(m))
-            .Where(a => a != null)
-            .GroupBy(a => a!, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(r => r.Discrepancies ?? Array.Empty<StateDiscrepancy>())
+            .Where(item => item.Address.HasValue)
+            .Select(item => item.Address!.Value.ToString())
+            .GroupBy(address => address, StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(g => g.Count())
             .Take(10)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
@@ -367,35 +367,6 @@ public static class EelsTaxonomyAnalyzer
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
-
-    private static (BigInteger? exp, BigInteger? act) ExtractExpectedActual(string mismatch)
-    {
-        // e.g. "balance mismatch for 0xabc: expected=0x1234, actual=0x5678"
-        var expM = System.Text.RegularExpressions.Regex.Match(mismatch, @"expected=(\S+)");
-        var actM = System.Text.RegularExpressions.Regex.Match(mismatch, @"actual=(\S+)");
-        if (!expM.Success || !actM.Success) return (null, null);
-
-        static BigInteger? TryParse(string s)
-        {
-            s = s.TrimEnd(',', ';', '.');
-            try
-            {
-                if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-                    return BigInteger.Parse("0" + s[2..], System.Globalization.NumberStyles.HexNumber);
-                return BigInteger.Parse(s);
-            }
-            catch { return null; }
-        }
-
-        return (TryParse(expM.Groups[1].Value), TryParse(actM.Groups[1].Value));
-    }
-
-    private static string? ExtractAddress(string mismatch)
-    {
-        var m = System.Text.RegularExpressions.Regex.Match(
-            mismatch, @"for (0x[0-9a-fA-F]{20,40})");
-        return m.Success ? m.Groups[1].Value : null;
-    }
 
     private static string Hypothesize(BigInteger delta, string fork)
     {

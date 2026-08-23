@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Text.RegularExpressions;
 using Schlieren.Core.Execution;
 using Schlieren.Core.Execution.Causal;
 using Schlieren.EELS.Tests.Harness;
@@ -7,7 +6,7 @@ using Schlieren.EELS.Tests.Harness;
 namespace Schlieren.EELS.Tests.Conformance;
 
 /// <summary>
-/// Phase 2 bridge: feed EELS mismatch strings into Layer 1 (<see cref="DivergenceDiagnostics"/>)
+/// Phase 2 bridge: feed typed EELS discrepancies into Layer 1 (<see cref="DivergenceDiagnostics"/>)
 /// and Layer 2 (<see cref="StructuralPatternRules"/>) for taxonomy / UI / product surfaces.
 /// </summary>
 public static class Layer1DiagnosisBridge
@@ -18,7 +17,7 @@ public static class Layer1DiagnosisBridge
     public const string EelsFixtureCoinbase = "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba";
 
     /// <summary>
-    /// Run Layer 1 + Layer 2 rules against one failed case's mismatch list.
+    /// Run Layer 1 + Layer 2 rules against one failed case's typed discrepancies.
     /// </summary>
     public static IReadOnlyList<DivergenceDiagnostics.Diagnosis> DiagnoseCase(
         EelsStateCase testCase,
@@ -40,7 +39,8 @@ public static class Layer1DiagnosisBridge
         EelsCaseExecutionReport report)
     {
         var results = new List<DivergenceDiagnostics.Diagnosis>();
-        if (report.Mismatches.Count == 0)
+        var discrepancies = report.Discrepancies ?? Array.Empty<StateDiscrepancy>();
+        if (discrepancies.Count == 0)
             return new(results, "none", "", "POSSIBLE", "FINAL", "none", "");
 
         var ev = FailureEvidenceFactory.From(
@@ -50,7 +50,6 @@ public static class Layer1DiagnosisBridge
             testCase.Transaction,
             testCase.Sender,
             testCase.BlockContext.Coinbase,
-            report.Mismatches,
             report.GasUsed,
             report.GasRefundCounter,
             report.ExecutionSucceeded,
@@ -58,7 +57,8 @@ public static class Layer1DiagnosisBridge
             report.LastOpcode,
             report.LastPc,
             testCase.ExpectedException,
-            testCase.ExpectedReceiptStatus);
+            testCase.ExpectedReceiptStatus,
+            discrepancies);
 
         var causal = CausalDiagnosisEngine.Analyze(ev);
         foreach (var d in causal.Ranked)
@@ -74,31 +74,20 @@ public static class Layer1DiagnosisBridge
                 causal.FirstPhase.ToLabel(), causal.Root.RuleId, body);
         }
 
-        var mismatches = report.Mismatches;
         var gasPrice = ResolveEffectiveGasPrice(testCase);
         var eipFolder = ExtractEipFolder(testCase.FixturePath);
 
-        bool hasMissingAccount = mismatches.Any(m =>
-            m.StartsWith("missing account", StringComparison.Ordinal));
-        bool hasNonceMismatch = mismatches.Any(m =>
-            m.StartsWith("nonce mismatch", StringComparison.Ordinal));
-        bool hasCodeMismatch = mismatches.Any(m =>
-            m.StartsWith("code mismatch", StringComparison.Ordinal));
-        bool hasBalanceMismatch = mismatches.Any(m =>
-            m.StartsWith("balance mismatch", StringComparison.Ordinal));
-        bool hasStorageMismatch = mismatches.Any(m =>
-            m.StartsWith("storage mismatch", StringComparison.Ordinal));
-        bool hasReceiptMismatch = mismatches.Any(m =>
-            m.StartsWith("receipt.status mismatch", StringComparison.Ordinal));
-        bool hasUnexpectedAccount = mismatches.Any(m =>
-            m.StartsWith("unexpected account", StringComparison.Ordinal));
-        bool hasStorageWriteWhenExpectedEmpty = mismatches.Any(m =>
-            m.StartsWith("storage mismatch", StringComparison.Ordinal) &&
-            m.Contains("expected=0x0", StringComparison.OrdinalIgnoreCase));
-        bool hasStorageEmptyWhenExpectedNonZero = mismatches.Any(m =>
-            m.StartsWith("storage mismatch", StringComparison.Ordinal) &&
-            m.Contains("actual=0x0", StringComparison.OrdinalIgnoreCase) &&
-            !m.Contains("expected=0x0", StringComparison.OrdinalIgnoreCase));
+        bool hasMissingAccount = discrepancies.Any(item => item.Kind == DiscrepancyKind.MissingAccount);
+        bool hasNonceMismatch = discrepancies.Any(item => item.Kind == DiscrepancyKind.Nonce);
+        bool hasCodeMismatch = discrepancies.Any(item => item.Kind == DiscrepancyKind.Code);
+        bool hasBalanceMismatch = discrepancies.Any(item => item.Kind == DiscrepancyKind.Balance);
+        bool hasStorageMismatch = discrepancies.Any(item => item.Kind == DiscrepancyKind.Storage);
+        bool hasReceiptMismatch = discrepancies.Any(item => item.Kind == DiscrepancyKind.ReceiptStatus);
+        bool hasUnexpectedAccount = discrepancies.Any(item => item.Kind == DiscrepancyKind.UnexpectedAccount);
+        bool hasStorageWriteWhenExpectedEmpty = discrepancies.Any(item =>
+            item.Kind == DiscrepancyKind.Storage && item.ExpectedNumber == BigInteger.Zero && item.ActualNumber != BigInteger.Zero);
+        bool hasStorageEmptyWhenExpectedNonZero = discrepancies.Any(item =>
+            item.Kind == DiscrepancyKind.Storage && item.ActualNumber == BigInteger.Zero && item.ExpectedNumber != BigInteger.Zero);
 
         // ── Layer 1: balance gas constants ──────────────────────────────────
         bool hasBalanceUndercharge = false;
@@ -106,21 +95,17 @@ public static class Layer1DiagnosisBridge
         long? primaryDeltaGas = null;
         bool touchesCoinbase = false;
 
-        foreach (var line in mismatches)
+        foreach (var discrepancy in discrepancies.Where(item => item.Kind == DiscrepancyKind.Balance))
         {
-            if (!line.StartsWith("balance mismatch", StringComparison.Ordinal))
+            if (discrepancy.Address is not { } address ||
+                discrepancy.ExpectedNumber is not { } expected ||
+                discrepancy.ActualNumber is not { } actual)
                 continue;
 
-            var addr = ExtractAddress(line);
-            if (addr is not null &&
-                addr.Equals(EelsFixtureCoinbase, StringComparison.OrdinalIgnoreCase))
+            if (address == testCase.BlockContext.Coinbase)
                 touchesCoinbase = true;
 
-            var (exp, act) = ParseExpectedActualBigInt(line);
-            if (exp is null || act is null)
-                continue;
-
-            var deltaWei = act.Value - exp.Value;
+            var deltaWei = actual - expected;
             if (deltaWei < 0) hasBalanceUndercharge = true;
             if (deltaWei > 0) hasBalanceOvercharge = true;
 
@@ -131,8 +116,7 @@ public static class Layer1DiagnosisBridge
                 {
                     var dg = (long)(deltaWei / gasPrice);
                     // Prefer sender residual as primary when multiple balances diverge
-                    bool isSender = addr is not null &&
-                        addr.Equals(testCase.Sender.ToString(), StringComparison.OrdinalIgnoreCase);
+                    bool isSender = address == testCase.Sender;
                     if (primaryDeltaGas is null || isSender)
                         primaryDeltaGas = dg;
                 }
@@ -154,18 +138,11 @@ public static class Layer1DiagnosisBridge
         // ── Layer 1: receipt / fork-gate + Layer 2 receipt flags ────────────
         bool receiptExpectedFailActualSuccess = false;
         bool receiptExpectedSuccessActualFail = false;
-        foreach (var line in mismatches)
+        foreach (var discrepancy in discrepancies.Where(item => item.Kind == DiscrepancyKind.ReceiptStatus))
         {
-            if (!line.StartsWith("receipt.status mismatch", StringComparison.Ordinal))
+            if (discrepancy.ExpectedBoolean is not { } expectedSuccess ||
+                discrepancy.ActualBoolean is not { } actualSuccess)
                 continue;
-
-            var expM = Regex.Match(line, @"expected=(True|False)", RegexOptions.IgnoreCase);
-            var actM = Regex.Match(line, @"actual=(True|False)", RegexOptions.IgnoreCase);
-            if (!expM.Success || !actM.Success)
-                continue;
-
-            bool expectedSuccess = expM.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
-            bool actualSuccess = actM.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
             if (!expectedSuccess && actualSuccess) receiptExpectedFailActualSuccess = true;
             if (expectedSuccess && !actualSuccess) receiptExpectedSuccessActualFail = true;
 
@@ -181,25 +158,23 @@ public static class Layer1DiagnosisBridge
         // ── Layer 1: nonce deltas ───────────────────────────────────────────
         bool senderNoncePlusOne = false;
         bool contractNonceZeroWhenExpectedOne = false;
-        foreach (var line in mismatches)
+        foreach (var discrepancy in discrepancies.Where(item => item.Kind == DiscrepancyKind.Nonce))
         {
-            if (!line.StartsWith("nonce mismatch", StringComparison.Ordinal))
+            if (discrepancy.Address is not { } address ||
+                discrepancy.ExpectedNumber is not { } expected ||
+                discrepancy.ActualNumber is not { } actual)
                 continue;
 
-            var addr = ExtractAddress(line);
-            var (exp, act) = ParseExpectedActualLong(line);
-            if (exp is null || act is null)
-                continue;
+            bool isSender = address == testCase.Sender;
 
-            bool isSender = addr is not null &&
-                addr.Equals(testCase.Sender.ToString(), StringComparison.OrdinalIgnoreCase);
-
-            if (isSender && act.Value - exp.Value == 1)
+            if (isSender && actual - expected == 1)
                 senderNoncePlusOne = true;
-            if (!isSender && exp.Value == 1 && act.Value == 0)
+            if (!isSender && expected == 1 && actual == 0)
                 contractNonceZeroWhenExpectedOne = true;
 
-            var nonceDx = DivergenceDiagnostics.DiagnoseNonceDelta(exp.Value, act.Value, isSender);
+            if (expected < long.MinValue || expected > long.MaxValue || actual < long.MinValue || actual > long.MaxValue)
+                continue;
+            var nonceDx = DivergenceDiagnostics.DiagnoseNonceDelta((long)expected, (long)actual, isSender);
             if (nonceDx is not null)
                 results.Add(nonceDx);
         }
@@ -375,44 +350,6 @@ public static class Layer1DiagnosisBridge
         return parts.Length >= 2 ? parts[^2].ToLowerInvariant() : fixturePath;
     }
 
-    private static string? ExtractAddress(string mismatch)
-    {
-        var m = Regex.Match(mismatch, @"for (0x[0-9a-fA-F]{20,40})");
-        return m.Success ? m.Groups[1].Value : null;
-    }
-
-    private static (BigInteger? exp, BigInteger? act) ParseExpectedActualBigInt(string mismatch)
-    {
-        var expM = Regex.Match(mismatch, @"expected=(\S+)");
-        var actM = Regex.Match(mismatch, @"actual=(\S+)");
-        if (!expM.Success || !actM.Success) return (null, null);
-        return (TryParseBigInt(expM.Groups[1].Value), TryParseBigInt(actM.Groups[1].Value));
-    }
-
-    private static (long? exp, long? act) ParseExpectedActualLong(string mismatch)
-    {
-        var expM = Regex.Match(mismatch, @"expected=(\d+)");
-        var actM = Regex.Match(mismatch, @"actual=(\d+)");
-        if (!expM.Success || !actM.Success) return (null, null);
-        if (!long.TryParse(expM.Groups[1].Value, out var exp)) return (null, null);
-        if (!long.TryParse(actM.Groups[1].Value, out var act)) return (null, null);
-        return (exp, act);
-    }
-
-    private static BigInteger? TryParseBigInt(string s)
-    {
-        s = s.TrimEnd(',', ';', '.');
-        try
-        {
-            if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-                return BigInteger.Parse("0" + s[2..], System.Globalization.NumberStyles.HexNumber);
-            return BigInteger.Parse(s);
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }
 
 /// <summary>Aggregated Layer 1 hit for taxonomy / UI / RPC surfaces.</summary>

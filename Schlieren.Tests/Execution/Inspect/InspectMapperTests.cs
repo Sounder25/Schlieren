@@ -47,7 +47,7 @@ public sealed class InspectMapperTests
             RuleId = "TX.CREATE_SURCHARGE",
             Title = "t",
             Phase = ExecutionPhase.IntrinsicGas,
-            Grade = DiagnosisGrade.Proven,
+            Basis = new DiagnosisProofBasis(true, true, true, true),
             Score = 90,
             Why = "w",
             Proof = "p",

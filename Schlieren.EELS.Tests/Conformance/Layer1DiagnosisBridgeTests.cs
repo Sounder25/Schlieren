@@ -1,5 +1,6 @@
 using System.Numerics;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 using Schlieren.EELS.Tests.Harness;
@@ -12,6 +13,32 @@ namespace Schlieren.EELS.Tests.Conformance;
 /// </summary>
 public sealed class Layer1DiagnosisBridgeTests
 {
+    [Fact]
+    public void DiagnoseCase_UsesTypedDiscrepanciesNotRenderedWording()
+    {
+        var sender = Address.FromHex("0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b");
+        var expected = new BigInteger(1_000_000);
+        var report = new EelsCaseExecutionReport(
+            "typed", true, 21_000, 0, false, true,
+            ["this text contains no diagnostic grammar"],
+            Discrepancies:
+            [
+                new StateDiscrepancy
+                {
+                    Kind = DiscrepancyKind.Balance,
+                    Address = sender,
+                    ExpectedNumber = expected,
+                    ActualNumber = expected + 30_000
+                }
+            ]);
+
+        var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(MakeCase(sender, 10), report);
+
+        Assert.Contains(diagnoses, diagnosis =>
+            diagnosis.Category.Contains("ECRECOVER", StringComparison.OrdinalIgnoreCase) ||
+            diagnosis.Evidence.Contains("3000", StringComparison.Ordinal));
+    }
+
     [Fact(DisplayName = "Layer1 — balance delta matches known gas constant")]
     public void DiagnoseCase_BalanceDelta_MatchesGasConstant()
     {
@@ -30,7 +57,8 @@ public sealed class Layer1DiagnosisBridgeTests
             Mismatches: new[]
             {
                 $"balance mismatch for {sender}: expected=0x{expected:x}, actual=0x{actual:x}"
-            });
+            },
+            Discrepancies: [Balance(sender, expected, actual)]);
 
         var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
 
@@ -61,7 +89,12 @@ public sealed class Layer1DiagnosisBridgeTests
             {
                 "storage mismatch for 0x00aa slot 0x0: expected=0x0, actual=0x1",
                 $"balance mismatch for {sender}: expected=0x1000, actual=0x900"
-            });
+            },
+            Discrepancies:
+            [
+                Storage(Address.FromHex("0x00000000000000000000000000000000000000aa"), 0, 0, 1),
+                Balance(sender, 0x1000, 0x900)
+            ]);
 
         var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
 
@@ -83,7 +116,8 @@ public sealed class Layer1DiagnosisBridgeTests
             Mismatches: new[]
             {
                 $"nonce mismatch for {sender}: expected=0, actual=1"
-            });
+            },
+            Discrepancies: [Nonce(sender, 0, 1)]);
 
         var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
 
@@ -108,7 +142,8 @@ public sealed class Layer1DiagnosisBridgeTests
                 $"missing account in actual state: {contract}",
                 $"nonce mismatch for {contract}: expected=1, actual=0",
                 $"code mismatch for {contract}"
-            });
+            },
+            Discrepancies: [Missing(contract), Nonce(contract, 1, 0), Code(contract)]);
 
         var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
 
@@ -186,7 +221,8 @@ public sealed class Layer1DiagnosisBridgeTests
                 $"missing account in actual state: {contract}",
                 $"nonce mismatch for {contract}: expected=1, actual=0",
                 $"code mismatch for {contract}"
-            });
+            },
+            Discrepancies: [Missing(contract), Nonce(contract, 1, 0), Code(contract)]);
 
         var diagnoses = Layer1DiagnosisBridge.DiagnoseCase(testCase, report);
 
@@ -224,4 +260,21 @@ public sealed class Layer1DiagnosisBridgeTests
             ExpectedPostState: new Dictionary<Address, EelsFixtureAccount>(),
             ExpectedReceiptStatus: true);
     }
+
+    private static StateDiscrepancy Balance(Address address, BigInteger expected, BigInteger actual) => new()
+    {
+        Kind = DiscrepancyKind.Balance, Address = address, ExpectedNumber = expected, ActualNumber = actual
+    };
+
+    private static StateDiscrepancy Nonce(Address address, BigInteger expected, BigInteger actual) => new()
+    {
+        Kind = DiscrepancyKind.Nonce, Address = address, ExpectedNumber = expected, ActualNumber = actual
+    };
+
+    private static StateDiscrepancy Missing(Address address) => new() { Kind = DiscrepancyKind.MissingAccount, Address = address };
+    private static StateDiscrepancy Code(Address address) => new() { Kind = DiscrepancyKind.Code, Address = address };
+    private static StateDiscrepancy Storage(Address address, BigInteger slot, BigInteger expected, BigInteger actual) => new()
+    {
+        Kind = DiscrepancyKind.Storage, Address = address, StorageSlot = slot, ExpectedNumber = expected, ActualNumber = actual
+    };
 }
