@@ -198,7 +198,11 @@ public static class EelsTaxonomyAnalyzer
             TopDeltaBuckets: topDeltas,
             AddressHotSpots: addressBuckets,
             MaxCases: opts.MaxCases,
-            Layer1Diagnoses: layer1Buckets);
+            Layer1Diagnoses: layer1Buckets,
+            FailedCaseIds: failed.Select(report => report.CaseId)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(caseId => caseId, StringComparer.Ordinal)
+                .ToArray());
     }
 
     // ------------------------------------------------------------------
@@ -268,6 +272,15 @@ public static class EelsTaxonomyAnalyzer
             sb.AppendLine($"| `{addr}` | {count} |");
         if (r.AddressHotSpots.Count == 0)
             sb.AppendLine("| (none) | — |");
+        sb.AppendLine();
+
+        sb.AppendLine("## Failing Case IDs");
+        sb.AppendLine();
+        if (r.FailedCaseIds.Count == 0)
+            sb.AppendLine("_(none)_");
+        else
+            foreach (var caseId in r.FailedCaseIds)
+                sb.AppendLine($"- `{caseId}`");
         sb.AppendLine();
 
         // Layer 1–2 — DivergenceDiagnostics + StructuralPatternRules (Schlieren.Core)
@@ -464,4 +477,5 @@ public sealed record TaxonomyReport(
     IReadOnlyList<KeyValuePair<BigInteger, int>> TopDeltaBuckets,
     IReadOnlyDictionary<string, int> AddressHotSpots,
     int MaxCases,
-    IReadOnlyList<Layer1DiagnosisBucket> Layer1Diagnoses);
+    IReadOnlyList<Layer1DiagnosisBucket> Layer1Diagnoses,
+    IReadOnlyList<string> FailedCaseIds);

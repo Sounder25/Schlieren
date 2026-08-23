@@ -185,7 +185,8 @@ public sealed class Layer1DiagnosisBridgeTests
             TopDeltaBuckets: Array.Empty<KeyValuePair<BigInteger, int>>(),
             AddressHotSpots: new Dictionary<string, int>(),
             MaxCases: 10,
-            Layer1Diagnoses: buckets);
+            Layer1Diagnoses: buckets,
+            FailedCaseIds: ["case-b", "case-a"]);
 
         var md = EelsTaxonomyAnalyzer.RenderMarkdown(report);
 
@@ -194,6 +195,8 @@ public sealed class Layer1DiagnosisBridgeTests
         Assert.Contains("ECRECOVER", md, StringComparison.Ordinal);
         Assert.Contains("Layer 1 top hit", md, StringComparison.Ordinal);
         Assert.Contains("case-a", md, StringComparison.Ordinal);
+        Assert.Contains("## Failing Case IDs", md, StringComparison.Ordinal);
+        Assert.Contains("`case-b`", md, StringComparison.Ordinal);
     }
 
     [Fact(DisplayName = "Layer2 — CREATE cluster fires structural EIP-7610 rule")]
