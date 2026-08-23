@@ -3,6 +3,7 @@ using System.Linq;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.Models;
 using Schlieren.Core.State;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution
 {
@@ -142,6 +143,9 @@ namespace Schlieren.Core.Execution
         public long GasRefundCounter { get; set; }
         public bool IsStatic { get; init; }
         public bool CaptureTrace { get; init; }
+        public ExecutionJournal? Journal { get; init; }
+        public long? JournalFrameId { get; init; }
+        public long? JournalParentFrameId { get; init; }
         /// <summary>
         /// When set, the EVM will record per-opcode (op, gasCost) into this frame journal.
         /// Used by the gas causality tree — lighter-weight than full CaptureTrace.
