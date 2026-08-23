@@ -46,7 +46,7 @@ These are facts from one canonical execution. They are not separate evaluators o
 
 ### Execution disposition
 
-Every state observation is owned by a frame. After execution, `JournalAnalysis` walks the frame's ancestors:
+Every EVM state observation is owned by a frame. Transaction-protocol effects such as nonce consumption, gas refund, and miner payment are explicitly transaction-scoped and do not invent a frame owner. For a frame-scoped observation, `JournalAnalysis` walks the frame's ancestors:
 
 - `Survived`: the owning frame and every ancestor resolved successfully.
 - `Reverted`: the owning frame or at least one ancestor rolled back.
@@ -86,7 +86,7 @@ All new events inherit `ExecutionJournalEvent` and therefore carry `Sequence`, `
 
 `EvmMachine` allocates one monotonic `InstructionId` before executing each opcode and places it in the execution context for the duration of that instruction. The resulting `OpcodeGasEvent` and every state-effect event emitted by the opcode share that ID. This creates an exact causal link without relying on adjacent event ordering or matching repeated program counters.
 
-Transaction-level protocol effects may omit `InstructionId` and use a typed reason.
+Transaction-level protocol effects use `Scope = Transaction`, omit frame and instruction identity, and use a typed reason. Frame-level effects use `Scope = Frame` and require a valid frame ID.
 
 ### Frame state lifecycle
 
