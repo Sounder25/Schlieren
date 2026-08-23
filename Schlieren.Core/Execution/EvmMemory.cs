@@ -53,15 +53,16 @@ public sealed class EvmMemory
     public ulong CalculateGasCost(int newSize)
     {
         if (newSize <= _data.Length) return 0;
-        
-        var currentWords = (ulong)(_data.Length + 31) / 32;
-        var newWords = (ulong)(newSize + 31) / 32;
-        
+
+        // Use ulong throughout to avoid int overflow when newSize approaches int.MaxValue.
+        var currentWords = ((ulong)_data.Length + 31) / 32;
+        var newWords     = ((ulong)newSize + 31) / 32;
+
         // EVM memory expansion cost: ΔC = memory_cost(new) - memory_cost(old)
         // where memory_cost(w) = 3w + ⌊w²/512⌋
         var oldCost = 3 * currentWords + (currentWords * currentWords) / 512;
-        var newCost = 3 * newWords + (newWords * newWords) / 512;
-        
+        var newCost = 3 * newWords     + (newWords     * newWords)     / 512;
+
         return newCost - oldCost;
     }
 
