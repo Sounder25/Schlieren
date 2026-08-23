@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Numerics;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution
 {
@@ -38,10 +40,19 @@ namespace Schlieren.Core.Execution
                 var pc = context.ProgramCounter;
                 var opcodeByte = context.Code[pc];
                 var gasBefore = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+                IReadOnlyList<BigInteger>? preStack = context.CaptureTrace || context.Journal is not null
+                    ? context.Stack.SnapshotTopFirst()
+                    : null;
 
                 if (!_opcodes.TryGetValue(opcodeByte, out var opcode))
                 {
                     context.AddTraceStep(pc, $"0x{opcodeByte:X2}", gasBefore, 0);
+                    RecordExceptionalBurn(
+                        context,
+                        pc,
+                        $"0x{opcodeByte:X2}",
+                        gasBefore,
+                        EvmError.InvalidOpcode);
                     return ExecutionResult.Failure(
                         EvmError.InvalidOpcode,
                         context.GasLimit) with
@@ -50,15 +61,24 @@ namespace Schlieren.Core.Execution
                     };
                 }
 
+                context.CurrentInstructionId = context.Journal?.BeginInstruction();
                 try
                 {
                     // Capture stack snapshot BEFORE opcode executes (EELS OpStart semantics:
                     //   evm_trace(evm, OpStart(op))  ← state before
                     //   op_implementation[op](evm)
                     // This makes structLogs show the stack the opcode *received*, not what it left.)
-                    var preStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null;
-
-                    var (execResult, nextPc) = await opcode.ExecuteAsync(context, ct);
+                    context.SetActiveOpcode(pc, opcodeByte, opcode.Name);
+                    (ExecutionResult execResult, int nextPc) execution;
+                    try
+                    {
+                        execution = await opcode.ExecuteAsync(context, ct);
+                    }
+                    finally
+                    {
+                        context.ClearActiveOpcode();
+                    }
+                    var (execResult, nextPc) = execution;
 
                     // Pattern B opcodes charge here.
                     // Pattern A returns 0 because it already charged internally.
@@ -72,13 +92,30 @@ namespace Schlieren.Core.Execution
                     var actualGasUsed = gasBefore - gasAfter;
 
                     context.AddTraceStep(pc, opcode.Name, gasBefore, actualGasUsed, preStack);
-                    // Record into gas frame journal (for gas causality tree)
-                    if (context.GasFrame != null && execResult.GasUsed > 0)
-                        context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));
-
+                    RecordOpcodeGas(
+                        context,
+                        pc,
+                        opcodeByte,
+                        opcode.Name,
+                        gasBefore,
+                        gasAfter,
+                        actualGasUsed,
+                        IsCallLikeOpcode(opcode.Name)
+                            ? GasSemantics.InclusiveFrameDelta
+                            : GasSemantics.ExclusiveCharge,
+                        preStack);
                     // If the opcode execution itself failed, propagate the failure
                     if (!execResult.IsSuccess)
                     {
+                        if (execResult.Error != EvmError.Revert && gasAfter > 0)
+                        {
+                            RecordExceptionalBurn(
+                                context,
+                                pc,
+                                opcode.Name,
+                                gasAfter,
+                                execResult.Error);
+                        }
                         var failureGasUsed = execResult.Error == EvmError.Revert
                             ? context.GasUsed
                             : context.GasLimit;
@@ -100,6 +137,22 @@ namespace Schlieren.Core.Execution
                 {
                     // Exceptional halt: consume the frame allocation, do not crash the tx Task.
                     context.AddTraceStep(pc, opcode.Name, gasBefore, gasBefore);
+                    RecordOpcodeGas(
+                        context,
+                        pc,
+                        opcodeByte,
+                        opcode.Name,
+                        gasBefore,
+                        0,
+                        0,
+                        GasSemantics.Observation,
+                        preStack);
+                    RecordExceptionalBurn(
+                        context,
+                        pc,
+                        opcode.Name,
+                        gasBefore,
+                        haltError);
                     return ExecutionResult.Failure(
                         haltError,
                         context.GasLimit) with
@@ -128,6 +181,10 @@ namespace Schlieren.Core.Execution
                         $"stackTrace={ex.StackTrace}"
                     );
                     throw;
+                }
+                finally
+                {
+                    context.CurrentInstructionId = null;
                 }
             }
 
@@ -158,6 +215,71 @@ namespace Schlieren.Core.Execution
                     error = EvmError.InternalError;
                     return false;
             }
+        }
+
+        private static bool IsCallLikeOpcode(string name) =>
+            name is "CALL" or "CALLCODE" or "DELEGATECALL" or "STATICCALL" or "CREATE" or "CREATE2";
+
+        private static void RecordOpcodeGas(
+            ExecutionContext context,
+            int pc,
+            byte opcode,
+            string name,
+            ulong gasBefore,
+            ulong gasAfter,
+            ulong amount,
+            GasSemantics semantics,
+            IReadOnlyList<BigInteger>? preStack = null)
+        {
+            if (context.Journal is not { } journal)
+                return;
+
+            var state = context.CaptureJournalMachineState(preStack, name);
+
+            journal.Record(new OpcodeGasEvent
+            {
+                InstructionId = context.CurrentInstructionId,
+                FrameId = context.JournalFrameId,
+                ParentFrameId = context.JournalParentFrameId,
+                Pc = pc,
+                Opcode = opcode,
+                Name = name,
+                GasBefore = gasBefore,
+                GasAfter = gasAfter,
+                Amount = amount,
+                Semantics = semantics,
+                Depth = context.CallDepth,
+                CallType = state.CallType,
+                ContractAddress = state.ContractAddress,
+                CallerAddress = state.CallerAddress,
+                CodeAddress = state.CodeAddress,
+                Stack = state.Stack,
+                Memory = state.Memory,
+                Storage = state.Storage,
+                Output = state.Output
+            });
+        }
+
+        private static void RecordExceptionalBurn(
+            ExecutionContext context,
+            int pc,
+            string opcode,
+            ulong amount,
+            EvmError error)
+        {
+            if (context.Journal is not { } journal)
+                return;
+
+            journal.Record(new ExceptionalGasBurnedEvent
+            {
+                InstructionId = context.CurrentInstructionId,
+                FrameId = context.JournalFrameId,
+                ParentFrameId = context.JournalParentFrameId,
+                Pc = pc,
+                Opcode = opcode,
+                Amount = amount,
+                Error = error
+            });
         }
     }
 }

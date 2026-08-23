@@ -146,11 +146,7 @@ namespace Schlieren.Core.Execution
         public ExecutionJournal? Journal { get; init; }
         public long? JournalFrameId { get; init; }
         public long? JournalParentFrameId { get; init; }
-        /// <summary>
-        /// When set, the EVM will record per-opcode (op, gasCost) into this frame journal.
-        /// Used by the gas causality tree — lighter-weight than full CaptureTrace.
-        /// </summary>
-        public GasFrameNode? GasFrame { get; init; }
+        public long? CurrentInstructionId { get; internal set; }
         public int CallDepth { get; init; } = 1;
         public byte[] Code { get; init; } = Array.Empty<byte>();
         public int ProgramCounter { get; set; }
@@ -162,6 +158,49 @@ namespace Schlieren.Core.Execution
         private CallType? _callType;
         private Address? _callerAddress;
         private Address? _codeAddress;
+        private int? _activeOpcodePc;
+        private byte? _activeOpcode;
+        private string? _activeOpcodeName;
+
+        internal void SetActiveOpcode(int pc, byte opcode, string name)
+        {
+            _activeOpcodePc = pc;
+            _activeOpcode = opcode;
+            _activeOpcodeName = name;
+        }
+
+        internal void ClearActiveOpcode()
+        {
+            _activeOpcodePc = null;
+            _activeOpcode = null;
+            _activeOpcodeName = null;
+        }
+
+        internal JournalMachineSnapshot CaptureJournalMachineState(
+            IReadOnlyList<BigInteger>? preStack,
+            string opcode)
+        {
+            var stack = (preStack ?? Stack.SnapshotTopFirst())
+                .Select(value => "0x" + value.ToString("x"))
+                .ToArray();
+            var memory = Memory.SnapshotWordsHex().ToArray();
+            var storage = new Dictionary<string, string>(
+                _traceStorage,
+                StringComparer.OrdinalIgnoreCase);
+            var output = IsCallLikeOp(opcode) && LastReturnData.Length > 0
+                ? LastReturnData.ToArray()
+                : Array.Empty<byte>();
+
+            return new JournalMachineSnapshot(
+                stack,
+                memory,
+                storage,
+                output,
+                _callType,
+                ContractAddress == Address.Zero ? null : ContractAddress.ToString(),
+                _callerAddress?.ToString(),
+                _codeAddress?.ToString());
+        }
         
         /// <summary>
         /// Set the call context for security analysis. Called when entering a new call frame.
@@ -175,9 +214,20 @@ namespace Schlieren.Core.Execution
         
         /// <summary>
         /// Callback to execute a sub-call (internal transaction).
-        /// Args: Transaction, isStatic, creationAddress (if CREATE), codeAddress (if DELEGATECALL/CALLCODE)
+        /// Args: Transaction, callType, isStatic, creationAddress (if CREATE), codeAddress (if DELEGATECALL/CALLCODE)
         /// </summary>
-        public Func<Transaction, bool, Address?, Address?, Task<ExecutionResult>>? SubCall { get; set; }
+        public Func<Transaction, CallType, bool, Address?, Address?, Task<ExecutionResult>>? SubCall { get; set; }
+
+        internal void ResolveCreatedFrame(ExecutionResult result, bool committed)
+        {
+            if (result.IsSuccess)
+            {
+                Journal?.ResolveFrame(
+                    result.JournalFrameId,
+                    JournalFrameId,
+                    committed ? FrameStateResolution.Commit : FrameStateResolution.Rollback);
+            }
+        }
         public Func<Address, BigInteger, BigInteger>? TransientLoad { get; init; }
         public Action<Address, BigInteger, BigInteger>? TransientStore { get; init; }
 
@@ -243,14 +293,24 @@ namespace Schlieren.Core.Execution
             return destinations;
         }
 
-        public void ConsumeGas(ulong amount)
+        public void ConsumeGas(
+            ulong amount,
+            GasSemantics semantics = GasSemantics.ExclusiveCharge,
+            string? component = null,
+            GasComponentScope scope = GasComponentScope.Opcode)
         {
             GasUsed += amount;
             if (GasUsed > GasLimit)
                 throw new EvmOutOfGasException($"Out of gas: used {GasUsed}, limit {GasLimit}");
+            if (component is not null)
+                RecordGasComponent(scope, component, amount, semantics);
         }
 
-        public void RefundGas(ulong amount)
+        public void RefundGas(
+            ulong amount,
+            GasSemantics semantics = GasSemantics.Return,
+            string? component = null,
+            GasComponentScope scope = GasComponentScope.Opcode)
         {
             if (amount > GasUsed)
             {
@@ -267,6 +327,215 @@ namespace Schlieren.Core.Execution
             {
                 GasUsed -= amount;
             }
+            if (component is not null)
+                RecordGasComponent(scope, component, amount, semantics);
+        }
+
+        internal void RecordGasComponent(
+            GasComponentScope scope,
+            string component,
+            ulong amount,
+            GasSemantics semantics)
+        {
+            if (Journal is not { } journal || amount == 0)
+                return;
+
+            journal.Record(new GasComponentEvent
+            {
+                InstructionId = CurrentInstructionId,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                Scope = scope,
+                Component = component,
+                Amount = amount,
+                Semantics = semantics,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                OpcodeName = _activeOpcodeName
+            });
+        }
+
+        internal void RecordStorageRead(BigInteger slot, BigInteger value, bool isWarm)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new StorageReadEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                Value = value,
+                IsWarm = isWarm
+            });
+        }
+
+        internal void RecordStorageWrite(
+            BigInteger slot,
+            BigInteger original,
+            BigInteger previous,
+            BigInteger value,
+            bool isWarm)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new StorageWriteEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                OriginalValue = original,
+                PreviousValue = previous,
+                Value = value,
+                IsWarm = isWarm
+            });
+        }
+
+        internal void RecordTransientStorageRead(BigInteger slot, BigInteger value)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new TransientStorageReadEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                Value = value
+            });
+        }
+
+        internal void RecordTransientStorageWrite(BigInteger slot, BigInteger previous, BigInteger value)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new TransientStorageWriteEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                PreviousValue = previous,
+                Value = value
+            });
+        }
+
+        internal void RecordBalanceTransfer(Address? from, Address? to, BigInteger amount, BalanceTransferReason reason)
+        {
+            if (Journal is not { } journal || JournalFrameId is null || amount.IsZero)
+                return;
+            journal.Record(new BalanceTransferEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                From = from,
+                To = to,
+                Amount = amount,
+                Reason = reason
+            });
+        }
+
+        internal void RecordLog(IReadOnlyList<BigInteger> topics, IReadOnlyList<byte> data)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new LogEmittedEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Address = ContractAddress,
+                Topics = topics,
+                Data = data
+            });
+        }
+
+        internal void RecordSelfDestruct(
+            Address beneficiary,
+            BigInteger balance,
+            bool deletionEligible,
+            bool deletionScheduled)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new SelfDestructEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Contract = ContractAddress,
+                Beneficiary = beneficiary,
+                TransferredBalance = balance,
+                DeletionEligible = deletionEligible,
+                DeletionScheduled = deletionScheduled
+            });
+        }
+
+        internal void RecordNonceChange(Address address, ulong previous, ulong current, NonceChangeReason reason)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new NonceChangedEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Address = address,
+                Previous = previous,
+                Current = current,
+                Reason = reason
+            });
+        }
+
+        internal void RecordCodeChange(Address address, CodeChangeAction action, byte[] previousCode, byte[] newCode)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new CodeChangedEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Address = address,
+                Action = action,
+                PreviousCodeHash = CryptoUtils.Keccak256(previousCode),
+                NewCodeHash = CryptoUtils.Keccak256(newCode),
+                PreviousSize = previousCode.Length,
+                NewSize = newCode.Length
+            });
         }
 
         public BigInteger LoadTransientStorage(BigInteger key)
@@ -334,13 +603,13 @@ namespace Schlieren.Core.Execution
 
         public void TraceStorageRead(BigInteger key, BigInteger value)
         {
-            if (!CaptureTrace) return;
+            if (!CaptureTrace && Journal is null) return;
             _traceStorage[ToWordHex(key)] = ToWordHex(value);
         }
 
         public void TraceStorageWrite(BigInteger key, BigInteger value)
         {
-            if (!CaptureTrace) return;
+            if (!CaptureTrace && Journal is null) return;
             _traceStorage[ToWordHex(key)] = ToWordHex(value);
         }
 
@@ -353,6 +622,16 @@ namespace Schlieren.Core.Execution
             return "0x" + Convert.ToHexString(padded).ToLowerInvariant();
         }
     }
+
+    internal sealed record JournalMachineSnapshot(
+        IReadOnlyList<string> Stack,
+        IReadOnlyList<string> Memory,
+        IReadOnlyDictionary<string, string> Storage,
+        IReadOnlyList<byte> Output,
+        CallType? CallType,
+        string? ContractAddress,
+        string? CallerAddress,
+        string? CodeAddress);
 
     /// <summary>
     /// Simple in-memory storage implementation

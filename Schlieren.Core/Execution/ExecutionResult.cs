@@ -33,6 +33,8 @@ public readonly record struct ExecutionResult
     public List<ExecutionTraceStep> TraceSteps { get; init; }
     [JsonIgnore]
     public ExecutionJournal? Journal { get; init; }
+    [JsonIgnore]
+    internal long? JournalFrameId { get; init; }
 
     private ExecutionResult(bool success, EvmError error, ulong gasUsed, byte[] returnData, List<TransactionLog>? logs = null, List<ExecutionTraceStep>? traceSteps = null, long gasRefundCounter = 0)
     {

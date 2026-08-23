@@ -7,7 +7,10 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Execution.Inspect;
+using Schlieren.Core.Execution.Journal;
+using Schlieren.Core.Primitives;
 using Schlieren.Core.Security;
 using Schlieren.UI.Services;
 
@@ -26,11 +29,11 @@ public static class DemoBytecodes
 
 public partial class WorkbenchViewModel : ObservableObject, IDisposable
 {
-    private readonly WorkbenchExecutionService _syntheticService = new();
     private List<ExecutionTraceStep> _currentTrace = new();
     private DispatcherTimer? _autoPlayTimer;
     private CancellationTokenSource? _runCts;
     private bool _disposed;
+    private ulong _lastCanonicalGasUsed;
 
     public ObservableCollection<ProjectFileViewModel> ProjectFiles { get; } = new();
     public ObservableCollection<ProjectFileViewModel> FilteredProjectFiles { get; } = new();
@@ -679,9 +682,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         AccountStateRows.Add("fixture expected vs this run (Conformance check):");
         var mismatches = 0;
         var engineMismatches = new List<string>();
+        var discrepancies = new List<StateDiscrepancy>();
         foreach (var exp in _expectedPost)
         {
             var addr = exp.AddressHex;
+            var typedAddress = Address.FromHex(addr);
             run.PostBalances.TryGetValue(addr, out var actualBal);
             actualBal ??= "(missing)";
             WorkbenchQuantity.TryBigInteger(exp.BalanceWei, out var expBal);
@@ -696,6 +701,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                         addr,
                         InspectMapper.ToHex(expBal),
                         InspectMapper.ToHex(actualBalParsed)));
+                    discrepancies.Add(new StateDiscrepancy
+                    {
+                        Kind = DiscrepancyKind.Balance,
+                        Address = typedAddress,
+                        ExpectedNumber = expBal,
+                        ActualNumber = actualBalParsed
+                    });
                 }
             }
 
@@ -703,12 +715,24 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             {
                 AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} account missing (expected nonce {exp.Nonce})");
                 mismatches++;
+                discrepancies.Add(new StateDiscrepancy
+                {
+                    Kind = DiscrepancyKind.MissingAccount,
+                    Address = typedAddress
+                });
             }
             else if (actualNonce != exp.Nonce)
             {
                 AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} nonce expected {exp.Nonce} got {actualNonce}");
                 mismatches++;
                 engineMismatches.Add(InspectMismatchFormat.Nonce(addr, exp.Nonce, actualNonce));
+                discrepancies.Add(new StateDiscrepancy
+                {
+                    Kind = DiscrepancyKind.Nonce,
+                    Address = typedAddress,
+                    ExpectedNumber = exp.Nonce,
+                    ActualNumber = actualNonce
+                });
             }
 
             if (exp.StorageHex.Count == 0) continue;
@@ -723,6 +747,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
                 {
                     AccountStateRows.Add($"  MISMATCH {ShortAddr(addr)} {want}");
                     mismatches++;
+                    discrepancies.Add(new StateDiscrepancy
+                    {
+                        Kind = DiscrepancyKind.Storage,
+                        Address = typedAddress,
+                        StorageSlot = slot,
+                        ExpectedNumber = word
+                    });
                 }
             }
         }
@@ -738,7 +769,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         if (engineMismatches.Count > 0)
         {
             var inspect = InspectionAssembler.FromCanonical(
-                new InspectRequest { Tx = run.Tx, Block = run.Block, Mismatches = engineMismatches },
+                new InspectRequest
+                {
+                    Tx = run.Tx,
+                    Block = run.Block,
+                    Mismatches = engineMismatches,
+                    Discrepancies = discrepancies
+                },
                 run.Result);
             _lastInspectResult = inspect;  // Store for diagnosis display
             var root = inspect.Diagnosis?.Root;
@@ -849,7 +886,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             }
 
             AppendExpectedDiff(run);
-            PopulateFromResult(run.Result, isBytecodeRun: true, runMeta: run);
+            PopulateFromResult(run.Result, runMeta: run);
         }
         catch (OperationCanceledException)
         {
@@ -1152,43 +1189,15 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StatusMessage = $"Exported trace ({_currentTrace.Count} steps): {path}";
     }
 
-    [RelayCommand]
-    private void RunSyntheticDemo()
-    {
-        StopAutoPlay();
-        IsBytecodeMode = false;
-        AccountStateRows.Clear();
-        AccountStateRows.Add("(synthetic demo — no live balances)");
-        var result = _syntheticService.RunFullTransaction();
-        PopulateFromResult(result, isBytecodeRun: false);
-        StatusMessage =
-            $"Synthetic demo only: {result.TraceSteps.Count} steps | {CriticalCount} critical | {WarningCount} warnings";
-    }
-
     public async Task GenerateAuditReportAsync(string savePath)
     {
-        // Compute calldata intrinsic gas (nonzero bytes × 16, zero bytes × 4)
-        ulong calldataGas = 0UL;
-        if (BytecodeExecutionService.TryParseHexBytes(CallDataHex, out var calldata) && calldata.Length > 0)
-        {
-            var nonzeroBytes = calldata.Count(b => b != 0);
-            var zeroBytes = calldata.Length - nonzeroBytes;
-            calldataGas = (ulong)(nonzeroBytes * 16 + zeroBytes * 4);
-        }
-
-        // CRITICAL: Only sum depth-1 gas. Child frame gas is already included in parent CALL opcode gasCost.
-        // Summing all depths would double-count nested execution (Bug #3).
-        var totalGas = Instructions.Count > 0
-            ? (ulong)Instructions.Where((inst, idx) => _currentTrace[idx].Depth == 1).Sum(i => i.GasCost) + 21_000UL + calldataGas
-            : 0UL;
-
         await AuditReportExporter.GenerateReportAsync(
             CurrentFileTitle,
             SelectedFork,
             BlockGasLimit,
             BaseFeeGwei,
             TotalSteps,
-            totalGas,
+            _lastCanonicalGasUsed,
             SecurityFindings,
             Diagnostics,
             Instructions,
@@ -1219,8 +1228,11 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     // ---------- result plumbing ----------
 
-    private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun, WorkbenchRunResult? runMeta = null)
+    private void PopulateFromResult(ExecutionResult result, WorkbenchRunResult? runMeta = null)
     {
+        _lastCanonicalGasUsed = result.Journal?.Events
+            .OfType<TransactionSettledEvent>()
+            .LastOrDefault()?.ChargedGas ?? result.GasUsed;
         _currentTrace = result.TraceSteps ?? new List<ExecutionTraceStep>();
         HasTrace = _currentTrace.Count > 0;
 
@@ -1281,35 +1293,23 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             EventLogRows.Add("(no logs)");
         }
 
-        var reentrancy = ReentrancyDetector.Analyze(_currentTrace);
-        var collisions = StorageCollisionDetector.Analyze(_currentTrace);
+        var journalFindings = result.Journal is null
+            ? Array.Empty<SecurityFinding>()
+            : JournalSecurityAnalyzer.Analyze(JournalAnalysis.Build(result.Journal)).ToArray();
         var libraryGuard = LibraryGuardDetector.Analyze(_currentTrace);
         var proxyUnresolved = ProxyImplementationUnresolvedDetector.Analyze(_currentTrace);
 
         // Security Findings (actual vulnerabilities)
-        foreach (var f in reentrancy)
+        foreach (var finding in journalFindings)
         {
             SecurityFindings.Add(new SecurityFindingViewModel
             {
-                SeverityEmoji = f.Severity == ReentrancySeverity.Critical ? "🔴" : "⚠️",
-                Description = $"REENTRANCY: {f.Severity} — depth Δ {f.DepthDelta}",
-                Details = $"Target: {f.TargetContract} | re-entry step {f.ReentryStep}",
-                FileName = isBytecodeRun ? string.Empty : "Vault.sol",
-                LineNumber = isBytecodeRun ? 0 : 23,
-                StepIndex = f.ReentryStep
-            });
-        }
-
-        foreach (var c in collisions)
-        {
-            SecurityFindings.Add(new SecurityFindingViewModel
-            {
-                SeverityEmoji = "⚠️",
-                Description = $"STORAGE COLLISION: slot {c.CollidingSlot}",
-                Details = $"Proxy: {c.ProxyContract} | Impl: {c.ImplementationContract}",
-                FileName = isBytecodeRun ? string.Empty : "Proxy.sol",
-                LineNumber = isBytecodeRun ? 0 : 14,
-                StepIndex = c.StepIndex
+                SeverityEmoji = finding.Severity == SecuritySeverity.Critical ? "🔴" : finding.Severity == SecuritySeverity.Medium ? "⚠️" : "ℹ️",
+                Description = $"{finding.Category.ToString().ToUpperInvariant()}: {finding.Severity} — {finding.FactGrade}",
+                Details = $"{finding.Summary} | frame F{finding.PrimaryFrameId} | events {string.Join(",", finding.SupportingEventSequences)}",
+                FileName = string.Empty,
+                LineNumber = 0,
+                StepIndex = finding.InstructionId is >= 0 and <= int.MaxValue ? (int)finding.InstructionId.Value : 0
             });
         }
         
@@ -1347,20 +1347,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             });
         }
 
-        if (!isBytecodeRun)
-        {
-            AccountStateRows.Clear();
-            AccountStateRows.Add("(synthetic demo — no live balances)");
-        }
-
         TotalSteps = _currentTrace.Count;
         HasTrace = _currentTrace.Count > 0;
         OnPropertyChanged(nameof(MaxStepIndex));
         OnPropertyChanged(nameof(WatermarkOpacity));
         CallTopology.LoadFromTrace(_currentTrace);
 
-        CriticalCount = reentrancy.Count(r => r.Severity == ReentrancySeverity.Critical);
-        WarningCount = collisions.Count + reentrancy.Count(r => r.Severity == ReentrancySeverity.Medium);
+        CriticalCount = journalFindings.Count(finding => finding.Severity == SecuritySeverity.Critical);
+        WarningCount = journalFindings.Count(finding => finding.Severity == SecuritySeverity.Medium);
 
         if (TotalSteps > 0)
         {
@@ -1379,9 +1373,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             NotifyStepProps();
         }
 
-        StatusMessage = isBytecodeRun
-            ? $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {result.GasUsed:N0} gas | refund {result.GasRefundCounter}"
-            : $"Synthetic demo: {_currentTrace.Count} steps | {CriticalCount} critical | {WarningCount} warnings | {result.GasUsed:N0} gas";
+        StatusMessage = $"LIVE EVM [{SelectedFork}]: {_currentTrace.Count} steps | {(result.IsSuccess ? "SUCCESS" : $"FAIL ({result.Error})")} | {result.GasUsed:N0} gas | refund {result.GasRefundCounter}";
         RefreshInspectorTexts();
         RefreshResultExplain();
     }

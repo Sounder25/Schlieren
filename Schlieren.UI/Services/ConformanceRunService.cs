@@ -73,12 +73,6 @@ public static class ConformanceRunService
     }
 
     /// <summary>
-    /// Classify a mismatch string into taxonomy buckets (balance, storage, nonce, …).
-    /// </summary>
-    public static string ClassifyMismatch(string mismatch)
-        => ForkComplianceScorecard.ClassifyMismatch(mismatch);
-
-    /// <summary>
     /// Pull EIP / feature folder name from a fixture path for clustering.
     /// </summary>
     public static string ExtractEipCluster(string? fixturePath)
@@ -258,8 +252,8 @@ public static class ConformanceRunService
                 }
 
                 var mismatches = report.Mismatches?.ToList() ?? new List<string>();
-                var categories = mismatches
-                    .Select(ClassifyMismatch)
+                var categories = (report.Discrepancies ?? Array.Empty<Schlieren.Core.Execution.Causal.StateDiscrepancy>())
+                    .Select(item => item.Category)
                     .Distinct(StringComparer.Ordinal)
                     .OrderBy(x => x, StringComparer.Ordinal)
                     .ToList();

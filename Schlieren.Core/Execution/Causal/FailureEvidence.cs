@@ -30,7 +30,7 @@ public sealed class FailureEvidence
     public Address Coinbase { get; init; }
     public Address? To { get; init; }
     public BigInteger EffectiveGasPrice { get; init; }
-    public IReadOnlyList<string> Mismatches { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<StateDiscrepancy> Discrepancies { get; init; } = Array.Empty<StateDiscrepancy>();
 
     public bool HasMissingAccount { get; init; }
     public bool HasUnexpectedAccount { get; init; }

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Forks;
 using Schlieren.Core.Opcodes;
 using Schlieren.Core.Primitives;
@@ -248,7 +249,8 @@ public static class BytecodeExecutionService
             AuthorizationList = options.AuthorizationList ?? Array.Empty<Eip7702Authorization>(),
             Nonce = options.Nonce,
             Authorization = TransactionAuthorization.Impersonated,
-            EnableTracing = true
+            EnableTracing = true,
+            EnableJournal = true
         };
 
         ExecutionResult result;
@@ -273,10 +275,10 @@ public static class BytecodeExecutionService
             ? await state.GetBalanceAsync(contractAddr.Value, ct)
             : BigInteger.Zero;
         var post = await SnapshotAsync(state, tracked, ct);
-        var tree = GasTreeFromTrace.FromCanonical(tx, rules, result);
-        var intrinsic = tx.Authorization == TransactionAuthorization.Internal
-            ? 0UL
-            : IntrinsicGas.Compute(tx, rules);
+        var tree = LegacyGasTreeProjection.FromCanonical(result);
+        var intrinsic = result.Journal!.Events
+            .OfType<IntrinsicGasChargedEvent>()
+            .SingleOrDefault()?.Amount ?? 0UL;
 
         return new WorkbenchRunResult
         {

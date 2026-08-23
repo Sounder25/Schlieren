@@ -1,6 +1,6 @@
 # Schlieren — .NET 8 Ethereum Execution & Verification Engine
 
-Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specification-verification platform built on .NET 8. It ships a complete EVM interpreter, a fork-aware gas scheduler, an Avalonia desktop IDE (the **Workbench**), and an automated conformance harness against the official Ethereum Python execution specification (EELS).
+Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specification-verification platform built on .NET 8. It ships a complete EVM interpreter, a typed frame-aware execution journal, a React inspection workbench, and an automated conformance harness against the official Ethereum Python execution specification (EELS). The Avalonia client remains available on its frozen legacy RPC contracts.
 
 **Status:** 100% EELS conformance across every fork from Frontier through Osaka (tag `schlieren-eels-100`).
 
@@ -16,6 +16,7 @@ Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specifica
 | `Schlieren.UI` | Avalonia .NET 8 desktop IDE — Workbench, Conformance view, Call Topology |
 | `Schlieren.Tests` | Unit and integration test suite (369 tests, 369 pass) |
 | `Schlieren.EELS.Tests` | EELS conformance harness + automated failure diagnosis |
+| `schlieren-ui` | Primary React workbench for journal-native frame, gas, state, and EELS inspection |
 
 ---
 
@@ -29,8 +30,9 @@ dotnet build
 # Run unit tests
 dotnet test Schlieren.Tests/Schlieren.Tests.csproj
 
-# Run the desktop IDE
-dotnet run --project Schlieren.UI/Schlieren.UI.csproj
+# Run the RPC server and primary React workbench (separate terminals)
+dotnet run --project Schlieren.RPC/Schlieren.RPC.csproj
+cd schlieren-ui && npm install && npm run dev
 
 # Full Osaka conformance sweep (requires fixtures — see below)
 dotnet test Schlieren.EELS.Tests --settings osaka_audit.runsettings --filter "BENCHMARK_TaxonomySnapshot"
@@ -70,7 +72,20 @@ See [`CONFORMANCE_STATUS.md`](CONFORMANCE_STATUS.md) for full details and EIP co
 
 ---
 
-## IDE Features (Schlieren.UI)
+## React Workbench (`schlieren-ui`)
+
+The primary UI makes one `schlieren_traceJournal` request per execution. Optional pasted bytecode runs in an ephemeral overlay and never persists to chain state. Stack, memory, and storage snapshots are returned by default.
+
+- **Frame interferogram** — explicit parent/child frame IDs and child-owned opcode bands
+- **Exclusive gas topology** — additive charges, subtractive credits, non-additive CALL allocations/returns, explicit exceptional burns, and a conservation gate
+- **Machine state** — cursor-linked stack, memory, storage, gas-before/gas-after, opcode, and frame context
+- **Proof-linked security evidence** — server-graded reentrancy and delegate-storage findings linked to exact frames, instructions, effects, and rollback/persistence outcomes
+- **EELS alignment** — paste EIP-3155 `structLogs` and jump directly to the first PC/op/gas/depth divergence with journal-frame context
+
+See [`docs/rpc/schlieren_traceJournal.md`](docs/rpc/schlieren_traceJournal.md) for the complete request and gas semantics.
+See [`docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md`](docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md) for the journal evidence model and verification boundary, and [`docs/security/JOURNAL_SECURITY_EVIDENCE.md`](docs/security/JOURNAL_SECURITY_EVIDENCE.md) for the security proof contract.
+
+## Legacy Avalonia IDE (`Schlieren.UI`)
 
 - **Workbench** — Load any EELS state-test fixture or live prestate JSON, execute step-by-step with full stack/memory/storage inspection, and diff expected vs actual state
 - **Conformance View** — Run and filter fork-specific EELS sweep suites; failures link directly into the Workbench
@@ -79,6 +94,26 @@ See [`CONFORMANCE_STATUS.md`](CONFORMANCE_STATUS.md) for full details and EIP co
 - **Gas Inspector** — Inline opcode gas badges showing exact costs and warm/cold access state
 - **Hard Fork Selector** — Switch Frontier through Osaka; all fork-dependent rules apply immediately
 - **Keyboard Shortcuts** — `F10` step forward, `F11` step back, `Space` toggle auto-play, `Ctrl+O` open fixture
+
+`debug_inspect` and `debug_traceCall` keep their existing JSON shapes for Avalonia compatibility. Journal-native clients should use `schlieren_traceJournal`.
+
+### One canonical execution path
+
+`StateTransition.ApplyTransactionAsync` is the only transaction evaluator. Diagnostic callers enable the typed journal on that same run; journal events then drive the React trace, the legacy `debug_inspect` gas-tree projection, Avalonia gas views, and audit totals. Schlieren does not re-execute transactions or reconstruct gas from flat trace steps for diagnosis.
+
+Prospective intrinsic calculations always receive the selected block's fork rules explicitly. Retrospective views read the intrinsic charge and settlement recorded by canonical execution, preventing a UI or RPC helper from silently applying a different fork schedule.
+
+### Typed causal diagnosis
+
+State, receipt, and engine differences are recorded as typed discrepancies at the comparison boundary. Diagnosis, EELS taxonomy, auditors, and both UI paths consume those typed facts; human-readable mismatch lines are rendered only for legacy output and test reports. Changing wording can therefore never change a diagnosis.
+
+Diagnosis grades are derived from an explicit proof basis:
+
+- `PROVEN` requires an applicable rule, an isolated first-divergence phase, exact arithmetic, and independent corroboration.
+- `STRONG` requires an applicable rule and isolated phase plus exact arithmetic, corroboration, or direct execution evidence.
+- `POSSIBLE` covers incomplete or non-isolated evidence.
+
+A sender-only gas residual is `STRONG`; a matching sender/coinbase fee pair can be `PROVEN`. Existing `debug_inspect` JSON remains structurally unchanged.
 
 ---
 

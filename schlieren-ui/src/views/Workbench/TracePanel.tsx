@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../engine/store';
+import { getConservationState } from '../../engine/journal-view';
 import './TracePanel.css';
 
 /**
@@ -45,6 +46,7 @@ export function TracePanel() {
   const setCurrentStep = useAppStore((s) => s.setCurrentStep);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const conservation = result ? getConservationState(result.conservation) : null;
 
   // Draw the trace field
   const draw = useCallback(() => {
@@ -74,6 +76,7 @@ export function TracePanel() {
     
     // Find max gas cost for normalization
     const maxGas = Math.max(...steps.map((s) => s.gasCost), 1);
+    const maxDepth = Math.max(...steps.map((s) => s.depth), 0);
 
     // Draw each step as a band
     for (let i = 0; i < totalSteps; i++) {
@@ -90,6 +93,11 @@ export function TracePanel() {
       ctx.fillStyle = baseColor;
       ctx.globalAlpha = 0.4 + 0.5 * intensity;
       ctx.fillRect(x, height - barHeight, Math.max(bandWidth, 1.2), barHeight);
+
+      const railHeight = Math.max(2, Math.min(6, height / (maxDepth + 5)));
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = `hsl(${205 + (step.frameId * 47) % 110} 42% 55%)`;
+      ctx.fillRect(x, step.depth * railHeight, Math.max(bandWidth, 1.2), railHeight);
     }
 
     // Draw cursor line
@@ -138,9 +146,12 @@ export function TracePanel() {
       <div className="pane-toolbar">
         <span className="pane-title">Trace Field</span>
         {result && (
-          <span className="pane-meta">
-            {result.steps.length.toLocaleString()} steps · click to seek
-          </span>
+          <>
+            <span className={`conservation-chip ${conservation?.tone}`}>{conservation?.label}</span>
+            <span className="pane-meta">
+              {result.frames.length} frames · {result.steps.length.toLocaleString()} steps · click to seek
+            </span>
+          </>
         )}
       </div>
       <div className="trace-canvas-container" ref={containerRef}>

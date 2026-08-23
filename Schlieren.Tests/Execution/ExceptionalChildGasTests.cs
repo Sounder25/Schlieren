@@ -97,7 +97,7 @@ public sealed class ExceptionalChildGasTests
             Caller = Address.Zero,
             GlobalState = new GlobalState(),
             GasLimit = 100_000,
-            SubCall = (_, _, _, _) =>
+            SubCall = (_, _, _, _, _) =>
                 Task.FromResult(ExecutionResult.Success(0))
         };
         context.Access.WarmAddress(callee);

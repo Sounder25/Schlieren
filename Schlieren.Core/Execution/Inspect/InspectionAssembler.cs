@@ -1,4 +1,5 @@
 using Schlieren.Core.Execution.Causal;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution.Inspect;
 
@@ -19,7 +20,6 @@ public static class InspectionAssembler
             tx: request.Tx,
             sender: request.Tx.From,
             coinbase: request.Block.Coinbase,
-            mismatches: request.Mismatches,
             gasUsed: result.GasUsed,
             refundCounter: result.GasRefundCounter,
             executionSucceeded: result.IsSuccess,
@@ -27,35 +27,11 @@ public static class InspectionAssembler
             lastOpcode: last?.Op,
             lastPc: last?.Pc ?? 0,
             expectException: request.ExpectException,
-            expectedReceiptSuccess: request.ExpectedReceiptSuccess);
+            expectedReceiptSuccess: request.ExpectedReceiptSuccess,
+            discrepancies: request.Discrepancies);
 
         var report = CausalDiagnosisEngine.Analyze(ev);
         var diagnosis = InspectMapper.FromReport(report);
-        if (request.Mismatches.Count == 0 &&
-            diagnosis.Root is { Grade: "PROVEN" } proven)
-        {
-            diagnosis = new InspectDiagnosis
-            {
-                Fingerprint = diagnosis.Fingerprint,
-                FirstPhase = diagnosis.FirstPhase,
-                Root = new InspectDiagnosisHit
-                {
-                    RuleId = proven.RuleId,
-                    Title = proven.Title,
-                    Grade = "STRONG",
-                    Score = proven.Score,
-                    Phase = proven.Phase,
-                    Why = proven.Why,
-                    Proof = proven.Proof,
-                    Consequences = proven.Consequences,
-                    LikelyFix = proven.LikelyFix,
-                    CodeBoundary = proven.CodeBoundary,
-                    ProtocolRule = proven.ProtocolRule,
-                    GasDelta = proven.GasDelta
-                },
-                Candidates = diagnosis.Candidates
-            };
-        }
 
         var logs = new List<InspectStructLog>(result.TraceSteps?.Count ?? 0);
         if (result.TraceSteps is { Count: > 0 })
@@ -86,7 +62,7 @@ public static class InspectionAssembler
             }
         }
 
-        var tree = GasTreeFromTrace.FromCanonical(request.Tx, request.Block.Rules, result);
+        var tree = LegacyGasTreeProjection.FromCanonical(result);
 
         return new InspectResult
         {

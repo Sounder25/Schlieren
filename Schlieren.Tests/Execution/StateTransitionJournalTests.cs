@@ -10,6 +10,99 @@ namespace Schlieren.Tests.Execution;
 public sealed class StateTransitionJournalTests
 {
     [Fact]
+    public async Task Precompile_RecordsExclusiveExecutionComponent()
+    {
+        var sender = Address.FromHex("0x8100000000000000000000000000000000000001");
+        var identity = Address.FromHex("0x0000000000000000000000000000000000000004");
+        var state = new GlobalState();
+        state.SetBalance(sender, 1_000_000);
+        var result = await new StateTransition(new EvmMachine([])).ApplyTransactionAsync(
+            new Transaction
+            {
+                From = sender,
+                To = identity,
+                Data = [0x01, 0x02, 0x03],
+                GasLimit = 100_000,
+                GasPrice = 1,
+                Authorization = TransactionAuthorization.Impersonated,
+                EnableJournal = true
+            },
+            state,
+            new BlockContext { BaseFeePerGas = 1, Rules = ForkRulesFactory.For("Osaka") });
+
+        Assert.True(result.IsSuccess);
+        var component = Assert.Single(result.Journal!.Events.OfType<GasComponentEvent>(),
+            entry => entry.Component == GasComponents.PrecompileExecution);
+        Assert.Equal(GasComponentScope.Frame, component.Scope);
+        Assert.Equal(GasSemantics.ExclusiveCharge, component.Semantics);
+        Assert.True(component.Amount > 0);
+    }
+
+    [Fact]
+    public async Task TopLevelCreate_RecordsCodeDepositComponent()
+    {
+        var sender = Address.FromHex("0x8200000000000000000000000000000000000002");
+        var state = new GlobalState();
+        state.SetBalance(sender, 1_000_000);
+        var result = await new StateTransition(new EvmMachine(
+            [new OpcodePush1(), new OpcodeMstore8(), new OpcodeReturn()]))
+            .ApplyTransactionAsync(
+                new Transaction
+                {
+                    From = sender,
+                    To = null,
+                    Data = Convert.FromHexString("600060005360016000F3"),
+                    GasLimit = 100_000,
+                    GasPrice = 1,
+                    Authorization = TransactionAuthorization.Impersonated,
+                    EnableJournal = true
+                },
+                state,
+                new BlockContext { BaseFeePerGas = 1, Rules = ForkRulesFactory.For("Osaka") });
+
+        Assert.True(result.IsSuccess);
+        var component = Assert.Single(result.Journal!.Events.OfType<GasComponentEvent>(),
+            entry => entry.Component == GasComponents.CreateCodeDeposit);
+        Assert.Equal(200UL, component.Amount);
+        Assert.Equal(GasSemantics.ExclusiveCharge, component.Semantics);
+        Assert.Equal(
+            FrameStateResolution.Commit,
+            Assert.Single(JournalAnalysis.Build(result.Journal!).Frames.Values).Resolution);
+    }
+
+    [Fact]
+    public async Task OsakaCalldataFloor_RecordsOnlyIncrementalCharge()
+    {
+        var sender = Address.FromHex("0x8300000000000000000000000000000000000003");
+        var contract = Address.FromHex("0x8400000000000000000000000000000000000004");
+        var state = new GlobalState();
+        state.SetBalance(sender, 1_000_000);
+        state.SetCode(contract, [0x00]);
+        var tx = new Transaction
+        {
+            From = sender,
+            To = contract,
+            Data = new byte[10],
+            GasLimit = 100_000,
+            GasPrice = 1,
+            Authorization = TransactionAuthorization.Impersonated,
+            EnableJournal = true
+        };
+        var rules = ForkRulesFactory.For("Osaka");
+
+        var result = await new StateTransition(new EvmMachine([new OpcodeStop()]))
+            .ApplyTransactionAsync(tx, state,
+                new BlockContext { BaseFeePerGas = 1, Rules = rules });
+
+        Assert.True(result.IsSuccess);
+        var component = Assert.Single(result.Journal!.Events.OfType<GasComponentEvent>(),
+            entry => entry.Component == GasComponents.TransactionCalldataFloor);
+        Assert.Equal(IntrinsicGas.ComputeFloor(tx) - IntrinsicGas.Compute(tx, rules), component.Amount);
+        Assert.Equal(GasComponentScope.Transaction, component.Scope);
+        Assert.Equal(GasSemantics.ExclusiveCharge, component.Semantics);
+    }
+
+    [Fact]
     public async Task ExternalTransaction_RecordsIntrinsicGasAndSettlement()
     {
         var sender = Address.FromHex("0x1000000000000000000000000000000000000001");
@@ -46,7 +139,9 @@ public sealed class StateTransitionJournalTests
         Assert.Equal(result.GasUsed, settlement.ChargedGas);
         Assert.Equal(100_000UL - result.GasUsed, settlement.UnusedGasReturned);
         Assert.IsType<TransactionStartedEvent>(journal.Events[0]);
-        Assert.Same(settlement, journal.Events[^1]);
+        var persistence = Assert.IsType<TransactionPersistenceEvent>(journal.Events[^1]);
+        Assert.Equal(TransactionPersistenceOutcome.CommittedToState, persistence.Outcome);
+        Assert.True(settlement.Sequence < persistence.Sequence);
         Assert.True(intrinsic.Sequence < settlement.Sequence);
     }
 
@@ -109,7 +204,12 @@ public sealed class StateTransitionJournalTests
 
         Assert.Equal(EvmError.InvalidTransaction, result.Error);
         var journal = Assert.IsType<ExecutionJournal>(result.Journal);
-        Assert.IsType<TransactionStartedEvent>(Assert.Single(journal.Events));
+        Assert.Collection(
+            journal.Events,
+            entry => Assert.IsType<TransactionStartedEvent>(entry),
+            entry => Assert.Equal(
+                TransactionPersistenceOutcome.SimulationDiscarded,
+                Assert.IsType<TransactionPersistenceEvent>(entry).Outcome));
     }
 
     [Fact]
@@ -131,7 +231,7 @@ public sealed class StateTransitionJournalTests
             0x73
         };
         callerCode.AddRange(callee.Bytes);
-        callerCode.AddRange([0x61, 0x27, 0x10, 0xf1, 0x00]);
+        callerCode.AddRange([0x61, 0xc3, 0x50, 0xf1, 0x00]);
         state.SetCode(caller, callerCode.ToArray());
 
         var transition = new StateTransition(new EvmMachine(
@@ -200,6 +300,22 @@ public sealed class StateTransitionJournalTests
         Assert.True(childStore.Sequence < childExit.Sequence);
         Assert.True(childExit.Sequence < rootCall.Sequence);
         Assert.True(rootCall.Sequence < rootExit.Sequence);
+
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.FrameId == root.FrameId &&
+            component.OpcodeName == "CALL" &&
+            component.Component == GasComponents.CallLocal &&
+            component.Semantics == GasSemantics.ExclusiveCharge);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.FrameId == root.FrameId &&
+            component.OpcodeName == "CALL" &&
+            component.Component == GasComponents.CallForwarded &&
+            component.Semantics == GasSemantics.Allocation);
+        Assert.Contains(journal.Events.OfType<GasComponentEvent>(), component =>
+            component.FrameId == root.FrameId &&
+            component.OpcodeName == "CALL" &&
+            component.Component == GasComponents.CallUnusedReturn &&
+            component.Semantics == GasSemantics.Return);
     }
 
     [Fact]

@@ -45,3 +45,15 @@
   max-width: 480px;
   line-height: 1.7;
 }
+
+.conservation-chip {
+  margin-left: auto;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font: 600 9px/1.4 var(--font-data);
+  letter-spacing: .08em;
+}
+
+.conservation-chip.agree { color: var(--sig-agree); }
+.conservation-chip.fracture { color: var(--sig-fracture); }

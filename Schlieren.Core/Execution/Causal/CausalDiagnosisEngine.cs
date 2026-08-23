@@ -118,18 +118,17 @@ public static class CausalDiagnosisEngine
 
         if (score < 20) return;
 
-        var grade = formulaHit && preShanghai && ev.HasMissingAccount
-            ? DiagnosisGrade.Proven
-            : formulaHit && preShanghai
-                ? DiagnosisGrade.Strong
-                : DiagnosisGrade.Possible;
-
         into.Add(new ScoredDiagnosis
         {
             RuleId = "CREATE.INITCODE_WORD",
             Title = "CREATE initcode metering active before Shanghai",
             Phase = ExecutionPhase.GasCharge,
-            Grade = grade,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: preShanghai && !active,
+                PhaseIsolated: first == ExecutionPhase.GasCharge,
+                ExactArithmetic: formulaHit,
+                IndependentCorroboration: ev.HasMissingAccount || ev.ReceiptExpectedSuccessActualFail,
+                DirectExecutionEvidence: ev.IsCreateTx || ev.LastOpcode is "CREATE" or "CREATE2"),
             Score = score,
             ProtocolRule = "EIP-3860: 2 gas per 32-byte initcode word from Shanghai only",
             Why = "EIP-3860 initcode-word charging activates at Shanghai, not " + ev.ForkName + ".",
@@ -165,13 +164,21 @@ public static class CausalDiagnosisEngine
         if (pair == 32_000) score += 10; // sender/coinbase cancel
         if (first > ExecutionPhase.IntrinsicGas && first != ExecutionPhase.GasCharge) score -= 20;
 
-        var proven = pair == 32_000 || over == 32_000;
+        // A sender-only residual is exact but not isolated: value transfer or another
+        // settlement error can produce the same number. The cancelling fee pair proves
+        // that the discrepancy is gas moving from sender to beneficiary.
+        var proven = pair == 32_000;
         into.Add(new ScoredDiagnosis
         {
             RuleId = "TX.CREATE_SURCHARGE",
             Title = "Frontier CREATE tx surcharge 32000 (should be 0)",
             Phase = ExecutionPhase.IntrinsicGas,
-            Grade = proven ? DiagnosisGrade.Proven : DiagnosisGrade.Strong,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: ev.Fork == Fork.Frontier,
+                PhaseIsolated: first == ExecutionPhase.IntrinsicGas,
+                ExactArithmetic: hit,
+                IndependentCorroboration: proven,
+                DirectExecutionEvidence: ev.IsCreateTx),
             Score = score,
             ProtocolRule = "EIP-2: 32000 creation surcharge from Homestead; Frontier is 0",
             Why = "Schlieren adds TxCreate=32000 whenever to is null. That charge starts at Homestead, not Frontier.",
@@ -202,7 +209,11 @@ public static class CausalDiagnosisEngine
             RuleId = "SELFDESTRUCT.REFUND",
             Title = "Missing pre-London SELFDESTRUCT 24000 refund",
             Phase = ExecutionPhase.Refund,
-            Grade = pair == 24_000 ? DiagnosisGrade.Proven : DiagnosisGrade.Strong,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: ev.Fork < Fork.London,
+                PhaseIsolated: first == ExecutionPhase.Refund,
+                ExactArithmetic: pair == 24_000 || over == 24_000,
+                IndependentCorroboration: pair == 24_000),
             Score = score,
             ProtocolRule = "Frontier–Berlin: +24000 once per account; London EIP-3529 removes it",
             Why = "Schlieren never credits the pre-London SELFDESTRUCT refund.",
@@ -232,7 +243,10 @@ public static class CausalDiagnosisEngine
             RuleId = "HALT.OPCODE_ACTIVATION",
             Title = $"Opcode activation / invalid opcode ({ev.LastOpcode ?? "unknown"})",
             Phase = ExecutionPhase.OpcodeActivation,
-            Grade = ev.Error == EvmError.InvalidOpcode ? DiagnosisGrade.Strong : DiagnosisGrade.Possible,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: true,
+                PhaseIsolated: first == ExecutionPhase.OpcodeActivation,
+                DirectExecutionEvidence: ev.Error == EvmError.InvalidOpcode),
             Score = score,
             ProtocolRule = "Inactive opcode byte must exceptionally halt the frame",
             Why = "Interpreter treated a fork-gated opcode differently than the fixture expected.",
@@ -251,7 +265,10 @@ public static class CausalDiagnosisEngine
             RuleId = "TX.VALIDATION",
             Title = "Transaction rejected at validation",
             Phase = ExecutionPhase.TransactionValidation,
-            Grade = DiagnosisGrade.Strong,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: true,
+                PhaseIsolated: first == ExecutionPhase.TransactionValidation,
+                DirectExecutionEvidence: true),
             Score = 70,
             ProtocolRule = ev.ExpectException ?? ev.Error.ToString(),
             Why = "Expected and actual disagreed on whether the transaction is valid.",
@@ -270,7 +287,10 @@ public static class CausalDiagnosisEngine
             RuleId = "TX.INTRINSIC",
             Title = "Intrinsic gas / pre-execution OOG",
             Phase = ExecutionPhase.IntrinsicGas,
-            Grade = DiagnosisGrade.Strong,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: true,
+                PhaseIsolated: first == ExecutionPhase.IntrinsicGas,
+                DirectExecutionEvidence: ev.LastOpcode is null),
             Score = 65,
             ProtocolRule = "IntrinsicGas.Compute(tx, rules)",
             Why = "Transaction died before the first opcode; intrinsic or floor likely diverged.",
@@ -294,7 +314,10 @@ public static class CausalDiagnosisEngine
             RuleId = "SETTLE.REFUND_CAP",
             Title = "Refund-cap / EIP-3529 settlement",
             Phase = ExecutionPhase.Refund,
-            Grade = DiagnosisGrade.Possible,
+            Basis = new DiagnosisProofBasis(
+                RuleApplicable: ev.Fork >= Fork.London,
+                PhaseIsolated: false,
+                DirectExecutionEvidence: ev.RefundCounter > 0),
             Score = score,
             ProtocolRule = "cappedRefund = min(counter, floor(used / RefundQuotient))",
             Why = "Sender residual with a nonzero refund counter and no storage mismatch.",
@@ -339,7 +362,10 @@ public static class CausalDiagnosisEngine
                 RuleId = id,
                 Title = title,
                 Phase = ExecutionPhase.GasCharge,
-                Grade = DiagnosisGrade.Possible,
+                Basis = new DiagnosisProofBasis(
+                    RuleApplicable: ev.Fork >= min && (max is null || ev.Fork <= max.Value),
+                    PhaseIsolated: false,
+                    ExactArithmetic: abs == gas),
                 Score = score,
                 ProtocolRule = id,
                 Why = "Sender gas residual equals a protocol constant that is active on this fork.",
@@ -371,11 +397,13 @@ public static class CausalDiagnosisEngine
                 ? "Final-state mismatch (no isolated rule)"
                 : $"{first.ToLabel()} divergence (rule not isolated)",
             Phase = first,
-            Grade = DiagnosisGrade.Possible,
+            Basis = new DiagnosisProofBasis(false, false),
             Score = 10,
             ProtocolRule = "Final post-state comparison",
             Why = "Evidence does not uniquely identify an inventory rule.",
-            Proof = string.Join("; ", ev.Mismatches.Take(3)),
+            Proof = ev.Discrepancies.Count == 0
+                ? "No typed discrepancy evidence was supplied."
+                : string.Join("; ", ev.Discrepancies.Take(3).Select(discrepancy => discrepancy.Render())),
             Consequences = "Downstream symptoms only. Run a reference structLog diff on this case.",
             LikelyFix = "Use OPEN IN WORKBENCH + eels-fixture-diff for this CaseId.",
             CodeBoundary = "(unknown)"
@@ -419,7 +447,7 @@ public static class CausalDiagnosisEngine
         RuleId = d.RuleId,
         Title = d.Title,
         Phase = d.Phase,
-        Grade = d.Grade,
+        Basis = d.Basis,
         Score = d.Score,
         Why = d.Why,
         Proof = d.Proof,

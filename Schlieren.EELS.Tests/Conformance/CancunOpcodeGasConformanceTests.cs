@@ -1,4 +1,5 @@
 using Schlieren.Core.Execution;
+using Schlieren.Core.Forks;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 using Schlieren.EELS.Tests.Harness;
@@ -174,6 +175,6 @@ public sealed class CancunOpcodeGasConformanceTests
         var expected = Spec("TX_BASE")
                        + 2 * Spec("TX_DATA_PER_ZERO")
                        + 2 * Spec("TX_DATA_PER_NON_ZERO");
-        Assert.Equal(expected, IntrinsicGas.Compute(tx));
+        Assert.Equal(expected, IntrinsicGas.Compute(tx, ForkRulesFactory.For("Cancun")));
     }
 }

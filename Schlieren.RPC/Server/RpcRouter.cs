@@ -66,7 +66,8 @@ public sealed class RpcRouter : IJsonRpcRouter
             "debug_traceBlockByNumber",
             "debug_traceBlockByHash",
             "debug_inspect",
-            "debug_whyNot"
+            "debug_whyNot",
+            "schlieren_traceJournal"
         }.AsReadOnly();
     }
 
@@ -179,6 +180,7 @@ public sealed class RpcRouter : IJsonRpcRouter
             "debug_traceBlockByHash" => await _ethHandlers.HandleDebugTraceBlockByHash(parameters, ct),
             "debug_inspect" => await _ethHandlers.HandleDebugInspect(parameters, ct),
             "debug_whyNot" => await _ethHandlers.HandleDebugWhyNot(parameters, ct),
+            "schlieren_traceJournal" => await _ethHandlers.HandleTraceJournal(parameters, ct),
             
             // Method not found
             _ => throw new RpcException(JsonRpcErrorCodes.MethodNotFound, $"Method not found: {method}")

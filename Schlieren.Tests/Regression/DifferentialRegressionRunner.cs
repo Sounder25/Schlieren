@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Security;
 using Schlieren.UI.Services;
 
@@ -49,6 +50,10 @@ public sealed class DifferentialRegressionRunner
             }
 
             var trace = run.Result.TraceSteps;
+            var journal = run.Result.Journal
+                ?? throw new InvalidOperationException("Canonical execution did not produce a journal.");
+            var journalAnalysis = JournalAnalysis.Build(journal);
+            var securityFindings = JournalSecurityAnalyzer.Analyze(journalAnalysis);
             
             // Validate execution outcome
             if (testCase.ExpectedSuccess.HasValue)
@@ -101,34 +106,36 @@ public sealed class DifferentialRegressionRunner
                 }
             }
 
-            // INVARIANT #1: Audit gas must equal trace gas
-            var auditGas = ComputeAuditGas(trace, testCase.Calldata);
-            if (auditGas != run.Result.GasUsed)
+            // INVARIANT #1: Exclusive journal gas must conserve against settlement.
+            var gasTree = JournalGasTree.Build(journal, run.Result);
+            if (!gasTree.Conservation.IsConserved)
             {
                 result.Status = RegressionStatus.GasAccountingBug;
-                result.Message = $"Gas double-count detected: trace={run.Result.GasUsed}, audit={auditGas}, delta={auditGas - run.Result.GasUsed}";
-                result.ExpectedGas = run.Result.GasUsed;
-                result.ActualGas = auditGas;
+                result.Message = $"Journal gas conservation failed: settled={gasTree.Conservation.SettledGas}, derived={gasTree.Conservation.DerivedGas}, delta={gasTree.Conservation.Delta}";
+                result.ExpectedGas = gasTree.Conservation.SettledGas;
+                result.ActualGas = gasTree.Conservation.DerivedGas;
                 await SaveFailureTraceAsync(testCase, run, result);
                 return result;
             }
 
-            // INVARIANT #2: No nested gas double-count
-            var nestedDoubleCounting = DetectNestedGasDoubleCount(trace);
-            if (nestedDoubleCounting.IsDetected)
+            // INVARIANT #2: Frame ownership is explicit and internally consistent.
+            if (journalAnalysis.Frames.Values.Any(frame =>
+                    frame.ParentId.HasValue && !journalAnalysis.Frames.ContainsKey(frame.ParentId.Value)))
             {
                 result.Status = RegressionStatus.NestedGasDoubleCounting;
-                result.Message = nestedDoubleCounting.Description;
+                result.Message = "Journal contains a frame whose explicit parent is missing.";
                 await SaveFailureTraceAsync(testCase, run, result);
                 return result;
             }
 
-            // INVARIANT #3: DELEGATECALL must not trigger reentrancy
-            var delegatecallReentrancy = DetectDelegatecallReentrancyFalsePositive(trace);
-            if (delegatecallReentrancy.HasFalsePositive)
+            // INVARIANT #3: DELEGATECALL must not trigger reentrancy.
+            var delegatecallReentrancy = securityFindings.FirstOrDefault(finding =>
+                finding.Category == SecurityCategory.Reentrancy &&
+                journalAnalysis.Frames[finding.PrimaryFrameId].CallType == CallType.DelegateCall);
+            if (delegatecallReentrancy is not null)
             {
                 result.Status = RegressionStatus.ReentrancyFalsePositive;
-                result.Message = $"DELEGATECALL falsely classified as reentrancy at step {delegatecallReentrancy.StepIndex}";
+                result.Message = $"DELEGATECALL frame {delegatecallReentrancy.PrimaryFrameId} falsely classified as reentrancy.";
                 await SaveFailureTraceAsync(testCase, run, result);
                 return result;
             }
@@ -151,11 +158,11 @@ public sealed class DifferentialRegressionRunner
             // Validate reentrancy findings
             if (testCase.ExpectedReentrancyCount.HasValue)
             {
-                var reentrancy = ReentrancyDetector.Analyze(trace);
-                if (reentrancy.Count != testCase.ExpectedReentrancyCount.Value)
+                var reentrancyCount = securityFindings.Count(finding => finding.Category == SecurityCategory.Reentrancy);
+                if (reentrancyCount != testCase.ExpectedReentrancyCount.Value)
                 {
                     result.Status = RegressionStatus.ReentrancyMismatch;
-                    result.Message = $"Expected {testCase.ExpectedReentrancyCount.Value} reentrancy findings, got {reentrancy.Count}";
+                    result.Message = $"Expected {testCase.ExpectedReentrancyCount.Value} reentrancy findings, got {reentrancyCount}";
                     return result;
                 }
             }
@@ -174,98 +181,11 @@ public sealed class DifferentialRegressionRunner
         return result;
     }
 
-    /// <summary>
-    /// Compute audit gas the same way WorkbenchViewModel does (depth-1 only + intrinsic).
-    /// </summary>
-    private static ulong ComputeAuditGas(IReadOnlyList<ExecutionTraceStep> trace, string calldataHex)
-    {
-        // Calldata intrinsic
-        ulong calldataGas = 0UL;
-        if (BytecodeExecutionService.TryParseHexBytes(calldataHex, out var calldata) && calldata.Length > 0)
-        {
-            var nonzeroBytes = calldata.Count(b => b != 0);
-            var zeroBytes = calldata.Length - nonzeroBytes;
-            calldataGas = (ulong)(nonzeroBytes * 16 + zeroBytes * 4);
-        }
-
-        // Sum depth-1 gas only
-        var depth1Gas = (ulong)trace.Where(s => s.Depth == 1)
-                                    .Sum(s => (long)ParseGasCost(s.GasCost));
-
-        return depth1Gas + 21_000UL + calldataGas;
-    }
-
     private static ulong ParseGasCost(string gasCostHex)
     {
         if (string.IsNullOrWhiteSpace(gasCostHex)) return 0UL;
         var clean = gasCostHex.StartsWith("0x") ? gasCostHex.Substring(2) : gasCostHex;
         return string.IsNullOrEmpty(clean) ? 0UL : Convert.ToUInt64(clean, 16);
-    }
-
-    /// <summary>
-    /// Detect if nested frame gas is being double-counted.
-    /// </summary>
-    private static (bool IsDetected, string Description) DetectNestedGasDoubleCount(IReadOnlyList<ExecutionTraceStep> trace)
-    {
-        // If no nested execution, can't double-count
-        var maxDepth = trace.Max(s => s.Depth);
-        if (maxDepth <= 1)
-            return (false, "");
-
-        // Check if any parent CALL includes child gas in its gasCost
-        for (int i = 0; i < trace.Count; i++)
-        {
-            var step = trace[i];
-            if (step.Op is "CALL" or "DELEGATECALL" or "STATICCALL" or "CALLCODE")
-            {
-                // Find child execution range
-                var childStart = i + 1;
-                var childEnd = childStart;
-                while (childEnd < trace.Count && trace[childEnd].Depth > step.Depth)
-                    childEnd++;
-
-                if (childEnd > childStart)
-                {
-                    // Child execution exists
-                    var childGas = (ulong)trace.Skip(childStart).Take(childEnd - childStart)
-                                               .Sum(s => (long)ParseGasCost(s.GasCost));
-                    var parentGas = ParseGasCost(step.GasCost);
-
-                    // If parent gasCost includes child gas, that's expected (trace behavior)
-                    // The bug would be if we then ALSO sum the child opcodes separately in audit
-                    // This check is heuristic: if parent gas is suspiciously large, flag it
-                    if (parentGas > 10000 && childGas > 100 && parentGas > childGas)
-                    {
-                        return (true, $"Parent {step.Op} at step {i} reports {parentGas} gas, includes {childGas} child gas");
-                    }
-                }
-            }
-        }
-
-        return (false, "");
-    }
-
-    /// <summary>
-    /// Detect if DELEGATECALL frames are being falsely classified as reentrancy.
-    /// </summary>
-    private static (bool HasFalsePositive, int StepIndex) DetectDelegatecallReentrancyFalsePositive(IReadOnlyList<ExecutionTraceStep> trace)
-    {
-        var reentrancy = ReentrancyDetector.Analyze(trace);
-        
-        foreach (var finding in reentrancy)
-        {
-            // Check if the reentry step is actually a DELEGATECALL child frame
-            if (finding.ReentryStep < trace.Count)
-            {
-                var step = trace[finding.ReentryStep];
-                if (step.CallType == CallType.DelegateCall)
-                {
-                    return (true, finding.ReentryStep);
-                }
-            }
-        }
-
-        return (false, -1);
     }
 
     /// <summary>

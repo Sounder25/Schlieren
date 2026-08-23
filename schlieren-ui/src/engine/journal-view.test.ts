@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import { buildFrameRows, buildSecurityRows, gasEffect, getConservationState } from './journal-view';
+import type { JournalFrameTreeNode, JournalSecurityFinding } from './store';
+
+describe('journal view model', () => {
+  it('keeps nested frames attached to their explicit parent', () => {
+    const frameTree: JournalFrameTreeNode = {
+      frame: { id: 1, parentId: null, depth: 0, callType: 'CALL', contractAddress: '0xaa', codeAddress: '0xaa', gasLimit: 100, success: true, error: null, gasUsed: 40, gasRemaining: 60 },
+      ancestorIds: [], stateEffectIds: [2], securityFindingIds: [],
+      children: [{
+        frame: { id: 7, parentId: 1, depth: 1, callType: 'STATICCALL', contractAddress: '0xbb', codeAddress: '0xbb', gasLimit: 30, success: true, error: null, gasUsed: 9, gasRemaining: 21 },
+        ancestorIds: [1], stateEffectIds: [8], securityFindingIds: ['finding-1'], children: [],
+      }],
+    };
+    expect(buildFrameRows(frameTree)).toEqual([
+      expect.objectContaining({ id: 1, parentId: null, indent: 0 }),
+      expect.objectContaining({ id: 7, parentId: 1, indent: 1, ancestorIds: [1], stateEffectIds: [8] }),
+    ]);
+  });
+
+  it('does not present gas evidence as an additive charge', () => {
+    expect(gasEffect({ semantics: 'exclusive', amount: 3 })).toBe('charge');
+    expect(gasEffect({ semantics: 'credit', amount: 2 })).toBe('credit');
+    expect(gasEffect({ semantics: 'forwarded-allocation', amount: 50 })).toBe('evidence');
+  });
+
+  it('uses server-linked finding IDs and ancestry without rebuilding either', () => {
+    const finding: JournalSecurityFinding = {
+      id: 'SEC.REENTRANCY.REENTRY:12', ruleId: 'SEC.REENTRANCY.REENTRY',
+      category: 'reentrancy', severity: 'medium', factGrade: 'proven',
+      primaryFrameId: 7, primaryInstructionId: 9, supportingEventSequences: [12],
+      frameAncestry: [1], executionDisposition: 'survived',
+      persistenceDisposition: 'simulationDiscarded', addresses: ['0xaa'],
+      storageSlots: ['0x0'], summary: 'Re-entry observed.', limitation: 'Observed path only.',
+    };
+    const tree: JournalFrameTreeNode = {
+      frame: { id: 1, parentId: null, depth: 0, callType: 'ROOT', contractAddress: '0xaa', codeAddress: null, gasLimit: 100, success: true, error: null, gasUsed: 40, gasRemaining: 60 },
+      ancestorIds: [], stateEffectIds: [], securityFindingIds: [], children: [{
+        frame: { id: 7, parentId: 1, depth: 1, callType: 'CALL', contractAddress: '0xaa', codeAddress: '0xaa', gasLimit: 30, success: true, error: null, gasUsed: 9, gasRemaining: 21 },
+        ancestorIds: [1], stateEffectIds: [3], securityFindingIds: [finding.id], children: [],
+      }],
+    };
+
+    expect(buildSecurityRows(tree, [finding])).toEqual([
+      expect.objectContaining({ id: finding.id, frameId: 7, framePath: [1, 7], severity: 'medium' }),
+    ]);
+  });
+
+  it('makes a conservation failure impossible to miss', () => {
+    expect(getConservationState({ derivedGas: 99, settledGas: 100, delta: '-1', isConserved: false }))
+      .toEqual({ tone: 'fracture', label: 'DRIFT -1 GAS' });
+  });
+});
