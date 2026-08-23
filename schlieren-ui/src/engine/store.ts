@@ -1,30 +1,100 @@
 import { create } from 'zustand';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 export type ViewId = 'workbench' | 'interference' | 'flow' | 'conformance' | 'harvest';
 
-export interface TraceStep {
-  pc: number;
-  op: string;
-  opHex: string;
-  gas: number;
-  gasCost: number;
-  depth: number;
-  stack: string[];
-  memory: string;
-  storage: Record<string, string>;
-  returnData?: string;
-  error?: string;
+export interface JournalEvent {
+  kind: string;
+  sequence: number;
+  frameId: number | null;
+  parentFrameId: number | null;
+  semantics: string;
+  amount: number | null;
+  component: string | null;
+  pc: number | null;
+  opcode: string | null;
+  opcodeName: string | null;
+  data: Record<string, unknown>;
 }
 
-export interface ExecutionResult {
-  steps: TraceStep[];
-  gasUsed: number;
+export interface JournalFrame {
+  id: number;
+  parentId: number | null;
+  depth: number;
+  callType: string;
+  contractAddress: string;
+  codeAddress: string | null;
+  gasLimit: number;
+  success: boolean | null;
+  error: string | null;
+  gasUsed: number | null;
+  gasRemaining: number | null;
+}
+
+export interface TraceStep {
+  sequence: number;
+  frameId: number;
+  parentFrameId: number | null;
+  depth: number;
+  pc: number;
+  opcode: string;
+  op: string;
+  gasBefore: number;
+  gasAfter: number;
+  gasCost: number;
+  semantics: string;
+  callType?: string | null;
+  contractAddress?: string | null;
+  callerAddress?: string | null;
+  codeAddress?: string | null;
+  output: string;
+  stack?: string[];
+  memory?: string[];
+  storage?: Record<string, string>;
+}
+
+export interface JournalGasNode {
+  id: string;
+  label: string;
+  frameId: number | null;
+  semantics: string;
+  amount: number;
+  effect: 'none' | 'charge' | 'credit';
+  totalGas: number;
+  eventSequences: number[];
+  children: JournalGasNode[];
+}
+
+export interface JournalConservation {
+  derivedGas: number;
+  settledGas: number;
+  delta: string;
+  isConserved: boolean;
+}
+
+export interface JournalExecution {
   success: boolean;
+  error: string | null;
+  gasUsed: number;
+  gasRefundCounter: number;
+  returnData: string;
+}
+
+export interface JournalTraceResponse {
+  ok: boolean;
+  fork: string;
+  execution: JournalExecution;
+  events: JournalEvent[];
+  frames: JournalFrame[];
+  steps: TraceStep[];
+  gasTree: JournalGasNode;
+  conservation: JournalConservation;
+}
+
+export interface ExecutionResult extends JournalTraceResponse {
+  success: boolean;
+  gasUsed: number;
   returnData: string;
   error?: string;
-  fork: string;
 }
 
 export interface RunConfig {
@@ -37,40 +107,26 @@ export interface RunConfig {
   fork: string;
 }
 
-// ─── Store ───────────────────────────────────────────────────────────────────
-
 interface AppState {
-  // Navigation
   activeView: ViewId;
   setActiveView: (view: ViewId) => void;
-
-  // Execution
   config: RunConfig;
   setConfig: (partial: Partial<RunConfig>) => void;
-  
   result: ExecutionResult | null;
   setResult: (result: ExecutionResult | null) => void;
-  
   isRunning: boolean;
   setIsRunning: (running: boolean) => void;
-
-  // Step cursor
   currentStep: number;
   setCurrentStep: (step: number) => void;
-
-  // Connection
   endpoint: string;
   setEndpoint: (url: string) => void;
   connected: boolean;
-  setConnected: (c: boolean) => void;
+  setConnected: (connected: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  // Navigation
   activeView: 'workbench',
-  setActiveView: (view) => set({ activeView: view }),
-
-  // Execution
+  setActiveView: (activeView) => set({ activeView }),
   config: {
     bytecode: '',
     calldata: '',
@@ -80,21 +136,15 @@ export const useAppStore = create<AppState>((set) => ({
     gasLimit: 10_000_000,
     fork: 'Osaka',
   },
-  setConfig: (partial) => set((s) => ({ config: { ...s.config, ...partial } })),
-
+  setConfig: (partial) => set((state) => ({ config: { ...state.config, ...partial } })),
   result: null,
   setResult: (result) => set({ result, currentStep: 0 }),
-
   isRunning: false,
-  setIsRunning: (running) => set({ isRunning: running }),
-
-  // Step cursor
+  setIsRunning: (isRunning) => set({ isRunning }),
   currentStep: 0,
-  setCurrentStep: (step) => set({ currentStep: step }),
-
-  // Connection
+  setCurrentStep: (currentStep) => set({ currentStep }),
   endpoint: 'http://localhost:8545',
-  setEndpoint: (url) => set({ endpoint: url }),
+  setEndpoint: (endpoint) => set({ endpoint }),
   connected: false,
-  setConnected: (c) => set({ connected: c }),
+  setConnected: (connected) => set({ connected }),
 }));
