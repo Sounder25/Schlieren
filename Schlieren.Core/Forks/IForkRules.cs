@@ -54,7 +54,8 @@ public interface IForkRules
     int  MaxBlobsPerTransaction   { get; }  // Cancun: 6; Prague+: 9 (EIP-7516 / larger block target)
     bool HasEip7623CalldataFloor  { get; }  // Prague+
     bool HasEip7702SetCode        { get; }  // Prague+
-    bool HasEip7951P256Verify     { get; }  // Osaka+: P256VERIFY precompile at 0x0100
+    bool HasEip7610CreateCollisionBurn     { get; }  // Paris+: CREATE/CREATE2 fails on storage collisions (EIP-7610)
+    bool HasEip7951P256Verify     { get; }  // Osaka+
     bool HasEip7939Clz            { get; }  // Osaka+: CLZ opcode (0x1E)
     bool HasEip7883ModExpIncrease  { get; }  // Osaka+: ModExp gas cost increase
     /// <summary>
@@ -149,6 +150,7 @@ public interface IForkRules
     bool HasTloadTstore           { get; }  // Cancun+
     bool HasEip6780SelfdestructRestriction { get; }  // Cancun+: SELFDESTRUCT only deletes if created in same tx
     bool HasEip161ContractNonce            { get; }  // SpuriousDragon+: new contracts start at nonce 1
+    bool HasEip170CodeSizeLimit            { get; }  // SpuriousDragon+: 24576-byte deployed-code cap
     bool HasEip2565ModExpPricing           { get; }  // Berlin+: EIP-2565 ModExp gas formula (GQUADDIVISOR=3, word-count complexity)
     
     // ── Precompile gas (fork-dependent) ──────────────────────────────────────

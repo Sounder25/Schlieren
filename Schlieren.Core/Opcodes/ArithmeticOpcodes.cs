@@ -1,9 +1,20 @@
 using System.Numerics;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Gas;
 using Schlieren.Core.Primitives;
 using ExecutionContext = Schlieren.Core.Execution.ExecutionContext;
 
 namespace Schlieren.Core.Opcodes;
+
+internal static class FixedArithmeticGas
+{
+    internal static ValueTask<(ExecutionResult, int)> ChargedSuccess(
+        ExecutionContext context,
+        string opcodeName) =>
+        new((
+            ExecutionResult.Success(FixedOpcodeGasSchedule.Charge(opcodeName, context.Block.Rules.Fork)),
+            context.ProgramCounter + 1));
+}
 
 public sealed class OpcodeAdd : IOpcode
 {
@@ -18,7 +29,7 @@ public sealed class OpcodeAdd : IOpcode
         if (!context.Stack.TryPush(a + b))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
         
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -35,7 +46,7 @@ public sealed class OpcodeMul : IOpcode
         if (!context.Stack.TryPush(a * b))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
         
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -53,7 +64,7 @@ public sealed class OpcodeSub : IOpcode
         if (!context.Stack.TryPush(a - b))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
         
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(3), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -74,7 +85,7 @@ public sealed class OpcodeDiv : IOpcode
         if (!context.Stack.TryPush(result))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
         
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -95,7 +106,7 @@ public sealed class OpcodeMod : IOpcode
         if (!context.Stack.TryPush(result))
              return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
         
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -152,7 +163,7 @@ public sealed class OpcodeSdiv : IOpcode
         if (!context.Stack.TryPush(result))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -189,7 +200,7 @@ public sealed class OpcodeSmod : IOpcode
         if (!context.Stack.TryPush(result))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -212,7 +223,7 @@ public sealed class OpcodeAddMod : IOpcode
         if (!context.Stack.TryPush(result))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(8), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -235,7 +246,7 @@ public sealed class OpcodeMulMod : IOpcode
         if (!context.Stack.TryPush(result))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(8), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }
 
@@ -309,6 +320,6 @@ public sealed class OpcodeSignExtend : IOpcode
         if (!context.Stack.TryPush(result))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
-        return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(5), context.ProgramCounter + 1));
+        return FixedArithmeticGas.ChargedSuccess(context, Name);
     }
 }

@@ -101,6 +101,8 @@ public abstract class ForkRules : IForkRules
     public virtual bool HasTloadTstore              => false;
     public virtual bool HasEip6780SelfdestructRestriction => false; // Pre-Cancun: always delete
     public virtual bool HasEip161ContractNonce            => false; // Pre-SpuriousDragon: new contracts nonce=0
+    public virtual bool HasEip170CodeSizeLimit            => false; // Pre-SpuriousDragon: no code size cap
+    public virtual bool HasEip7610CreateCollisionBurn     => false; // Pre-Paris: CREATE/CREATE2 ignores storage collisions
     public virtual bool HasEip2565ModExpPricing           => false; // Pre-Berlin: EIP-198 tiered formula, GQUADDIVISOR=20
     // SELFDESTRUCT gas: Frontier/Homestead = 0 (free!); TangerineWhistle+ = 5000 base + 25000 new-account
     public virtual ulong SelfdestructBaseCost       => 0;      // Frontier/Homestead: zero
@@ -173,6 +175,7 @@ public class SpuriousDragonRules : TangerineWhistleRules
     public override bool HasEip161EmptyAccountDeletion => true;
     public override bool HasEip155ReplayProtection      => true;
     public override bool HasEip161ContractNonce         => true; // EIP-161: new contracts start at nonce 1
+    public override bool HasEip170CodeSizeLimit         => true; // EIP-170: 24576-byte deployed-code cap
     public override ulong ExpByteCost                   => 50;   // EIP-160: raise EXP byte cost 10→50
 }
 
@@ -374,6 +377,7 @@ public class ParisRules : LondonRules
     public static new readonly ParisRules Instance = new();
     public override Fork Fork => Fork.Paris;
     public override bool HasPrevRandao => true;
+    public override bool HasEip7610CreateCollisionBurn => true; // EIP-7610: CREATE/CREATE2 fails on storage collisions
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
