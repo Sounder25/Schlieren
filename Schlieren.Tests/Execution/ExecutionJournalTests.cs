@@ -1,6 +1,7 @@
 using Schlieren.Core.Execution;
 using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.State;
+using System.Text.Json;
 
 namespace Schlieren.Tests.Execution;
 
@@ -39,5 +40,18 @@ public sealed class ExecutionJournalTests
     {
         Assert.False(new Transaction().EnableJournal);
         Assert.Null(ExecutionResult.Success(0).Journal);
+    }
+
+    [Fact]
+    public void Journal_IsExcludedFromExecutionResultJson()
+    {
+        var result = ExecutionResult.Success(0) with
+        {
+            Journal = new ExecutionJournal()
+        };
+
+        var json = JsonSerializer.Serialize(result);
+
+        Assert.DoesNotContain("\"Journal\"", json, StringComparison.Ordinal);
     }
 }
