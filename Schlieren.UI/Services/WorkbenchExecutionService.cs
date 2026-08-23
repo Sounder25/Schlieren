@@ -1,5 +1,4 @@
 using Schlieren.Core.Execution;
-using Schlieren.Core.Security;
 
 namespace Schlieren.UI.Services;
 
@@ -264,13 +263,4 @@ public class WorkbenchExecutionService
         };
     }
 
-    /// <summary>
-    /// Runs security detectors on the execution trace and returns findings.
-    /// </summary>
-    public (List<ReentrancyFinding> Reentrancy, List<StorageCollisionFinding> Collisions) AnalyzeSecurity(List<ExecutionTraceStep> steps)
-    {
-        var reentrancy = ReentrancyDetector.Analyze(steps);
-        var collisions = StorageCollisionDetector.Analyze(steps);
-        return (reentrancy, collisions);
-    }
 }

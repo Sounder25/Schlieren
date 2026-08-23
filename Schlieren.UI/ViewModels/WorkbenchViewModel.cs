@@ -1300,35 +1300,23 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             EventLogRows.Add("(no logs)");
         }
 
-        var reentrancy = ReentrancyDetector.Analyze(_currentTrace);
-        var collisions = StorageCollisionDetector.Analyze(_currentTrace);
+        var journalFindings = result.Journal is null
+            ? Array.Empty<SecurityFinding>()
+            : JournalSecurityAnalyzer.Analyze(JournalAnalysis.Build(result.Journal)).ToArray();
         var libraryGuard = LibraryGuardDetector.Analyze(_currentTrace);
         var proxyUnresolved = ProxyImplementationUnresolvedDetector.Analyze(_currentTrace);
 
         // Security Findings (actual vulnerabilities)
-        foreach (var f in reentrancy)
+        foreach (var finding in journalFindings)
         {
             SecurityFindings.Add(new SecurityFindingViewModel
             {
-                SeverityEmoji = f.Severity == ReentrancySeverity.Critical ? "🔴" : "⚠️",
-                Description = $"REENTRANCY: {f.Severity} — depth Δ {f.DepthDelta}",
-                Details = $"Target: {f.TargetContract} | re-entry step {f.ReentryStep}",
-                FileName = isBytecodeRun ? string.Empty : "Vault.sol",
-                LineNumber = isBytecodeRun ? 0 : 23,
-                StepIndex = f.ReentryStep
-            });
-        }
-
-        foreach (var c in collisions)
-        {
-            SecurityFindings.Add(new SecurityFindingViewModel
-            {
-                SeverityEmoji = "⚠️",
-                Description = $"STORAGE COLLISION: slot {c.CollidingSlot}",
-                Details = $"Proxy: {c.ProxyContract} | Impl: {c.ImplementationContract}",
-                FileName = isBytecodeRun ? string.Empty : "Proxy.sol",
-                LineNumber = isBytecodeRun ? 0 : 14,
-                StepIndex = c.StepIndex
+                SeverityEmoji = finding.Severity == SecuritySeverity.Critical ? "🔴" : finding.Severity == SecuritySeverity.Medium ? "⚠️" : "ℹ️",
+                Description = $"{finding.Category.ToString().ToUpperInvariant()}: {finding.Severity} — {finding.FactGrade}",
+                Details = $"{finding.Summary} | frame F{finding.PrimaryFrameId} | events {string.Join(",", finding.SupportingEventSequences)}",
+                FileName = string.Empty,
+                LineNumber = 0,
+                StepIndex = finding.InstructionId is >= 0 and <= int.MaxValue ? (int)finding.InstructionId.Value : 0
             });
         }
         
@@ -1378,8 +1366,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(WatermarkOpacity));
         CallTopology.LoadFromTrace(_currentTrace);
 
-        CriticalCount = reentrancy.Count(r => r.Severity == ReentrancySeverity.Critical);
-        WarningCount = collisions.Count + reentrancy.Count(r => r.Severity == ReentrancySeverity.Medium);
+        CriticalCount = journalFindings.Count(finding => finding.Severity == SecuritySeverity.Critical);
+        WarningCount = journalFindings.Count(finding => finding.Severity == SecuritySeverity.Medium);
 
         if (TotalSteps > 0)
         {
