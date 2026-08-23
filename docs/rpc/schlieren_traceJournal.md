@@ -71,7 +71,7 @@ The result has additive journal-derived sections:
 - `gasTree` is rebuilt exclusively from journal events. It never infers child gas by subtracting legacy inclusive traces.
 - `conservation.delta` is signed decimal `derivedGas - settledGas`. `isConserved` is true only when it is zero.
 - `stateEffects` contains analyzed typed effects with effect/instruction/frame identity and execution/persistence dispositions.
-- `securityFindings` is the proof-linked finding collection. It remains empty until a finding is proven by the journal-native analyzer.
+- `securityFindings` is the proof-linked finding collection. Each finding includes the server-assigned rule/category/severity/grade, primary frame and instruction, event sequences, complete frame ancestry, execution and persistence dispositions, affected addresses/slots, summary, and limitation.
 - `frameTree` is the authoritative server-built hierarchy. Nodes contain ordered ancestors, direct effect/finding IDs, and recursive children. React never rebuilds ancestry from `frames`.
 
 ## Gas semantics
@@ -89,6 +89,10 @@ Other explicit components are `precompile.execution`, `create.code-deposit`, `cr
 ## EELS alignment
 
 `JournalEelsAlignment.Project` maps journal steps to EIP-3155 fields: `pc`, `op`, `gas`, `gasCost`, `depth`, `stack`, `memory`, and `storage`. The comparer returns the first mismatching field plus journal `frameId`, sequence, PC, and opcode. The React Conformance view performs the same deterministic comparison against pasted EELS `structLogs`; the RPC server does not start or embed Python.
+
+## Security evidence
+
+Security analysis consumes validated `JournalAnalysis`, never a reconstructed depth stack. Reentrancy requires an explicit `CALL`/`CALLCODE` frame that re-enters an ancestor storage context plus a typed write. Delegate collision requires explicit `DELEGATECALL`/`CALLCODE` geometry, separate code/storage owners, and a typed write to slot zero or an EIP-1967 implementation/admin/beacon slot. Findings describe the observed path only; they do not claim universal exploitability.
 
 ## Errors and compatibility
 

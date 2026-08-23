@@ -78,11 +78,16 @@ The gas tree is rebuilt exclusively from journal events. CALL-family allocations
 Implemented state observations currently include:
 
 - persistent storage reads and writes;
-- transient storage reads and writes.
+- transient storage reads and writes;
+- balance transfers, including value movement and settlement transfers;
+- nonce changes with typed reasons;
+- code installation, replacement, and removal;
+- emitted logs with topics and data;
+- self-destruct intent, beneficiary transfer, and deletion eligibility.
 
 Persistent writes carry storage owner, slot, original value, previous value, requested value, warm/cold status, frame, PC, opcode, and instruction identity. Transient writes carry previous and requested values without adding remote state reads.
 
-The next implementation slice adds typed balance transfers, nonce changes, code lifecycle, logs, and self-destruct effects. These are not described as live until their focused behavior and parity tests pass.
+Mutable byte arrays and collections are defensively copied when recorded, so later machine mutation cannot rewrite evidence already in the journal.
 
 ## Server-derived RPC contract
 
@@ -104,7 +109,7 @@ Stack, memory, and storage snapshots are included by default and may be disabled
 
 A security finding must be a bounded claim about observed execution, not a claim that a contract is exploitable for every input. A complete finding links its primary frame and instruction to supporting journal sequences, ancestry, affected addresses/slots, execution disposition, persistence disposition, and an explicit limitation.
 
-Reverted evidence remains useful forensic evidence. It cannot be graded as a committed high-severity vulnerability. The journal-native analyzer is the only intended detector path; until its replacement tests pass and legacy detectors are removed, this capability remains in progress.
+Reverted evidence remains useful forensic evidence. It is graded informational and marked `Reverted` / `NotApplicable`, rather than presented as a committed high-severity vulnerability. `JournalSecurityAnalyzer` is the sole active reentrancy and delegate-storage-collision detector. The flat-trace batch/live detectors and synthetic detector demo have been removed.
 
 ## Implemented and verified on this branch
 
@@ -115,16 +120,13 @@ Reverted evidence remains useful forensic evidence. It cannot be graded as a com
 - frame checkpoints, deferred creation resolution, and transaction persistence;
 - validated state-effect disposition analysis;
 - persistent and transient storage events;
+- typed balance, nonce, code, log, and self-destruct effects;
 - additive state-effect DTOs and a server-built frame tree;
-- React traversal of the server-built tree with no TypeScript ancestry reconstruction.
+- proof-linked reentrancy and delegate-storage-collision findings;
+- React traversal of the server-built tree with no TypeScript ancestry or severity reconstruction;
+- EIP-3155 projection and deterministic first-divergence comparison with journal frame context;
+- journal-derived Avalonia and regression security consumers.
 
-## Remaining before the security architecture is complete
+## Verification boundary
 
-- account, code, log, and self-destruct state effects;
-- the sole journal-native reentrancy and storage-collision analyzer;
-- populated security-finding DTOs and React evidence presentation;
-- migration of remaining Avalonia/regression consumers;
-- deletion of active flat-trace security detectors;
-- final focused, EELS, React, and full-suite verification.
-
-No test count or zero-regression claim belongs in this document unless it is generated from a fresh recorded run in the same environment.
+The architecture is implemented. A release claim still requires fresh focused, EELS, React, and full-suite runs in the release environment. Missing external fixture directories and failures reproduced unchanged on the base branch must be reported separately from journal regressions. No test count or zero-regression claim belongs in this document unless generated from such a recorded run.

@@ -79,10 +79,11 @@ The primary UI makes one `schlieren_traceJournal` request per execution. Optiona
 - **Frame interferogram** — explicit parent/child frame IDs and child-owned opcode bands
 - **Exclusive gas topology** — additive charges, subtractive credits, non-additive CALL allocations/returns, explicit exceptional burns, and a conservation gate
 - **Machine state** — cursor-linked stack, memory, storage, gas-before/gas-after, opcode, and frame context
+- **Proof-linked security evidence** — server-graded reentrancy and delegate-storage findings linked to exact frames, instructions, effects, and rollback/persistence outcomes
 - **EELS alignment** — paste EIP-3155 `structLogs` and jump directly to the first PC/op/gas/depth divergence with journal-frame context
 
 See [`docs/rpc/schlieren_traceJournal.md`](docs/rpc/schlieren_traceJournal.md) for the complete request and gas semantics.
-See [`docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md`](docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md) for the journal evidence model, implemented status, and remaining security cutover.
+See [`docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md`](docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md) for the journal evidence model and verification boundary, and [`docs/security/JOURNAL_SECURITY_EVIDENCE.md`](docs/security/JOURNAL_SECURITY_EVIDENCE.md) for the security proof contract.
 
 ## Legacy Avalonia IDE (`Schlieren.UI`)
 
