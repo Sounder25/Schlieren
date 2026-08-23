@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.EELS.Tests.Harness;
 
 namespace Schlieren.EELS.Tests.Suites;
@@ -137,8 +138,8 @@ public sealed class PublishedRequiredStateTests
 
     private static string BuildTaxonomy(EelsCaseExecutionReport[] failed) =>
         string.Join(", ", failed
-            .SelectMany(f => f.Mismatches)
-            .GroupBy(ClassifyMismatch, StringComparer.Ordinal)
+            .SelectMany(f => f.Discrepancies ?? Array.Empty<StateDiscrepancy>())
+            .GroupBy(item => item.Category, StringComparer.Ordinal)
             .OrderByDescending(g => g.Count())
             .Select(g => $"{g.Key}:{g.Count()}"));
 
@@ -147,14 +148,4 @@ public sealed class PublishedRequiredStateTests
             .Take(count)
             .Select(f => $"  {f.CaseId}\n    {string.Join("\n    ", f.Mismatches.Take(4))}"));
 
-    private static string ClassifyMismatch(string mismatch)
-    {
-        if (mismatch.StartsWith("nonce mismatch",        StringComparison.Ordinal)) return "nonce";
-        if (mismatch.StartsWith("balance mismatch",      StringComparison.Ordinal)) return "balance";
-        if (mismatch.StartsWith("code mismatch",         StringComparison.Ordinal)) return "code";
-        if (mismatch.StartsWith("storage mismatch",      StringComparison.Ordinal)) return "storage";
-        if (mismatch.StartsWith("receipt.status mismatch", StringComparison.Ordinal)) return "receipt_status";
-        if (mismatch.StartsWith("missing account",       StringComparison.Ordinal)) return "missing_account";
-        return "other";
-    }
 }

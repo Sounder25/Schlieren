@@ -1,5 +1,7 @@
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Execution.Inspect;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Forks;
 using Schlieren.Core.Opcodes;
 using Schlieren.Core.Primitives;
@@ -15,28 +17,55 @@ public sealed class InspectionAssemblerTests
     private static readonly Address Coin = Address.FromHex(InspectGoldenCase.CoinbaseHex);
 
     [Fact]
-    public void FrontierCreateMismatches_AreProvenSurcharge()
+    public void MissingJournal_IsRejectedInsteadOfReconstructedFromTrace()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            InspectionAssembler.FromCanonical(
+                FrontierRequest([]),
+                ExecutionResult.Success(21_000)));
+
+        Assert.Contains("journal", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void LegacyMismatchStrings_AreDisplayOnlyAndCannotProveSurcharge()
     {
         var req = FrontierRequest(InspectGoldenCase.Mismatches);
-        var result = ExecutionResult.Success(53_000);
+        var result = WithJournal(ExecutionResult.Success(53_000));
 
         var inspect = InspectionAssembler.FromCanonical(req, result);
 
         Assert.True(inspect.Ok);
         Assert.Equal("Frontier", inspect.Fork);
         Assert.NotNull(inspect.Diagnosis?.Root);
-        Assert.Equal("TX.CREATE_SURCHARGE", inspect.Diagnosis!.Root!.RuleId);
-        Assert.Equal("PROVEN", inspect.Diagnosis.Root.Grade);
-        Assert.Contains("INTRINSIC", inspect.Diagnosis.Fingerprint, StringComparison.Ordinal);
+        Assert.Equal("POSSIBLE", inspect.Diagnosis!.Root!.Grade);
         Assert.NotNull(inspect.GasTree);
         Assert.StartsWith("0x", inspect.Execution.GasUsed);
+    }
+
+    [Fact]
+    public void TypedFeePair_ProvesFrontierCreateSurcharge()
+    {
+        var request = FrontierRequest(InspectGoldenCase.Mismatches) with
+        {
+            Discrepancies =
+            [
+                Balance(Sender, 1_000_000, 680_000),
+                Balance(Coin, 0, 320_000)
+            ]
+        };
+
+        var inspect = InspectionAssembler.FromCanonical(request, WithJournal(ExecutionResult.Success(53_000)));
+
+        Assert.Equal("TX.CREATE_SURCHARGE", inspect.Diagnosis!.Root!.RuleId);
+        Assert.Equal("PROVEN", inspect.Diagnosis.Root.Grade);
     }
 
     [Fact]
     public void NoMismatches_IsNotProven()
     {
         var req = FrontierRequest([]);
-        var result = ExecutionResult.Success(21_000);
+        var result = WithJournal(ExecutionResult.Success(21_000));
         var inspect = InspectionAssembler.FromCanonical(req, result);
         Assert.NotEqual("PROVEN", inspect.Diagnosis?.Root?.Grade);
     }
@@ -45,7 +74,7 @@ public sealed class InspectionAssemblerTests
     public void DisableStack_EmptiesStack()
     {
         var req = FrontierRequest([]) with { DisableStack = true };
-        var result = ExecutionResult.Success(21_000, traceSteps: new List<ExecutionTraceStep>
+        var result = WithJournal(ExecutionResult.Success(21_000, traceSteps: new List<ExecutionTraceStep>
         {
             new()
             {
@@ -55,7 +84,7 @@ public sealed class InspectionAssemblerTests
                 GasCost = "0x3",
                 Stack = new List<string> { "0x1" }
             }
-        });
+        }));
 
         var inspect = InspectionAssembler.FromCanonical(req, result);
         Assert.Single(inspect.Trace.StructLogs);
@@ -81,7 +110,8 @@ public sealed class InspectionAssemblerTests
             GasLimit = 100_000,
             Data = Convert.FromHexString(InspectGoldenCase.InitcodeHex[2..]),
             Authorization = TransactionAuthorization.Simulation,
-            EnableTracing = true
+            EnableTracing = true,
+            EnableJournal = true
         };
         var block = new BlockContext
         {
@@ -92,7 +122,17 @@ public sealed class InspectionAssemblerTests
 
         var result = await st.ApplyTransactionAsync(tx, state, block, commit: false);
         var inspect = InspectionAssembler.FromCanonical(
-            new InspectRequest { Tx = tx, Block = block, Mismatches = InspectGoldenCase.Mismatches },
+            new InspectRequest
+            {
+                Tx = tx,
+                Block = block,
+                Mismatches = InspectGoldenCase.Mismatches,
+                Discrepancies =
+                [
+                    Balance(sender, 1_000_000, 680_000),
+                    Balance(coin, 0, 320_000)
+                ]
+            },
             result);
 
         Assert.True(inspect.Ok);
@@ -122,5 +162,25 @@ public sealed class InspectionAssemblerTests
             GasLimit = 30_000_000
         };
         return new InspectRequest { Tx = tx, Block = block, Mismatches = mismatches };
+    }
+
+    private static StateDiscrepancy Balance(Address address, long expected, long actual) => new()
+    {
+        Kind = DiscrepancyKind.Balance,
+        Address = address,
+        ExpectedNumber = expected,
+        ActualNumber = actual
+    };
+
+    private static ExecutionResult WithJournal(ExecutionResult result)
+    {
+        var journal = new ExecutionJournal();
+        journal.Record(new IntrinsicGasChargedEvent { Amount = result.GasUsed });
+        journal.Record(new TransactionSettledEvent
+        {
+            ChargedGas = result.GasUsed,
+            UnusedGasReturned = 0
+        });
+        return result with { Journal = journal };
     }
 }

@@ -24,7 +24,7 @@ export function CaseBar() {
       <div className="case-field">
         <span className="case-label">STEP</span>
         <span className="case-value highlight">
-          {totalSteps > 0 ? `${currentStep + 1} / ${totalSteps}` : '— / —'}
+          {totalSteps > 0 ? `${currentStep + 1} / ${totalSteps} · F${step?.frameId}` : '— / —'}
         </span>
       </div>
       <div className="case-separator" />

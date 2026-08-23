@@ -22,6 +22,7 @@ public abstract class LogOpcodeBase : IOpcode
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
         var topics = new List<string>(TopicCount);
+        var topicValues = new List<BigInteger>(TopicCount);
         for (int i = 0; i < TopicCount; i++)
         {
             if (!context.Stack.TryPop(out var topic))
@@ -31,6 +32,7 @@ public abstract class LogOpcodeBase : IOpcode
             var hex = topic.ToString("x");
             if (hex.Length > 64) hex = hex[^64..];
             topics.Add("0x" + hex.PadLeft(64, '0'));
+            topicValues.Add(topic);
         }
 
         var offsetInt = offset > int.MaxValue ? int.MaxValue : (int)offset;
@@ -52,6 +54,7 @@ public abstract class LogOpcodeBase : IOpcode
         };
 
         context.Logs.Add(log);
+        context.RecordLog(topicValues, data);
 
         ulong gas = 375 + (ulong)(375 * TopicCount) + (ulong)(8 * lengthInt) + expansionGas;
 

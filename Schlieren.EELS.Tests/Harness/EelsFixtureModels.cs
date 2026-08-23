@@ -1,5 +1,6 @@
 using System.Numerics;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 
@@ -45,4 +46,5 @@ public sealed record EelsCaseExecutionReport(
     IReadOnlyList<string> Mismatches,
     EvmError Error = EvmError.None,
     string? LastOpcode = null,
-    int LastPc = 0);
+    int LastPc = 0,
+    IReadOnlyList<StateDiscrepancy>? Discrepancies = null);

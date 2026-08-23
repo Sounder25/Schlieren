@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 using Schlieren.EELS.Tests.Harness;
@@ -99,8 +100,8 @@ public static class EelsBalanceAuditor
             var executor = new EelsStateFixtureExecutor();
             var report = await executor.ExecuteAsync(testCase, innerCt);
 
-            var balanceErrors = report.Mismatches
-                .Where(m => m.StartsWith("balance mismatch", StringComparison.Ordinal))
+            var balanceErrors = (report.Discrepancies ?? Array.Empty<StateDiscrepancy>())
+                .Where(item => item.Kind == DiscrepancyKind.Balance)
                 .ToList();
 
             if (balanceErrors.Count == 0)
@@ -159,23 +160,22 @@ public static class EelsBalanceAuditor
     private static LedgerAuditRow AuditLedger(
         EelsStateCase testCase,
         EelsCaseExecutionReport executionReport,
-        string mismatch)
+        StateDiscrepancy discrepancy)
     {
         var tx    = testCase.Transaction;
         var block = testCase.BlockContext;
 
-        // ── Parse fixture mismatch for expected/actual ───────────────
-        var expectedBalance = ParseHexFromMismatch(mismatch, "expected") ?? BigInteger.Zero;
-        var actualBalance   = ParseHexFromMismatch(mismatch, "actual")   ?? BigInteger.Zero;
-        var address         = ParseAddressFromMismatch(mismatch) ?? tx.From.ToString()!;
+        var expectedBalance = discrepancy.ExpectedNumber ?? BigInteger.Zero;
+        var actualBalance   = discrepancy.ActualNumber ?? BigInteger.Zero;
+        var addressValue    = discrepancy.Address ?? tx.From;
+        var address         = addressValue.ToString();
 
         // ── Term 0: pre-state balance ─────────────────────────────────
         BigInteger preBalance = BigInteger.Zero;
         if (testCase.PreState.TryGetValue(tx.From, out var senderPreAcct))
             preBalance = senderPreAcct.Balance;
         // If mismatch is on a different account (coinbase, recipient), use fixture pre-state
-        var addrParsed = TryParseAddress(address);
-        if (addrParsed.HasValue && testCase.PreState.TryGetValue(addrParsed.Value, out var addrPreAcct))
+        if (testCase.PreState.TryGetValue(addressValue, out var addrPreAcct))
             preBalance = addrPreAcct.Balance;
 
         // ── Effective gas price (EIP-1559 §6.2) ──────────────────────
@@ -255,7 +255,7 @@ public static class EelsBalanceAuditor
         var delta = actualBalance - expectedBalance;
 
         // Coinbase Fee Routing fault check
-        if (addrParsed.HasValue && addrParsed.Value.Equals(block.Coinbase))
+        if (addressValue.Equals(block.Coinbase))
         {
             var cbDelta = actualBalance - expectedCoinbaseBalance;
             if (cbDelta != 0)
@@ -523,38 +523,6 @@ public static class EelsBalanceAuditor
     // Helpers
     // ------------------------------------------------------------------
 
-    private static BigInteger? ParseHexFromMismatch(string mismatch, string key)
-    {
-        var m = System.Text.RegularExpressions.Regex.Match(
-            mismatch, key + @"=(\S+)");
-        if (!m.Success) return null;
-        return TryParseHex(m.Groups[1].Value.TrimEnd(',', ';', '.'));
-    }
-
-    private static string? ParseAddressFromMismatch(string mismatch)
-    {
-        var m = System.Text.RegularExpressions.Regex.Match(
-            mismatch, @"for (0x[0-9a-fA-F]{20,40})");
-        return m.Success ? m.Groups[1].Value : null;
-    }
-
-    private static Address? TryParseAddress(string? s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return null;
-        try { return Address.FromHex(s); } catch { return null; }
-    }
-
-    private static BigInteger? TryParseHex(string s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return null;
-        try
-        {
-            if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-                return BigInteger.Parse("0" + s[2..], System.Globalization.NumberStyles.HexNumber);
-            return BigInteger.Parse(s);
-        }
-        catch { return null; }
-    }
 }
 
 // ---------------------------------------------------------------------------

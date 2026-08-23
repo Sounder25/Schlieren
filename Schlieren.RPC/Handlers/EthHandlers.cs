@@ -6,6 +6,7 @@ using Schlieren.RPC.Models;
 using Schlieren.Core.Models;
 using Schlieren.Core.State;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.Configuration;
 using Schlieren.Core.Forks;
@@ -105,7 +106,7 @@ public sealed class EthHandlers
             ? ToUlongChecked(ParseHexQuantityElement(nonceProp, "nonce"), "nonce")
             : await _globalState.GetNonceAsync(tx.From, ct);
 
-        var intrinsicGas = ComputeIntrinsicGas(tx);
+        var intrinsicGas = IntrinsicGas.Compute(tx, blockContext.Rules);
         var upper = tx.GasLimit == 0 ? blockContext.GasLimit : Math.Min(tx.GasLimit, blockContext.GasLimit);
         if (upper < intrinsicGas)
             throw new RpcException(JsonRpcErrorCodes.ExecutionError, $"Unable to estimate gas: provided gas cap {upper} below intrinsic gas {intrinsicGas}");
@@ -1143,6 +1144,7 @@ public sealed class EthHandlers
         // Build transaction from request
         var tx = BuildCallTransaction(requestObj.Value, blockContext.GasLimit);
         tx.EnableTracing = true;
+        tx.EnableJournal = true;
         tx.Nonce = requestObj.Value.TryGetProperty("nonce", out var nonceProp)
             ? ToUlongChecked(ParseHexQuantityElement(nonceProp, "nonce"), "nonce")
             : await _globalState.GetNonceAsync(tx.From, ct);
@@ -1198,6 +1200,63 @@ public sealed class EthHandlers
         var inspectResult = Core.Execution.Inspect.InspectionAssembler.FromCanonical(inspectRequest, result);
 
         return inspectResult;
+    }
+
+    public async Task<object> HandleTraceJournal(object[] parameters, CancellationToken ct = default)
+    {
+        var request = JournalTraceRequestParser.Parse(parameters, _chainState.CurrentBlock.GasLimit);
+        BlockContext blockContext;
+        try
+        {
+            var current = _chainState.CurrentBlock;
+            blockContext = new BlockContext
+            {
+                ChainId = _chainState.ChainId,
+                Number = current.Number,
+                Timestamp = current.Timestamp,
+                GasLimit = current.GasLimit,
+                Difficulty = current.Difficulty,
+                BaseFeePerGas = current.BaseFeePerGas,
+                Coinbase = string.IsNullOrEmpty(current.Miner)
+                    ? Address.Zero
+                    : Address.FromHex(current.Miner),
+                Rules = ForkRulesFactory.For(request.Fork)
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException)
+        {
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid fork '{request.Fork}'");
+        }
+
+        var executionState = new StateOverlay(_globalState);
+        if (request.Code is not null)
+            executionState.SetCode(request.To, request.Code);
+        var transaction = new Transaction
+        {
+            From = request.From,
+            To = request.To,
+            GasLimit = request.Gas,
+            GasPrice = request.GasPrice,
+            Value = request.Value,
+            Data = request.Data,
+            Nonce = request.Nonce ?? await _globalState.GetNonceAsync(request.From, ct),
+            Authorization = TransactionAuthorization.Simulation,
+            EnableTracing = false,
+            EnableJournal = true
+        };
+        var result = await _stateTransition.ApplyTransactionAsync(
+            transaction,
+            executionState,
+            blockContext,
+            commit: false,
+            ct: ct);
+        return JournalTraceAssembler.FromCanonical(
+            request.Fork,
+            result,
+            new JournalTraceOptions(
+                request.DisableStack,
+                request.DisableMemory,
+                request.DisableStorage));
     }
 
     public async Task<object> HandleDebugWhyNot(object[] parameters, CancellationToken ct = default)
@@ -1274,7 +1333,7 @@ public sealed class EthHandlers
 
         senderBalance = await _globalState.GetBalanceAsync(tx.From, ct);
         senderNonce = await _globalState.GetNonceAsync(tx.From, ct);
-        intrinsicGas = ComputeIntrinsicGas(tx);
+        intrinsicGas = IntrinsicGas.Compute(tx, blockContext.Rules);
 
         var result = await _stateTransition.ApplyTransactionAsync(
             tx,
@@ -1447,27 +1506,6 @@ public sealed class EthHandlers
             Authorization = source.Authorization,
             EnableTracing = source.EnableTracing
         };
-    }
-
-    private static ulong ComputeIntrinsicGas(Transaction tx)
-    {
-        const ulong txBase = 21_000;
-        const ulong zeroByteCost = 4;
-        const ulong nonZeroByteCost = 16;
-        const ulong createCost = 32_000;
-
-        ulong gas = txBase;
-        if (tx.To == null)
-        {
-            checked { gas += createCost; }
-        }
-
-        foreach (var b in tx.Data)
-        {
-            checked { gas += b == 0 ? zeroByteCost : nonZeroByteCost; }
-        }
-
-        return gas;
     }
 
     private static string ParseHexGasCostAsDecimal(string gasCostHex)

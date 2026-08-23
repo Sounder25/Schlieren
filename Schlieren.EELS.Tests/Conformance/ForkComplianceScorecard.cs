@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Schlieren.Core.Execution.Causal;
 using Schlieren.EELS.Tests.Harness;
 
 namespace Schlieren.EELS.Tests.Conformance;
@@ -63,8 +64,8 @@ public static class ForkComplianceScorecard
 
             var failed = reports.Where(r => !r.StateMatches || !r.ReceiptStatusMatches).ToArray();
             var taxonomy = failed
-                .SelectMany(r => r.Mismatches)
-                .GroupBy(ClassifyMismatch, StringComparer.Ordinal)
+                .SelectMany(r => r.Discrepancies ?? Array.Empty<StateDiscrepancy>())
+                .GroupBy(item => item.Category, StringComparer.Ordinal)
                 .OrderByDescending(g => g.Count())
                 .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
@@ -188,22 +189,7 @@ public static class ForkComplianceScorecard
         await File.WriteAllTextAsync(outputPath, RenderMarkdown(report), Encoding.UTF8, ct);
     }
 
-    public static string ClassifyMismatch(string mismatch)
-    {
-        if (mismatch.StartsWith("nonce mismatch", StringComparison.Ordinal))
-            return "nonce";
-        if (mismatch.StartsWith("balance mismatch", StringComparison.Ordinal))
-            return "balance";
-        if (mismatch.StartsWith("code mismatch", StringComparison.Ordinal))
-            return "code";
-        if (mismatch.StartsWith("storage mismatch", StringComparison.Ordinal))
-            return "storage";
-        if (mismatch.StartsWith("receipt.status mismatch", StringComparison.Ordinal))
-            return "receipt_status";
-        if (mismatch.StartsWith("missing account", StringComparison.Ordinal))
-            return "missing_account";
-        return "other";
-    }
+    public static string ClassifyMismatch(StateDiscrepancy discrepancy) => discrepancy.Category;
 }
 
 public sealed record ForkScoreRow(

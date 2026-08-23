@@ -33,6 +33,7 @@ public sealed class OpcodeSload : IOpcode
             context.OriginalStorageValues[slotKey] = value;
 
         context.TraceStorageRead(key, value);
+        context.RecordStorageRead(key, value, isWarm);
 
         if (!context.Stack.TryPush(value))
             return (ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1);
@@ -85,6 +86,7 @@ public sealed class OpcodeSstore : IOpcode
         context.GasRefundCounter += refundDelta;
         context.Storage.Store(key, value);
         context.TraceStorageWrite(key, value);
+        context.RecordStorageWrite(key, originalValue, currentValue, value, isWarm);
 
         return (ExecutionResult.Success(totalCost), context.ProgramCounter + 1);
     }
@@ -106,6 +108,7 @@ public sealed class OpcodeTload : IOpcode
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
         var value = context.LoadTransientStorage(key);
+        context.RecordTransientStorageRead(key, value);
         if (!context.Stack.TryPush(value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackOverflow), context.ProgramCounter + 1));
 
@@ -131,7 +134,9 @@ public sealed class OpcodeTstore : IOpcode
         if (!context.Stack.TryPop(out var key) || !context.Stack.TryPop(out var value))
             return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Failure(EvmError.StackUnderflow), context.ProgramCounter + 1));
 
+        var previous = context.LoadTransientStorage(key);
         context.StoreTransientStorage(key, value);
+        context.RecordTransientStorageWrite(key, previous, value);
         return new ValueTask<(ExecutionResult, int)>((ExecutionResult.Success(100), context.ProgramCounter + 1));
     }
 }

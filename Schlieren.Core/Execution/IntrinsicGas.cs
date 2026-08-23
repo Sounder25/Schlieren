@@ -45,10 +45,6 @@ public static class IntrinsicGas
         return tx.GasLimit >= intrinsic;
     }
 
-    /// <summary>Legacy overload — uses Prague rules (backward compat).</summary>
-    public static bool TryCompute(Transaction tx, out ulong intrinsic)
-        => TryCompute(tx, ForkRulesFactory.Latest, out intrinsic);
-
     /// <summary>
     /// Returns the intrinsic gas for <paramref name="tx"/> under the given fork rules.
     /// </summary>
@@ -91,7 +87,4 @@ public static class IntrinsicGas
         }
     }
 
-    /// <summary>Legacy overload — uses Prague rules (backward compat).</summary>
-    public static ulong Compute(Transaction tx)
-        => Compute(tx, ForkRulesFactory.Latest);
 }

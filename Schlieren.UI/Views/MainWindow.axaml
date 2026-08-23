@@ -153,7 +153,6 @@
       </MenuItem>
       <MenuItem Header="_EVM Engine" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif">
         <MenuItem Header="Run Bytecode (Live EVM)"     Command="{Binding RunBytecodeCommand}"    InputGesture="F5"/>
-        <MenuItem Header="Synthetic Detector Demo..."  Command="{Binding RunSyntheticDemoCommand}"/>
       </MenuItem>
       <MenuItem Header="_View" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif" Name="ViewMenuRoot">
         <MenuItem Header="Workbench"   Click="OnWorkbenchViewClick" InputGesture="Ctrl+1"/>

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Opcodes;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
@@ -27,7 +28,7 @@ public sealed class Eip7610CreateCollisionTests
             ContractAddress = Creator,
             GlobalState = state,
             GasLimit = 1_000_000,
-            SubCall = async (tx, isStatic, creation, codeAddr) =>
+            SubCall = async (tx, _, isStatic, creation, codeAddr) =>
             {
                 // Minimal successful create frame: empty runtime code, no gas use.
                 if (creation.HasValue)
@@ -123,6 +124,7 @@ public sealed class Eip7610CreateCollisionTests
             Data = Array.Empty<byte>(),
             TxType = 0,
             Authorization = TransactionAuthorization.Impersonated,
+            EnableJournal = true,
         };
 
         var block = new BlockContext
@@ -145,6 +147,10 @@ public sealed class Eip7610CreateCollisionTests
         // All post-intrinsic gas consumed on AddressCollision
         Assert.True(result.GasUsed >= 21_000UL);
         Assert.Equal(0UL, await state.GetNonceAsync(dest));
+        var collision = Assert.Single(result.Journal!.Events.OfType<GasComponentEvent>(),
+            entry => entry.Component == GasComponents.TransactionCollisionBurn);
+        Assert.Equal(GasSemantics.ExceptionalBurn, collision.Semantics);
+        Assert.Equal(GasComponentScope.Transaction, collision.Scope);
     }
 
     [Fact]

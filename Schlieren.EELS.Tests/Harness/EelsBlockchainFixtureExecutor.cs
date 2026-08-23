@@ -1,4 +1,6 @@
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Causal;
+using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
 
 namespace Schlieren.EELS.Tests.Harness;
@@ -29,7 +31,7 @@ public sealed class EelsBlockchainFixtureExecutor
             }
         }
 
-        var mismatches = new List<string>();
+        var discrepancies = new List<StateDiscrepancy>();
         bool lastSuccess = true;
         ulong lastGas = 0;
         long lastRefund = 0;
@@ -60,15 +62,25 @@ public sealed class EelsBlockchainFixtureExecutor
                         var rec = block.Receipts[i];
                         if (rec.Status.HasValue && rec.Status.Value != result.IsSuccess)
                         {
-                            mismatches.Add(
-                                $"receipt.status mismatch tx[{i}]: expected={rec.Status.Value}, actual={result.IsSuccess}");
+                            discrepancies.Add(new StateDiscrepancy
+                            {
+                                Kind = DiscrepancyKind.ReceiptStatus,
+                                ExpectedBoolean = rec.Status.Value,
+                                ActualBoolean = result.IsSuccess,
+                                Detail = $"tx[{i}]"
+                            });
                         }
 
                         if (rec.CumulativeGasUsed.HasValue && rec.CumulativeGasUsed.Value != result.GasUsed &&
                             block.Transactions.Count == 1)
                         {
-                            mismatches.Add(
-                                $"receipt.gasUsed mismatch tx[{i}]: expected={rec.CumulativeGasUsed.Value}, actual={result.GasUsed}");
+                            discrepancies.Add(new StateDiscrepancy
+                            {
+                                Kind = DiscrepancyKind.ReceiptGasUsed,
+                                ExpectedNumber = rec.CumulativeGasUsed.Value,
+                                ActualNumber = result.GasUsed,
+                                Detail = $"tx[{i}]"
+                            });
                         }
                     }
                 }
@@ -83,7 +95,7 @@ public sealed class EelsBlockchainFixtureExecutor
         {
             boom = ex;
             lastSuccess = false;
-            mismatches.Add($"Unhandled engine exception: {ex.GetType().Name}: {ex.Message}");
+            discrepancies.Add(new StateDiscrepancy { Kind = DiscrepancyKind.EngineException, Detail = $"{ex.GetType().Name}: {ex.Message}" });
         }
 
         var dummy = new EelsStateCase(
@@ -97,13 +109,13 @@ public sealed class EelsBlockchainFixtureExecutor
             testCase.ExpectedPostState,
             null);
 
-        var stateMatches = EelsStateFixtureExecutor.CompareExpectedState(dummy, state, mismatches);
+        _ = EelsStateFixtureExecutor.CompareExpectedState(dummy, state, discrepancies);
         // EELS process_system_transaction does not persist SYSTEM_ADDRESS in postState.
-        mismatches.RemoveAll(m =>
-            m.Contains("0xfffffffffffffffffffffffffffffffffffffffe", StringComparison.OrdinalIgnoreCase));
-        stateMatches = !mismatches.Any(m =>
-            !m.StartsWith("receipt.", StringComparison.Ordinal));
-        var receiptMatches = !mismatches.Any(m => m.StartsWith("receipt.", StringComparison.Ordinal));
+        var systemAddress = Address.FromHex("0xfffffffffffffffffffffffffffffffffffffffe");
+        discrepancies.RemoveAll(item => item.Address == systemAddress);
+        var stateMatches = !discrepancies.Any(item => item.Kind is not DiscrepancyKind.ReceiptStatus and not DiscrepancyKind.ReceiptGasUsed);
+        var receiptMatches = !discrepancies.Any(item => item.Kind is DiscrepancyKind.ReceiptStatus or DiscrepancyKind.ReceiptGasUsed);
+        var mismatches = discrepancies.Select(item => item.Render()).ToArray();
 
         return new EelsCaseExecutionReport(
             testCase.CaseId,
@@ -112,6 +124,7 @@ public sealed class EelsBlockchainFixtureExecutor
             lastRefund,
             stateMatches,
             receiptMatches,
-            mismatches);
+            mismatches,
+            Discrepancies: discrepancies);
     }
 }

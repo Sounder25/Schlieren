@@ -1,9 +1,9 @@
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Forks;
 using Schlieren.Core.Opcodes;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.State;
-using Schlieren.UI.Services;
 
 namespace Schlieren.Tests.Execution;
 
@@ -12,19 +12,29 @@ public sealed class GasTraceInvariantTests
     [Fact]
     public async Task CanonicalGasTree_TotalGasEqualsChargedGas()
     {
-        var run = await BytecodeExecutionService.RunAsync(
-            "600560030160005260206000f3",
-            new BytecodeRunOptions
+        var state = new GlobalState();
+        var target = Address.FromHex("0x9100000000000000000000000000000000000001");
+        state.SetCode(target, Convert.FromHexString("600560030160005260206000F3"));
+        var result = await new StateTransition(new EvmMachine(
+        [
+            new OpcodePush1(), new OpcodeAdd(), new OpcodeMstore(), new OpcodeReturn()
+        ])).ApplyTransactionAsync(
+            new Transaction
             {
-                ForkLabel = "Osaka",
-                GasLimit = 100_000
-            });
+                To = target,
+                GasLimit = 100_000,
+                Authorization = TransactionAuthorization.Internal,
+                EnableJournal = true
+            },
+            state,
+            new BlockContext { Rules = ForkRulesFactory.For("Osaka") },
+            commit: false);
 
-        Assert.NotNull(run);
-        Assert.True(run.Result.IsSuccess);
-        Assert.NotNull(run.GasTree);
+        Assert.True(result.IsSuccess);
+        var tree = JournalGasTree.Build(result.Journal!, result);
 
-        Assert.Equal(run.Result.GasUsed, run.GasTree.TotalGas);
+        Assert.True(tree.Conservation.IsConserved, tree.Conservation.Delta);
+        Assert.Equal(result.GasUsed, tree.Conservation.DerivedGas);
     }
 
     [Fact]
@@ -66,7 +76,8 @@ public sealed class GasTraceInvariantTests
             GasLimit = 200_000,
             GasPrice = 1,
             Authorization = TransactionAuthorization.Internal,
-            EnableTracing = true
+            EnableTracing = true,
+            EnableJournal = true
         };
         var block = new BlockContext
         {
@@ -79,10 +90,11 @@ public sealed class GasTraceInvariantTests
         Assert.True(result.IsSuccess);
         Assert.Contains(result.TraceSteps, step => step.Depth == 2);
 
-        var frames = GasTreeFromTrace.BuildFrames(result.TraceSteps, "root");
-        var child = Assert.Single(frames.Children);
+        var tree = JournalGasTree.Build(result.Journal!, result);
+        var rootFrame = Assert.Single(tree.Root.Children, node => node.Id.StartsWith("frame-"));
+        var child = Assert.Single(rootFrame.Children, node => node.Id.StartsWith("frame-"));
 
-        Assert.Contains(child.OpcodeSteps, step => step.op == "SSTORE");
-        Assert.DoesNotContain(frames.OpcodeSteps, step => step.op == "SSTORE");
+        Assert.Contains(child.Children, node => node.Label.Contains("SSTORE"));
+        Assert.DoesNotContain(rootFrame.Children, node => node.Label.Contains("SSTORE"));
     }
 }

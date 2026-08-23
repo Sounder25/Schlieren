@@ -1,9 +1,69 @@
-import { useAppStore } from '../../engine/store';
+import { buildSecurityRows, findSecurityFindingStepIndex } from '../../engine/journal-view';
+import { useAppStore, type ExecutionResult, type JournalSecurityFinding } from '../../engine/store';
 import './Diagnostics.css';
+
+export function SecurityFindings({
+  result,
+  onFocus,
+}: {
+  result: ExecutionResult | null;
+  onFocus: (finding: JournalSecurityFinding) => void;
+}) {
+  if (!result) {
+    return (
+      <p className="diag-idle-note">
+        Security analysis runs automatically on execution and links each finding to journal evidence.
+      </p>
+    );
+  }
+
+  const findings = buildSecurityRows(result.frameTree, result.securityFindings);
+  if (findings.length === 0)
+    return <span className="diag-empty-note">No findings in this execution</span>;
+
+  return (
+    <div className="diag-findings">
+      {findings.map((finding) => (
+        <button
+          className={`diag-finding severity-${finding.severity.toLowerCase()}`}
+          key={finding.id}
+          onClick={() => onFocus(finding)}
+          type="button"
+        >
+          <span className="diag-finding-header">
+            <span className="diag-finding-rule">{finding.ruleId.split('.').pop()}</span>
+            <span className="diag-finding-severity">{finding.severity.toUpperCase()}</span>
+          </span>
+          <span className="diag-finding-summary">{finding.summary}</span>
+          <span className="diag-finding-evidence">
+            Frame {finding.primaryFrameId} · {finding.executionDisposition} · {finding.persistenceDisposition}
+          </span>
+          {finding.addresses.length > 0 && (
+            <span className="diag-finding-evidence">Addresses: {finding.addresses.join(', ')}</span>
+          )}
+          {finding.storageSlots.length > 0 && (
+            <span className="diag-finding-evidence">Slots: {finding.storageSlots.join(', ')}</span>
+          )}
+          <span className="diag-finding-evidence">
+            {finding.supportingEventSequences.length} evidence event{finding.supportingEventSequences.length === 1 ? '' : 's'}
+          </span>
+          <span className="diag-finding-limitation">{finding.limitation}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function Diagnostics() {
   const result = useAppStore((s) => s.result);
   const connected = useAppStore((s) => s.connected);
+  const setCurrentStep = useAppStore((s) => s.setCurrentStep);
+
+  const focusFinding = (finding: JournalSecurityFinding) => {
+    if (!result) return;
+    const index = findSecurityFindingStepIndex(finding, result.events, result.steps);
+    if (index !== null) setCurrentStep(index);
+  };
 
   return (
     <div className="diagnostics-pane">
@@ -52,15 +112,7 @@ export function Diagnostics() {
             <span className="diag-section-title">Security Findings</span>
           </header>
           <div className="diag-section-body">
-            {!result ? (
-              <p className="diag-idle-note">
-                OpSec analysis runs automatically on execution.
-                Detects unchecked returns, storage from calldata,
-                reentrancy patterns, and gas griefing vectors.
-              </p>
-            ) : (
-              <span className="diag-empty-note">No findings in this execution</span>
-            )}
+            <SecurityFindings result={result} onFocus={focusFinding} />
           </div>
         </section>
 

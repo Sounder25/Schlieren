@@ -43,7 +43,7 @@ public class DebugInspectRpcTests
     }
 
     [Fact]
-    public async Task DebugInspect_GoldenCase_FrontierCreateWithFeePairMismatch_ProvenDiagnosis()
+    public async Task DebugInspect_LegacyMismatchStrings_CannotManufactureProvenDiagnosis()
     {
         // J1: Use shared InspectGoldenCase constants (no duplication)
         var (globalState, handlers) = BuildFixture();
@@ -59,17 +59,16 @@ public class DebugInspectRpcTests
         using var doc = JsonDocument.Parse(response);
         var result = doc.RootElement.GetProperty("result");
         
-        // J3: Assert fee-pair PROVEN diagnosis
+        // Legacy strings remain accepted and returned through the same JSON contract,
+        // but are presentation text rather than machine evidence.
         Assert.True(result.TryGetProperty("diagnosis", out var diagnosis));
         Assert.True(diagnosis.TryGetProperty("root", out var root));
         
-        // Must be PROVEN with fee-pair mismatch
-        Assert.Equal("TX.CREATE_SURCHARGE", root.GetProperty("ruleId").GetString());
-        Assert.Equal("PROVEN", root.GetProperty("grade").GetString());
+        Assert.NotEqual("PROVEN", root.GetProperty("grade").GetString());
         
         // Should have gas delta
         Assert.True(root.TryGetProperty("gasDelta", out var gasDelta));
-        Assert.Equal(32000, gasDelta.GetInt64());
+        Assert.True(gasDelta.ValueKind is JsonValueKind.Number or JsonValueKind.Null);
     }
 
     [Fact]

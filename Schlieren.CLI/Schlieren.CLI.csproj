@@ -11,6 +11,11 @@
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Preserved design source; no registered command or supporting Ethereum client/model implementation exists yet. -->
+    <Compile Remove="Commands\ImportTxCommand.cs" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
