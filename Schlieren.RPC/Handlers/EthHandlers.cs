@@ -106,7 +106,7 @@ public sealed class EthHandlers
             ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
             : await _globalState.GetNonceAsync(tx.From, ct);
 
-        var intrinsicGas = ComputeIntrinsicGas(tx);
+        var intrinsicGas = IntrinsicGas.Compute(tx, blockContext.Rules);
         var upper = tx.GasLimit == 0 ? blockContext.GasLimit : Math.Min(tx.GasLimit, blockContext.GasLimit);
         if (upper < intrinsicGas)
             throw new RpcException(JsonRpcErrorCodes.ExecutionError, $"Unable to estimate gas: provided gas cap {upper} below intrinsic gas {intrinsicGas}");
@@ -1316,7 +1316,7 @@ public sealed class EthHandlers
 
         senderBalance = await _globalState.GetBalanceAsync(tx.From, ct);
         senderNonce = await _globalState.GetNonceAsync(tx.From, ct);
-        intrinsicGas = ComputeIntrinsicGas(tx);
+        intrinsicGas = IntrinsicGas.Compute(tx, blockContext.Rules);
 
         var result = await _stateTransition.ApplyTransactionAsync(
             tx,
@@ -1479,27 +1479,6 @@ public sealed class EthHandlers
             Authorization = source.Authorization,
             EnableTracing = source.EnableTracing
         };
-    }
-
-    private static ulong ComputeIntrinsicGas(Transaction tx)
-    {
-        const ulong txBase = 21_000;
-        const ulong zeroByteCost = 4;
-        const ulong nonZeroByteCost = 16;
-        const ulong createCost = 32_000;
-
-        ulong gas = txBase;
-        if (tx.To == null)
-        {
-            checked { gas += createCost; }
-        }
-
-        foreach (var b in tx.Data)
-        {
-            checked { gas += b == 0 ? zeroByteCost : nonZeroByteCost; }
-        }
-
-        return gas;
     }
 
     private static string ParseHexGasCostAsDecimal(string gasCostHex)

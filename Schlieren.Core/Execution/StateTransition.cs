@@ -688,7 +688,7 @@ public sealed class StateTransition : IStateTransition
         foreach (var b in tx.Data)
             calldataGas += b == 0 ? 4UL : 16UL;
 
-        var intrinsicGas = IntrinsicGas.Compute(tx);
+        var intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
 
         // Root frame — the top-level call.
         var rootFrame = new GasFrameNode
