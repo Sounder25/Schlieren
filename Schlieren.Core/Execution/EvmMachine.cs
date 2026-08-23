@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Numerics;
 using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution
@@ -39,6 +40,9 @@ namespace Schlieren.Core.Execution
                 var pc = context.ProgramCounter;
                 var opcodeByte = context.Code[pc];
                 var gasBefore = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+                IReadOnlyList<BigInteger>? preStack = context.CaptureTrace || context.Journal is not null
+                    ? context.Stack.SnapshotTopFirst()
+                    : null;
 
                 if (!_opcodes.TryGetValue(opcodeByte, out var opcode))
                 {
@@ -63,8 +67,6 @@ namespace Schlieren.Core.Execution
                     //   evm_trace(evm, OpStart(op))  ← state before
                     //   op_implementation[op](evm)
                     // This makes structLogs show the stack the opcode *received*, not what it left.)
-                    var preStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null;
-
                     var (execResult, nextPc) = await opcode.ExecuteAsync(context, ct);
 
                     // Pattern B opcodes charge here.
@@ -89,7 +91,8 @@ namespace Schlieren.Core.Execution
                         actualGasUsed,
                         IsCallLikeOpcode(opcode.Name)
                             ? GasSemantics.InclusiveFrameDelta
-                            : GasSemantics.ExclusiveCharge);
+                            : GasSemantics.ExclusiveCharge,
+                        preStack);
                     // Record into gas frame journal (for gas causality tree)
                     if (context.GasFrame != null && execResult.GasUsed > 0)
                         context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));
@@ -134,7 +137,8 @@ namespace Schlieren.Core.Execution
                         gasBefore,
                         0,
                         0,
-                        GasSemantics.Observation);
+                        GasSemantics.Observation,
+                        preStack);
                     RecordExceptionalBurn(
                         context,
                         pc,
@@ -187,10 +191,13 @@ namespace Schlieren.Core.Execution
             ulong gasBefore,
             ulong gasAfter,
             ulong amount,
-            GasSemantics semantics)
+            GasSemantics semantics,
+            IReadOnlyList<BigInteger>? preStack = null)
         {
             if (context.Journal is not { } journal)
                 return;
+
+            var state = context.CaptureJournalMachineState(preStack, name);
 
             journal.Record(new OpcodeGasEvent
             {
@@ -202,7 +209,16 @@ namespace Schlieren.Core.Execution
                 GasBefore = gasBefore,
                 GasAfter = gasAfter,
                 Amount = amount,
-                Semantics = semantics
+                Semantics = semantics,
+                Depth = context.CallDepth,
+                CallType = state.CallType,
+                ContractAddress = state.ContractAddress,
+                CallerAddress = state.CallerAddress,
+                CodeAddress = state.CodeAddress,
+                Stack = state.Stack,
+                Memory = state.Memory,
+                Storage = state.Storage,
+                Output = state.Output
             });
         }
 

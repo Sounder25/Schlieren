@@ -162,6 +162,32 @@ namespace Schlieren.Core.Execution
         private CallType? _callType;
         private Address? _callerAddress;
         private Address? _codeAddress;
+
+        internal JournalMachineSnapshot CaptureJournalMachineState(
+            IReadOnlyList<BigInteger>? preStack,
+            string opcode)
+        {
+            var stack = (preStack ?? Stack.SnapshotTopFirst())
+                .Select(value => "0x" + value.ToString("x"))
+                .ToArray();
+            var memory = Memory.SnapshotWordsHex().ToArray();
+            var storage = new Dictionary<string, string>(
+                _traceStorage,
+                StringComparer.OrdinalIgnoreCase);
+            var output = IsCallLikeOp(opcode) && LastReturnData.Length > 0
+                ? LastReturnData.ToArray()
+                : Array.Empty<byte>();
+
+            return new JournalMachineSnapshot(
+                stack,
+                memory,
+                storage,
+                output,
+                _callType,
+                ContractAddress == Address.Zero ? null : ContractAddress.ToString(),
+                _callerAddress?.ToString(),
+                _codeAddress?.ToString());
+        }
         
         /// <summary>
         /// Set the call context for security analysis. Called when entering a new call frame.
@@ -334,13 +360,13 @@ namespace Schlieren.Core.Execution
 
         public void TraceStorageRead(BigInteger key, BigInteger value)
         {
-            if (!CaptureTrace) return;
+            if (!CaptureTrace && Journal is null) return;
             _traceStorage[ToWordHex(key)] = ToWordHex(value);
         }
 
         public void TraceStorageWrite(BigInteger key, BigInteger value)
         {
-            if (!CaptureTrace) return;
+            if (!CaptureTrace && Journal is null) return;
             _traceStorage[ToWordHex(key)] = ToWordHex(value);
         }
 
@@ -353,6 +379,16 @@ namespace Schlieren.Core.Execution
             return "0x" + Convert.ToHexString(padded).ToLowerInvariant();
         }
     }
+
+    internal sealed record JournalMachineSnapshot(
+        IReadOnlyList<string> Stack,
+        IReadOnlyList<string> Memory,
+        IReadOnlyDictionary<string, string> Storage,
+        IReadOnlyList<byte> Output,
+        CallType? CallType,
+        string? ContractAddress,
+        string? CallerAddress,
+        string? CodeAddress);
 
     /// <summary>
     /// Simple in-memory storage implementation
