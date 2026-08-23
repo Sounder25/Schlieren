@@ -264,7 +264,9 @@ public sealed class StateTransition : IStateTransition
 
         // Execute the transaction body with only the gas remaining after intrinsic deduction.
         // Internal sub-calls bypass this and receive their gas directly from the parent context.
+        // System calls (EIP-4788, EIP-2935, etc.) also receive full gas — no intrinsic deduction.
         ulong executionGasLimit = tx.Authorization == TransactionAuthorization.Internal
+            || tx.Authorization == TransactionAuthorization.System
             ? tx.GasLimit
             : (tx.GasLimit - intrinsicGas);
 
@@ -649,7 +651,8 @@ public sealed class StateTransition : IStateTransition
         else
             effectiveGasPrice = tx.GasPrice;
 
-        if (tx.Authorization != TransactionAuthorization.Internal)
+        if (tx.Authorization != TransactionAuthorization.Internal
+            && tx.Authorization != TransactionAuthorization.System)
         {
             intrinsicGas = IntrinsicGas.Compute(tx, block.Rules);
             if (tx.GasLimit < intrinsicGas) return ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit);
@@ -676,6 +679,7 @@ public sealed class StateTransition : IStateTransition
         }
 
         ulong executionGasLimit = tx.Authorization == TransactionAuthorization.Internal
+            || tx.Authorization == TransactionAuthorization.System
             ? tx.GasLimit : (tx.GasLimit - intrinsicGas);
 
         var accessTracker = new AccessTracker();
