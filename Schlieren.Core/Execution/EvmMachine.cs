@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution
 {
@@ -42,6 +43,12 @@ namespace Schlieren.Core.Execution
                 if (!_opcodes.TryGetValue(opcodeByte, out var opcode))
                 {
                     context.AddTraceStep(pc, $"0x{opcodeByte:X2}", gasBefore, 0);
+                    RecordExceptionalBurn(
+                        context,
+                        pc,
+                        $"0x{opcodeByte:X2}",
+                        gasBefore,
+                        EvmError.InvalidOpcode);
                     return ExecutionResult.Failure(
                         EvmError.InvalidOpcode,
                         context.GasLimit) with
@@ -72,6 +79,17 @@ namespace Schlieren.Core.Execution
                     var actualGasUsed = gasBefore - gasAfter;
 
                     context.AddTraceStep(pc, opcode.Name, gasBefore, actualGasUsed, preStack);
+                    RecordOpcodeGas(
+                        context,
+                        pc,
+                        opcodeByte,
+                        opcode.Name,
+                        gasBefore,
+                        gasAfter,
+                        actualGasUsed,
+                        IsCallLikeOpcode(opcode.Name)
+                            ? GasSemantics.InclusiveFrameDelta
+                            : GasSemantics.ExclusiveCharge);
                     // Record into gas frame journal (for gas causality tree)
                     if (context.GasFrame != null && execResult.GasUsed > 0)
                         context.GasFrame.OpcodeSteps.Add((opcode.Name, execResult.GasUsed));
@@ -79,6 +97,15 @@ namespace Schlieren.Core.Execution
                     // If the opcode execution itself failed, propagate the failure
                     if (!execResult.IsSuccess)
                     {
+                        if (execResult.Error != EvmError.Revert && gasAfter > 0)
+                        {
+                            RecordExceptionalBurn(
+                                context,
+                                pc,
+                                opcode.Name,
+                                gasAfter,
+                                execResult.Error);
+                        }
                         var failureGasUsed = execResult.Error == EvmError.Revert
                             ? context.GasUsed
                             : context.GasLimit;
@@ -99,6 +126,21 @@ namespace Schlieren.Core.Execution
                 catch (EvmOutOfGasException)
                 {
                     context.AddTraceStep(pc, opcode.Name, gasBefore, gasBefore);
+                    RecordOpcodeGas(
+                        context,
+                        pc,
+                        opcodeByte,
+                        opcode.Name,
+                        gasBefore,
+                        0,
+                        0,
+                        GasSemantics.Observation);
+                    RecordExceptionalBurn(
+                        context,
+                        pc,
+                        opcode.Name,
+                        gasBefore,
+                        EvmError.OutOfGas);
                     return ExecutionResult.Failure(
                         EvmError.OutOfGas,
                         context.GasLimit) with
@@ -132,6 +174,57 @@ namespace Schlieren.Core.Execution
 
             // Successfully executed to the end of the code — preserve any RETURN data and gas refund counter
             return ExecutionResult.Success(context.GasUsed, returnData: lastReturnData, logs: context.Logs, traceSteps: context.TraceSteps) with { GasRefundCounter = context.GasRefundCounter };
+        }
+
+        private static bool IsCallLikeOpcode(string name) =>
+            name is "CALL" or "CALLCODE" or "DELEGATECALL" or "STATICCALL" or "CREATE" or "CREATE2";
+
+        private static void RecordOpcodeGas(
+            ExecutionContext context,
+            int pc,
+            byte opcode,
+            string name,
+            ulong gasBefore,
+            ulong gasAfter,
+            ulong amount,
+            GasSemantics semantics)
+        {
+            if (context.Journal is not { } journal)
+                return;
+
+            journal.Record(new OpcodeGasEvent
+            {
+                FrameId = context.JournalFrameId,
+                ParentFrameId = context.JournalParentFrameId,
+                Pc = pc,
+                Opcode = opcode,
+                Name = name,
+                GasBefore = gasBefore,
+                GasAfter = gasAfter,
+                Amount = amount,
+                Semantics = semantics
+            });
+        }
+
+        private static void RecordExceptionalBurn(
+            ExecutionContext context,
+            int pc,
+            string opcode,
+            ulong amount,
+            EvmError error)
+        {
+            if (context.Journal is not { } journal)
+                return;
+
+            journal.Record(new ExceptionalGasBurnedEvent
+            {
+                FrameId = context.JournalFrameId,
+                ParentFrameId = context.JournalParentFrameId,
+                Pc = pc,
+                Opcode = opcode,
+                Amount = amount,
+                Error = error
+            });
         }
     }
 }
