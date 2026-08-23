@@ -390,6 +390,14 @@ public sealed class StateTransition : IStateTransition
         if (topLevelCreation.HasValue &&
             !await AccountDeployability.IsDeployableAsync(txOverlay, topLevelCreation.Value, ct))
         {
+            RecordGasComponent(
+                journal,
+                frameId: null,
+                parentFrameId: null,
+                GasComponentScope.Transaction,
+                GasComponents.TransactionCollisionBurn,
+                executionGasLimit,
+                GasSemantics.ExceptionalBurn);
             result = ExecutionResult.Failure(EvmError.InvalidTransaction, executionGasLimit);
         }
         else
@@ -419,10 +427,21 @@ public sealed class StateTransition : IStateTransition
         // Always charge code-deposit gas (even commit=false / estimateGas) so estimates cover it.
         if (topLevelCreation.HasValue && result.IsSuccess)
         {
+            var creationFrameId = journal?.Events
+                .OfType<FrameEnteredEvent>()
+                .FirstOrDefault(frame => frame.ParentFrameId is null)?.FrameId;
+            var creationGasBeforeFinalization = result.GasUsed;
             const int maxCodeSize = 24576; // EIP-170
             if (result.ReturnData.Length > maxCodeSize)
             {
                 // ExceptionalHalt: consume ALL execution gas (same as EELS OutOfGasError in CREATE).
+                RecordGasComponent(
+                    journal, creationFrameId, null, GasComponentScope.Frame,
+                    GasComponents.CreateExceptionalBurn,
+                    executionGasLimit > creationGasBeforeFinalization
+                        ? executionGasLimit - creationGasBeforeFinalization
+                        : 0,
+                    GasSemantics.ExceptionalBurn);
                 result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
             }
             else
@@ -431,6 +450,13 @@ public sealed class StateTransition : IStateTransition
                 // InvalidContractPrefix is an ExceptionalHalt — ALL remaining gas consumed.
                 if (block.Rules.HasEip3541EfPrefix && result.ReturnData.Length > 0 && result.ReturnData[0] == 0xEF)
                 {
+                    RecordGasComponent(
+                        journal, creationFrameId, null, GasComponentScope.Frame,
+                        GasComponents.CreateExceptionalBurn,
+                        executionGasLimit > creationGasBeforeFinalization
+                            ? executionGasLimit - creationGasBeforeFinalization
+                            : 0,
+                        GasSemantics.ExceptionalBurn);
                     result = ExecutionResult.Failure(EvmError.InvalidOpcode, executionGasLimit);
                 }
                 else
@@ -442,10 +468,20 @@ public sealed class StateTransition : IStateTransition
                         : 0UL;
                     if (depositGas > remaining)
                     {
+                        RecordGasComponent(
+                            journal, creationFrameId, null, GasComponentScope.Frame,
+                            GasComponents.CreateExceptionalBurn,
+                            remaining,
+                            GasSemantics.ExceptionalBurn);
                         result = ExecutionResult.Failure(EvmError.OutOfGas, executionGasLimit);
                     }
                     else
                     {
+                        RecordGasComponent(
+                            journal, creationFrameId, null, GasComponentScope.Frame,
+                            GasComponents.CreateCodeDeposit,
+                            depositGas,
+                            GasSemantics.ExclusiveCharge);
                         if (commit)
                             txOverlay.SetCode(topLevelCreation.Value, result.ReturnData);
 
@@ -510,7 +546,14 @@ public sealed class StateTransition : IStateTransition
             {
                 var tokenFloor = IntrinsicGas.ComputeFloor(tx);
                 if (totalGasUsed < tokenFloor)
+                {
+                    RecordGasComponent(
+                        journal, null, null, GasComponentScope.Transaction,
+                        GasComponents.TransactionCalldataFloor,
+                        tokenFloor - totalGasUsed,
+                        GasSemantics.ExclusiveCharge);
                     totalGasUsed = tokenFloor;
+                }
             }
 
             // Sender balance recovery after execution:
@@ -936,8 +979,19 @@ public sealed class StateTransition : IStateTransition
             if (preOutput == null)
             {
                 // OOG in precompile — all gas consumed, no state change
+                RecordGasComponent(
+                    journal, frameId, parentFrameId, GasComponentScope.Frame,
+                    GasComponents.PrecompileExecution,
+                    gasForExecution,
+                    GasSemantics.ExceptionalBurn);
                 return CompleteFrame(ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit));
             }
+
+            RecordGasComponent(
+                journal, frameId, parentFrameId, GasComponentScope.Frame,
+                GasComponents.PrecompileExecution,
+                preGas,
+                GasSemantics.ExclusiveCharge);
 
             // EELS touch_account: Frontier/Homestead precompile calls still create the account.
             // For CALLCODE-to-precompile, touch the precompile address (code_address), not To.
@@ -1203,6 +1257,29 @@ public sealed class StateTransition : IStateTransition
         
         // Root transaction (depth 0) or regular CALL
         return CallType.Call;
+    }
+
+    private static void RecordGasComponent(
+        ExecutionJournal? journal,
+        long? frameId,
+        long? parentFrameId,
+        GasComponentScope scope,
+        string component,
+        ulong amount,
+        GasSemantics semantics)
+    {
+        if (journal is null || amount == 0)
+            return;
+
+        journal.Record(new GasComponentEvent
+        {
+            FrameId = frameId,
+            ParentFrameId = parentFrameId,
+            Scope = scope,
+            Component = component,
+            Amount = amount,
+            Semantics = semantics
+        });
     }
 
     private sealed class TransientStorageRoot : ITransientStorageFrame
