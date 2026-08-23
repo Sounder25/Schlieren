@@ -95,6 +95,12 @@ See [`docs/rpc/schlieren_traceJournal.md`](docs/rpc/schlieren_traceJournal.md) f
 
 `debug_inspect` and `debug_traceCall` keep their existing JSON shapes for Avalonia compatibility. Journal-native clients should use `schlieren_traceJournal`.
 
+### One canonical execution path
+
+`StateTransition.ApplyTransactionAsync` is the only transaction evaluator. Diagnostic callers enable the typed journal on that same run; journal events then drive the React trace, the legacy `debug_inspect` gas-tree projection, Avalonia gas views, and audit totals. Schlieren does not re-execute transactions or reconstruct gas from flat trace steps for diagnosis.
+
+Prospective intrinsic calculations always receive the selected block's fork rules explicitly. Retrospective views read the intrinsic charge and settlement recorded by canonical execution, preventing a UI or RPC helper from silently applying a different fork schedule.
+
 ### Typed causal diagnosis
 
 State, receipt, and engine differences are recorded as typed discrepancies at the comparison boundary. Diagnosis, EELS taxonomy, auditors, and both UI paths consume those typed facts; human-readable mismatch lines are rendered only for legacy output and test reports. Changing wording can therefore never change a diagnosis.
