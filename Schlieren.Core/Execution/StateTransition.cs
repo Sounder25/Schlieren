@@ -275,6 +275,14 @@ public sealed class StateTransition : IStateTransition
                 // Deduct gas + blob fee + value upfront; refund of unspent gas happens post-execution.
                 txOverlay.SetBalance(tx.From, senderBalanceForDeduction - actualGasCost - blobFee - tx.Value);
                 txOverlay.SetNonce(tx.From, senderNonceForDeduction + 1);
+                journal?.Record(new NonceChangedEvent
+                {
+                    Scope = StateEffectScope.Transaction,
+                    Address = tx.From,
+                    Previous = senderNonceForDeduction,
+                    Current = senderNonceForDeduction + 1,
+                    Reason = NonceChangeReason.TransactionSender
+                });
             }
         }
 
@@ -387,6 +395,29 @@ public sealed class StateTransition : IStateTransition
 
                 txOverlay.SetCode(auth.Signer, designation);
                 txOverlay.SetNonce(auth.Signer, signerNonce + 1);
+                if (journal is not null)
+                {
+                    journal.Record(new CodeChangedEvent
+                    {
+                        Scope = StateEffectScope.Transaction,
+                        Address = auth.Signer,
+                        Action = designation.Length == 0
+                            ? CodeChangeAction.Cleared
+                            : CodeChangeAction.DelegationDesignated,
+                        PreviousCodeHash = CryptoUtils.Keccak256(signerCode),
+                        NewCodeHash = CryptoUtils.Keccak256(designation),
+                        PreviousSize = signerCode.Length,
+                        NewSize = designation.Length
+                    });
+                    journal.Record(new NonceChangedEvent
+                    {
+                        Scope = StateEffectScope.Transaction,
+                        Address = auth.Signer,
+                        Previous = signerNonce,
+                        Current = signerNonce + 1,
+                        Reason = NonceChangeReason.Authorization
+                    });
+                }
             }
         }
 
@@ -503,6 +534,20 @@ public sealed class StateTransition : IStateTransition
                             GasSemantics.ExclusiveCharge);
                         if (commit)
                             txOverlay.SetCode(topLevelCreation.Value, result.ReturnData);
+                        if (journal is not null)
+                        {
+                            journal.Record(new CodeChangedEvent
+                            {
+                                Scope = StateEffectScope.Frame,
+                                FrameId = creationFrameId,
+                                Address = topLevelCreation.Value,
+                                Action = CodeChangeAction.Installed,
+                                PreviousCodeHash = CryptoUtils.Keccak256(Array.Empty<byte>()),
+                                NewCodeHash = CryptoUtils.Keccak256(result.ReturnData),
+                                PreviousSize = 0,
+                                NewSize = result.ReturnData.Length
+                            });
+                        }
 
                         result = ExecutionResult.Success(
                             result.GasUsed + depositGas,
@@ -601,6 +646,17 @@ public sealed class StateTransition : IStateTransition
                 // recipient credit in the overlay was never committed, so return it to sender.
                 var valueRestoration = result.IsSuccess ? BigInteger.Zero : tx.Value;
                 txOverlay.SetBalance(tx.From, currentBalance + gasRefundAmount + valueRestoration);
+                if (journal is not null && gasRefundAmount + valueRestoration > 0)
+                {
+                    journal.Record(new BalanceTransferEvent
+                    {
+                        Scope = StateEffectScope.Transaction,
+                        From = null,
+                        To = tx.From,
+                        Amount = gasRefundAmount + valueRestoration,
+                        Reason = BalanceTransferReason.GasRefund
+                    });
+                }
             }
 
             // [AI-EDIT 2026-01-10] EIP-1559 coinbase credit = (effectiveGasPrice - baseFee) × gasUsed.
@@ -616,6 +672,14 @@ public sealed class StateTransition : IStateTransition
                 {
                     var coinbaseBalance = await txOverlay.GetBalanceAsync(block.Coinbase, ct);
                     txOverlay.SetBalance(block.Coinbase, coinbaseBalance + minerFee);
+                    journal?.Record(new BalanceTransferEvent
+                    {
+                        Scope = StateEffectScope.Transaction,
+                        From = tx.From,
+                        To = block.Coinbase,
+                        Amount = minerFee,
+                        Reason = BalanceTransferReason.MinerFee
+                    });
                 }
                 else if (!block.Rules.HasEip161EmptyAccountDeletion)
                 {
@@ -851,6 +915,21 @@ public sealed class StateTransition : IStateTransition
             
             var recipientBalance = await overlay.GetBalanceAsync(recipient.Value, ct);
             overlay.SetBalance(recipient.Value, recipientBalance + tx.Value);
+            if (journal is not null && frameId.HasValue)
+            {
+                journal.Record(new BalanceTransferEvent
+                {
+                    Scope = StateEffectScope.Frame,
+                    FrameId = frameId,
+                    ParentFrameId = parentFrameId,
+                    From = tx.From,
+                    To = recipient.Value,
+                    Amount = tx.Value,
+                    Reason = depth == 0
+                        ? BalanceTransferReason.TransactionValue
+                        : BalanceTransferReason.CallValue
+                });
+            }
         }
 
         // [AI-EDIT 2026-01-10] Precompile dispatch: addresses 0x01–0x09 are handled here,
@@ -911,6 +990,19 @@ public sealed class StateTransition : IStateTransition
             // Pre-Spurious Dragon (Frontier/Homestead/Tangerine): new contracts start at nonce 0.
             if (block.Rules.HasEip161ContractNonce)
                 overlay.SetNonce(contractAddress, 1);
+                if (journal is not null && frameId.HasValue)
+                {
+                    journal.Record(new NonceChangedEvent
+                    {
+                        Scope = StateEffectScope.Frame,
+                        FrameId = frameId,
+                        ParentFrameId = parentFrameId,
+                        Address = contractAddress,
+                        Previous = 0,
+                        Current = 1,
+                        Reason = NonceChangeReason.ContractCreation
+                    });
+                }
             
             // EIP-6780: Mark the account as created in this transaction
             overlay.MarkCreated(contractAddress);

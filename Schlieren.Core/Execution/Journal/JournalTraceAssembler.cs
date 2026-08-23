@@ -197,6 +197,11 @@ public static class JournalTraceAssembler
         StorageWriteEvent => "storageWrite",
         TransientStorageReadEvent => "transientStorageRead",
         TransientStorageWriteEvent => "transientStorageWrite",
+        BalanceTransferEvent => "balanceTransfer",
+        NonceChangedEvent => "nonceChanged",
+        CodeChangedEvent => "codeChanged",
+        LogEmittedEvent => "logEmitted",
+        SelfDestructEvent => "selfDestruct",
         _ => throw new InvalidOperationException($"Unsupported state effect {effect.GetType().Name}.")
     };
 
@@ -230,6 +235,43 @@ public static class JournalTraceAssembler
             Slot = Hex(e.Slot),
             PreviousValue = Hex(e.PreviousValue),
             Value = Hex(e.Value)
+        },
+        BalanceTransferEvent e => new
+        {
+            From = e.From?.ToString(),
+            To = e.To?.ToString(),
+            Amount = Hex(e.Amount),
+            Reason = Name(e.Reason)
+        },
+        NonceChangedEvent e => new
+        {
+            Address = e.Address.ToString(),
+            e.Previous,
+            e.Current,
+            Reason = Name(e.Reason)
+        },
+        CodeChangedEvent e => new
+        {
+            Address = e.Address.ToString(),
+            Action = Name(e.Action),
+            PreviousCodeHash = Hex(e.PreviousCodeHash),
+            NewCodeHash = Hex(e.NewCodeHash),
+            e.PreviousSize,
+            e.NewSize
+        },
+        LogEmittedEvent e => new
+        {
+            Address = e.Address.ToString(),
+            Topics = e.Topics.Select(Hex).ToArray(),
+            Data = Hex(e.Data)
+        },
+        SelfDestructEvent e => new
+        {
+            Contract = e.Contract.ToString(),
+            Beneficiary = e.Beneficiary.ToString(),
+            TransferredBalance = Hex(e.TransferredBalance),
+            e.DeletionEligible,
+            e.DeletionScheduled
         },
         _ => throw new InvalidOperationException($"Unsupported state effect {effect.GetType().Name}.")
     };

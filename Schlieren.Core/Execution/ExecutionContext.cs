@@ -437,6 +437,107 @@ namespace Schlieren.Core.Execution
             });
         }
 
+        internal void RecordBalanceTransfer(Address? from, Address? to, BigInteger amount, BalanceTransferReason reason)
+        {
+            if (Journal is not { } journal || JournalFrameId is null || amount.IsZero)
+                return;
+            journal.Record(new BalanceTransferEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                From = from,
+                To = to,
+                Amount = amount,
+                Reason = reason
+            });
+        }
+
+        internal void RecordLog(IReadOnlyList<BigInteger> topics, IReadOnlyList<byte> data)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new LogEmittedEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Address = ContractAddress,
+                Topics = topics,
+                Data = data
+            });
+        }
+
+        internal void RecordSelfDestruct(
+            Address beneficiary,
+            BigInteger balance,
+            bool deletionEligible,
+            bool deletionScheduled)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new SelfDestructEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Contract = ContractAddress,
+                Beneficiary = beneficiary,
+                TransferredBalance = balance,
+                DeletionEligible = deletionEligible,
+                DeletionScheduled = deletionScheduled
+            });
+        }
+
+        internal void RecordNonceChange(Address address, ulong previous, ulong current, NonceChangeReason reason)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new NonceChangedEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Address = address,
+                Previous = previous,
+                Current = current,
+                Reason = reason
+            });
+        }
+
+        internal void RecordCodeChange(Address address, CodeChangeAction action, byte[] previousCode, byte[] newCode)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new CodeChangedEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                Address = address,
+                Action = action,
+                PreviousCodeHash = CryptoUtils.Keccak256(previousCode),
+                NewCodeHash = CryptoUtils.Keccak256(newCode),
+                PreviousSize = previousCode.Length,
+                NewSize = newCode.Length
+            });
+        }
+
         public BigInteger LoadTransientStorage(BigInteger key)
         {
             if (TransientLoad is null)

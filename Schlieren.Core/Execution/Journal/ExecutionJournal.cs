@@ -184,6 +184,22 @@ public sealed class ExecutionJournal
             entry = effect with { EffectId = _nextEffectId };
             _nextEffectId = checked(_nextEffectId + 1);
         }
+        if (entry is CodeChangedEvent code)
+        {
+            entry = code with
+            {
+                PreviousCodeHash = code.PreviousCodeHash.ToArray(),
+                NewCodeHash = code.NewCodeHash.ToArray()
+            };
+        }
+        else if (entry is LogEmittedEvent log)
+        {
+            entry = log with
+            {
+                Topics = log.Topics.ToArray(),
+                Data = log.Data.ToArray()
+            };
+        }
         if (entry is OpcodeGasEvent opcode)
         {
             entry = opcode with

@@ -53,6 +53,13 @@ public enum CodeChangeAction
     DelegationDesignated
 }
 
+public enum NonceChangeReason
+{
+    TransactionSender,
+    ContractCreation,
+    Authorization
+}
+
 public abstract record StateEffectEvent : ExecutionJournalEvent
 {
     public long EffectId { get; internal init; }
@@ -92,6 +99,48 @@ public sealed record TransientStorageWriteEvent : StateEffectEvent
     public required BigInteger Slot { get; init; }
     public required BigInteger PreviousValue { get; init; }
     public required BigInteger Value { get; init; }
+}
+
+public sealed record BalanceTransferEvent : StateEffectEvent
+{
+    public Address? From { get; init; }
+    public Address? To { get; init; }
+    public required BigInteger Amount { get; init; }
+    public required BalanceTransferReason Reason { get; init; }
+}
+
+public sealed record NonceChangedEvent : StateEffectEvent
+{
+    public required Address Address { get; init; }
+    public required ulong Previous { get; init; }
+    public required ulong Current { get; init; }
+    public required NonceChangeReason Reason { get; init; }
+}
+
+public sealed record CodeChangedEvent : StateEffectEvent
+{
+    public required Address Address { get; init; }
+    public required CodeChangeAction Action { get; init; }
+    public required IReadOnlyList<byte> PreviousCodeHash { get; init; }
+    public required IReadOnlyList<byte> NewCodeHash { get; init; }
+    public required int PreviousSize { get; init; }
+    public required int NewSize { get; init; }
+}
+
+public sealed record LogEmittedEvent : StateEffectEvent
+{
+    public required Address Address { get; init; }
+    public required IReadOnlyList<BigInteger> Topics { get; init; }
+    public required IReadOnlyList<byte> Data { get; init; }
+}
+
+public sealed record SelfDestructEvent : StateEffectEvent
+{
+    public required Address Contract { get; init; }
+    public required Address Beneficiary { get; init; }
+    public required BigInteger TransferredBalance { get; init; }
+    public required bool DeletionEligible { get; init; }
+    public required bool DeletionScheduled { get; init; }
 }
 
 public sealed record FrameStateCheckpointEvent : ExecutionJournalEvent;

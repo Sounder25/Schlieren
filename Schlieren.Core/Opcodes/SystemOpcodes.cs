@@ -80,6 +80,7 @@ public sealed class OpcodeCreate : IOpcode
 
         // Increment nonce of creator (after guards pass)
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
+        context.RecordNonceChange(context.ContractAddress, nonce, nonce + 1, NonceChangeReason.ContractCreation);
 
         // Charge only the gas that enters the child frame.
         context.ConsumeGas(forwardedGas, GasSemantics.Allocation, GasComponents.CallForwarded);
@@ -147,6 +148,7 @@ public sealed class OpcodeCreate : IOpcode
                 if (!context.Block.Rules.HasCreateDepositOogHalt)
                 {
                     context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                    context.RecordCodeChange(newAddress, CodeChangeAction.Installed, Array.Empty<byte>(), Array.Empty<byte>());
                     context.CommitLastCreateTransient?.Invoke();
                     context.CommitLastCreateTransient   = null;
                     context.RollbackLastCreateTransient = null;
@@ -178,6 +180,7 @@ public sealed class OpcodeCreate : IOpcode
 
                     // Install runtime code.
                     context.GlobalState.SetCode(newAddress, runtimeCode);
+                    context.RecordCodeChange(newAddress, CodeChangeAction.Installed, Array.Empty<byte>(), runtimeCode);
 
                     // EIP-1153: CREATE succeeded — commit staging transient overlay.
                     context.CommitLastCreateTransient?.Invoke();
@@ -614,6 +617,7 @@ public sealed class OpcodeCreate2 : IOpcode
 
         // Increment nonce of creator (after guards pass)
         context.GlobalState.SetNonce(context.ContractAddress, nonce + 1);
+        context.RecordNonceChange(context.ContractAddress, nonce, nonce + 1, NonceChangeReason.ContractCreation);
 
         if (context.SubCall == null)
              return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
@@ -681,6 +685,7 @@ public sealed class OpcodeCreate2 : IOpcode
                 if (!context.Block.Rules.HasCreateDepositOogHalt)
                 {
                     context.GlobalState.SetCode(newAddress, Array.Empty<byte>());
+                    context.RecordCodeChange(newAddress, CodeChangeAction.Installed, Array.Empty<byte>(), Array.Empty<byte>());
                     context.CommitLastCreateTransient?.Invoke();
                     context.CommitLastCreateTransient   = null;
                     context.RollbackLastCreateTransient = null;
@@ -712,6 +717,7 @@ public sealed class OpcodeCreate2 : IOpcode
 
                     // Install runtime code.
                     context.GlobalState.SetCode(newAddress, runtimeCode);
+                    context.RecordCodeChange(newAddress, CodeChangeAction.Installed, Array.Empty<byte>(), runtimeCode);
 
                     // EIP-1153: CREATE succeeded — commit staging transient overlay.
                     context.CommitLastCreateTransient?.Invoke();
@@ -1285,6 +1291,15 @@ public sealed class OpcodeSelfDestruct : IOpcode
 
         var createdInTransaction =
             context.GlobalState.WasCreatedInTransaction(context.ContractAddress);
+        bool shouldDelete = rules.HasEip6780SelfdestructRestriction
+            ? createdInTransaction
+            : true;
+        context.RecordSelfDestruct(beneficiary, balance, shouldDelete, shouldDelete);
+        context.RecordBalanceTransfer(
+            context.ContractAddress,
+            beneficiary,
+            balance,
+            BalanceTransferReason.SelfDestruct);
 
         // EELS balance transfer semantics:
         //
@@ -1320,9 +1335,6 @@ public sealed class OpcodeSelfDestruct : IOpcode
 
         // EIP-6780 (Shanghai+): account deletion only when created in same transaction.
         // Pre-Shanghai: SELFDESTRUCT always marks the contract for deletion.
-        bool shouldDelete = rules.HasEip6780SelfdestructRestriction
-            ? createdInTransaction
-            : true;
         if (shouldDelete)
             context.GlobalState.MarkForDeletion(context.ContractAddress);
 
