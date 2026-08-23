@@ -1,4 +1,5 @@
 using Schlieren.Core.Models;
+using Schlieren.Core.Execution.Journal;
 
 namespace Schlieren.Core.Execution;
 
@@ -29,6 +30,7 @@ public readonly record struct ExecutionResult
     public byte[] ReturnData { get; init; }
     public List<TransactionLog> Logs { get; init; }
     public List<ExecutionTraceStep> TraceSteps { get; init; }
+    public ExecutionJournal? Journal { get; init; }
 
     private ExecutionResult(bool success, EvmError error, ulong gasUsed, byte[] returnData, List<TransactionLog>? logs = null, List<ExecutionTraceStep>? traceSteps = null, long gasRefundCounter = 0)
     {

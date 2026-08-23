@@ -140,6 +140,11 @@ public sealed class Transaction : IComparable<Transaction>
     /// </summary>
     public bool EnableTracing { get; set; } = false;
 
+    /// <summary>
+    /// Enables the typed execution journal used for semantic gas diagnostics.
+    /// </summary>
+    public bool EnableJournal { get; set; } = false;
+
     // Signature data
     public int V { get; set; }
     public byte[] R { get; set; } = Array.Empty<byte>();
