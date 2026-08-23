@@ -3,8 +3,11 @@ import { alignEelsTrace, type EelsAlignment } from '../../engine/eels';
 import { useAppStore } from '../../engine/store';
 import './Conformance.css';
 
+const EMPTY_STEPS: never[] = [];
+
 export function Conformance() {
-  const steps = useAppStore((state) => state.result?.steps ?? []);
+  const result = useAppStore((state) => state.result);
+  const steps = result?.steps ?? EMPTY_STEPS;
   const [reference, setReference] = useState('');
   const [alignment, setAlignment] = useState<EelsAlignment | null>(null);
   const [error, setError] = useState<string | null>(null);
