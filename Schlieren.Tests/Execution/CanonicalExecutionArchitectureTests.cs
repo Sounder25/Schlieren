@@ -24,6 +24,14 @@ public sealed class CanonicalExecutionArchitectureTests
         Assert.Null(typeof(StateTransition).Assembly.GetType(typeName));
     }
 
+    [Theory]
+    [InlineData("Schlieren.Core.Security.ReentrancyDetector")]
+    [InlineData("Schlieren.Core.Security.LiveReentrancyDetector")]
+    public void LegacyTraceReentrancyTypes_AreNotProductionTypes(string typeName)
+    {
+        Assert.Null(typeof(StateTransition).Assembly.GetType(typeName));
+    }
+
     [Fact]
     public void ExecutionContext_HasNoLegacyGasFrameSideChannel()
     {
