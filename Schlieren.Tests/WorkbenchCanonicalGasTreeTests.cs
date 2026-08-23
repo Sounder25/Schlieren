@@ -1,4 +1,5 @@
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.UI.Services;
 using Schlieren.UI.ViewModels;
 using Xunit;
@@ -15,10 +16,11 @@ public sealed class WorkbenchCanonicalGasTreeTests
             new BytecodeRunOptions { ForkLabel = "Osaka", GasLimit = 100_000 });
         Assert.NotNull(run);
         Assert.True(run!.Result.IsSuccess);
+        Assert.NotNull(run.Result.Journal);
+        var intrinsic = Assert.Single(run.Result.Journal!.Events.OfType<IntrinsicGasChargedEvent>());
+        Assert.Equal(intrinsic.Amount, run.IntrinsicGas);
         Assert.NotNull(run.GasTree);
-        Assert.Contains("canonical", run.GasTree!.Label, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(run.Result.GasUsed.ToString("N0"), run.GasTree.Label);
-        Assert.Equal(run.Result.GasUsed, run.Result.GasUsed);
+        Assert.Equal(run.Result.GasUsed, run.GasTree!.TotalGas);
         var rendered = GasTreeRenderer.Render(run.GasTree);
         Assert.Contains("Intrinsic", rendered);
         Assert.DoesNotContain("second", rendered, StringComparison.OrdinalIgnoreCase);
@@ -33,7 +35,7 @@ public sealed class WorkbenchCanonicalGasTreeTests
         await vm.RunBytecodeCommand.ExecuteAsync(null);
         Assert.True(vm.HasTrace);
         Assert.Contains(vm.GasTreeNodes, n =>
-            n.DisplayText.Contains("canonical", StringComparison.OrdinalIgnoreCase));
+            n.DisplayText.Contains("Transaction", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("gas", vm.ResultBanner, StringComparison.OrdinalIgnoreCase);
     }
 }

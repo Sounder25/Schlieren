@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Schlieren.Core.Execution;
 using Schlieren.Core.Execution.Causal;
 using Schlieren.Core.Execution.Inspect;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.Security;
 using Schlieren.UI.Services;
@@ -32,6 +33,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     private DispatcherTimer? _autoPlayTimer;
     private CancellationTokenSource? _runCts;
     private bool _disposed;
+    private ulong _lastCanonicalGasUsed;
 
     public ObservableCollection<ProjectFileViewModel> ProjectFiles { get; } = new();
     public ObservableCollection<ProjectFileViewModel> FilteredProjectFiles { get; } = new();
@@ -1196,28 +1198,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public async Task GenerateAuditReportAsync(string savePath)
     {
-        // Compute calldata intrinsic gas (nonzero bytes × 16, zero bytes × 4)
-        ulong calldataGas = 0UL;
-        if (BytecodeExecutionService.TryParseHexBytes(CallDataHex, out var calldata) && calldata.Length > 0)
-        {
-            var nonzeroBytes = calldata.Count(b => b != 0);
-            var zeroBytes = calldata.Length - nonzeroBytes;
-            calldataGas = (ulong)(nonzeroBytes * 16 + zeroBytes * 4);
-        }
-
-        // CRITICAL: Only sum depth-1 gas. Child frame gas is already included in parent CALL opcode gasCost.
-        // Summing all depths would double-count nested execution (Bug #3).
-        var totalGas = Instructions.Count > 0
-            ? (ulong)Instructions.Where((inst, idx) => _currentTrace[idx].Depth == 1).Sum(i => i.GasCost) + 21_000UL + calldataGas
-            : 0UL;
-
         await AuditReportExporter.GenerateReportAsync(
             CurrentFileTitle,
             SelectedFork,
             BlockGasLimit,
             BaseFeeGwei,
             TotalSteps,
-            totalGas,
+            _lastCanonicalGasUsed,
             SecurityFindings,
             Diagnostics,
             Instructions,
@@ -1250,6 +1237,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     private void PopulateFromResult(ExecutionResult result, bool isBytecodeRun, WorkbenchRunResult? runMeta = null)
     {
+        _lastCanonicalGasUsed = result.Journal?.Events
+            .OfType<TransactionSettledEvent>()
+            .LastOrDefault()?.ChargedGas ?? result.GasUsed;
         _currentTrace = result.TraceSteps ?? new List<ExecutionTraceStep>();
         HasTrace = _currentTrace.Count > 0;
 
