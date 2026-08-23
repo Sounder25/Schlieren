@@ -612,6 +612,48 @@ public sealed class StateTransition : IStateTransition
             result = result with { GasUsed = totalGasUsed };
         }
 
+        // Simulation and dry-run callers still need the canonical settlement fact for
+        // journal conservation, without changing their historical ExecutionResult or state.
+        if (journal is not null &&
+            tx.Authorization != TransactionAuthorization.Internal &&
+            !journal.Events.OfType<TransactionSettledEvent>().Any())
+        {
+            var projectedEvmGas = Math.Min(result.GasUsed, executionGasLimit);
+            var projectedTotal = intrinsicGas + projectedEvmGas;
+            if (result.GasRefundCounter > 0)
+            {
+                var maxRefund = (long)(projectedTotal / block.Rules.RefundQuotient);
+                var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
+                projectedTotal -= (ulong)cappedRefund;
+                journal.Record(new EffectiveGasRefundedEvent
+                {
+                    GrossGasUsed = projectedTotal + (ulong)cappedRefund,
+                    RefundCap = (ulong)maxRefund,
+                    Amount = (ulong)cappedRefund
+                });
+            }
+            if (block.Rules.HasEip7623CalldataFloor)
+            {
+                var floor = IntrinsicGas.ComputeFloor(tx);
+                if (projectedTotal < floor)
+                {
+                    RecordGasComponent(
+                        journal, null, null, GasComponentScope.Transaction,
+                        GasComponents.TransactionCalldataFloor,
+                        floor - projectedTotal,
+                        GasSemantics.ExclusiveCharge);
+                    projectedTotal = floor;
+                }
+            }
+            journal.Record(new TransactionSettledEvent
+            {
+                ChargedGas = projectedTotal,
+                UnusedGasReturned = tx.GasLimit > projectedTotal
+                    ? tx.GasLimit - projectedTotal
+                    : 0
+            });
+        }
+
         if (commit)
         {
             txOverlay.Commit();

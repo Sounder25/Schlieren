@@ -68,7 +68,7 @@ public static class JournalTraceAssembler
             new JournalExecutionDto(
                 result.IsSuccess,
                 result.IsSuccess ? null : result.Error.ToString(),
-                result.GasUsed,
+                tree.Conservation.SettledGas,
                 result.GasRefundCounter,
                 Hex(result.ReturnData)),
             journal.Events.Select(MapEvent).ToArray(),

@@ -6,6 +6,7 @@ using Schlieren.RPC.Models;
 using Schlieren.Core.Models;
 using Schlieren.Core.State;
 using Schlieren.Core.Execution;
+using Schlieren.Core.Execution.Journal;
 using Schlieren.Core.Primitives;
 using Schlieren.Core.Configuration;
 using Schlieren.Core.Forks;
@@ -1182,6 +1183,63 @@ public sealed class EthHandlers
         var inspectResult = Core.Execution.Inspect.InspectionAssembler.FromCanonical(inspectRequest, result);
 
         return inspectResult;
+    }
+
+    public async Task<object> HandleTraceJournal(object[] parameters, CancellationToken ct = default)
+    {
+        var request = JournalTraceRequestParser.Parse(parameters, _chainState.CurrentBlock.GasLimit);
+        BlockContext blockContext;
+        try
+        {
+            var current = _chainState.CurrentBlock;
+            blockContext = new BlockContext
+            {
+                ChainId = _chainState.ChainId,
+                Number = current.Number,
+                Timestamp = current.Timestamp,
+                GasLimit = current.GasLimit,
+                Difficulty = current.Difficulty,
+                BaseFeePerGas = current.BaseFeePerGas,
+                Coinbase = string.IsNullOrEmpty(current.Miner)
+                    ? Address.Zero
+                    : Address.FromHex(current.Miner),
+                Rules = ForkRulesFactory.For(request.Fork)
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException)
+        {
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid fork '{request.Fork}'");
+        }
+
+        var executionState = new StateOverlay(_globalState);
+        if (request.Code is not null)
+            executionState.SetCode(request.To, request.Code);
+        var transaction = new Transaction
+        {
+            From = request.From,
+            To = request.To,
+            GasLimit = request.Gas,
+            GasPrice = request.GasPrice,
+            Value = request.Value,
+            Data = request.Data,
+            Nonce = request.Nonce ?? await _globalState.GetNonceAsync(request.From, ct),
+            Authorization = TransactionAuthorization.Simulation,
+            EnableTracing = false,
+            EnableJournal = true
+        };
+        var result = await _stateTransition.ApplyTransactionAsync(
+            transaction,
+            executionState,
+            blockContext,
+            commit: false,
+            ct: ct);
+        return JournalTraceAssembler.FromCanonical(
+            request.Fork,
+            result,
+            new JournalTraceOptions(
+                request.DisableStack,
+                request.DisableMemory,
+                request.DisableStorage));
     }
 
     public async Task<object> HandleDebugWhyNot(object[] parameters, CancellationToken ct = default)
