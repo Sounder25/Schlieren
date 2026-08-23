@@ -34,8 +34,33 @@ public sealed class JournalDispositionTests
         var analysis = JournalAnalysis.Build(journal);
         var frame = Assert.Single(analysis.Frames.Values);
         Assert.Equal(FrameStateResolution.Commit, frame.Resolution);
+        Assert.Equal(ExecutionDisposition.Survived, frame.ExecutionDisposition);
+        Assert.Equal(PersistenceDisposition.SimulationDiscarded, frame.PersistenceDisposition);
+        Assert.True(frame.EntrySequence < frame.ResolutionSequence);
         Assert.Single(journal.Events.OfType<TransactionPersistenceEvent>(),
             entry => entry.Outcome == TransactionPersistenceOutcome.SimulationDiscarded);
+    }
+
+    [Fact]
+    public void ParentRollback_PropagatesFrameDispositionAndPreservesLifecycleSequences()
+    {
+        var journal = new ExecutionJournal();
+        Enter(journal, 1, null, 0);
+        Enter(journal, 2, 1, 1);
+        Resolve(journal, 2, 1, FrameStateResolution.Commit);
+        Resolve(journal, 1, null, FrameStateResolution.Rollback);
+        Persist(journal, TransactionPersistenceOutcome.CommittedToState);
+
+        var analysis = JournalAnalysis.Build(journal);
+        var root = analysis.Frames[1];
+        var child = analysis.Frames[2];
+
+        Assert.True(root.EntrySequence < child.EntrySequence);
+        Assert.True(child.EntrySequence < child.ResolutionSequence);
+        Assert.Equal(ExecutionDisposition.Reverted, root.ExecutionDisposition);
+        Assert.Equal(PersistenceDisposition.NotApplicable, root.PersistenceDisposition);
+        Assert.Equal(ExecutionDisposition.Reverted, child.ExecutionDisposition);
+        Assert.Equal(PersistenceDisposition.NotApplicable, child.PersistenceDisposition);
     }
 
     [Fact]

@@ -17,6 +17,10 @@ public sealed record JournalFrameAnalysis(
     Address ContractAddress,
     Address? CodeAddress,
     FrameStateResolution Resolution,
+    long EntrySequence,
+    long ResolutionSequence,
+    ExecutionDisposition ExecutionDisposition,
+    PersistenceDisposition PersistenceDisposition,
     IReadOnlyList<long> AncestorIds);
 
 public sealed class JournalAnalysis
@@ -38,7 +42,7 @@ public sealed class JournalAnalysis
 
         var entered = new Dictionary<long, FrameEnteredEvent>();
         var checkpoints = new HashSet<long>();
-        var resolutions = new Dictionary<long, FrameStateResolution>();
+        var resolutions = new Dictionary<long, FrameStateResolvedEvent>();
         var effects = new List<StateEffectEvent>();
         TransactionPersistenceOutcome? persistence = null;
 
@@ -58,7 +62,7 @@ public sealed class JournalAnalysis
                     break;
                 case FrameStateResolvedEvent resolved:
                     var resolvedId = RequireFrameId(resolved, "ResolutionWithoutFrame");
-                    if (!resolutions.TryAdd(resolvedId, resolved.Resolution))
+                    if (!resolutions.TryAdd(resolvedId, resolved))
                         throw Error("DuplicateFrameResolution", $"Frame {resolvedId} has multiple resolutions.");
                     break;
                 case TransactionPersistenceEvent transactionPersistence:
@@ -123,6 +127,27 @@ public sealed class JournalAnalysis
             return result;
         }
 
+        ExecutionDisposition FrameExecutionDisposition(long frameId)
+        {
+            long? cursor = frameId;
+            while (cursor.HasValue)
+            {
+                if (resolutions[cursor.Value].Resolution == FrameStateResolution.Rollback)
+                    return ExecutionDisposition.Reverted;
+                cursor = entered[cursor.Value].ParentFrameId;
+            }
+            return ExecutionDisposition.Survived;
+        }
+
+        PersistenceDisposition FramePersistenceDisposition(long frameId)
+        {
+            if (FrameExecutionDisposition(frameId) == ExecutionDisposition.Reverted)
+                return PersistenceDisposition.NotApplicable;
+            return persistence == TransactionPersistenceOutcome.CommittedToState
+                ? PersistenceDisposition.CommittedToState
+                : PersistenceDisposition.SimulationDiscarded;
+        }
+
         var frameModels = entered.ToDictionary(
             pair => pair.Key,
             pair => new JournalFrameAnalysis(
@@ -132,7 +157,11 @@ public sealed class JournalAnalysis
                 pair.Value.CallType,
                 pair.Value.ContractAddress,
                 pair.Value.CodeAddress,
-                resolutions[pair.Key],
+                resolutions[pair.Key].Resolution,
+                pair.Value.Sequence,
+                resolutions[pair.Key].Sequence,
+                FrameExecutionDisposition(pair.Key),
+                FramePersistenceDisposition(pair.Key),
                 Ancestors(pair.Key)));
 
         var analyzed = effects.Select(effect =>
@@ -143,7 +172,7 @@ public sealed class JournalAnalysis
                 long? cursor = effectFrameId;
                 while (cursor.HasValue)
                 {
-                    if (resolutions[cursor.Value] == FrameStateResolution.Rollback)
+                    if (resolutions[cursor.Value].Resolution == FrameStateResolution.Rollback)
                     {
                         revertedBy = cursor;
                         break;
