@@ -11,6 +11,7 @@ public static class JournalTraceAssembler
         var journal = result.Journal
             ?? throw new ArgumentException("Execution result does not contain a journal.", nameof(result));
         var tree = JournalGasTree.Build(journal, result);
+        var analysis = JournalAnalysis.Build(journal);
         var exits = journal.Events.OfType<FrameExitedEvent>()
             .Where(entry => entry.FrameId.HasValue)
             .GroupBy(entry => entry.FrameId!.Value)
@@ -61,6 +62,38 @@ public static class JournalTraceAssembler
                     : new Dictionary<string, string>(entry.Storage, StringComparer.OrdinalIgnoreCase)
             })
             .ToArray();
+        var frameDtos = frames.ToDictionary(frame => frame.Id);
+        var stateEffects = analysis.StateEffects.Select(MapStateEffect).ToArray();
+        var securityFindings = Array.Empty<JournalSecurityFindingDto>();
+        var frameEntries = journal.Events.OfType<FrameEnteredEvent>()
+            .Where(entry => entry.FrameId.HasValue)
+            .ToDictionary(entry => entry.FrameId!.Value);
+
+        JournalFrameTreeNodeDto BuildFrameTree(long frameId)
+        {
+            var frame = analysis.Frames[frameId];
+            var children = analysis.Frames.Values
+                .Where(candidate => candidate.ParentId == frameId)
+                .OrderBy(candidate => frameEntries[candidate.Id].Sequence)
+                .Select(candidate => BuildFrameTree(candidate.Id))
+                .ToArray();
+            return new JournalFrameTreeNodeDto(
+                frameDtos[frameId],
+                frame.AncestorIds,
+                stateEffects.Where(effect => effect.FrameId == frameId)
+                    .Select(effect => effect.EffectId).ToArray(),
+                securityFindings.Where(finding => finding.PrimaryFrameId == frameId)
+                    .Select(finding => finding.Id).ToArray(),
+                children);
+        }
+
+        var roots = analysis.Frames.Values
+            .Where(frame => frame.ParentId is null)
+            .OrderBy(frame => frameEntries[frame.Id].Sequence)
+            .ToArray();
+        if (roots.Length > 1)
+            throw new JournalAnalysisException("MultipleRootFrames", "A journal trace must have at most one root frame.");
+        var frameTree = roots.Length == 0 ? null : BuildFrameTree(roots[0].Id);
 
         return new JournalTraceDto(
             result.IsSuccess,
@@ -75,7 +108,10 @@ public static class JournalTraceAssembler
             frames,
             steps,
             MapTree(tree.Root),
-            tree.Conservation);
+            tree.Conservation,
+            stateEffects,
+            securityFindings,
+            frameTree);
     }
 
     private static JournalEventDto MapEvent(ExecutionJournalEvent entry)
@@ -113,11 +149,23 @@ public static class JournalTraceAssembler
             TransactionSettledEvent e =>
                 ("transactionSettled", "observation", (ulong?)e.ChargedGas, null, null, null, null,
                     (object)new { e.UnusedGasReturned }),
+            FrameStateCheckpointEvent =>
+                ("frameStateCheckpoint", "observation", (ulong?)null, null, null, null, null, (object)new { }),
+            FrameStateResolvedEvent e =>
+                ("frameStateResolved", "observation", (ulong?)null, null, null, null, null,
+                    (object)new { Resolution = Name(e.Resolution) }),
+            TransactionPersistenceEvent e =>
+                ("transactionPersistence", "observation", (ulong?)null, null, null, null, null,
+                    (object)new { Outcome = Name(e.Outcome) }),
+            StateEffectEvent e =>
+                (StateEffectKind(e), "observation", (ulong?)null, null, e.Pc,
+                    e.Opcode is byte op ? $"0x{op:x2}" : null, null, MapStateEffectData(e)),
             _ => throw new InvalidOperationException($"Unsupported journal event {entry.GetType().Name}.")
         };
         return new JournalEventDto(
             kind,
             entry.Sequence,
+            entry.InstructionId,
             entry.FrameId,
             entry.ParentFrameId,
             semantics,
@@ -128,6 +176,63 @@ public static class JournalTraceAssembler
             opcodeName,
             data);
     }
+
+    private static JournalStateEffectDto MapStateEffect(AnalyzedStateEffect analyzed) => new(
+        analyzed.Effect.EffectId,
+        analyzed.Effect.Sequence,
+        analyzed.Effect.FrameId,
+        analyzed.Effect.ParentFrameId,
+        analyzed.Effect.InstructionId,
+        StateEffectKind(analyzed.Effect),
+        analyzed.Effect.Pc,
+        analyzed.Effect.Opcode is byte opcode ? $"0x{opcode:x2}" : null,
+        Name(analyzed.ExecutionDisposition),
+        Name(analyzed.PersistenceDisposition),
+        analyzed.RevertedByFrameId,
+        MapStateEffectData(analyzed.Effect));
+
+    private static string StateEffectKind(StateEffectEvent effect) => effect switch
+    {
+        StorageReadEvent => "storageRead",
+        StorageWriteEvent => "storageWrite",
+        TransientStorageReadEvent => "transientStorageRead",
+        TransientStorageWriteEvent => "transientStorageWrite",
+        _ => throw new InvalidOperationException($"Unsupported state effect {effect.GetType().Name}.")
+    };
+
+    private static object MapStateEffectData(StateEffectEvent effect) => effect switch
+    {
+        StorageReadEvent e => new
+        {
+            StorageAddress = e.StorageAddress.ToString(),
+            Slot = Hex(e.Slot),
+            Value = Hex(e.Value),
+            e.IsWarm
+        },
+        StorageWriteEvent e => new
+        {
+            StorageAddress = e.StorageAddress.ToString(),
+            Slot = Hex(e.Slot),
+            OriginalValue = Hex(e.OriginalValue),
+            PreviousValue = Hex(e.PreviousValue),
+            Value = Hex(e.Value),
+            e.IsWarm
+        },
+        TransientStorageReadEvent e => new
+        {
+            StorageAddress = e.StorageAddress.ToString(),
+            Slot = Hex(e.Slot),
+            Value = Hex(e.Value)
+        },
+        TransientStorageWriteEvent e => new
+        {
+            StorageAddress = e.StorageAddress.ToString(),
+            Slot = Hex(e.Slot),
+            PreviousValue = Hex(e.PreviousValue),
+            Value = Hex(e.Value)
+        },
+        _ => throw new InvalidOperationException($"Unsupported state effect {effect.GetType().Name}.")
+    };
 
     private static JournalGasNodeDto MapTree(JournalGasNode node) => new(
         node.Id,
@@ -142,6 +247,9 @@ public static class JournalTraceAssembler
 
     private static string Hex(IEnumerable<byte> bytes) =>
         "0x" + Convert.ToHexString(bytes.ToArray()).ToLowerInvariant();
+
+    private static string Hex(System.Numerics.BigInteger value) =>
+        "0x" + value.ToString("x");
 
     private static string Name<T>(T value) where T : struct, Enum
     {

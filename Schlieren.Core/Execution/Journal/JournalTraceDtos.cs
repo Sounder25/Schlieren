@@ -17,6 +17,7 @@ public sealed record JournalExecutionDto(
 public sealed record JournalEventDto(
     string Kind,
     long Sequence,
+    long? InstructionId,
     long? FrameId,
     long? ParentFrameId,
     string Semantics,
@@ -39,6 +40,34 @@ public sealed record JournalFrameDto(
     string? Error,
     ulong? GasUsed,
     ulong? GasRemaining);
+
+public sealed record JournalStateEffectDto(
+    long EffectId,
+    long Sequence,
+    long? FrameId,
+    long? ParentFrameId,
+    long? InstructionId,
+    string Kind,
+    int? Pc,
+    string? Opcode,
+    string ExecutionDisposition,
+    string PersistenceDisposition,
+    long? RevertedByFrameId,
+    object Data);
+
+public sealed record JournalSecurityFindingDto(
+    string Id,
+    string RuleId,
+    string Severity,
+    long PrimaryFrameId,
+    IReadOnlyList<long> SupportingEventSequences);
+
+public sealed record JournalFrameTreeNodeDto(
+    JournalFrameDto Frame,
+    IReadOnlyList<long> AncestorIds,
+    IReadOnlyList<long> StateEffectIds,
+    IReadOnlyList<string> SecurityFindingIds,
+    IReadOnlyList<JournalFrameTreeNodeDto> Children);
 
 public sealed record JournalStepDto
 {
@@ -88,4 +117,7 @@ public sealed record JournalTraceDto(
     IReadOnlyList<JournalFrameDto> Frames,
     IReadOnlyList<JournalStepDto> Steps,
     JournalGasNodeDto GasTree,
-    JournalConservation Conservation);
+    JournalConservation Conservation,
+    IReadOnlyList<JournalStateEffectDto> StateEffects,
+    IReadOnlyList<JournalSecurityFindingDto> SecurityFindings,
+    JournalFrameTreeNodeDto? FrameTree);

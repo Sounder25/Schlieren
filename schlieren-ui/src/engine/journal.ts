@@ -13,5 +13,10 @@ export function parseJournalTrace(value: unknown): JournalTraceResponse {
   if (!isRecord(value.gasTree) || !isRecord(value.conservation)) {
     throw new Error('Journal trace response is missing gas accounting');
   }
-  return value as unknown as JournalTraceResponse;
+  return {
+    ...value,
+    stateEffects: Array.isArray(value.stateEffects) ? value.stateEffects : [],
+    securityFindings: Array.isArray(value.securityFindings) ? value.securityFindings : [],
+    frameTree: isRecord(value.frameTree) ? value.frameTree : null,
+  } as unknown as JournalTraceResponse;
 }

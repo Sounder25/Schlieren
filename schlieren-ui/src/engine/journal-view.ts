@@ -1,23 +1,25 @@
-import type { JournalConservation, JournalFrame } from './store';
+import type { JournalConservation, JournalFrame, JournalFrameTreeNode } from './store';
 
 export interface FrameRow extends JournalFrame {
   indent: number;
+  ancestorIds: number[];
+  stateEffectIds: number[];
+  securityFindingIds: string[];
 }
 
-export function buildFrameRows(frames: JournalFrame[]): FrameRow[] {
-  const children = new Map<number | null, JournalFrame[]>();
-  for (const frame of frames) {
-    const group = children.get(frame.parentId) ?? [];
-    group.push(frame);
-    children.set(frame.parentId, group);
-  }
-
+export function buildFrameRows(frameTree: JournalFrameTreeNode | null): FrameRow[] {
   const rows: FrameRow[] = [];
-  const visit = (frame: JournalFrame, indent: number) => {
-    rows.push({ ...frame, indent });
-    for (const child of children.get(frame.id) ?? []) visit(child, indent + 1);
+  const visit = (node: JournalFrameTreeNode, indent: number) => {
+    rows.push({
+      ...node.frame,
+      indent,
+      ancestorIds: node.ancestorIds,
+      stateEffectIds: node.stateEffectIds,
+      securityFindingIds: node.securityFindingIds,
+    });
+    for (const child of node.children) visit(child, indent + 1);
   };
-  for (const root of children.get(null) ?? []) visit(root, 0);
+  if (frameTree) visit(frameTree, 0);
   return rows;
 }
 

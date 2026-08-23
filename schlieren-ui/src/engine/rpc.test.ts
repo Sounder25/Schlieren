@@ -47,6 +47,9 @@ describe('executeTrace', () => {
       disableStorage: false,
     })]);
     expect(result.frames[0].id).toBe(1);
+    expect(result.frameTree).toBeNull();
+    expect(result.stateEffects).toEqual([]);
+    expect(result.securityFindings).toEqual([]);
     expect(result.conservation.isConserved).toBe(true);
     expect(useAppStore.getState().result).toEqual(result);
   });

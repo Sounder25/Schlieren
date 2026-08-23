@@ -5,6 +5,7 @@ export type ViewId = 'workbench' | 'interference' | 'flow' | 'conformance' | 'ha
 export interface JournalEvent {
   kind: string;
   sequence: number;
+  instructionId: number | null;
   frameId: number | null;
   parentFrameId: number | null;
   semantics: string;
@@ -28,6 +29,37 @@ export interface JournalFrame {
   error: string | null;
   gasUsed: number | null;
   gasRemaining: number | null;
+}
+
+export interface JournalStateEffect {
+  effectId: number;
+  sequence: number;
+  frameId: number | null;
+  parentFrameId: number | null;
+  instructionId: number | null;
+  kind: string;
+  pc: number | null;
+  opcode: string | null;
+  executionDisposition: 'survived' | 'reverted';
+  persistenceDisposition: 'committedToState' | 'simulationDiscarded' | 'notApplicable';
+  revertedByFrameId: number | null;
+  data: Record<string, unknown>;
+}
+
+export interface JournalSecurityFinding {
+  id: string;
+  ruleId: string;
+  severity: string;
+  primaryFrameId: number;
+  supportingEventSequences: number[];
+}
+
+export interface JournalFrameTreeNode {
+  frame: JournalFrame;
+  ancestorIds: number[];
+  stateEffectIds: number[];
+  securityFindingIds: string[];
+  children: JournalFrameTreeNode[];
 }
 
 export interface TraceStep {
@@ -88,6 +120,9 @@ export interface JournalTraceResponse {
   steps: TraceStep[];
   gasTree: JournalGasNode;
   conservation: JournalConservation;
+  stateEffects: JournalStateEffect[];
+  securityFindings: JournalSecurityFinding[];
+  frameTree: JournalFrameTreeNode | null;
 }
 
 export interface ExecutionResult extends JournalTraceResponse {

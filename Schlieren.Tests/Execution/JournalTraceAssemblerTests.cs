@@ -18,6 +18,12 @@ public sealed class JournalTraceAssemblerTests
         Assert.Equal("Osaka", dto.Fork);
         Assert.Equal(2, dto.Frames.Count);
         Assert.Equal(dto.Frames[0].Id, dto.Frames[1].ParentId);
+        Assert.NotNull(dto.FrameTree);
+        Assert.Equal(dto.Frames[0].Id, dto.FrameTree.Frame.Id);
+        var childNode = Assert.Single(dto.FrameTree.Children);
+        Assert.Equal(dto.Frames[1].Id, childNode.Frame.Id);
+        Assert.Equal([dto.Frames[0].Id], childNode.AncestorIds);
+        Assert.Contains(1, childNode.StateEffectIds);
         var step = Assert.Single(dto.Steps);
         Assert.Equal(dto.Frames[1].Id, step.FrameId);
         Assert.NotNull(step.Stack);
@@ -59,6 +65,7 @@ public sealed class JournalTraceAssemblerTests
             ContractAddress = Address.Zero,
             GasLimit = 100
         });
+        journal.Record(new FrameStateCheckpointEvent { FrameId = root });
         journal.Record(new FrameEnteredEvent
         {
             FrameId = child,
@@ -67,6 +74,19 @@ public sealed class JournalTraceAssemblerTests
             CallType = CallType.Call,
             ContractAddress = Address.Zero,
             GasLimit = 10
+        });
+        journal.Record(new FrameStateCheckpointEvent { FrameId = child, ParentFrameId = root });
+        journal.Record(new StorageWriteEvent
+        {
+            Scope = StateEffectScope.Frame,
+            FrameId = child,
+            ParentFrameId = root,
+            StorageAddress = Address.Zero,
+            Slot = 0,
+            OriginalValue = 0,
+            PreviousValue = 0,
+            Value = 1,
+            IsWarm = true
         });
         journal.Record(new OpcodeGasEvent
         {
@@ -94,6 +114,12 @@ public sealed class JournalTraceAssemblerTests
             GasUsed = 3,
             GasRemaining = 7
         });
+        journal.Record(new FrameStateResolvedEvent
+        {
+            FrameId = child,
+            ParentFrameId = root,
+            Resolution = FrameStateResolution.Commit
+        });
         journal.Record(new FrameExitedEvent
         {
             FrameId = root,
@@ -102,6 +128,15 @@ public sealed class JournalTraceAssemblerTests
             Error = EvmError.None,
             GasUsed = 3,
             GasRemaining = 97
+        });
+        journal.Record(new FrameStateResolvedEvent
+        {
+            FrameId = root,
+            Resolution = FrameStateResolution.Commit
+        });
+        journal.Record(new TransactionPersistenceEvent
+        {
+            Outcome = TransactionPersistenceOutcome.SimulationDiscarded
         });
         return ExecutionResult.Success(3, [0xaa]) with { Journal = journal };
     }

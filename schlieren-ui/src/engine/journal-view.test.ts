@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { buildFrameRows, gasEffect, getConservationState } from './journal-view';
-import type { JournalFrame } from './store';
+import type { JournalFrameTreeNode } from './store';
 
 describe('journal view model', () => {
   it('keeps nested frames attached to their explicit parent', () => {
-    const frames: JournalFrame[] = [
-      { id: 1, parentId: null, depth: 0, callType: 'CALL', contractAddress: '0xaa', codeAddress: '0xaa', gasLimit: 100, success: true, error: null, gasUsed: 40, gasRemaining: 60 },
-      { id: 7, parentId: 1, depth: 1, callType: 'STATICCALL', contractAddress: '0xbb', codeAddress: '0xbb', gasLimit: 30, success: true, error: null, gasUsed: 9, gasRemaining: 21 },
-    ];
-    expect(buildFrameRows(frames)).toEqual([
+    const frameTree: JournalFrameTreeNode = {
+      frame: { id: 1, parentId: null, depth: 0, callType: 'CALL', contractAddress: '0xaa', codeAddress: '0xaa', gasLimit: 100, success: true, error: null, gasUsed: 40, gasRemaining: 60 },
+      ancestorIds: [], stateEffectIds: [2], securityFindingIds: [],
+      children: [{
+        frame: { id: 7, parentId: 1, depth: 1, callType: 'STATICCALL', contractAddress: '0xbb', codeAddress: '0xbb', gasLimit: 30, success: true, error: null, gasUsed: 9, gasRemaining: 21 },
+        ancestorIds: [1], stateEffectIds: [8], securityFindingIds: ['finding-1'], children: [],
+      }],
+    };
+    expect(buildFrameRows(frameTree)).toEqual([
       expect.objectContaining({ id: 1, parentId: null, indent: 0 }),
-      expect.objectContaining({ id: 7, parentId: 1, indent: 1 }),
+      expect.objectContaining({ id: 7, parentId: 1, indent: 1, ancestorIds: [1], stateEffectIds: [8] }),
     ]);
   });
 
