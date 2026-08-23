@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -41,6 +42,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public ObservableCollection<InstructionViewModel> Instructions { get; } = new();
     public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
     public ObservableCollection<SecurityFindingViewModel> SecurityFindings { get; } = new();
+    public bool HasSecurityFindings => SecurityFindings.Count > 0;
     public ObservableCollection<DiagnosticFinding> Diagnostics { get; } = new();
     public ObservableCollection<string> EventLogRows { get; } = new();
     public ObservableCollection<string> AccountStateRows { get; } = new();
@@ -218,10 +220,14 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public WorkbenchViewModel()
     {
+        SecurityFindings.CollectionChanged += OnSecurityFindingsChanged;
         ApplyOpSec();
         RefreshFilteredFiles();
         Services.SkinService.SkinChanged += OnSkinChanged;
     }
+
+    private void OnSecurityFindingsChanged(object? sender, NotifyCollectionChangedEventArgs args)
+        => OnPropertyChanged(nameof(HasSecurityFindings));
 
     private void OnSkinChanged(Branding.UiSkin _)
         => OnPropertyChanged(nameof(WatermarkOpacity));
@@ -230,6 +236,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        SecurityFindings.CollectionChanged -= OnSecurityFindingsChanged;
         Services.SkinService.SkinChanged -= OnSkinChanged;
         StopAutoPlay();
         try { _runCts?.Cancel(); } catch { /* ignore */ }
