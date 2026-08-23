@@ -114,6 +114,13 @@ public sealed class StateTransition : IStateTransition
                 if (tx.GasLimit < tokenFloor)
                     return Finish(ExecutionResult.Failure(EvmError.OutOfGas, tx.GasLimit));
             }
+
+            journal?.Record(new IntrinsicGasChargedEvent
+            {
+                FrameId = null,
+                ParentFrameId = null,
+                Amount = intrinsicGas
+            });
         }
 
         // Split into two gates:
@@ -482,9 +489,18 @@ public sealed class StateTransition : IStateTransition
                         // EIP-3529 (London+): apply capped gas refund. Pre-London: max refund = gasUsed/2.
                         if (result.GasRefundCounter > 0)
                         {
+                            var grossGasUsed = totalGasUsed;
                             var maxRefund = (long)(totalGasUsed / block.Rules.RefundQuotient);
                             var cappedRefund = Math.Min(result.GasRefundCounter, maxRefund);
                             totalGasUsed -= (ulong)cappedRefund;
+                            journal?.Record(new EffectiveGasRefundedEvent
+                            {
+                                FrameId = null,
+                                ParentFrameId = null,
+                                GrossGasUsed = grossGasUsed,
+                                RefundCap = (ulong)maxRefund,
+                                Amount = (ulong)cappedRefund
+                            });
                         }
 
             // EIP-7623 (Prague+): enforce calldata token floor.
@@ -538,6 +554,16 @@ public sealed class StateTransition : IStateTransition
                     await txOverlay.TouchAccountAsync(block.Coinbase, ct);
                 }
             }
+
+            journal?.Record(new TransactionSettledEvent
+            {
+                FrameId = null,
+                ParentFrameId = null,
+                ChargedGas = totalGasUsed,
+                UnusedGasReturned = tx.GasLimit > totalGasUsed
+                    ? tx.GasLimit - totalGasUsed
+                    : 0
+            });
 
             // Return a result that reflects the true total gas used to callers (e.g. eth_getReceipt).
             result = result with { GasUsed = totalGasUsed };
