@@ -39,7 +39,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext(gasLimit: gasLimit, gasUsed: 0);
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(0));
@@ -72,7 +72,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext(gasLimit: gasLimit, gasUsed: 0);
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(0));
@@ -97,7 +97,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext(gasLimit: gasLimit, gasUsed: 0);
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(0));
@@ -122,7 +122,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext(gasLimit: gasLimit, gasUsed: 0);
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(0));
@@ -162,7 +162,7 @@ public class CallGasForwardingTests
         };
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(tx.GasLimit));
@@ -197,7 +197,7 @@ public class CallGasForwardingTests
         };
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(tx.GasLimit));
@@ -232,7 +232,7 @@ public class CallGasForwardingTests
         };
 
         bool subCallInvoked = false;
-        ctx.SubCall = (_, _, _, _) =>
+        ctx.SubCall = (_, _, _, _, _) =>
         {
             subCallInvoked = true;
             return Task.FromResult(ExecutionResult.Success(0));
@@ -266,7 +266,7 @@ public class CallGasForwardingTests
         };
 
         bool subCallInvoked = false;
-        ctx.SubCall = (_, _, _, _) =>
+        ctx.SubCall = (_, _, _, _, _) =>
         {
             subCallInvoked = true;
             return Task.FromResult(ExecutionResult.Success(0));
@@ -319,7 +319,7 @@ public class CallGasForwardingTests
         ctx.LastReturnData = new byte[] { 0xDE, 0xAD };
 
         // Sub-call fails and returns empty data
-        ctx.SubCall = (_, _, _, _) =>
+        ctx.SubCall = (_, _, _, _, _) =>
             Task.FromResult(ExecutionResult.Failure(EvmError.OutOfGas, 0, Array.Empty<byte>()));
 
         var addr = new BigInteger(0);
@@ -340,7 +340,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext();
         ctx.LastReturnData = new byte[] { 0xFF };
 
-        ctx.SubCall = (_, _, _, _) =>
+        ctx.SubCall = (_, _, _, _, _) =>
             Task.FromResult(ExecutionResult.Success(0, new byte[] { 0xAB }));
 
         var addr = new BigInteger(0);
@@ -359,7 +359,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext();
         ctx.LastReturnData = new byte[] { 0xCC, 0xDD };
 
-        ctx.SubCall = (_, _, _, _) =>
+        ctx.SubCall = (_, _, _, _, _) =>
             Task.FromResult(ExecutionResult.Failure(EvmError.Revert, 0, Array.Empty<byte>()));
 
         var addr = new BigInteger(0);
@@ -396,7 +396,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext(gasLimit: 10_000_000);
 
         bool subCallInvoked = false;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             subCallInvoked = true;
             return Task.FromResult(ExecutionResult.Success(tx.GasLimit, new byte[] { 0x60, 0x00 }));
@@ -437,7 +437,7 @@ public class CallGasForwardingTests
         var ctx = MakeContext(gasLimit: 10_000_000);
 
         ulong? gasPassedToChild = null;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             gasPassedToChild = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(tx.GasLimit, new byte[] { 0x00 }));
@@ -601,7 +601,7 @@ public class CallGasForwardingTests
         };
 
         ulong receivedGas = 0;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             receivedGas = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(tx.GasLimit));
@@ -641,7 +641,7 @@ public class CallGasForwardingTests
 
         const ulong childGasUsed = 0;
         ulong? childGasLimit = null;
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
         {
             childGasLimit = tx.GasLimit;
             return Task.FromResult(ExecutionResult.Success(childGasUsed));
@@ -701,7 +701,7 @@ public class CallGasForwardingTests
             GasUsed         = 0
         };
 
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
             Task.FromResult(ExecutionResult.Success(tx.GasLimit)); // child burns all its gas
 
         var addrBig = new BigInteger(callee.Bytes, isUnsigned: true, isBigEndian: true);
@@ -736,7 +736,7 @@ public class CallGasForwardingTests
         };
 
         // Child uses exactly 3000 out of 10000 forwarded (no stipend since value=0).
-        ctx.SubCall = (tx, _, _, _) =>
+        ctx.SubCall = (tx, _, _, _, _) =>
             Task.FromResult(ExecutionResult.Success(3_000));
 
         var addrBig = new BigInteger(callee.Bytes, isUnsigned: true, isBigEndian: true);

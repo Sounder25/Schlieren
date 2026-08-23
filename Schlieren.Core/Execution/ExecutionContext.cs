@@ -213,9 +213,9 @@ namespace Schlieren.Core.Execution
         
         /// <summary>
         /// Callback to execute a sub-call (internal transaction).
-        /// Args: Transaction, isStatic, creationAddress (if CREATE), codeAddress (if DELEGATECALL/CALLCODE)
+        /// Args: Transaction, callType, isStatic, creationAddress (if CREATE), codeAddress (if DELEGATECALL/CALLCODE)
         /// </summary>
-        public Func<Transaction, bool, Address?, Address?, Task<ExecutionResult>>? SubCall { get; set; }
+        public Func<Transaction, CallType, bool, Address?, Address?, Task<ExecutionResult>>? SubCall { get; set; }
         public Func<Address, BigInteger, BigInteger>? TransientLoad { get; init; }
         public Action<Address, BigInteger, BigInteger>? TransientStore { get; init; }
 

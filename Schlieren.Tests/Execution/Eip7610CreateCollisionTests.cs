@@ -28,7 +28,7 @@ public sealed class Eip7610CreateCollisionTests
             ContractAddress = Creator,
             GlobalState = state,
             GasLimit = 1_000_000,
-            SubCall = async (tx, isStatic, creation, codeAddr) =>
+            SubCall = async (tx, _, isStatic, creation, codeAddr) =>
             {
                 // Minimal successful create frame: empty runtime code, no gas use.
                 if (creation.HasValue)

@@ -483,7 +483,7 @@ public sealed class SelfDestructAccessTests
             GlobalState = new GlobalState(),
             GasLimit = 100_000
         };
-        context.SubCall = (transaction, _, _, _) =>
+        context.SubCall = (transaction, _, _, _, _) =>
             Task.FromResult(ExecutionResult.Success(transaction.GasLimit));
         return context;
     }

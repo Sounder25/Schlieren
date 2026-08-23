@@ -106,7 +106,7 @@ public sealed class EvmMachineJournalTests
         var (context, journal) = CreateJournalContext([0xf1], gasLimit: 100_000);
         var callee = Address.FromHex("0x0000000000000000000000000000000000001000");
         context.GlobalState = new GlobalState();
-        context.SubCall = (_, _, _, _) => Task.FromResult(ExecutionResult.Success(0));
+        context.SubCall = (_, _, _, _, _) => Task.FromResult(ExecutionResult.Success(0));
         context.Access.WarmAddress(callee);
         context.Stack.Push(0);      // return length
         context.Stack.Push(0);      // return offset

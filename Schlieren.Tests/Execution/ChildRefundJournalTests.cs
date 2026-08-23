@@ -46,7 +46,7 @@ public sealed class ChildRefundJournalTests
                 "0x2000000000000000000000000000000000000002"),
             GlobalState = new GlobalState(),
             GasLimit = 100_000,
-            SubCall = (_, _, _, _) => Task.FromResult(childResult)
+            SubCall = (_, _, _, _, _) => Task.FromResult(childResult)
         };
 
         context.Stack.Push(0);      // return length

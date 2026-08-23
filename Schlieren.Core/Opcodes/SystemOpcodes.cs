@@ -112,7 +112,7 @@ public sealed class OpcodeCreate : IOpcode
 
         // SubCall with commit=false: initcode state changes go into a sub-overlay
         // that is NEVER committed. Only manual writes to context.GlobalState persist.
-        var result = await context.SubCall(tx, false, newAddress, null);
+        var result = await context.SubCall(tx, CallType.Create, false, newAddress, null);
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
         if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
 
@@ -402,7 +402,7 @@ public sealed class OpcodeCall : IOpcode
                     Authorization = TransactionAuthorization.Internal,
                     EnableTracing = context.CaptureTrace
                 };
-                frontierResult = await context.SubCall(tx, context.IsStatic, null, null);
+                frontierResult = await context.SubCall(tx, CallType.Call, context.IsStatic, null, null);
                 if (frontierResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(frontierResult.TraceSteps);
                 if (frontierResult.IsSuccess && frontierResult.Logs.Count > 0) context.Logs.AddRange(frontierResult.Logs);
             }
@@ -497,7 +497,7 @@ public sealed class OpcodeCall : IOpcode
                 EnableTracing = context.CaptureTrace
             };
 
-            result = await context.SubCall(tx, context.IsStatic, null, null);
+            result = await context.SubCall(tx, CallType.Call, context.IsStatic, null, null);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
             if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
@@ -642,7 +642,7 @@ public sealed class OpcodeCreate2 : IOpcode
         };
 
         // SubCall with commit=false: initcode state changes are isolated.
-        var result = await context.SubCall(tx, false, newAddress, null);
+        var result = await context.SubCall(tx, CallType.Create2, false, newAddress, null);
         if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
         if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
 
@@ -828,7 +828,7 @@ public sealed class OpcodeStaticCall : IOpcode
                 EnableTracing = context.CaptureTrace
             };
 
-            result = await context.SubCall(tx, true, null, null);
+            result = await context.SubCall(tx, CallType.StaticCall, true, null, null);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
             if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
@@ -969,7 +969,7 @@ public sealed class OpcodeCallCode : IOpcode
             };
             if (context.SubCall == null)
                 return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
-            var preResult = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+            var preResult = await context.SubCall(tx, CallType.CallCode, context.IsStatic, null, codeAddress);
             if (preResult.TraceSteps.Count > 0) context.TraceSteps.AddRange(preResult.TraceSteps);
             if (preResult.IsSuccess && preResult.Logs.Count > 0) context.Logs.AddRange(preResult.Logs);
             var childUsedPre = preResult.GasUsed > childGasLimitPre ? childGasLimitPre : preResult.GasUsed;
@@ -1042,7 +1042,7 @@ public sealed class OpcodeCallCode : IOpcode
 
             // EELS: is_static = is_staticcall OR parent.is_static
             // CALLCODE is NOT a staticcall, but inherits parent's static flag.
-            result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+            result = await context.SubCall(tx, CallType.CallCode, context.IsStatic, null, codeAddress);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
             if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
@@ -1155,7 +1155,7 @@ public sealed class OpcodeDelegateCall : IOpcode
                 if (context.SubCall == null)
                     return (ExecutionResult.Failure(EvmError.InternalError), context.ProgramCounter + 1);
                 var tx150 = new Transaction { From = context.Caller, To = context.ContractAddress, Value = context.CallValue, Data = input, GasLimit = gasLimit150, GasPrice = context.GasPrice, Authorization = TransactionAuthorization.Internal, EnableTracing = context.CaptureTrace };
-                result150 = await context.SubCall(tx150, context.IsStatic, null, codeAddress);
+                result150 = await context.SubCall(tx150, CallType.DelegateCall, context.IsStatic, null, codeAddress);
                 if (result150.TraceSteps.Count > 0) context.TraceSteps.AddRange(result150.TraceSteps);
                 if (result150.IsSuccess && result150.Logs.Count > 0) context.Logs.AddRange(result150.Logs);
             }
@@ -1204,7 +1204,7 @@ public sealed class OpcodeDelegateCall : IOpcode
                 EnableTracing = context.CaptureTrace
             };
 
-            result = await context.SubCall(tx, context.IsStatic, null, codeAddress);
+            result = await context.SubCall(tx, CallType.DelegateCall, context.IsStatic, null, codeAddress);
             if (result.TraceSteps.Count > 0) context.TraceSteps.AddRange(result.TraceSteps);
             if (result.IsSuccess && result.Logs.Count > 0) context.Logs.AddRange(result.Logs);
         }
