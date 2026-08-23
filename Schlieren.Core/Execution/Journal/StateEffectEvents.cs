@@ -1,3 +1,6 @@
+using System.Numerics;
+using Schlieren.Core.Primitives;
+
 namespace Schlieren.Core.Execution.Journal;
 
 public enum FrameStateResolution
@@ -56,6 +59,39 @@ public abstract record StateEffectEvent : ExecutionJournalEvent
     public required StateEffectScope Scope { get; init; }
     public int? Pc { get; init; }
     public byte? Opcode { get; init; }
+}
+
+public sealed record StorageReadEvent : StateEffectEvent
+{
+    public required Address StorageAddress { get; init; }
+    public required BigInteger Slot { get; init; }
+    public required BigInteger Value { get; init; }
+    public required bool IsWarm { get; init; }
+}
+
+public sealed record StorageWriteEvent : StateEffectEvent
+{
+    public required Address StorageAddress { get; init; }
+    public required BigInteger Slot { get; init; }
+    public required BigInteger OriginalValue { get; init; }
+    public required BigInteger PreviousValue { get; init; }
+    public required BigInteger Value { get; init; }
+    public required bool IsWarm { get; init; }
+}
+
+public sealed record TransientStorageReadEvent : StateEffectEvent
+{
+    public required Address StorageAddress { get; init; }
+    public required BigInteger Slot { get; init; }
+    public required BigInteger Value { get; init; }
+}
+
+public sealed record TransientStorageWriteEvent : StateEffectEvent
+{
+    public required Address StorageAddress { get; init; }
+    public required BigInteger Slot { get; init; }
+    public required BigInteger PreviousValue { get; init; }
+    public required BigInteger Value { get; init; }
 }
 
 public sealed record FrameStateCheckpointEvent : ExecutionJournalEvent;

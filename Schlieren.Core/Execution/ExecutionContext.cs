@@ -355,6 +355,88 @@ namespace Schlieren.Core.Execution
             });
         }
 
+        internal void RecordStorageRead(BigInteger slot, BigInteger value, bool isWarm)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new StorageReadEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                Value = value,
+                IsWarm = isWarm
+            });
+        }
+
+        internal void RecordStorageWrite(
+            BigInteger slot,
+            BigInteger original,
+            BigInteger previous,
+            BigInteger value,
+            bool isWarm)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new StorageWriteEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                OriginalValue = original,
+                PreviousValue = previous,
+                Value = value,
+                IsWarm = isWarm
+            });
+        }
+
+        internal void RecordTransientStorageRead(BigInteger slot, BigInteger value)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new TransientStorageReadEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                Value = value
+            });
+        }
+
+        internal void RecordTransientStorageWrite(BigInteger slot, BigInteger previous, BigInteger value)
+        {
+            if (Journal is not { } journal || JournalFrameId is null)
+                return;
+            journal.Record(new TransientStorageWriteEvent
+            {
+                Scope = StateEffectScope.Frame,
+                FrameId = JournalFrameId,
+                ParentFrameId = JournalParentFrameId,
+                InstructionId = CurrentInstructionId,
+                Pc = _activeOpcodePc,
+                Opcode = _activeOpcode,
+                StorageAddress = StorageAddress,
+                Slot = slot,
+                PreviousValue = previous,
+                Value = value
+            });
+        }
+
         public BigInteger LoadTransientStorage(BigInteger key)
         {
             if (TransientLoad is null)
