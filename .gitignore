@@ -55,3 +55,6 @@ muscle/artifacts/
 # Development tools output
 tools/specdata/
 tools/*.txt
+
+# Local isolated development worktrees
+.worktrees/
