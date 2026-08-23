@@ -78,6 +78,22 @@ public sealed class EvmMachineJournalTests
         Assert.Equal(GasSemantics.InclusiveFrameDelta, gas.Semantics);
     }
 
+    [Fact]
+    public async Task Revert_RecordsOpcodeWithoutExceptionalBurn()
+    {
+        var (context, journal) = CreateJournalContext([0xfd], gasLimit: 65_535);
+        context.Stack.Push(0);
+        context.Stack.Push(0);
+
+        var result = await new EvmMachine([new OpcodeRevert()]).ExecuteAsync(context);
+
+        Assert.Equal(EvmError.Revert, result.Error);
+        var gas = Assert.Single(journal.Events.OfType<OpcodeGasEvent>());
+        Assert.Equal("REVERT", gas.Name);
+        Assert.Equal(GasSemantics.ExclusiveCharge, gas.Semantics);
+        Assert.Empty(journal.Events.OfType<ExceptionalGasBurnedEvent>());
+    }
+
     private static (EvmExecutionContext Context, ExecutionJournal Journal) CreateJournalContext(
         byte[] code,
         ulong gasLimit)

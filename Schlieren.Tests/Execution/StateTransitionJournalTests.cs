@@ -45,6 +45,8 @@ public sealed class StateTransitionJournalTests
         var settlement = Assert.Single(journal.Events.OfType<TransactionSettledEvent>());
         Assert.Equal(result.GasUsed, settlement.ChargedGas);
         Assert.Equal(100_000UL - result.GasUsed, settlement.UnusedGasReturned);
+        Assert.IsType<TransactionStartedEvent>(journal.Events[0]);
+        Assert.Same(settlement, journal.Events[^1]);
         Assert.True(intrinsic.Sequence < settlement.Sequence);
     }
 
@@ -180,5 +182,87 @@ public sealed class StateTransitionJournalTests
         Assert.Contains(
             journal.Events.OfType<FrameExitedEvent>(),
             entry => entry.FrameId == child.FrameId);
+
+        var childStore = Assert.Single(
+            journal.Events.OfType<OpcodeGasEvent>(),
+            entry => entry.FrameId == child.FrameId && entry.Name == "SSTORE");
+        var childExit = Assert.Single(
+            journal.Events.OfType<FrameExitedEvent>(),
+            entry => entry.FrameId == child.FrameId);
+        var rootCall = Assert.Single(
+            journal.Events.OfType<OpcodeGasEvent>(),
+            entry => entry.FrameId == root.FrameId && entry.Name == "CALL");
+        var rootExit = Assert.Single(
+            journal.Events.OfType<FrameExitedEvent>(),
+            entry => entry.FrameId == root.FrameId);
+        Assert.True(root.Sequence < child.Sequence);
+        Assert.True(child.Sequence < childStore.Sequence);
+        Assert.True(childStore.Sequence < childExit.Sequence);
+        Assert.True(childExit.Sequence < rootCall.Sequence);
+        Assert.True(rootCall.Sequence < rootExit.Sequence);
     }
+
+    [Fact]
+    public async Task JournalEnabledAndDisabled_PreserveExecutionAndPostState()
+    {
+        var withoutJournal = await RunParityFixture(enableJournal: false);
+        var withJournal = await RunParityFixture(enableJournal: true);
+
+        Assert.Null(withoutJournal.Result.Journal);
+        Assert.NotNull(withJournal.Result.Journal);
+        Assert.Equal(withoutJournal.Result.IsSuccess, withJournal.Result.IsSuccess);
+        Assert.Equal(withoutJournal.Result.Error, withJournal.Result.Error);
+        Assert.Equal(withoutJournal.Result.GasUsed, withJournal.Result.GasUsed);
+        Assert.Equal(withoutJournal.Result.GasRefundCounter, withJournal.Result.GasRefundCounter);
+        Assert.Equal(withoutJournal.Result.ReturnData, withJournal.Result.ReturnData);
+        Assert.Equal(withoutJournal.Result.Logs.Count, withJournal.Result.Logs.Count);
+        Assert.Equal(
+            withoutJournal.Result.TraceSteps.Select(TraceProjection),
+            withJournal.Result.TraceSteps.Select(TraceProjection));
+        Assert.Equal(withoutJournal.SenderBalance, withJournal.SenderBalance);
+        Assert.Equal(withoutJournal.SenderNonce, withJournal.SenderNonce);
+        Assert.Equal(withoutJournal.StorageValue, withJournal.StorageValue);
+    }
+
+    private static async Task<(
+        ExecutionResult Result,
+        System.Numerics.BigInteger SenderBalance,
+        ulong SenderNonce,
+        System.Numerics.BigInteger StorageValue)> RunParityFixture(bool enableJournal)
+    {
+        var sender = Address.FromHex("0x6000000000000000000000000000000000000006");
+        var contract = Address.FromHex("0x7000000000000000000000000000000000000007");
+        var state = new GlobalState();
+        state.SetBalance(sender, 1_000_000);
+        state.SetCode(contract, [0x60, 0x01, 0x60, 0x00, 0x55, 0x00]);
+        var transition = new StateTransition(new EvmMachine(
+            [new OpcodeStop(), new OpcodePush1(), new OpcodeSstore()]));
+        var result = await transition.ApplyTransactionAsync(
+            new Transaction
+            {
+                From = sender,
+                To = contract,
+                GasLimit = 100_000,
+                GasPrice = 1,
+                Authorization = TransactionAuthorization.Impersonated,
+                EnableTracing = true,
+                EnableJournal = enableJournal
+            },
+            state,
+            new BlockContext
+            {
+                BaseFeePerGas = 1,
+                Rules = ForkRulesFactory.For("Osaka")
+            });
+
+        return (
+            result,
+            await state.GetBalanceAsync(sender),
+            await state.GetNonceAsync(sender),
+            await state.GetStorageAtAsync(contract, 0));
+    }
+
+    private static (int Pc, string Op, string Gas, string GasCost, int Depth, string Stack)
+        TraceProjection(ExecutionTraceStep step) =>
+        (step.Pc, step.Op, step.Gas, step.GasCost, step.Depth, string.Join(",", step.Stack));
 }
