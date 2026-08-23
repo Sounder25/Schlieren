@@ -217,6 +217,17 @@ namespace Schlieren.Core.Execution
         /// Args: Transaction, callType, isStatic, creationAddress (if CREATE), codeAddress (if DELEGATECALL/CALLCODE)
         /// </summary>
         public Func<Transaction, CallType, bool, Address?, Address?, Task<ExecutionResult>>? SubCall { get; set; }
+
+        internal void ResolveCreatedFrame(ExecutionResult result, bool committed)
+        {
+            if (result.IsSuccess)
+            {
+                Journal?.ResolveFrame(
+                    result.JournalFrameId,
+                    JournalFrameId,
+                    committed ? FrameStateResolution.Commit : FrameStateResolution.Rollback);
+            }
+        }
         public Func<Address, BigInteger, BigInteger>? TransientLoad { get; init; }
         public Action<Address, BigInteger, BigInteger>? TransientStore { get; init; }
 

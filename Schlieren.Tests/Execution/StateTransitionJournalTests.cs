@@ -65,6 +65,9 @@ public sealed class StateTransitionJournalTests
             entry => entry.Component == GasComponents.CreateCodeDeposit);
         Assert.Equal(200UL, component.Amount);
         Assert.Equal(GasSemantics.ExclusiveCharge, component.Semantics);
+        Assert.Equal(
+            FrameStateResolution.Commit,
+            Assert.Single(JournalAnalysis.Build(result.Journal!).Frames.Values).Resolution);
     }
 
     [Fact]
@@ -136,7 +139,9 @@ public sealed class StateTransitionJournalTests
         Assert.Equal(result.GasUsed, settlement.ChargedGas);
         Assert.Equal(100_000UL - result.GasUsed, settlement.UnusedGasReturned);
         Assert.IsType<TransactionStartedEvent>(journal.Events[0]);
-        Assert.Same(settlement, journal.Events[^1]);
+        var persistence = Assert.IsType<TransactionPersistenceEvent>(journal.Events[^1]);
+        Assert.Equal(TransactionPersistenceOutcome.CommittedToState, persistence.Outcome);
+        Assert.True(settlement.Sequence < persistence.Sequence);
         Assert.True(intrinsic.Sequence < settlement.Sequence);
     }
 
@@ -199,7 +204,12 @@ public sealed class StateTransitionJournalTests
 
         Assert.Equal(EvmError.InvalidTransaction, result.Error);
         var journal = Assert.IsType<ExecutionJournal>(result.Journal);
-        Assert.IsType<TransactionStartedEvent>(Assert.Single(journal.Events));
+        Assert.Collection(
+            journal.Events,
+            entry => Assert.IsType<TransactionStartedEvent>(entry),
+            entry => Assert.Equal(
+                TransactionPersistenceOutcome.SimulationDiscarded,
+                Assert.IsType<TransactionPersistenceEvent>(entry).Outcome));
     }
 
     [Fact]

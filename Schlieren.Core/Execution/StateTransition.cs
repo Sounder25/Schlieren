@@ -31,7 +31,23 @@ public sealed class StateTransition : IStateTransition
             IsInternal = tx.Authorization == TransactionAuthorization.Internal
         });
 
-        ExecutionResult Finish(ExecutionResult outcome) => outcome with { Journal = journal };
+        var persistenceRecorded = false;
+        ExecutionResult Finish(ExecutionResult outcome)
+        {
+            if (journal is not null && !persistenceRecorded)
+            {
+                journal.Record(new TransactionPersistenceEvent
+                {
+                    FrameId = null,
+                    ParentFrameId = null,
+                    Outcome = commit
+                        ? TransactionPersistenceOutcome.CommittedToState
+                        : TransactionPersistenceOutcome.SimulationDiscarded
+                });
+                persistenceRecorded = true;
+            }
+            return outcome with { Journal = journal };
+        }
 
         // 0. Signature Recovery — must use signing hash (typed-tx unsigned digest), not tx hash.
         if (tx.Authorization == TransactionAuthorization.Signed)
@@ -419,6 +435,8 @@ public sealed class StateTransition : IStateTransition
                 journal: journal,
                 parentFrameId: null);
         }
+        var topLevelCreationAwaitingResolution = topLevelCreation.HasValue && result.IsSuccess;
+        var topLevelCreationFrameId = result.JournalFrameId;
 
         // Merge EIP-7702 authorization refund into result
         if (authRefund > 0)
@@ -505,6 +523,13 @@ public sealed class StateTransition : IStateTransition
         if (topLevelCreation.HasValue && !result.IsSuccess && preCreateSnapshot != null)
         {
             txOverlay.RestoreSnapshot(preCreateSnapshot);
+        }
+        if (topLevelCreationAwaitingResolution)
+        {
+            journal?.ResolveFrame(
+                topLevelCreationFrameId,
+                parentFrameId: null,
+                result.IsSuccess ? FrameStateResolution.Commit : FrameStateResolution.Rollback);
         }
 
         // [AI-EDIT 2026-01-10] Post-execution accounting on the base state.
@@ -783,11 +808,23 @@ public sealed class StateTransition : IStateTransition
                     ? gasForExecution - outcome.GasUsed
                     : 0
             });
-            return outcome;
+            if (!creationAddress.HasValue || !outcome.IsSuccess)
+            {
+                journal.ResolveFrame(
+                    frameId,
+                    parentFrameId,
+                    outcome.IsSuccess ? FrameStateResolution.Commit : FrameStateResolution.Rollback);
+            }
+            return outcome with { JournalFrameId = frameId };
         }
 
         // Use a state overlay to ensure snapshot isolation for this execution frame
         var overlay = new StateOverlay(state);
+        journal?.Record(new FrameStateCheckpointEvent
+        {
+            FrameId = frameId,
+            ParentFrameId = parentFrameId
+        });
         transientStorage ??= new TransientStorageRoot();
         var transientFrame = new TransientStorageOverlay(transientStorage);
         // [AI-EDIT 2026-01-10] EIP-2929: reuse the top-level access tracker for the whole tx tree.

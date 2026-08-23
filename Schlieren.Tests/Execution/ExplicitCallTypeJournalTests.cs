@@ -105,5 +105,8 @@ public sealed class ExplicitCallTypeJournalTests
             frame => frame.Depth == 1);
 
         Assert.Equal(CallType.Create2, child.CallType);
+        Assert.Equal(
+            FrameStateResolution.Commit,
+            JournalAnalysis.Build(journal).Frames[child.FrameId!.Value].Resolution);
     }
 }

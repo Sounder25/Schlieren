@@ -141,6 +141,7 @@ public sealed class ExecutionJournal
 {
     private readonly List<ExecutionJournalEvent> _events = new();
     private readonly ReadOnlyCollection<ExecutionJournalEvent> _eventView;
+    private readonly HashSet<long> _resolvedFrames = new();
     private long _nextFrameId = 1;
     private long _nextInstructionId = 1;
     private long _nextEffectId = 1;
@@ -171,6 +172,13 @@ public sealed class ExecutionJournal
     internal void Record(ExecutionJournalEvent entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (entry is FrameStateResolvedEvent resolution)
+        {
+            var resolvedFrameId = resolution.FrameId ??
+                throw new InvalidOperationException("Frame resolution requires a frame ID.");
+            if (!_resolvedFrames.Add(resolvedFrameId))
+                throw new InvalidOperationException($"Frame {resolvedFrameId} was already resolved.");
+        }
         if (entry is StateEffectEvent effect)
         {
             entry = effect with { EffectId = _nextEffectId };
@@ -189,5 +197,17 @@ public sealed class ExecutionJournal
         }
         _events.Add(entry with { Sequence = _nextSequence });
         _nextSequence = checked(_nextSequence + 1);
+    }
+
+    internal void ResolveFrame(long? frameId, long? parentFrameId, FrameStateResolution resolution)
+    {
+        if (!frameId.HasValue)
+            return;
+        Record(new FrameStateResolvedEvent
+        {
+            FrameId = frameId,
+            ParentFrameId = parentFrameId,
+            Resolution = resolution
+        });
     }
 }

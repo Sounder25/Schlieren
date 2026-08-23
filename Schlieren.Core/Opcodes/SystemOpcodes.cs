@@ -123,6 +123,7 @@ public sealed class OpcodeCreate : IOpcode
 
         // Calculate unused gas from child
         var childRemaining = forwardedGas > result.GasUsed ? forwardedGas - result.GasUsed : 0UL;
+        var creationCommitted = false;
 
         if (result.IsSuccess)
         {
@@ -152,6 +153,7 @@ public sealed class OpcodeCreate : IOpcode
                     context.GasRefundCounter += result.GasRefundCounter;
                     context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn); // Frontier: child gas is NOT burned
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                    creationCommitted = true;
                 }
                 else
                 {
@@ -189,6 +191,7 @@ public sealed class OpcodeCreate : IOpcode
 
                     // Push created address.
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                    creationCommitted = true;
                 }
             }
         }
@@ -201,6 +204,7 @@ public sealed class OpcodeCreate : IOpcode
             context.Stack.TryPush(0);
         }
 
+        context.ResolveCreatedFrame(result, creationCommitted);
         return (ExecutionResult.Success(0), context.ProgramCounter + 1);
     }
 }
@@ -653,6 +657,7 @@ public sealed class OpcodeCreate2 : IOpcode
 
         // Calculate unused gas from child
         var childRemaining = forwardedGas > result.GasUsed ? forwardedGas - result.GasUsed : 0UL;
+        var creationCommitted = false;
 
         if (result.IsSuccess)
         {
@@ -682,6 +687,7 @@ public sealed class OpcodeCreate2 : IOpcode
                     context.GasRefundCounter += result.GasRefundCounter;
                     context.RefundGas(childRemaining, GasSemantics.Return, GasComponents.CallUnusedReturn); // Frontier: child gas is NOT burned
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                    creationCommitted = true;
                 }
                 else
                 {
@@ -719,6 +725,7 @@ public sealed class OpcodeCreate2 : IOpcode
 
                     // Push created address.
                     context.Stack.TryPush(new BigInteger(newAddress.Bytes, isUnsigned: true, isBigEndian: true));
+                    creationCommitted = true;
                 }
             }
         }
@@ -729,6 +736,7 @@ public sealed class OpcodeCreate2 : IOpcode
             context.Stack.TryPush(0);
         }
 
+        context.ResolveCreatedFrame(result, creationCommitted);
         return (ExecutionResult.Success(0), context.ProgramCounter + 1);
     }
 }
