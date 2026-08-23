@@ -18,7 +18,7 @@ public class DebugOOGCase
     public void InspectOOGBytecode()
     {
         var testCase = CallSemanticsMatrixGenerator.GenerateMatrix()
-            .First(c => c.CaseId == "R6_CALL_COLD_OUTOFGAS_SSTORE_R0_D2_CANCUN");
+            .First(c => c.CaseId == "R6_CALL_COLD_OUTOFGAS_SSTORE_R0_V0_CODE_D2_CANCUN_GAS3000");
 
         var (parent, child) = CallSemanticsMatrixGenerator.GenerateBytecode(testCase);
 

@@ -47,7 +47,23 @@ public sealed class EvmStack
         return val;
     }
 
-    public BigInteger Peek() => _stack.Count > 0 ? _stack.Peek() : BigInteger.Zero;
+    public bool TryPeek(out BigInteger value)
+    {
+        if (_stack.Count == 0)
+        {
+            value = BigInteger.Zero;
+            return false;
+        }
+        value = _stack.Peek();
+        return true;
+    }
+
+    public BigInteger Peek()
+    {
+        if (!TryPeek(out var val))
+            throw new EvmStackUnderflowException("Stack underflow");
+        return val;
+    }
 
     public void Dup(int depth)
     {

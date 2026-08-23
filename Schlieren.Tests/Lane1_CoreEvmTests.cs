@@ -152,6 +152,32 @@ public class EvmStackTests
         var stack = new EvmStack();
         Assert.Throws<EvmStackUnderflowException>(() => stack.Pop());
     }
+
+    [Fact]
+    public void Peek_EmptyStack_ThrowsUnderflow()
+    {
+        var stack = new EvmStack();
+        Assert.Throws<EvmStackUnderflowException>(() => stack.Peek());
+    }
+
+    [Fact]
+    public void Peek_ReturnsTopWithoutPopping()
+    {
+        var stack = new EvmStack();
+        stack.Push(7);
+        stack.Push(11);
+        Assert.Equal(new BigInteger(11), stack.Peek());
+        Assert.Equal(2, stack.Count);
+        Assert.Equal(new BigInteger(11), stack.Pop());
+    }
+
+    [Fact]
+    public void TryPeek_EmptyStack_ReturnsFalse()
+    {
+        var stack = new EvmStack();
+        Assert.False(stack.TryPeek(out var value));
+        Assert.Equal(BigInteger.Zero, value);
+    }
 }
 
 public class EvmMemoryTests

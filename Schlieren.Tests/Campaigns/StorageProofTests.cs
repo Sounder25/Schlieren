@@ -24,7 +24,7 @@ public class StorageProofTests
     public async Task Proof_STATICCALL_SSTORE()
     {
         var testCase = CallSemanticsMatrixGenerator.GenerateMatrix()
-            .First(c => c.CaseId == "R6_STATICCALL_COLD_REVERT_SSTORE_R0_D2_CANCUN");
+            .First(c => c.CaseId == "R6_STATICCALL_COLD_REVERT_SSTORE_R0_V0_CODE_D2_CANCUN");
 
         var result = await ExecuteCase(testCase);
 
@@ -60,7 +60,7 @@ public class StorageProofTests
     public async Task Proof_CALL_OOG()
     {
         var testCase = CallSemanticsMatrixGenerator.GenerateMatrix()
-            .First(c => c.CaseId == "R6_CALL_COLD_OUTOFGAS_SSTORE_R0_D2_CANCUN");
+            .First(c => c.CaseId == "R6_CALL_COLD_OUTOFGAS_SSTORE_R0_V0_CODE_D2_CANCUN_GAS3000");
 
         var result = await ExecuteCase(testCase);
 

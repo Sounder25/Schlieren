@@ -5,757 +5,817 @@
         x:Class="Schlieren.UI.Views.MainWindow"
         x:Name="root"
         x:DataType="vm:WorkbenchViewModel"
-        Title="SCHLIEREN — .NET 8 Ethereum Execution &amp; Verification Engine"
+        Title="SCHLIEREN"
         Icon="/Assets/schlieren-icon.png"
         Width="1440" Height="900"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource Schlieren.ShellBg}"
-        FontFamily="Inter, Segoe UI, sans-serif">
+        Background="#060607"
+        FontFamily="JetBrains Mono, Cascadia Code, Consolas, monospace"
+        FontSize="13">
 
-    <Window.Styles>
-        <Style Selector="TextBlock.header">
-            <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-        <Style Selector="Border.panel">
-            <Setter Property="Background" Value="{DynamicResource Schlieren.PanelBg}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Border}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
-        </Style>
-        <Style Selector="TextBlock.code">
-            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
-        </Style>
-        <Style Selector="TextBlock.linenumber">
-            <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
-        </Style>
-        <Style Selector="Border.activeLine">
-            <Setter Property="Background" Value="{DynamicResource Schlieren.ActiveLineBg}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.AccentAlt}"/>
-            <Setter Property="BorderThickness" Value="2,0,0,0"/>
-        </Style>
-        <Style Selector="Border.vulnerableLine">
-            <Setter Property="Background" Value="{DynamicResource Schlieren.VulnerableLineBg}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Alert}"/>
-            <Setter Property="BorderThickness" Value="2,0,0,0"/>
-        </Style>
-    </Window.Styles>
+  <Window.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
-        <!-- MENU -->
-        <Menu Grid.Row="0" Background="{DynamicResource Schlieren.PanelDeep}"
-              BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,0,0,1" Height="26">
-            <MenuItem Header="_File" FontSize="11">
-                <MenuItem Header="Open Contract File..." Click="OnOpenFileClick" InputGesture="Ctrl+O"/>
-                <MenuItem Header="Load Fixture or Contract..." Click="OnLoadPrestateClick" InputGesture="Ctrl+Shift+P"/>
-                <MenuItem Header="Load Pre-state JSON..." Click="OnLoadPrestateClick"/>
-                <MenuItem Header="Open Project Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O"/>
-                <MenuItem Header="Reset Workbench" Click="OnResetClick" InputGesture="Ctrl+Shift+R"/>
-                <Separator/>
-                <MenuItem Header="Export Security Audit Report (.md)..." Click="OnExportReportClick"/>
-                <Separator/>
-                <MenuItem Header="Exit" Click="OnExitClick" InputGesture="Alt+F4"/>
-            </MenuItem>
-            <MenuItem Header="_EVM Engine" FontSize="11">
-                <MenuItem Header="Run Bytecode (Live EVM)" Command="{Binding RunBytecodeCommand}" InputGesture="F5"/>
-                <MenuItem Header="Synthetic Detector Demo..." Command="{Binding RunSyntheticDemoCommand}"/>
-            </MenuItem>
-            <MenuItem Header="_View" FontSize="11" Name="ViewMenuRoot">
-                <MenuItem Header="Appearance" Name="AppearanceMenu">
-                    <!-- populated in code-behind from SkinCatalog -->
-                </MenuItem>
-            </MenuItem>
-            <MenuItem Header="_Tools" FontSize="11">
-                <MenuItem Header="Show Call Topology" Command="{Binding ShowCallGraphCommand}"/>
-                <MenuItem Header="Show Source" Command="{Binding ShowSourceCommand}"/>
-                <MenuItem Header="Toggle OpSec Lockout" Command="{Binding ToggleOpSecCommand}"/>
-                <MenuItem Header="Export Audit Report (.md)..." Click="OnExportReportClick"/>
-            </MenuItem>
-            <MenuItem Header="_Help" FontSize="11">
-                <MenuItem Header="F5 Run · Ctrl+Shift+R Reset · F10 Step · F11 Back · Space Play · Home/End"/>
-                <MenuItem Header="Skins: View → Appearance (Arctic Night is easiest on eyes)"/>
-            </MenuItem>
-        </Menu>
+    <!-- Monospace data text -->
+    <Style Selector="TextBlock.data">
+      <Setter Property="FontFamily" Value="JetBrains Mono, Cascadia Code, Consolas, monospace"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="#E4E0DC"/>
+    </Style>
 
-        <!-- TOP BAR (brand) -->
-        <Border Grid.Row="1" Background="{DynamicResource Schlieren.PanelDeep}" Padding="14,8"
-                BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Border Width="44" Height="44" CornerRadius="10"
-                            Background="{DynamicResource Schlieren.PanelElevated}"
-                            BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" Padding="4"
-                            VerticalAlignment="Center"
-                            ToolTip.Tip="SCHLIEREN — Precise · Verifiable · Traceable · Conformant">
-                        <Image Source="/Assets/schlieren-icon.png"
-                               Stretch="Uniform"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center"/>
-                    </Border>
-                    <StackPanel Spacing="1" VerticalAlignment="Center">
-                        <TextBlock Text="SCHLIEREN" FontWeight="Bold" FontSize="20"
-                                   Foreground="{DynamicResource Schlieren.TextPrimary}" LetterSpacing="2"/>
-                        <TextBlock Text=".NET 8 Ethereum Execution &amp; Verification Engine"
-                                   FontSize="11" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
-                    </StackPanel>
+    <!-- Chrome labels -->
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
+      <Setter Property="FontSize" Value="9"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="#454B54"/>
+      <Setter Property="LetterSpacing" Value="1.5"/>
+    </Style>
+
+    <!-- Nav tab base -->
+    <Style Selector="Border.nav-tab">
+      <Setter Property="Padding" Value="16,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="VerticalAlignment" Value="Stretch"/>
+      <Setter Property="BorderThickness" Value="0,0,0,2"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+
+    <Style Selector="Border.nav-tab TextBlock">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="Foreground" Value="#6A7280"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Border.nav-tab:pointerover">
+      <Setter Property="BorderBrush" Value="#3A3E44"/>
+    </Style>
+
+    <Style Selector="Border.nav-tab:pointerover TextBlock">
+      <Setter Property="Foreground" Value="#A0A8B4"/>
+    </Style>
+
+    <Style Selector="Border.nav-tab.active">
+      <Setter Property="BorderBrush" Value="#E4E0DC"/>
+    </Style>
+
+    <Style Selector="Border.nav-tab.active TextBlock">
+      <Setter Property="Foreground" Value="#E4E0DC"/>
+    </Style>
+
+    <!-- Pill buttons -->
+    <Style Selector="Border.pill">
+      <Setter Property="Padding" Value="8,2"/>
+      <Setter Property="CornerRadius" Value="3"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderBrush" Value="#2A2D32"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <Style Selector="Border.pill TextBlock">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
+      <Setter Property="FontSize" Value="9"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="#6A7280"/>
+    </Style>
+
+    <Style Selector="Border.pill:pointerover">
+      <Setter Property="BorderBrush" Value="#3A3E44"/>
+    </Style>
+
+    <Style Selector="Border.pill:pointerover TextBlock">
+      <Setter Property="Foreground" Value="#A0A8B4"/>
+    </Style>
+
+    <!-- Pane section titles -->
+    <Style Selector="TextBlock.pane-title">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
+      <Setter Property="FontSize" Value="9"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="LetterSpacing" Value="1.8"/>
+      <Setter Property="Foreground" Value="#454B54"/>
+    </Style>
+
+    <!-- Existing compat styles -->
+    <Style Selector="TextBlock.header">
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <Style Selector="TextBlock.code">
+      <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+    </Style>
+    <Style Selector="TextBlock.linenumber">
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.AccentAlt}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace"/>
+    </Style>
+    <Style Selector="Border.activeLine">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.ActiveLineBg}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.AccentAlt}"/>
+      <Setter Property="BorderThickness" Value="2,0,0,0"/>
+    </Style>
+    <Style Selector="Border.vulnerableLine">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.VulnerableLineBg}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Schlieren.Alert}"/>
+      <Setter Property="BorderThickness" Value="2,0,0,0"/>
+    </Style>
+    <Style Selector="Button.brand-primary">
+      <Setter Property="Background" Value="{DynamicResource Schlieren.Accent}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Schlieren.TextPrimary}"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+
+  </Window.Styles>
+
+  <LayoutTransformControl Name="ZoomHost">
+  <!-- ROOT GRID: menu / top-nav / case-bar / bytecode-bar / workspace / status-bar -->
+  <Grid RowDefinitions="26,34,28,Auto,*,24" Background="#060607"
+        Name="RootGrid">
+    <!-- SLOT 0: Menu -->
+    <Menu Grid.Row="0" Background="#0B0C0D"
+          BorderBrush="#2A2D32" BorderThickness="0,0,0,1">
+      <MenuItem Header="_File" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif">
+        <MenuItem Header="Open Contract File..."        Click="OnOpenFileClick"     InputGesture="Ctrl+O"/>
+        <MenuItem Header="Load Fixture or Contract..."  Click="OnLoadPrestateClick" InputGesture="Ctrl+Shift+P"/>
+        <MenuItem Header="Load Pre-state JSON..."       Click="OnLoadPrestateClick"/>
+        <MenuItem Header="Open Project Folder..."       Click="OnOpenFolderClick"   InputGesture="Ctrl+Shift+O"/>
+        <MenuItem Header="Reset Workbench"              Click="OnResetClick"        InputGesture="Ctrl+Shift+R"/>
+        <Separator/>
+        <MenuItem Header="Export Security Audit Report (.md)..." Click="OnExportReportClick"/>
+        <Separator/>
+        <MenuItem Header="Exit" Click="OnExitClick" InputGesture="Alt+F4"/>
+      </MenuItem>
+      <MenuItem Header="_EVM Engine" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif">
+        <MenuItem Header="Run Bytecode (Live EVM)"     Command="{Binding RunBytecodeCommand}"    InputGesture="F5"/>
+        <MenuItem Header="Synthetic Detector Demo..."  Command="{Binding RunSyntheticDemoCommand}"/>
+      </MenuItem>
+      <MenuItem Header="_View" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif" Name="ViewMenuRoot">
+        <MenuItem Header="Workbench"   Click="OnWorkbenchViewClick" InputGesture="Ctrl+1"/>
+        <MenuItem Header="Conformance" Click="OnConformanceMenuClick" InputGesture="Ctrl+2"/>
+        <MenuItem Header="Harvest"     Click="OnHarvestMenuClick"   InputGesture="Ctrl+3"/>
+        <Separator/>
+        <MenuItem Header="Call Graph"  Command="{Binding ShowCallGraphCommand}"/>
+        <MenuItem Header="Source"      Command="{Binding ShowSourceCommand}"/>
+        <Separator/>
+        <MenuItem Header="Block Context"  Command="{Binding ToggleBlockContextCommand}"/>
+        <MenuItem Header="TX Parameters"  Command="{Binding ToggleTxParamsCommand}"/>
+        <MenuItem Header="Pre-state"      Command="{Binding TogglePrestateCommand}"/>
+        <Separator/>
+        <MenuItem Header="Appearance" Name="AppearanceMenu"/>
+      </MenuItem>
+      <MenuItem Header="_Tools" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif">
+        <MenuItem Header="Show Call Topology" Command="{Binding ShowCallGraphCommand}"/>
+        <MenuItem Header="Show Source"        Command="{Binding ShowSourceCommand}"/>
+        <Separator/>
+        <MenuItem Header="Toggle OpSec Lockout" Command="{Binding ToggleOpSecCommand}"/>
+        <Separator/>
+        <MenuItem Header="Open n8n (localhost:5678)" Click="OnOpenN8nClick"/>
+        <MenuItem Header="Open Corpus Folder"        Click="OnOpenCorpusFolderClick"/>
+        <Separator/>
+        <MenuItem Header="Export Audit Report (.md)..." Click="OnExportReportClick"/>
+        <MenuItem Header="Export Trace JSON..."         Click="OnExportTraceClick"/>
+      </MenuItem>
+      <MenuItem Header="_Help" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif">
+        <MenuItem Header="Keyboard Shortcuts">
+          <MenuItem Header="F5  — Run bytecode"              IsEnabled="False"/>
+          <MenuItem Header="F10 — Step forward"              IsEnabled="False"/>
+          <MenuItem Header="F11 — Step back"                 IsEnabled="False"/>
+          <MenuItem Header="Space — Play / Pause"            IsEnabled="False"/>
+          <MenuItem Header="Home / End — Jump to start/end"  IsEnabled="False"/>
+          <MenuItem Header="Ctrl+1/2/3 — Switch views"       IsEnabled="False"/>
+          <MenuItem Header="Ctrl+O — Open file"              IsEnabled="False"/>
+          <MenuItem Header="Ctrl+Shift+R — Reset workbench"  IsEnabled="False"/>
+        </MenuItem>
+        <Separator/>
+        <MenuItem Header="About Schlieren" Click="OnAboutClick"/>
+      </MenuItem>
+    </Menu>
+    <!-- SLOT 1: Top nav -->
+    <Border Grid.Row="1" Background="#0B0C0D"
+            BorderBrush="#2A2D32" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+
+        <!-- Brand -->
+        <TextBlock Grid.Column="0"
+                   Text="SCHLIEREN"
+                   FontFamily="Inter, Segoe UI, sans-serif"
+                   FontSize="11" FontWeight="Bold" LetterSpacing="4.5"
+                   Foreground="#6A7280"
+                   VerticalAlignment="Center"
+                   Margin="16,0,24,0"/>
+
+        <!-- View tabs -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
+
+          <Border Classes="nav-tab active" Name="TabWorkbench"
+                  PointerPressed="OnWorkbenchTabClick">
+            <TextBlock Text="Workbench"/>
+          </Border>
+
+          <Border Classes="nav-tab" Name="TabInterference"
+                  PointerPressed="OnInterferenceTabClick">
+            <TextBlock Text="Interference"/>
+          </Border>
+
+          <Border Classes="nav-tab" Name="TabFlow"
+                  PointerPressed="OnFlowTabClick">
+            <TextBlock Text="Flow"/>
+          </Border>
+
+          <Border Classes="nav-tab" Name="TabConformance"
+                  PointerPressed="OnConformanceTabClick">
+            <TextBlock Text="Conformance"/>
+          </Border>
+
+          <Border Classes="nav-tab" Name="TabHarvest"
+                  PointerPressed="OnHarvestTabClick">
+            <TextBlock Text="Harvest"/>
+          </Border>
+
+        </StackPanel>
+
+        <!-- Run controls -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                    Spacing="8" VerticalAlignment="Center" Margin="0,0,16,0">
+
+          <!-- Fork selector -->
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="FORK"
+                       FontFamily="Inter, Segoe UI, sans-serif"
+                       FontSize="10" FontWeight="Bold" LetterSpacing="1"
+                       Foreground="#454B54" VerticalAlignment="Center"/>
+            <ComboBox ItemsSource="{Binding AvailableForks}"
+                      SelectedItem="{Binding SelectedFork}"
+                      Background="#111214" Foreground="#A0A8B4"
+                      FontSize="12" Height="22" Padding="8,0"
+                      MinWidth="80"/>
+          </StackPanel>
+
+          <Button Content="{Binding OpSecLabel}"
+                  Background="#111214" Foreground="#A0A8B4"
+                  FontSize="11" Padding="8,4" CornerRadius="3"
+                  Command="{Binding ToggleOpSecCommand}"/>
+
+          <Button Content="LOAD FIXTURE…"
+                  Background="#111214" Foreground="#6A7280"
+                  FontFamily="Inter, Segoe UI, sans-serif"
+                  FontSize="11" FontWeight="SemiBold"
+                  Padding="10,4" CornerRadius="3"
+                  Click="OnLoadPrestateClick"/>
+
+          <Button Content="RUN"
+                  Background="#E4E0DC" Foreground="#060607"
+                  FontFamily="Inter, Segoe UI, sans-serif"
+                  FontSize="11" FontWeight="Bold"
+                  Padding="14,4" CornerRadius="3"
+                  Command="{Binding RunBytecodeCommand}"
+                  IsEnabled="{Binding !IsRunning}"/>
+
+          <Button Content="STOP"
+                  Background="#2A0A0A" Foreground="#C43A52"
+                  FontFamily="Inter, Segoe UI, sans-serif"
+                  FontSize="11" FontWeight="Bold"
+                  Padding="10,4" CornerRadius="3"
+                  Command="{Binding CancelRunCommand}"
+                  IsEnabled="{Binding IsRunning}"/>
+
+        </StackPanel>
+
+      </Grid>
+    </Border>
+    <!-- SLOT 2: Case bar -->
+    <Border Grid.Row="2" Background="#111214"
+            BorderBrush="#1E2125" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="20"
+                  VerticalAlignment="Center" Margin="16,0">
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="label" Text="TARGET"/>
+          <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                     FontSize="13" Foreground="#A0A8B4"
+                     Text="{Binding TxTo, FallbackValue='—'}"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="label" Text="FORK"/>
+          <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                     FontSize="13" FontWeight="Medium" Foreground="#E4E0DC"
+                     Text="{Binding SelectedFork, FallbackValue='—'}"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="label" Text="STEP"/>
+          <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                     FontSize="13" FontWeight="Medium" Foreground="#E4E0DC"
+                     Text="{Binding StepProgress, FallbackValue='—'}"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="label" Text="GAS"/>
+          <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                     FontSize="13" Foreground="#A0A8B4"
+                     Text="{Binding GasText, FallbackValue='—'}"/>
+        </StackPanel>
+
+      </StackPanel>
+    </Border>
+    <!-- SLOT 3: Bytecode / file input bar -->
+    <Border Grid.Row="3" Background="#0B0C0D"
+            BorderBrush="#2A2D32" BorderThickness="0,0,0,1"
+            Padding="12,6">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+
+        <TextBlock Grid.Column="0" Text="BYTECODE"
+                   FontFamily="Inter, Segoe UI, sans-serif"
+                   FontSize="12" FontWeight="Bold"
+                   Foreground="#5B8EC9" LetterSpacing="1"
+                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+        <TextBox Grid.Column="1"
+                 Text="{Binding BytecodeInput}"
+                 Watermark="Paste hex bytecode (0x optional)  ·  or use Load Fixture…"
+                 Background="#090A0B" Foreground="#E4E0DC"
+                 BorderBrush="#2A2D32" BorderThickness="1"
+                 FontFamily="JetBrains Mono, Consolas, monospace"
+                 FontSize="13" Padding="8,4" CornerRadius="3"
+                 Margin="0,0,8,0"/>
+
+        <Button Grid.Column="2" Content="ADD"
+                Background="#181A1D" Foreground="#C8943C"
+                FontSize="11" FontWeight="Bold" Padding="8,3" CornerRadius="3" Margin="0,0,4,0"
+                Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="add"/>
+        <Button Grid.Column="3" Content="LOOP"
+                Background="#181A1D" Foreground="#C8943C"
+                FontSize="11" FontWeight="Bold" Padding="8,3" CornerRadius="3" Margin="0,0,4,0"
+                Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="loop"/>
+        <Button Grid.Column="4" Content="TSTORE"
+                Background="#181A1D" Foreground="#4BA89A"
+                FontSize="11" FontWeight="Bold" Padding="8,3" CornerRadius="3" Margin="0,0,4,0"
+                Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="tstore"/>
+        <Button Grid.Column="5" Content="KECCAK"
+                Background="#181A1D" Foreground="#C8943C"
+                FontSize="11" FontWeight="Bold" Padding="8,3" CornerRadius="3" Margin="0,0,8,0"
+                Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="keccak"/>
+
+        <Button Grid.Column="6"
+                Content="{Binding IsRunning, Converter={x:Static vm:BoolToRunLabelConverter.Instance}}"
+                Background="#5B8EC9" Foreground="#060607"
+                FontWeight="Bold" FontSize="12" Padding="14,3" CornerRadius="3" Margin="0,0,4,0"
+                Command="{Binding RunBytecodeCommand}"
+                IsEnabled="{Binding !IsRunning}"/>
+
+        <Button Grid.Column="7" Content="STOP"
+                Background="#2A0A0A" Foreground="#C43A52"
+                FontWeight="Bold" FontSize="12" Padding="10,3" CornerRadius="3" Margin="0,0,4,0"
+                Command="{Binding CancelRunCommand}"
+                IsEnabled="{Binding IsRunning}"/>
+
+        <Button Grid.Column="8" Content="RESET"
+                Background="#181A1D" Foreground="#6A7280"
+                FontSize="11" FontWeight="Bold" Padding="8,3" CornerRadius="3"
+                Command="{Binding ResetWorkbenchCommand}"/>
+
+      </Grid>
+    </Border>
+
+    <!-- SLOT 4: Workspace -->
+    <Grid Grid.Row="4" ColumnDefinitions="*,4,300" Name="WorkspaceGrid">
+
+      <!-- LEFT: view switcher — Workbench / Conformance / Harvest -->
+      <Grid Grid.Column="0" Name="MainViewArea">
+
+        <!-- WORKBENCH VIEW -->
+        <Grid Name="WorkbenchView" RowDefinitions="*,4,180" IsVisible="True">
+
+          <!-- Upper: disassembly left + machine state right -->
+          <Grid Grid.Row="0" ColumnDefinitions="*,4,280">
+
+            <!-- DISASSEMBLY -->
+            <Grid Grid.Column="0" RowDefinitions="28,*"
+                  Background="#090A0B">
+              <Border Grid.Row="0" Background="#111214"
+                      BorderBrush="#1E2125" BorderThickness="0,0,0,1"
+                      Padding="16,0">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                  <TextBlock Classes="pane-title" Text="DISASSEMBLY"/>
+                  <TextBox Width="64" Height="18"
+                           Text="{Binding PcSearch}"
+                           Watermark="PC"
+                           Background="#090A0B" Foreground="#A0A8B4"
+                           FontFamily="JetBrains Mono, Consolas, monospace"
+                           FontSize="11" Padding="4,1"
+                           BorderBrush="#2A2D32" BorderThickness="1"
+                           CornerRadius="2"/>
+                  <Button Content="GO" FontSize="10" Padding="6,1" CornerRadius="2"
+                          Background="#181A1D" Foreground="#5B8EC9"
+                          Command="{Binding JumpToPcCommand}"/>
+                  <TextBlock Text="{Binding ExecutionTargetLine}"
+                             FontFamily="Inter, Segoe UI, sans-serif"
+                             FontSize="12" Foreground="#454B54"
+                             VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"
+                             MaxWidth="300" Margin="8,0,0,0"/>
                 </StackPanel>
+              </Border>
 
-                <!-- Workbench-only center chrome (hidden in Conformance mode) -->
-                <StackPanel x:Name="WorkbenchTopCenter" Grid.Column="1" Orientation="Horizontal"
-                            HorizontalAlignment="Center" Spacing="12">
-                    <StackPanel Spacing="1" VerticalAlignment="Center" MaxWidth="380">
-                        <TextBlock Text="{Binding ExecutionTargetLine}" Foreground="{DynamicResource Schlieren.AccentAlt}"
-                                   FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                   ToolTip.Tip="What RUN executes (To address + code + fork)"/>
-                        <TextBlock Text="{Binding EditorFileLine}" Foreground="{DynamicResource Schlieren.TextDim}"
-                                   FontSize="10" TextTrimming="CharacterEllipsis"
-                                   ToolTip.Tip="Open SOURCE tab only — not necessarily the execution target"/>
-                    </StackPanel>
-                    <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="6,2" CornerRadius="3" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1"
-                            ToolTip.Tip="Workbench report fork only — labels bytecode runs. Does NOT select EELS suite fork. Use the FORK control inside the CONFORMANCE tab for fixtures.">
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="WORKBENCH FORK:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="WorkbenchForkCombo"
-                                      ItemsSource="{Binding AvailableForks}" SelectedItem="{Binding SelectedFork}"
-                                      Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11" Height="24" Padding="6,2"
-                                      MinWidth="96"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- Shown only while Conformance tab is active -->
-                <Border x:Name="ConformanceModeBadge" Grid.Column="1"
-                        IsVisible="False" HorizontalAlignment="Center"
-                        Background="{DynamicResource Schlieren.PanelBg}" BorderBrush="{DynamicResource Schlieren.AccentSoft}" BorderThickness="1"
-                        CornerRadius="6" Padding="14,6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="✅" FontSize="12" VerticalAlignment="Center"/>
-                        <TextBlock Text="CONFORMANCE MODE"
-                                   Foreground="{DynamicResource Schlieren.AccentSoft}" FontWeight="Bold" FontSize="12"
-                                   VerticalAlignment="Center" LetterSpacing="1"/>
-                        <TextBlock Text="· suite fork is controlled inside this panel"
-                                   Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <StackPanel x:Name="WorkbenchTopActions" Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="10,4" CornerRadius="3" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1"
-                            ToolTip.Tip="{Binding ForkNote}">
-                        <TextBlock Text="{Binding ForkNote}" Foreground="{DynamicResource Schlieren.TextMuted}" FontSize="10" MaxWidth="280" TextTrimming="CharacterEllipsis"/>
-                    </Border>
-                    <Button Content="{Binding OpSecLabel}" Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11"
-                            Padding="10,4" CornerRadius="3" Command="{Binding ToggleOpSecCommand}"/>
-                    <Button Classes="brand-primary" Content="RUN BYTECODE"
-                            Padding="16,6" FontSize="12"
-                            Command="{Binding RunBytecodeCommand}"
-                            IsEnabled="{Binding !IsRunning}"/>
-                    <Button Content="RESET" ToolTip.Tip="Clear bytecode, calldata, files, and last trace (Ctrl+Shift+R)"
-                            Background="{DynamicResource Schlieren.AlertBg}" Foreground="{DynamicResource Schlieren.Alert}" FontSize="11" FontWeight="Bold"
-                            Padding="12,6" CornerRadius="3"
-                            Command="{Binding ResetWorkbenchCommand}"/>
-                </StackPanel>
+              <ScrollViewer Grid.Row="1">
+                <ItemsControl ItemsSource="{Binding Instructions}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:InstructionViewModel">
+                      <Border Padding="0" Margin="0" CornerRadius="0"
+                              Cursor="Hand"
+                              Background="{Binding IsActive, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                              PointerPressed="OnInstructionClick">
+                        <TextBlock Text="{Binding DisplayText}"
+                                   FontFamily="JetBrains Mono, Cascadia Code, Consolas, monospace"
+                                   FontSize="13"
+                                   Padding="16,5"
+                                   Foreground="{Binding IsActive, Converter={x:Static vm:BoolToFGConverter.Instance}}"/>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
             </Grid>
-        </Border>
 
-        <!-- TABS -->
-        <Border Grid.Row="2" Background="{DynamicResource Schlieren.PanelDeep}" Padding="16,6" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="0">
-                    <ItemsControl ItemsSource="{Binding ProjectFiles}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="0"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ProjectFileViewModel">
-                                <Border Padding="10,6" CornerRadius="4,4,0,0"
-                                        Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
-                                        PointerPressed="OnTabClick" Focusable="True"
-                                        Cursor="Hand" Margin="0,0,2,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding FileName}"
-                                                   Foreground="{Binding IsSelected, Converter={x:Static vm:BoolToFGConverter.Instance}}"
-                                                   FontWeight="{Binding IsSelected, Converter={x:Static vm:BoolToFontWeightConverter.Instance}}"
-                                                   FontSize="12" VerticalAlignment="Center"/>
-                                        <Button Content="×" FontSize="12" Foreground="{DynamicResource Schlieren.TextDim}" Background="Transparent" Padding="8,4" Margin="4,0,0,0"
-                                                Command="{Binding #root.DataContext.CloseTabCommand}" CommandParameter="{Binding}"
-                                                x:CompileBindings="False" ToolTip.Tip="Close tab" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+            <!-- SPLITTER: disassembly | machine state -->
+            <GridSplitter Grid.Column="1"
+                          ResizeDirection="Columns"
+                          Background="#2A2D32"
+                          Width="4"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"/>
 
-                    <Border Width="1" Height="16" Background="{DynamicResource Schlieren.BorderSubtle}" Margin="12,0,12,0" VerticalAlignment="Center"/>
-                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelElevated}"
-                            PointerPressed="OnCallGraphClick" Cursor="Hand">
-                        <TextBlock Text="CALL GRAPH" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="12"/>
-                    </Border>
-                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelElevated}" Margin="4,0,0,0"
-                            PointerPressed="OnSourceClick" Cursor="Hand">
-                        <TextBlock Text="SOURCE" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="12"/>
-                    </Border>
-                    <Border Padding="12,6" CornerRadius="4,4,0,0" Background="{DynamicResource Schlieren.PanelBg}" Margin="4,0,0,0"
-                            PointerPressed="OnConformanceClick" Cursor="Hand" Name="ConformanceTab"
-                            ToolTip.Tip="EELS fixture conformance runner">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="✅" FontSize="11" VerticalAlignment="Center"/>
-                            <TextBlock Text="CONFORMANCE" Foreground="{DynamicResource Schlieren.AccentSoft}" FontWeight="Bold" FontSize="12"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <StackPanel x:Name="WorkbenchTabActions" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                    <Button Content="EXPORT TRACE" FontSize="10" FontWeight="SemiBold"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" Padding="10,4" CornerRadius="3"
-                            Click="OnExportTraceClick" ToolTip.Tip="Export structLog JSON"/>
-                    <Button Content="BLOCK" FontSize="10" FontWeight="SemiBold"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3"
-                            Command="{Binding ToggleBlockContextCommand}"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- BYTECODE + TX + BLOCK CONTEXT -->
-        <Border x:Name="WorkbenchBytecodeBar" Grid.Row="3" Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,8" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,0,0,1">
-            <StackPanel Spacing="6">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                    <TextBlock Grid.Column="0" Text="BYTECODE" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11"
-                               VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <TextBox Grid.Column="1"
-                             Text="{Binding BytecodeInput}"
-                             Watermark="Paste hex bytecode (0x optional) e.g. 600560030160005260206000f3"
-                             Background="#1A1C23" Foreground="{DynamicResource Schlieren.TextPrimary}"
-                             BorderBrush="#4A00E0" BorderThickness="1"
-                             FontFamily="Consolas, Menlo, monospace" FontSize="12"
-                             Padding="8,4" CornerRadius="3" Margin="0,0,8,0"/>
-                    <Button Grid.Column="2" Content="ADD" ToolTip.Tip="PUSH1 5 + PUSH1 3 + ADD + RETURN"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontSize="10" FontWeight="Bold"
-                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
-                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="add"/>
-                    <Button Grid.Column="3" Content="LOOP"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontSize="10" FontWeight="Bold"
-                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
-                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="loop"/>
-                    <Button Grid.Column="4" Content="TSTORE"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#00D4AA" FontSize="10" FontWeight="Bold"
-                            Padding="8,4" CornerRadius="3" Margin="0,0,4,0"
-                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="tstore"/>
-                    <Button Grid.Column="5" Content="KECCAK"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontSize="10" FontWeight="Bold"
-                            Padding="8,4" CornerRadius="3" Margin="0,0,8,0"
-                            Command="{Binding LoadDemoBytecodeCommand}" CommandParameter="keccak"/>
-                    <Button Grid.Column="6"
-                            Content="{Binding IsRunning, Converter={x:Static vm:BoolToRunLabelConverter.Instance}}"
-                            Background="#4A00E0" Foreground="White"
-                            FontWeight="Bold" FontSize="12" Padding="14,6" CornerRadius="4" Margin="0,0,4,0"
-                            Command="{Binding RunBytecodeCommand}"
-                            IsEnabled="{Binding !IsRunning}"/>
-                    <Button Grid.Column="7" Content="STOP" ToolTip.Tip="Cancel in-flight run"
-                            Background="#3D1414" Foreground="#FF4500" FontWeight="Bold" FontSize="11"
-                            Padding="12,6" CornerRadius="4" Margin="0,0,4,0"
-                            Command="{Binding CancelRunCommand}"
-                            IsEnabled="{Binding IsRunning}"/>
-                    <Button Grid.Column="8" Content="RESET" ToolTip.Tip="Clear bytecode, calldata, files, and last trace (Ctrl+Shift+R)"
-                            Background="#2A1C14" Foreground="#FFAA00" FontWeight="Bold" FontSize="11"
-                            Padding="12,6" CornerRadius="4"
-                            Command="{Binding ResetWorkbenchCommand}"/>
-                </Grid>
-
-                <Grid ColumnDefinitions="Auto,Auto,Auto,*">
-                    <Button Grid.Column="0" Content="TX PARAMS" FontSize="10" FontWeight="SemiBold"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3" Margin="0,0,6,0"
-                            Command="{Binding ToggleTxParamsCommand}"
-                            ToolTip.Tip="from / to / value / calldata / gas price"/>
-                    <Button Grid.Column="1" Content="BLOCK CONTEXT" FontSize="10" FontWeight="SemiBold"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" Padding="10,4" CornerRadius="3" Margin="0,0,6,0"
-                            Command="{Binding ToggleBlockContextCommand}"/>
-                    <Button Grid.Column="2" Content="PRE-STATE" FontSize="10" FontWeight="SemiBold"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" Padding="10,4" CornerRadius="3"
-                            Command="{Binding TogglePrestateCommand}"
-                            ToolTip.Tip="Extra accounts (callees, tokens, impls). File → Load Pre-state JSON"/>
-                    <Border Grid.Column="3" Background="#12131A" CornerRadius="3" Padding="10,4" Margin="8,0,0,0"
-                            BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
-                                       FontSize="11" FontWeight="Bold" TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2" Margin="8,0,0,0"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="verdict"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"
-                                    ToolTip.Tip="Copy verdict + explanation"/>
-                        </Grid>
-                    </Border>
-                </Grid>
-
-                <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
-                        IsVisible="{Binding IsPrestateExpanded}">
-                    <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,Auto,Auto">
-                        <TextBlock Grid.Column="0" Text="{Binding PrestateSummary}" Foreground="{DynamicResource Schlieren.Warning}"
-                                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                        <Button Grid.Column="1" Content="LOAD JSON" FontSize="10" Padding="8,2" Margin="8,0,4,0"
-                                Click="OnLoadPrestateClick"
-                                Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
-                        <Button Grid.Column="2" Content="CLEAR" FontSize="10" Padding="8,2"
-                                Command="{Binding ClearPrestateCommand}"
-                                Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#FF8A80"/>
-                        <ItemsControl Grid.Row="1" Grid.ColumnSpan="3" ItemsSource="{Binding PrestateAccountRows}" Margin="0,8,0,0">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10"
-                                               Foreground="{DynamicResource Schlieren.TextPrimary}" Margin="0,2"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Grid>
+            <!-- MACHINE STATE -->
+            <Border Grid.Column="2" Background="#0B0C0D"
+                    BorderBrush="#2A2D32" BorderThickness="0,0,0,0">
+              <Grid RowDefinitions="28,*">
+                <Border Grid.Row="0" Background="#111214"
+                        BorderBrush="#1E2125" BorderThickness="0,0,0,1"
+                        Padding="16,0">
+                  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Classes="pane-title" Text="MACHINE STATE"/>
+                    <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                               FontSize="12" Foreground="#454B54"
+                               Text="{Binding StepProgress, FallbackValue=''}"/>
+                  </StackPanel>
                 </Border>
+                <ScrollViewer Grid.Row="1">
+                  <StackPanel Margin="16,8" Spacing="12">
 
-                <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
-                        IsVisible="{Binding IsTxParamsExpanded}">
-                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,*,Auto,*">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="From:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,4"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding TxFrom}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}"
-                                 FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,12,4"/>
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="To (code):" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,4"/>
-                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding TxTo}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.Warning}"
-                                 FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,12,4"/>
-                        <TextBlock Grid.Row="0" Grid.Column="4" Text="Value wei:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,4"/>
-                        <TextBox Grid.Row="0" Grid.Column="5" Text="{Binding TxValueWei}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
-                                 FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,0,4"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Calldata:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding CallDataHex}"
-                                 Watermark="0x… optional call data"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontFamily="Consolas" FontSize="10" Padding="6,2" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Row="1" Grid.Column="4" Text="GasPrice gwei:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Row="1" Grid.Column="5" Text="{Binding GasPriceGwei}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}"
-                                 FontFamily="Consolas" FontSize="10" Padding="6,2"/>
-                    </Grid>
-                </Border>
-
-                <Border Background="#161824" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="10,6"
-                        IsVisible="{Binding IsBlockContextExpanded}">
-                    <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*,Auto,*,Auto,*">
-                        <TextBlock Grid.Column="0" Text="Tx Gas:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="1" Text="{Binding TxGasLimit}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="2" Text="Block Gas:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="3" Text="{Binding BlockGasLimit}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="4" Text="BaseFee Gwei:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="5" Text="{Binding BaseFeeGwei}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="6" Text="ChainId:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="7" Text="{Binding ChainId}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="11" Padding="6,2" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="8" Text="Coinbase:" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="9" Text="{Binding CoinbaseAddress}" Background="{DynamicResource Schlieren.ShellBg}" Foreground="#FFAA00" FontSize="10" FontFamily="Consolas" Padding="6,2"/>
-                    </Grid>
-                </Border>
-            </StackPanel>
-        </Border>
-
-        <!-- MAIN -->
-        <Grid x:Name="MainWorkbenchGrid" Grid.Row="4" ColumnDefinitions="220,*,300" Margin="8,8,8,0">
-            <!-- Explorer -->
-            <Border Grid.Column="0" Classes="panel">
-                <Grid RowDefinitions="Auto,*">
-                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="12,12,12,0">
-                        <TextBlock Grid.Column="0" Text="EXPLORER" Classes="header" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" Content="Open" Padding="6,2" FontSize="11" Background="{DynamicResource Schlieren.PanelElevated}" CornerRadius="3" Margin="0,0,4,0"
-                                Click="OnOpenFileClick"/>
-                        <Button Grid.Column="2" Content="Folder" Padding="6,2" FontSize="11" Background="{DynamicResource Schlieren.PanelElevated}" CornerRadius="3"
-                                Click="OnOpenFolderClick"/>
-                    </Grid>
-                    <ScrollViewer Grid.Row="1">
-                        <StackPanel Margin="12,8">
-                            <TextBox Watermark="Search files or code..."
-                                     Text="{Binding SearchQuery}"
-                                     Background="{DynamicResource Schlieren.ShellBg}" BorderBrush="{DynamicResource Schlieren.Border}"
-                                     Foreground="{DynamicResource Schlieren.TextPrimary}" Padding="8,6" Margin="0,0,0,12"/>
-                            <ItemsControl ItemsSource="{Binding FilteredProjectFiles}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:ProjectFileViewModel">
-                                        <Border Background="{Binding IsSelected, Converter={x:Static vm:BoolToColorConverter.Instance}}"
-                                                Padding="8,6" Margin="0,2" CornerRadius="3"
-                                                PointerPressed="OnFileClick" Cursor="Hand">
-                                            <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="12"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Text="No open files" Foreground="#666" FontSize="11" Margin="0,8,0,0"
-                                       IsVisible="{Binding !HasOpenFiles}"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-
-            <!-- Center: source / empty / call graph -->
-            <Border Grid.Column="1" Classes="panel" Margin="4,0,4,0">
-                <Grid>
-                    <!-- Source (when not call graph) -->
-                    <Grid IsVisible="{Binding !IsCallGraphVisible}">
-                        <!-- Skin-driven watermark art (behind code, never steals clicks) -->
-                        <Grid x:Name="WatermarkHost"
-                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                              IsHitTestVisible="False"
-                              Opacity="{Binding WatermarkOpacity}">
-                            <!-- Schlieren brand mark -->
-                            <Image x:Name="WatermarkSchlieren"
-                                   Source="/Assets/schlieren-watermark.png"
-                                   Width="300" Height="300" Stretch="Uniform"/>
-                            <!-- Ethereum diamond -->
-                            <Viewbox x:Name="WatermarkEth" Width="280" Height="280" IsVisible="False">
-                                <Canvas Width="100" Height="160">
-                                    <Path Fill="{DynamicResource Schlieren.Accent}" Opacity="0.9"
-                                          Data="M50,0 L0,80 L50,110 L100,80 Z"/>
-                                    <Path Fill="{DynamicResource Schlieren.AccentAlt}" Opacity="0.55"
-                                          Data="M50,120 L0,90 L50,160 L100,90 Z"/>
-                                    <Path Fill="{DynamicResource Schlieren.AccentSoft}" Opacity="0.35"
-                                          Data="M50,0 L50,110 L100,80 Z"/>
-                                </Canvas>
-                            </Viewbox>
-                            <!-- Sounder field sigil: target + blaze ring -->
-                            <Viewbox x:Name="WatermarkSounder" Width="300" Height="300" IsVisible="False">
-                                <Canvas Width="200" Height="200">
-                                    <Ellipse Canvas.Left="20" Canvas.Top="20" Width="160" Height="160"
-                                             Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="6" Opacity="0.7"/>
-                                    <Ellipse Canvas.Left="45" Canvas.Top="45" Width="110" Height="110"
-                                             Stroke="{DynamicResource Schlieren.AccentAlt}" StrokeThickness="4" Opacity="0.55"/>
-                                    <Ellipse Canvas.Left="80" Canvas.Top="80" Width="40" Height="40"
-                                             Fill="{DynamicResource Schlieren.Accent}" Opacity="0.8"/>
-                                    <Line StartPoint="100,10" EndPoint="100,50"
-                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
-                                    <Line StartPoint="100,150" EndPoint="100,190"
-                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
-                                    <Line StartPoint="10,100" EndPoint="50,100"
-                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
-                                    <Line StartPoint="150,100" EndPoint="190,100"
-                                          Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="5" Opacity="0.75"/>
-                                </Canvas>
-                            </Viewbox>
-                            <!-- Void crystal sigil -->
-                            <Viewbox x:Name="WatermarkVoid" Width="320" Height="320" IsVisible="False">
-                                <Canvas Width="200" Height="200">
-                                    <Ellipse Canvas.Left="30" Canvas.Top="30" Width="140" Height="140"
-                                             Stroke="{DynamicResource Schlieren.Accent}" StrokeThickness="2" Opacity="0.5"/>
-                                    <Ellipse Canvas.Left="50" Canvas.Top="50" Width="100" Height="100"
-                                             Stroke="{DynamicResource Schlieren.AccentAlt}" StrokeThickness="2" Opacity="0.45"/>
-                                    <Path Fill="{DynamicResource Schlieren.Accent}" Opacity="0.55"
-                                          Data="M100,20 L130,100 L100,180 L70,100 Z"/>
-                                    <Path Fill="{DynamicResource Schlieren.AccentAlt}" Opacity="0.4"
-                                          Data="M20,100 L100,70 L180,100 L100,130 Z"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Grid>
-
-                        <!-- Code on top of watermark -->
-                        <ScrollViewer>
-                            <ItemsControl ItemsSource="{Binding ActiveCodeLines}" Margin="12,8">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:CodeLineViewModel">
-                                        <Grid ColumnDefinitions="20,40,*" Margin="0,0,0,2">
-                                            <TextBlock Grid.Column="0" Text=">" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="11"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                       IsVisible="{Binding IsActiveLine}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding LineNumber}" Classes="linenumber" VerticalAlignment="Center"/>
-                                            <Border Grid.Column="2" Padding="8,2" CornerRadius="2"
-                                                    Classes.activeLine="{Binding IsActiveLine}"
-                                                    Classes.vulnerableLine="{Binding IsVulnerableLine}">
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <TextBlock Grid.Column="0" Text="{Binding Text}" Classes="code" TextWrapping="NoWrap"/>
-                                                    <Border Grid.Column="1" Background="#1E143B" BorderBrush="#19D7E5" BorderThickness="1"
-                                                            CornerRadius="3" Padding="6,1" Margin="6,0"
-                                                            IsVisible="{Binding HasGasBadge}">
-                                                        <TextBlock Text="{Binding GasBadgeText}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="10" FontWeight="Bold"/>
-                                                    </Border>
-                                                </Grid>
-                                            </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-
-                        <!-- Empty-state hints only (logo is watermark, not a blocking overlay) -->
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                                    Margin="0,0,0,28" Spacing="6"
-                                    IsVisible="{Binding !HasOpenFiles}"
-                                    IsHitTestVisible="False">
-                            <TextBlock Text="Precise · Verifiable · Traceable · Conformant"
-                                       Foreground="{DynamicResource Schlieren.TextMuted}" FontSize="12" HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding CenterEmptyHint}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="12"
-                                       TextWrapping="Wrap" MaxWidth="380" TextAlignment="Center"
-                                       HorizontalAlignment="Center"/>
-                        </StackPanel>
+                    <!-- Step controls -->
+                    <Grid ColumnDefinitions="*,*,*,*,*">
+                      <Button Grid.Column="0" Content="|◀" Height="24" FontSize="12"
+                              Command="{Binding JumpToStartCommand}"
+                              Background="#181A1D" Foreground="#5B8EC9"/>
+                      <Button Grid.Column="1" Content="◀"  Height="24" FontSize="12"
+                              Command="{Binding StepBackCommand}"
+                              Background="#181A1D" Foreground="#5B8EC9"/>
+                      <Button Grid.Column="2"
+                              Content="{Binding IsAutoPlaying, Converter={x:Static vm:BoolToPlayLabelConverter.Instance}}"
+                              Height="24" FontSize="12"
+                              Command="{Binding ToggleAutoPlayCommand}"
+                              Background="#1F2225" Foreground="#E4E0DC"/>
+                      <Button Grid.Column="3" Content="▶"  Height="24" FontSize="12"
+                              Command="{Binding StepForwardCommand}"
+                              Background="#181A1D" Foreground="#5B8EC9"/>
+                      <Button Grid.Column="4" Content="▶|" Height="24" FontSize="12"
+                              Command="{Binding JumpToEndCommand}"
+                              Background="#181A1D" Foreground="#5B8EC9"/>
                     </Grid>
 
-                    <!-- Call graph -->
-                    <Grid IsVisible="{Binding IsCallGraphVisible}" RowDefinitions="Auto,*">
-                        <Border Background="{DynamicResource Schlieren.PanelDeep}" Padding="12,8" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,0,0,1">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="CALL GRAPH" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Schlieren.Warning}"/>
-                                <TextBlock Text="{Binding CallTopology.EmptyHint}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="12" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding CallTopology.Rows}" Margin="24,16">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:CallGraphRowViewModel">
-                                        <StackPanel Margin="0,0,0,4">
-                                            <StackPanel IsVisible="{Binding IsEdge}" Margin="0,8" HorizontalAlignment="Center">
-                                                <TextBlock Text="{Binding Title}"
-                                                           HorizontalAlignment="Center"
-                                                           FontFamily="Consolas, Cascadia Mono, monospace"
-                                                           FontSize="12" FontWeight="Bold"
-                                                           Foreground="{DynamicResource Schlieren.Warning}"/>
-                                                <TextBlock Text="{Binding Detail}"
-                                                           HorizontalAlignment="Center"
-                                                           FontFamily="Consolas, Cascadia Mono, monospace"
-                                                           FontSize="11"
-                                                           Foreground="{DynamicResource Schlieren.TextMuted}"
-                                                           TextAlignment="Center" TextWrapping="Wrap"
-                                                           Margin="0,4,0,0"/>
-                                            </StackPanel>
-                                            <Border IsVisible="{Binding IsNode}"
-                                                    Background="{DynamicResource Schlieren.PanelElevated}"
-                                                    BorderBrush="{DynamicResource Schlieren.Accent}"
-                                                    BorderThickness="2"
-                                                    Padding="16,10" CornerRadius="8" MinWidth="300"
-                                                    HorizontalAlignment="Center" Margin="0,4"
-                                                    Cursor="Hand"
-                                                    PointerPressed="OnCallGraphRowClick"
-                                                    ToolTip.Tip="Click to inspect this frame in the RESULTS panel">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding Title}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="16"/>
-                                                    <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="12" FontFamily="Consolas" Margin="0,6,0,0" TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </Grid>
-            </Border>
+                    <Slider Minimum="0" Maximum="{Binding MaxStepIndex}"
+                            Value="{Binding CurrentStepIndex}"
+                            IsEnabled="{Binding HasTrace}"/>
 
-            <!-- Inspector -->
-            <Border Grid.Column="2" Classes="panel">
-                <ScrollViewer>
-                    <StackPanel Margin="12">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="RESULTS" Classes="header" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY ALL" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="all"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}"
-                                    ToolTip.Tip="Copy verdict, return data, storage, stack, accounts"/>
-                        </Grid>
+                    <!-- Verdict -->
+                    <Border Background="#0D0E10" BorderBrush="#2A2D32"
+                            BorderThickness="1" CornerRadius="3" Padding="10,8">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding ResultVerdict}"
+                                   FontFamily="JetBrains Mono, Consolas, monospace"
+                                   FontSize="14" FontWeight="Bold"
+                                   Foreground="{Binding ResultBannerColor}"/>
+                        <TextBlock Text="{Binding ResultExplain}"
+                                   FontFamily="Inter, Segoe UI, sans-serif"
+                                   FontSize="13" Foreground="#A0A8B4"
+                                   TextWrapping="Wrap"/>
+                      </StackPanel>
+                    </Border>
 
-                        <Border Background="#12131A" BorderBrush="{DynamicResource Schlieren.BorderSubtle}"
-                                BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,4,0,8">
-                            <StackPanel Spacing="4">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="{Binding ResultVerdict}" FontWeight="Bold" FontSize="16"
-                                               Foreground="{Binding ResultBannerColor}"/>
-                                    <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                            Command="{Binding CopyInspectorCommand}" CommandParameter="verdict"
-                                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
-                                </Grid>
-                                <TextBlock Text="{Binding ResultExplain}" Foreground="{DynamicResource Schlieren.TextPrimary}"
-                                           FontSize="12" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding ResultBanner}" Foreground="{Binding ResultBannerColor}"
-                                           FontSize="10" TextWrapping="Wrap" Opacity="0.85"/>
-                            </StackPanel>
-                        </Border>
+                    <!-- Opcode notes -->
+                    <Border Background="#0D0E10" BorderBrush="#2A2D32"
+                            BorderThickness="1" CornerRadius="3" Padding="10,8">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="OPCODE"
+                                   FontFamily="Inter, Segoe UI, sans-serif"
+                                   FontSize="10" FontWeight="Bold"
+                                   Foreground="#454B54" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding CurrentOpcodeSpec}"
+                                   FontFamily="JetBrains Mono, Consolas, monospace"
+                                   FontSize="12" Foreground="#5B8EC9"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding CurrentGasFormulaBreakdown}"
+                                   FontFamily="JetBrains Mono, Consolas, monospace"
+                                   FontSize="11" Foreground="#C8943C"
+                                   TextWrapping="Wrap"/>
+                      </StackPanel>
+                    </Border>
 
-                        <TextBlock Text="STEP (F10 / F11 / Space)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,8,0,4"/>
-                        <Grid>
-                            <TextBlock Text="{Binding StepProgress}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="13"/>
-                            <TextBlock Text="{Binding StepPercentage}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="11" HorizontalAlignment="Right"/>
-                        </Grid>
-                        <Slider Minimum="0" Maximum="{Binding MaxStepIndex}" Value="{Binding CurrentStepIndex}"
-                                IsEnabled="{Binding HasTrace}" Margin="0,6,0,0"/>
-                        <Grid ColumnDefinitions="*,*,*,*,*" Margin="0,8,0,0">
-                            <Button Grid.Column="0" Content="|◀" Height="28" Command="{Binding JumpToStartCommand}"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
-                            <Button Grid.Column="1" Content="◀" Height="28" Command="{Binding StepBackCommand}"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
-                            <Button Grid.Column="2"
-                                    Content="{Binding IsAutoPlaying, Converter={x:Static vm:BoolToPlayLabelConverter.Instance}}"
-                                    Height="28" Command="{Binding ToggleAutoPlayCommand}"
-                                    Background="#4A00E0" Foreground="White" FontWeight="Bold"/>
-                            <Button Grid.Column="3" Content="▶" Height="28" Command="{Binding StepForwardCommand}"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
-                            <Button Grid.Column="4" Content="▶|" Height="28" Command="{Binding JumpToEndCommand}"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold"/>
-                        </Grid>
-
-                        <Border Background="#12131A" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0" Padding="10">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="OPCODE NOTES (reference)" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="10"/>
-                                <TextBlock Text="{Binding CurrentOpcodeSpec}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontSize="11" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding CurrentGasFormulaBreakdown}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="10" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding CurrentStepDetail}" Foreground="#888888" FontSize="10"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="RETURN DATA (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="return"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#00D4AA"/>
-                        </Grid>
-                        <TextBox Text="{Binding ReturnDataHex}" IsReadOnly="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="#00D4AA" FontFamily="Consolas" FontSize="10"
-                                 TextWrapping="Wrap" MaxHeight="72" AcceptsReturn="True" IsTabStop="True"/>
-                        <TextBlock Text="{Binding ErrorText}" Foreground="#FF4500" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Grid.Column="0" Text="DISASSEMBLY (click step)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                <TextBox Width="64" Text="{Binding PcSearch}" Watermark="PC"
-                                         Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontFamily="Consolas" FontSize="10" Padding="4,2"/>
-                                <Button Content="GO" FontSize="10" Padding="8,2" Command="{Binding JumpToPcCommand}"
-                                        Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
-                            </StackPanel>
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding Instructions}" MaxHeight="180">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:InstructionViewModel">
-                                    <Border Padding="6,2" Margin="0,1" CornerRadius="2" Cursor="Hand"
-                                            Background="{Binding IsActive, Converter={x:Static vm:BoolToColorConverter.Instance}}"
-                                            PointerPressed="OnInstructionClick">
-                                        <TextBlock Text="{Binding DisplayText}" FontFamily="Consolas" FontSize="10"
-                                                   Foreground="{Binding IsActive, Converter={x:Static vm:BoolToFGConverter.Instance}}"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="STACK (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="stack"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}"/>
-                        </Grid>
-                        <TextBox Text="{Binding StackText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.AccentAlt}"
-                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="48" MaxHeight="140"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="MEMORY (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="memory"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
-                        </Grid>
-                        <TextBox Text="{Binding MemoryText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
-                                 FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="STORAGE (this contract's saved result)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="storage"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}"/>
-                        </Grid>
-                        <TextBox Text="{Binding StorageText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.Warning}"
-                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="56" MaxHeight="160"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="ACCOUNTS (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="accounts"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextMuted}"/>
-                        </Grid>
-                        <TextBox Text="{Binding AccountsText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextMuted}"
-                                 FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="LOGS (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="logs"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
-                        </Grid>
-                        <TextBox Text="{Binding LogsText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
-                                 FontFamily="Consolas" FontSize="9" TextWrapping="Wrap" MinHeight="36" MaxHeight="100"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="GAS (select or COPY)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="gas"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.TextPrimary}"/>
-                        </Grid>
-                        <TextBox Text="{Binding GasText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="{DynamicResource Schlieren.TextPrimary}"
-                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="40" MaxHeight="120"/>
-
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,4">
-                            <TextBlock Text="DIAGNOSIS (causal analysis)" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="COPY" FontSize="10" Padding="8,2"
-                                    Command="{Binding CopyInspectorCommand}" CommandParameter="diagnosis"
-                                    Background="{DynamicResource Schlieren.PanelElevated}" Foreground="#FF8C00"/>
-                        </Grid>
-                        <TextBox Text="{Binding DiagnosisText}" IsReadOnly="True" AcceptsReturn="True"
-                                 Background="{DynamicResource Schlieren.ShellBg}" Foreground="#FF8C00"
-                                 FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" MinHeight="80" MaxHeight="180"/>
+                    <!-- Stack -->
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="STACK"
+                                 FontFamily="Inter, Segoe UI, sans-serif"
+                                 FontSize="10" FontWeight="Bold"
+                                 Foreground="#454B54" LetterSpacing="1.5"/>
+                      <TextBox Text="{Binding StackText}" IsReadOnly="True"
+                               AcceptsReturn="True"
+                               Background="#090A0B" Foreground="#A0A8B4"
+                               FontFamily="JetBrains Mono, Consolas, monospace"
+                               FontSize="12" TextWrapping="Wrap"
+                               MinHeight="54" MaxHeight="120"
+                               BorderBrush="#2A2D32" BorderThickness="1"/>
                     </StackPanel>
+
+                    <!-- Storage -->
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="STORAGE"
+                                 FontFamily="Inter, Segoe UI, sans-serif"
+                                 FontSize="10" FontWeight="Bold"
+                                 Foreground="#454B54" LetterSpacing="1.5"/>
+                      <TextBox Text="{Binding StorageText}" IsReadOnly="True"
+                               AcceptsReturn="True"
+                               Background="#090A0B" Foreground="#C8943C"
+                               FontFamily="JetBrains Mono, Consolas, monospace"
+                               FontSize="12" TextWrapping="Wrap"
+                               MinHeight="40" MaxHeight="120"
+                               BorderBrush="#2A2D32" BorderThickness="1"/>
+                    </StackPanel>
+
+                    <!-- Return data -->
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="RETURN DATA"
+                                 FontFamily="Inter, Segoe UI, sans-serif"
+                                 FontSize="10" FontWeight="Bold"
+                                 Foreground="#454B54" LetterSpacing="1.5"/>
+                      <TextBox Text="{Binding ReturnDataHex}" IsReadOnly="True"
+                               Background="#090A0B" Foreground="#4BA89A"
+                               FontFamily="JetBrains Mono, Consolas, monospace"
+                               FontSize="11" TextWrapping="Wrap"
+                               MaxHeight="60"
+                               BorderBrush="#2A2D32" BorderThickness="1"/>
+                    </StackPanel>
+
+                  </StackPanel>
                 </ScrollViewer>
+              </Grid>
             </Border>
+
+          </Grid>
+
+          <!-- SPLITTER: upper | trace -->
+          <GridSplitter Grid.Row="1"
+                        ResizeDirection="Rows"
+                        Background="#2A2D32"
+                        Height="4"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"/>
+
+          <!-- TRACE pane -->
+          <Grid Grid.Row="2" RowDefinitions="28,*" Background="#060607">
+            <Border Grid.Row="0" Background="#111214"
+                    BorderBrush="#1E2125" BorderThickness="0,1,0,1"
+                    Padding="16,0">
+              <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock Classes="pane-title" Text="TRACE"/>
+                <TextBlock FontFamily="Inter, Segoe UI, sans-serif"
+                           FontSize="12" Foreground="#454B54"
+                           Text="{Binding StepProgress, FallbackValue=''}"/>
+                <TextBlock FontFamily="Inter, Segoe UI, sans-serif"
+                           FontSize="12" Foreground="#454B54"
+                           Text="{Binding StepPercentage, FallbackValue=''}"/>
+                <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                           FontSize="11" Foreground="#C8943C"
+                           Text="{Binding ResultBanner}"
+                           TextTrimming="CharacterEllipsis" MaxWidth="420"/>
+                <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
+                           FontSize="11" Foreground="#6A7280"
+                           Text="{Binding CurrentStepDetail}"/>
+              </StackPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1">
+              <Grid ColumnDefinitions="*,*,*" Margin="8,6">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="pane-title" Text="STACK" Margin="0,0,0,6"/>
+                  <ItemsControl ItemsSource="{Binding StackRows}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,1"/>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                  <TextBlock Classes="pane-title" Text="MEMORY" Margin="0,0,0,6"/>
+                  <ItemsControl ItemsSource="{Binding MemoryRows}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,1"/>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Classes="pane-title" Text="STORAGE" Margin="0,0,0,6"/>
+                  <ItemsControl ItemsSource="{Binding StorageRows}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,1"/>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Grid>
+            </ScrollViewer>
+          </Grid>
         </Grid>
 
-        <!-- CONFORMANCE PANEL — overlays Row 4 when active -->
-        <views:ConformanceView x:Name="ConformancePanel"
-                               Grid.Row="4"
-                               IsVisible="False"/>
+        <!-- CONFORMANCE VIEW -->
+        <views:ConformanceView x:Name="ConformancePanel" IsVisible="False"/>
 
-        <!-- FINDINGS -->
-        <Border x:Name="WorkbenchFindingsBar" Grid.Row="5" Background="{DynamicResource Schlieren.PanelDeep}" BorderBrush="{DynamicResource Schlieren.Border}" BorderThickness="0,1,0,0" MinHeight="48" MaxHeight="140">
-            <Grid RowDefinitions="Auto,*" Margin="16,8">
-                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto">
-                    <TextBlock Grid.Column="0" Text="SECURITY FINDINGS" Classes="header" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1" Content="EXPORT TRACE" Margin="0,0,6,0"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.Warning}" FontWeight="Bold" FontSize="10"
-                            Padding="10,4" CornerRadius="3" Click="OnExportTraceClick"/>
-                    <Button Grid.Column="2" Content="EXPORT AUDIT (.MD)"
-                            Background="{DynamicResource Schlieren.PanelElevated}" Foreground="{DynamicResource Schlieren.AccentAlt}" FontWeight="Bold" FontSize="10"
-                            Padding="10,4" CornerRadius="3" Click="OnExportReportClick"/>
-                </Grid>
-                <ScrollViewer Grid.Row="1">
-                    <ItemsControl ItemsSource="{Binding SecurityFindings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SecurityFindingViewModel">
-                                <Border Background="{DynamicResource Schlieren.PanelElevated}" Padding="12,8" Margin="0,0,0,4" CornerRadius="3">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding SeverityEmoji}" FontSize="14" Margin="0,0,12,0"/>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Description}" Foreground="{DynamicResource Schlieren.TextPrimary}" FontSize="12"/>
-                                            <TextBlock Text="{Binding Details}" Foreground="{DynamicResource Schlieren.TextDim}" FontSize="10" Margin="0,2,0,0"/>
-                                        </StackPanel>
-                                        <Button Grid.Column="2" Content="JUMP" Background="#4A00E0" Foreground="#0D0D0D"
-                                                FontWeight="Bold" FontSize="11" Padding="12,6" CornerRadius="3"
-                                                Command="{Binding #root.DataContext.JumpToFindingCommand}"
-                                                CommandParameter="{Binding}"
-                                                x:CompileBindings="False"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </Grid>
-        </Border>
+        <!-- HARVEST VIEW -->
+        <views:HarvestView x:Name="HarvestPanel" IsVisible="False"/>
 
-        <!-- STATUS -->
-        <Border Grid.Row="6" Background="{DynamicResource Schlieren.PanelDeep}" BorderBrush="{DynamicResource Schlieren.BorderSubtle}" BorderThickness="0,1,0,0" Padding="12,6">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource Schlieren.TextMuted}" FontSize="11" TextTrimming="CharacterEllipsis"/>
-        </Border>
+      </Grid>
+
+      <!-- SPLITTER: main | diagnostics -->
+      <GridSplitter Grid.Column="1"
+                    ResizeDirection="Columns"
+                    Background="#2A2D32"
+                    Width="4"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"/>
+
+      <!-- RIGHT: Diagnostics panel -->
+      <Border Grid.Column="2" Background="#0B0C0D"
+              BorderBrush="#2A2D32" BorderThickness="1,0,0,0"
+              Name="DiagnosticsPanel">
+        <Grid RowDefinitions="28,*">
+
+          <Border Grid.Row="0" Background="#111214"
+                  BorderBrush="#1E2125" BorderThickness="0,0,0,1"
+                  Padding="16,0">
+            <TextBlock Classes="pane-title" Text="DIAGNOSTICS"
+                       VerticalAlignment="Center"/>
+          </Border>
+
+          <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="0">
+
+              <!-- DIAGNOSIS -->
+              <Border BorderBrush="#B89B4A" BorderThickness="0,0,0,1"
+                      Padding="16,14">
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Width="3" Height="14" Background="#B89B4A" CornerRadius="2"/>
+                    <TextBlock Text="EXECUTION DIAGNOSIS"
+                               FontFamily="Inter, Segoe UI, sans-serif"
+                               FontSize="12" FontWeight="Bold"
+                               Foreground="#A0A8B4" LetterSpacing="1.8"/>
+                  </StackPanel>
+                  <Border Background="#111214" BorderBrush="#2A2D32"
+                          BorderThickness="1,1,1,3" CornerRadius="3"
+                          Padding="12,10">
+                    <Border.BorderBrush>
+                      <SolidColorBrush Color="#B89B4A"/>
+                    </Border.BorderBrush>
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding CurrentOpcodeSpec, FallbackValue='No execution'}"
+                                 FontFamily="Inter, Segoe UI, sans-serif"
+                                 FontSize="13" FontWeight="SemiBold"
+                                 Foreground="#E4E0DC" TextWrapping="Wrap"/>
+                      <TextBlock Text="{Binding CurrentGasFormulaBreakdown}"
+                                 FontFamily="JetBrains Mono, Consolas, monospace"
+                                 FontSize="11" Foreground="#C8943C"
+                                 TextWrapping="Wrap"/>
+                      <TextBlock Text="{Binding CurrentStepDetail}"
+                                 FontFamily="JetBrains Mono, Consolas, monospace"
+                                 FontSize="11" Foreground="#6A7280"/>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <!-- SECURITY -->
+              <Border BorderBrush="#2A2D32" BorderThickness="0,0,0,1"
+                      Padding="16,14">
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Width="3" Height="14" Background="#7B5EA7" CornerRadius="2"/>
+                    <TextBlock Text="SECURITY FINDINGS"
+                               FontFamily="Inter, Segoe UI, sans-serif"
+                               FontSize="12" FontWeight="Bold"
+                               Foreground="#A0A8B4" LetterSpacing="1.8"/>
+                  </StackPanel>
+                  <ItemsControl ItemsSource="{Binding SecurityFindings}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SecurityFindingViewModel">
+                        <Border Background="#111214"
+                                BorderBrush="#7B5EA7"
+                                BorderThickness="3,1,1,1"
+                                CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+                          <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding SeverityEmoji}"
+                                       FontSize="12"/>
+                            <TextBlock Text="{Binding Description}"
+                                       FontFamily="Inter, Segoe UI, sans-serif"
+                                       FontSize="12" Foreground="#E4E0DC"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Details}"
+                                       FontFamily="Inter, Segoe UI, sans-serif"
+                                       FontSize="11" Foreground="#6A7280"
+                                       TextWrapping="Wrap"/>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Text="No findings"
+                             IsVisible="{Binding !HasSecurityFindings}"
+                             FontFamily="Inter, Segoe UI, sans-serif"
+                             FontSize="12" Foreground="#454B54"/>
+                </StackPanel>
+              </Border>
+
+              <!-- DIAGNOSIS TEXT (full) -->
+              <Border BorderBrush="#2A2D32" BorderThickness="0,0,0,1"
+                      Padding="16,14">
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Width="3" Height="14" Background="#5B8EC9" CornerRadius="2"/>
+                    <TextBlock Text="CAUSAL ANALYSIS"
+                               FontFamily="Inter, Segoe UI, sans-serif"
+                               FontSize="12" FontWeight="Bold"
+                               Foreground="#A0A8B4" LetterSpacing="1.8"/>
+                  </StackPanel>
+                  <TextBox Text="{Binding DiagnosisText}" IsReadOnly="True"
+                           AcceptsReturn="True"
+                           Background="#090A0B" Foreground="#B89B4A"
+                           FontFamily="JetBrains Mono, Consolas, monospace"
+                           FontSize="12" TextWrapping="Wrap"
+                           MinHeight="80" MaxHeight="200"
+                           BorderBrush="#2A2D32" BorderThickness="1"/>
+                </StackPanel>
+              </Border>
+
+              <!-- EXPORT ACTIONS -->
+              <StackPanel Orientation="Horizontal" Spacing="8"
+                          Margin="16,12">
+                <Button Content="EXPORT TRACE"
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="10" FontWeight="Bold"
+                        Background="#181A1D" Foreground="#C8943C"
+                        Padding="10,4" CornerRadius="3"
+                        Click="OnExportTraceClick"/>
+                <Button Content="EXPORT AUDIT"
+                        FontFamily="Inter, Segoe UI, sans-serif"
+                        FontSize="10" FontWeight="Bold"
+                        Background="#181A1D" Foreground="#5B8EC9"
+                        Padding="10,4" CornerRadius="3"
+                        Click="OnExportReportClick"/>
+              </StackPanel>
+
+            </StackPanel>
+          </ScrollViewer>
+
+        </Grid>
+      </Border>
+
     </Grid>
+    <!-- SLOT 5: Status bar -->
+    <Border Grid.Row="5" Background="#0B0C0D"
+            BorderBrush="#2A2D32" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto" Margin="16,0">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding StatusMessage}"
+                   FontFamily="Inter, Segoe UI, sans-serif"
+                   FontSize="12" Foreground="#454B54"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"/>
+        <TextBlock Grid.Column="1"
+                   Text="Schlieren 1.0 · .NET 8"
+                   FontFamily="Inter, Segoe UI, sans-serif"
+                   FontSize="10" Foreground="#2A2D32"
+                   VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+  </Grid>
+  </LayoutTransformControl>
+
 </Window>

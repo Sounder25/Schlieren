@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Schlieren.RPC;
 
 namespace Schlieren.RPC.Models;
 
@@ -136,8 +137,11 @@ public static class EthereumTypes
     public static ulong FromEthHex(string hex)
     {
         var value = FromEthHexBigInteger(hex);
+        // A client-supplied quantity outside ulong range (e.g. a huge block number, gas
+        // value, or timestamp) must fail as a clean JSON-RPC error, not an uncaught
+        // OverflowException that crashes the request pipeline.
         if (value < System.Numerics.BigInteger.Zero || value > ulong.MaxValue)
-            throw new OverflowException($"Hex value does not fit in UInt64: {hex}");
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Hex value does not fit in UInt64: {hex}");
         return (ulong)value;
     }
 

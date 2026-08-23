@@ -1,0 +1,17 @@
+{
+  "name": "WETH9",
+  "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  "network": "mainnet",
+  "fetchedAtBlock": "0x18977d4",
+  "runtimeBytes": 3124,
+  "note": "Canonical Wrapped Ether. Immutable since 2015, pre-0.6 Solidity (unnamed fallback). Simple deposit/withdraw/transfer/allowance surface — good first real-world case: deposit() balance accounting is a trivially checkable invariant.",
+  "knownSelectors": {
+    "0xd0e30db0": "deposit()",
+    "0x2e1a7d4d": "withdraw(uint256)",
+    "0x70a08231": "balanceOf(address)",
+    "0x18160ddd": "totalSupply()",
+    "0xa9059cbb": "transfer(address,uint256)",
+    "0x095ea7b3": "approve(address,uint256)",
+    "0x23b872dd": "transferFrom(address,address,uint256)"
+  }
+}

@@ -38,6 +38,9 @@ public class JsonRpcExceptionMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = 200; // JSON-RPC always returns 200
 
+        // The full exception is already logged server-side (see InvokeAsync). Putting ex.Message
+        // into the client-facing response can leak internal details (file paths, type names,
+        // connection strings) to whoever sent the request — keep the response generic.
         var errorResponse = new JsonRpcResponse
         {
             JsonRpc = "2.0",
@@ -45,8 +48,7 @@ public class JsonRpcExceptionMiddleware
             Error = new JsonRpcError
             {
                 Code = JsonRpcErrorCodes.InternalError,
-                Message = "Internal server error",
-                Data = ex.Message
+                Message = "Internal server error"
             }
         };
 

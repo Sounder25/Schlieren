@@ -140,6 +140,62 @@ public sealed class SelfDestructAccessTests
     }
 
     [Fact]
+    public async Task AfterCommittedSelfDestruct_NextTransactionCreate2IsDeployable()
+    {
+        // README previously claimed same-block CREATE2 redeploy is rejected.
+        // Protocol: SELFDESTRUCT is finalized at end of the transaction. Overlay
+        // tombstones do not survive into the next tx. Yellow Paper / metamorphic
+        // CREATE2: a later transaction (same block or not) may redeploy.
+        var creator = Address.FromHex("0x0000000000000000000000000000000000002000");
+        var salt = new byte[32];
+        var dest = CryptoUtils.DeriveContractAddress2(creator, salt, []);
+
+        var committed = new GlobalState();
+        committed.SetCode(dest, [0x60, 0x00]);
+        committed.SetNonce(dest, 1);
+
+        var txOverlay = new StateOverlay(committed);
+        txOverlay.MarkForDeletion(dest);
+        txOverlay.Commit();
+        // Same finalization StateTransition uses after a successful top-level tx.
+        foreach (var addr in txOverlay.GetAccountsMarkedForDeletion())
+            committed.DeleteAccount(addr);
+
+        Assert.False(await committed.AccountExistsAsync(dest));
+        Assert.True(await AccountDeployability.IsDeployableAsync(committed, dest));
+
+        var context = CreateContext();
+        context.GlobalState = committed;
+        context.Stack.Push(BigInteger.Zero); // salt
+        PushCreateArguments(context);
+
+        var (result, _) = await new OpcodeCreate2().ExecuteAsync(context);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(context.Stack.TryPop(out var val));
+        Assert.NotEqual(BigInteger.Zero, val);
+    }
+
+    [Fact]
+    public async Task OverlayTombstone_DoesNotPersistOnParentAfterCommitDelete()
+    {
+        var addr = Address.FromHex("0x0000000000000000000000000000000000003333");
+        var parent = new GlobalState();
+        parent.SetNonce(addr, 5);
+        parent.SetCode(addr, [0xff]);
+
+        var overlay = new StateOverlay(parent);
+        overlay.DeleteAccount(addr);
+        Assert.False(await overlay.AccountExistsAsync(addr));
+        Assert.True(await parent.AccountExistsAsync(addr));
+
+        overlay.Commit();
+        Assert.False(await parent.AccountExistsAsync(addr));
+        Assert.False(parent.IsMarkedForDeletion(addr));
+        Assert.True(await AccountDeployability.IsDeployableAsync(parent, addr));
+    }
+
+    [Fact]
     public async Task Create2_AddressMarkedForDeletion_WithExistingCode_Collides()
     {
         var context = CreateContext();

@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCHLIEREN — Unified Prototype</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCHLIEREN — UNIFIED DESIGN SYSTEM
+   
+   One product. Three analytical lenses. Synchronized cursor.
+   
+   SIGNAL MODEL (every color means exactly one thing):
+   ─────────────────────────────────────────────────────
+   Neutral execution    → cool steel (#A0A8B4 text, #1E2228 bg)
+   Control flow         → slate blue (#5B8EC9)
+   Memory operations    → teal (#4BA89A)
+   State mutation       → amber (#C8943C)
+   Gas pressure         → thermal scale (dark→amber→white)
+   Success/agreement    → muted sage (#5A8A6C)
+   Divergence/fracture  → singular crimson (#C43A52) — RARE
+   Exceptional halt     → burnt signal (#B85A32)
+   Selected cursor      → high luminance white + left border
+   Security finding     → deep violet (#7B5EA7)
+   Diagnostic insight   → warm gold (#B89B4A)
+   
+   TYPOGRAPHY SCALE (Comfortable density — default):
+   ─────────────────────────────────────────────────────
+   Display value        → 22px mono, weight 400
+   Section value        → 14px mono, weight 500
+   Body data            → 12px mono, weight 400
+   Label                → 10px sans, weight 600, letter-spacing 1.5px
+   Annotation           → 11px mono, weight 400
+   Chrome               → 11px sans, weight 500
+   
+   LAYOUT ARCHITECTURE:
+   ─────────────────────────────────────────────────────
+   ┌─────────────────────────────────────────────────────────┐
+   │ TOP: Brand + View Tabs + Case Context + Run Controls    │ 32px
+   ├─────────────────────────────────────────────────────────┤
+   │ CASE BAR: target, fork, step/total, oracle status       │ 28px
+   ├────────────────────────────────────────┬────────────────┤
+   │                                        │                │
+   │  MAIN VIEW AREA                        │  DIAGNOSTICS   │
+   │  (Workbench / Flow / Interference)     │  PANEL         │
+   │                                        │                │
+   │                                        │  - Diagnosis   │
+   │                                        │  - Security    │
+   │                                        │  - Oracle Diff │
+   │                                        │  - Evidence    │
+   │                                        │                │
+   ├────────────────────────────────────────┴────────────────┤
+   │ STATUS: oracle connection, conformance summary          │ 24px
+   └─────────────────────────────────────────────────────────┘
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── Surface system (warm instrument grey) ─── */
+  --s-void: #060607;
+  --s-chassis: #0B0C0D;
+  --s-panel: #111214;
+  --s-raised: #181A1D;
+  --s-elevated: #1F2225;
+  --s-inset: #090A0B;
+  
+  /* ─── Border system ─── */
+  --b-hard: #2A2D32;
+  --b-subtle: #1E2125;
+  --b-focus: #3A3E44;
+  
+  /* ─── Text system ─── */
+  --t-primary: #E4E0DC;
+  --t-secondary: #A0A8B4;
+  --t-tertiary: #6A7280;
+  --t-ghost: #454B54;
+  
+  /* ─── SIGNAL MODEL ─── */
+  --sig-flow: #5B8EC9;          /* control flow, jumps, calls, returns */
+  --sig-memory: #4BA89A;        /* MLOAD, MSTORE, memory expansion */
+  --sig-state: #C8943C;         /* SSTORE, SLOAD, CREATE, SELFDESTRUCT */
+  --sig-thermal-low: #2A3848;   /* gas: cold */
+  --sig-thermal-mid: #6B5030;   /* gas: warm */
+  --sig-thermal-high: #C88040;  /* gas: hot */
+  --sig-thermal-peak: #F0D8A0;  /* gas: peak */
+  --sig-agree: #5A8A6C;         /* oracle match, test pass */
+  --sig-fracture: #C43A52;      /* oracle divergence — THE rare red */
+  --sig-halt: #B85A32;          /* REVERT, OOG, INVALID */
+  --sig-security: #7B5EA7;      /* security findings */
+  --sig-diagnosis: #B89B4A;     /* diagnostic insights */
+  --sig-cursor: #FFFFFF;        /* selected item */
+  
+  /* ─── Typography ─── */
+  --font-data: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+  --font-chrome: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  
+  /* ─── Spacing (comfortable density — default) ─── */
+  --row-h: 26px;
+  --trace-h: 22px;
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --gap-xl: 24px;
+
+  /* ─── Resizable pane dimensions ─── */
+  --diag-width: 320px;
+  --upper-flex: 1;
+  --lower-h: 200px;
+}
+
+/* Compact density */
+body[data-density="compact"] {
+  --row-h: 20px;
+  --trace-h: 17px;
+  --gap-xs: 2px;
+  --gap-sm: 5px;
+  --gap-md: 8px;
+  --gap-lg: 10px;
+}
+
+/* Instrument density */
+body[data-density="instrument"] {
+  --row-h: 16px;
+  --trace-h: 14px;
+  --gap-xs: 1px;
+  --gap-sm: 3px;
+  --gap-md: 6px;
+  --gap-lg: 8px;
+  font-size: 11px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--s-void);
+  color: var(--t-primary);
+  font-family: var(--font-data);
+  font-size: 12px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 34px 30px 1fr 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOP NAVIGATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+.top-nav {
+  background: var(--s-chassis);
+  border-bottom: 1px solid var(--b-hard);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 24px;
+  user-select: none;
+}
+
+.nav-brand {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 4.5px;
+  color: var(--t-tertiary);
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.nav-views {
+  display: flex;
+  gap: 0;
+  height: 100%;
+}
+
+.nav-view-tab {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-family: var(--font-chrome);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--t-tertiary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+  letter-spacing: 0.3px;
+  height: 100%;
+}
+
+.nav-view-tab:hover { color: var(--t-secondary); }
+.nav-view-tab.active { color: var(--t-primary); border-bottom-color: var(--t-primary); }
+
+.nav-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--b-hard);
+}
+
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-run-btn {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--s-chassis);
+  background: var(--t-primary);
+  padding: 4px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.nav-run-btn:hover { background: #FFFFFF; }
+
+.nav-secondary-btn {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--t-tertiary);
+  padding: 4px 10px;
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.nav-secondary-btn:hover { border-color: var(--b-focus); color: var(--t-secondary); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CASE CONTEXT BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+.case-bar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 20px;
+  font-size: 11px;
+}
+
+.case-field {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.case-label {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.case-value {
+  color: var(--t-secondary);
+  letter-spacing: 0.3px;
+}
+
+.case-value.highlight { color: var(--t-primary); font-weight: 500; }
+
+.case-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--b-subtle);
+}
+
+.case-oracle-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.case-oracle-badge.agree {
+  background: rgba(90, 138, 108, 0.12);
+  border: 1px solid rgba(90, 138, 108, 0.3);
+  color: var(--sig-agree);
+}
+
+.case-oracle-badge.fracture {
+  background: rgba(196, 58, 82, 0.1);
+  border: 1px solid rgba(196, 58, 82, 0.3);
+  color: var(--sig-fracture);
+}
+
+.oracle-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.oracle-dot.agree { background: var(--sig-agree); }
+.oracle-dot.fracture { background: var(--sig-fracture); animation: fracture-pulse 2s ease-in-out infinite; }
+
+@keyframes fracture-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN WORKSPACE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr var(--diag-width);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Vertical drag handle between main and diagnostics */
+.diag-resize-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  right: var(--diag-width);
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.1s;
+}
+.diag-resize-handle:hover,
+.diag-resize-handle.dragging { background: var(--b-focus); }
+
+/* ─── VIEW CONTENT ──────────────────────────────── */
+.view-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ═══ WORKBENCH VIEW ═══ */
+.workbench-view {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr var(--lower-h);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Horizontal drag handle between upper/lower */
+.wb-resize-handle {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: var(--lower-h);
+  height: 5px;
+  cursor: row-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.1s;
+}
+.wb-resize-handle:hover,
+.wb-resize-handle.dragging { background: var(--b-focus); }
+
+.wb-upper {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  overflow: hidden;
+}
+
+/* Disassembly */
+.disasm-pane {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--b-hard);
+  overflow: hidden;
+}
+
+.pane-toolbar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.pane-title {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.8px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.pane-meta {
+  font-size: 10px;
+  color: var(--t-ghost);
+  margin-left: auto;
+}
+
+.toolbar-pill {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--t-tertiary);
+  padding: 2px 8px;
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.toolbar-pill:hover { border-color: var(--b-focus); color: var(--t-secondary); }
+.toolbar-pill.active { border-color: var(--sig-flow); color: var(--sig-flow); }
+
+.disasm-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+.instr-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.instr-row {
+  height: var(--row-h);
+  border-bottom: 1px solid rgba(255,255,255,0.015);
+  transition: background 0.08s;
+}
+
+.instr-row:hover { background: var(--s-raised); }
+
+.instr-row.cursor-row {
+  background: rgba(255,255,255,0.04);
+}
+
+.instr-row.cursor-row td { color: var(--t-primary); }
+
+.instr-row.cursor-row .i-pc { color: var(--sig-cursor); }
+
+.instr-row.cursor-row::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--sig-cursor);
+}
+
+/* Make rows position: relative for the cursor indicator */
+.instr-row { position: relative; }
+
+td {
+  padding: 0 8px;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 12px;
+}
+
+.i-bp { width: 8px; padding: 0 4px; }
+.i-bp-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.i-pc { 
+  color: var(--t-ghost); 
+  font-size: 11px; 
+  width: 48px; 
+  text-align: right;
+  padding-right: 12px;
+}
+
+.i-hex {
+  color: var(--t-ghost);
+  font-size: 10px;
+  width: 72px;
+  letter-spacing: 0.5px;
+}
+
+.i-op {
+  font-weight: 600;
+  width: 80px;
+  color: var(--t-primary);
+}
+
+.i-op.op-flow { color: var(--sig-flow); }
+.i-op.op-mem { color: var(--sig-memory); }
+.i-op.op-state { color: var(--sig-state); }
+.i-op.op-halt { color: var(--sig-halt); }
+
+.i-args { color: var(--t-secondary); }
+
+.i-gas {
+  color: var(--t-ghost);
+  font-size: 11px;
+  width: 64px;
+  text-align: right;
+}
+
+.i-gas.expensive { color: var(--sig-state); }
+
+.i-note {
+  color: var(--t-ghost);
+  font-size: 10px;
+  font-style: italic;
+  padding-left: 12px;
+}
+
+/* Machine State */
+.machine-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.machine-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+.state-section {
+  border-bottom: 1px solid var(--b-subtle);
+}
+
+.state-header {
+  background: var(--s-panel);
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--b-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.state-title {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+
+.state-meta {
+  font-size: 10px;
+  color: var(--t-ghost);
+}
+
+.state-body {
+  padding: 8px 14px;
+}
+
+.reg-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 14px;
+}
+
+.reg-k {
+  font-size: 11px;
+  color: var(--t-ghost);
+  text-align: right;
+  padding: 2px 0;
+}
+
+.reg-v {
+  font-size: 12px;
+  color: var(--t-primary);
+  padding: 2px 0;
+  letter-spacing: 0.3px;
+}
+
+.reg-v.changed { color: var(--sig-state); }
+.reg-v.flow-change { color: var(--sig-flow); }
+
+/* Stack entries */
+.stack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stack-entry {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 2px;
+  align-items: center;
+}
+
+.stack-entry:first-child { background: rgba(255,255,255,0.02); }
+
+.se-idx { font-size: 10px; color: var(--t-ghost); text-align: right; }
+.se-val { font-size: 11px; color: var(--t-secondary); overflow: hidden; text-overflow: ellipsis; }
+.se-val.new { color: var(--t-primary); }
+.se-decode { font-size: 10px; color: var(--t-ghost); }
+
+/* ─── TRACE LOG (bottom) ─── */
+.trace-pane {
+  border-top: 1px solid var(--b-hard);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.trace-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+.trace-row {
+  display: grid;
+  grid-template-columns: 44px 52px 72px 72px 1fr auto;
+  gap: 8px;
+  padding: 0 14px;
+  height: var(--trace-h);
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.012);
+  font-size: 11px;
+}
+
+.trace-row:hover { background: var(--s-raised); }
+.trace-row.cursor-trace { background: rgba(255,255,255,0.03); }
+
+.tr-step { color: var(--t-ghost); text-align: right; }
+.tr-pc { color: var(--t-tertiary); }
+.tr-op { font-weight: 600; }
+.tr-op.t-flow { color: var(--sig-flow); }
+.tr-op.t-state { color: var(--sig-state); }
+.tr-op.t-mem { color: var(--sig-memory); }
+.tr-op.t-halt { color: var(--sig-halt); }
+.tr-gas { color: var(--t-tertiary); text-align: right; }
+.tr-effect { color: var(--t-secondary); overflow: hidden; text-overflow: ellipsis; }
+.tr-note { color: var(--t-ghost); font-size: 10px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIAGNOSTICS PANEL (persistent right column)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.diagnostics-panel {
+  background: var(--s-chassis);
+  border-left: 1px solid var(--b-hard);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: width 0.15s ease;
+}
+
+/* Collapsed rail */
+.diagnostics-panel.collapsed {
+  overflow: visible;
+}
+.diagnostics-panel.collapsed .diag-scroll,
+.diagnostics-panel.collapsed .pane-toolbar .pane-title { display: none; }
+
+.diag-collapse-btn {
+  position: absolute;
+  top: 8px;
+  left: -12px;
+  width: 12px;
+  height: 28px;
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  border-right: none;
+  border-radius: 3px 0 0 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--t-ghost);
+  z-index: 5;
+}
+.diag-collapse-btn:hover { color: var(--t-secondary); background: var(--s-raised); }
+
+/* Rail counts shown when collapsed */
+.diag-rail {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 44px 0 0;
+}
+.diagnostics-panel.collapsed .diag-rail { display: flex; }
+
+.rail-count {
+  writing-mode: vertical-rl;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.rail-count:hover { opacity: 0.8; }
+
+.diag-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.diag-section {
+  border-bottom: 1px solid var(--b-hard);
+  padding: 14px 16px;
+}
+
+.diag-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.diag-section-icon {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.diag-section-icon.diagnosis { background: var(--sig-diagnosis); }
+.diag-section-icon.security { background: var(--sig-security); }
+.diag-section-icon.oracle { background: var(--sig-fracture); }
+.diag-section-icon.evidence { background: var(--sig-flow); }
+
+.diag-section-title {
+  font-family: var(--font-chrome);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: var(--t-secondary);
+  text-transform: uppercase;
+}
+
+.diag-confidence {
+  margin-left: auto;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+
+.diag-confidence.high {
+  background: rgba(90, 138, 108, 0.15);
+  color: var(--sig-agree);
+}
+
+.diag-confidence.medium {
+  background: rgba(184, 155, 74, 0.15);
+  color: var(--sig-diagnosis);
+}
+
+/* Diagnosis card */
+.diagnosis-card {
+  background: var(--s-panel);
+  border: 1px solid var(--b-subtle);
+  border-left: 3px solid var(--sig-diagnosis);
+  border-radius: 3px;
+  padding: 12px 14px;
+}
+
+.dx-headline {
+  font-family: var(--font-chrome);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.dx-detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+}
+
+.dx-k {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+  padding: 2px 0;
+}
+
+.dx-v {
+  font-size: 11px;
+  color: var(--t-secondary);
+  padding: 2px 0;
+}
+
+.dx-v.fracture { color: var(--sig-fracture); }
+.dx-v.state { color: var(--sig-state); }
+
+.dx-evidence-link {
+  font-family: var(--font-chrome);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--sig-flow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.dx-evidence-link:hover { color: #7AAAD8; text-decoration: underline; }
+
+/* Security finding */
+.security-card {
+  background: var(--s-panel);
+  border: 1px solid var(--b-subtle);
+  border-left: 3px solid var(--sig-security);
+  border-radius: 3px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.sec-severity {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.sec-severity.critical { color: var(--sig-fracture); }
+.sec-severity.warning { color: var(--sig-state); }
+.sec-severity.info { color: var(--t-tertiary); }
+
+.sec-title {
+  font-size: 11px;
+  color: var(--t-primary);
+  margin-bottom: 4px;
+}
+
+.sec-detail {
+  font-size: 10px;
+  color: var(--t-tertiary);
+  line-height: 1.4;
+}
+
+/* Oracle comparison */
+.oracle-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oracle-row {
+  display: grid;
+  grid-template-columns: 44px auto 1fr;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  align-items: center;
+}
+
+.oracle-row.match { background: rgba(90, 138, 108, 0.06); border: 1px solid rgba(90, 138, 108, 0.15); }
+.oracle-row.diverge { background: rgba(196, 58, 82, 0.06); border: 1px solid rgba(196, 58, 82, 0.2); }
+
+.or-name {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--t-tertiary);
+  letter-spacing: 0.5px;
+}
+
+.or-badge {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.or-badge.ok { color: var(--sig-agree); }
+.or-badge.fail { color: var(--sig-fracture); }
+
+.or-detail {
+  font-size: 10px;
+  color: var(--t-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Evidence section */
+.evidence-item {
+  padding: 8px 10px;
+  background: var(--s-panel);
+  border: 1px solid var(--b-subtle);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.evidence-item:hover { border-color: var(--b-focus); }
+
+.ev-type {
+  font-family: var(--font-chrome);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.ev-type.divergence { color: var(--sig-fracture); }
+.ev-type.gas { color: var(--sig-state); }
+.ev-type.behavior { color: var(--sig-diagnosis); }
+
+.ev-description {
+  font-size: 11px;
+  color: var(--t-secondary);
+  line-height: 1.4;
+}
+
+.ev-location {
+  font-size: 10px;
+  color: var(--t-ghost);
+  margin-top: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATUS BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+.status-bar {
+  background: var(--s-chassis);
+  border-top: 1px solid var(--b-hard);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  color: var(--t-ghost);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.status-dot.green { background: var(--sig-agree); }
+.status-dot.red { background: var(--sig-fracture); }
+.status-dot.neutral { background: var(--t-ghost); }
+
+.status-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--b-hard);
+}
+
+.density-picker {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.density-btn {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--t-ghost);
+  border: 1px solid transparent;
+  text-transform: uppercase;
+}
+.density-btn:hover { color: var(--t-secondary); }
+.density-btn.active { color: var(--t-primary); border-color: var(--b-hard); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HARVEST VIEW — additional styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.harvest-view {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+/* ─── Pipeline control bar ─── */
+.harvest-control {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-hard);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.pipeline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+.toggle-track.on {
+  background: rgba(90, 138, 108, 0.25);
+  border-color: var(--sig-agree);
+}
+.toggle-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--t-ghost);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.15s, background 0.15s;
+}
+.toggle-track.on .toggle-thumb {
+  transform: translateX(16px);
+  background: var(--sig-agree);
+}
+
+.pipeline-label {
+  font-family: var(--font-chrome);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.pipeline-label.on  { color: var(--sig-agree); }
+.pipeline-label.off { color: var(--t-ghost); }
+
+.pipeline-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sig-agree);
+  animation: harvest-pulse 1.8s ease-in-out infinite;
+}
+@keyframes harvest-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.3); }
+}
+.pipeline-pulse.off { background: var(--t-ghost); animation: none; opacity: 0.4; }
+
+.harvest-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hs-label {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+}
+.hs-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t-primary);
+}
+.hs-value.divergence { color: var(--sig-fracture); }
+.hs-value.pass       { color: var(--sig-agree); }
+
+.harvest-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--b-hard);
+}
+
+/* workflow status pills */
+.wf-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--b-hard);
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--t-ghost);
+}
+.wf-status.active {
+  border-color: rgba(90, 138, 108, 0.35);
+  color: var(--sig-agree);
+  background: rgba(90, 138, 108, 0.07);
+}
+.wf-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--t-ghost);
+}
+.wf-dot.active {
+  background: var(--sig-agree);
+  animation: harvest-pulse 1.8s ease-in-out infinite;
+}
+
+/* ─── Results feed ─── */
+.harvest-feed {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.feed-toolbar {
+  background: var(--s-panel);
+  border-bottom: 1px solid var(--b-subtle);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.feed-filter-btn {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  padding: 2px 9px;
+  border-radius: 3px;
+  border: 1px solid var(--b-hard);
+  cursor: pointer;
+  color: var(--t-ghost);
+  text-transform: uppercase;
+  transition: color 0.1s, border-color 0.1s;
+}
+.feed-filter-btn:hover { color: var(--t-secondary); border-color: var(--b-focus); }
+.feed-filter-btn.active { color: var(--t-primary); border-color: var(--t-primary); }
+.feed-filter-btn.divergence.active { color: var(--sig-fracture); border-color: var(--sig-fracture); }
+.feed-filter-btn.pass.active       { color: var(--sig-agree);    border-color: var(--sig-agree); }
+
+.feed-scroll {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--s-inset);
+}
+
+/* ─── Corpus row ─── */
+.corpus-row {
+  display: grid;
+  grid-template-columns: 3px 1fr auto;
+  border-bottom: 1px solid rgba(255,255,255,0.015);
+  transition: background 0.08s;
+  cursor: default;
+}
+.corpus-row:hover { background: var(--s-raised); }
+
+.corpus-row-accent {
+  /* left border bar — colored by outcome */
+}
+.corpus-row-accent.divergence { background: var(--sig-fracture); }
+.corpus-row-accent.pass       { background: var(--sig-agree); }
+.corpus-row-accent.failed     { background: var(--sig-halt); }
+.corpus-row-accent.pending    { background: var(--t-ghost); }
+
+.corpus-row-body {
+  padding: 9px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cr-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cr-badge {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 2px;
+}
+.cr-badge.divergence {
+  background: rgba(196, 58, 82, 0.12);
+  color: var(--sig-fracture);
+  border: 1px solid rgba(196, 58, 82, 0.3);
+}
+.cr-badge.pass {
+  background: rgba(90, 138, 108, 0.1);
+  color: var(--sig-agree);
+  border: 1px solid rgba(90, 138, 108, 0.25);
+}
+.cr-badge.failed {
+  background: rgba(184, 90, 50, 0.1);
+  color: var(--sig-halt);
+  border: 1px solid rgba(184, 90, 50, 0.25);
+}
+.cr-badge.pending {
+  color: var(--t-ghost);
+  border: 1px solid var(--b-hard);
+}
+
+.cr-hash {
+  font-size: 12px;
+  color: var(--t-primary);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.cr-type {
+  font-size: 10px;
+  color: var(--sig-flow);
+  margin-left: auto;
+}
+
+.cr-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--t-tertiary);
+}
+
+.cr-meta span { display: flex; gap: 4px; }
+.cr-meta .label { color: var(--t-ghost); }
+
+.cr-delta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sig-fracture);
+}
+
+.corpus-row-action {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 6px;
+}
+
+.load-btn {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--b-hard);
+  color: var(--t-tertiary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+.load-btn:hover {
+  color: var(--t-primary);
+  border-color: var(--sig-flow);
+  color: var(--sig-flow);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b-hard); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--b-focus); }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP NAVIGATION ═══ -->
+<div class="top-nav">
+  <span class="nav-brand">Schlieren</span>
+  
+  <div class="nav-views">
+    <div class="nav-view-tab" onclick="location.href='schlieren-v2.html'">Workbench</div>
+    <div class="nav-view-tab">Flow</div>
+    <div class="nav-view-tab" onclick="location.href='schlieren-interference.html'">Interference</div>
+    <div class="nav-view-tab">Conformance</div>
+    <div class="nav-view-tab active">Harvest</div>
+  </div>
+  
+  <div class="nav-separator"></div>
+  
+  <div class="nav-right">
+    <div class="nav-secondary-btn">Load Fixture…</div>
+    <div class="nav-secondary-btn">Import Pre-state…</div>
+    <div class="nav-run-btn">RUN</div>
+  </div>
+</div>
+
+<!-- ═══ CASE CONTEXT BAR ═══ -->
+<div class="case-bar">
+  <div class="case-field">
+    <span class="case-label">Target</span>
+    <span class="case-value">0xdead…beef</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Fork</span>
+    <span class="case-value highlight">osaka</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Step</span>
+    <span class="case-value highlight">847 / 2,014</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Depth</span>
+    <span class="case-value">2</span>
+  </div>
+  <div class="case-field">
+    <span class="case-label">Gas remaining</span>
+    <span class="case-value">7,241,308</span>
+  </div>
+  
+  <div class="case-separator"></div>
+  
+  <div class="case-oracle-badge agree">
+    <div class="oracle-dot agree"></div>
+    EELS
+  </div>
+  <div class="case-oracle-badge fracture">
+    <div class="oracle-dot fracture"></div>
+    REVM · 1 fracture
+  </div>
+</div>
+
+<!-- ═══ MAIN WORKSPACE ═══ -->
+<div class="workspace" id="workspace">
+  <div class="diag-resize-handle" id="diagResizeHandle"></div>
+  
+  <!-- VIEW CONTENT (showing Harvest) -->
+  <div class="view-content">
+    <div class="harvest-view">
+      <div class="harvest-control">
+        <div class="pipeline-toggle" id="pipelineToggle">
+          <div class="toggle-track on" id="toggleTrack"><div class="toggle-thumb"></div></div>
+          <div class="pipeline-pulse" id="pipelinePulse"></div>
+          <span class="pipeline-label on" id="pipelineLabel">Harvesting</span>
+        </div>
+        <div class="harvest-divider"></div>
+        <div class="wf-status active" id="wfA"><div class="wf-dot active"></div>WF-A &middot; Scanner</div>
+        <div class="wf-status active" id="wfB"><div class="wf-dot active"></div>WF-B &middot; Capture</div>
+        <div class="harvest-divider"></div>
+        <div class="harvest-stat"><span class="hs-label">Queue</span><span class="hs-value" id="statQueue">247</span></div>
+        <div class="harvest-stat"><span class="hs-label">Last Block</span><span class="hs-value" id="statBlock">22,041,190</span></div>
+        <div class="harvest-stat"><span class="hs-label">Total Replayed</span><span class="hs-value" id="statTotal">1,482</span></div>
+        <div class="harvest-stat"><span class="hs-label">Pass</span><span class="hs-value pass" id="statPass">1,461</span></div>
+        <div class="harvest-stat"><span class="hs-label">Divergence</span><span class="hs-value divergence" id="statDiv">14</span></div>
+        <div class="harvest-stat"><span class="hs-label">Failed</span><span class="hs-value" id="statFailed">7</span></div>
+        <div class="harvest-divider"></div>
+        <div class="harvest-stat"><span class="hs-label">Last Run</span><span class="hs-value" style="font-size:11px;color:var(--t-secondary)" id="statLastRun">2 min ago</span></div>
+      </div>
+      <div class="harvest-feed">
+        <div class="feed-toolbar">
+          <span class="pane-title">Corpus</span>
+          <div class="feed-filter-btn active" data-filter="all">All</div>
+          <div class="feed-filter-btn divergence" data-filter="divergence">Divergence</div>
+          <div class="feed-filter-btn pass" data-filter="pass">Pass</div>
+          <div class="feed-filter-btn" data-filter="failed">Failed</div>
+          <span class="pane-meta" style="margin-left:auto">1,482 entries &middot; muscle/corpus</span>
+        </div>
+        <div class="feed-scroll" id="feedScroll">
+          <div class="corpus-row" data-outcome="divergence">
+            <div class="corpus-row-accent divergence"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge divergence">Divergence</span><span class="cr-hash">0xa3f1&hellip;c8e2</span><span class="cr-type">KNOWN_PROTOCOL:UniswapV3Router2</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,187</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas mainnet</span> 184,291</span><span><span class="label">Gas Schlieren</span> 184,293</span><span class="cr-delta">&Delta; +2</span><span><span class="label">Harvested</span> 4 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="divergence">
+            <div class="corpus-row-accent divergence"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge divergence">Divergence</span><span class="cr-hash">0x7b2d&hellip;f019</span><span class="cr-type">KNOWN_PROTOCOL:AaveV3Pool</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,102</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas mainnet</span> 302,118</span><span><span class="label">Gas Schlieren</span> 302,122</span><span class="cr-delta">&Delta; +4</span><span><span class="label">Harvested</span> 18 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="pass">
+            <div class="corpus-row-accent pass"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge pass">Pass</span><span class="cr-hash">0x9c4a&hellip;1d77</span><span class="cr-type">KNOWN_PROTOCOL:WETH9</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,183</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas</span> 29,114</span><span><span class="label">Status</span> MATCH</span><span><span class="label">Harvested</span> 6 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="pass">
+            <div class="corpus-row-accent pass"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge pass">Pass</span><span class="cr-hash">0xe81f&hellip;2a50</span><span class="cr-type">KNOWN_PROTOCOL:BalancerVault</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,178</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas</span> 412,880</span><span><span class="label">Status</span> MATCH</span><span><span class="label">Harvested</span> 9 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="pass">
+            <div class="corpus-row-accent pass"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge pass">Pass</span><span class="cr-hash">0x3d90&hellip;b844</span><span class="cr-type">CONTRACT_CREATION</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,155</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas</span> 1,204,441</span><span><span class="label">Status</span> MATCH</span><span><span class="label">Harvested</span> 22 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="failed">
+            <div class="corpus-row-accent failed"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge failed">Failed</span><span class="cr-hash">0x0f44&hellip;9c31</span><span class="cr-type">CONTRACT_CALL_CANDIDATE</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,090</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Error</span> debug_traceTransaction timeout</span><span><span class="label">Harvested</span> 41 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" style="opacity:0.4;cursor:not-allowed">Unavailable</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="divergence">
+            <div class="corpus-row-accent divergence"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge divergence">Divergence</span><span class="cr-hash">0x55bc&hellip;a701</span><span class="cr-type">KNOWN_PROTOCOL:Curve3Pool</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,040,998</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas mainnet</span> 97,441</span><span><span class="label">Gas Schlieren</span> 97,443</span><span class="cr-delta">&Delta; +2</span><span><span class="label">Harvested</span> 1 hr ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+          <div class="corpus-row" data-outcome="pass">
+            <div class="corpus-row-accent pass"></div>
+            <div class="corpus-row-body">
+              <div class="cr-top"><span class="cr-badge pass">Pass</span><span class="cr-hash">0xc772&hellip;3f11</span><span class="cr-type">KNOWN_PROTOCOL:1inchV5Router</span></div>
+              <div class="cr-meta"><span><span class="label">Block</span> 22,041,071</span><span><span class="label">Fork</span> Osaka</span><span><span class="label">Gas</span> 228,903</span><span><span class="label">Status</span> MATCH</span><span><span class="label">Harvested</span> 47 min ago</span></div>
+            </div>
+            <div class="corpus-row-action"><div class="load-btn" onclick="loadInWorkbench(this)">Load in Workbench &rarr;</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ═══ DIAGNOSTICS PANEL ═══ -->
+  <div class="diagnostics-panel" id="diagPanel">
+    <div class="diag-collapse-btn" id="diagCollapseBtn" title="Toggle diagnostics">‹</div>
+    <div class="diag-rail">
+      <span class="rail-count" style="color:var(--sig-diagnosis)" title="Execution Diagnosis">⬥1</span>
+      <span class="rail-count" style="color:var(--sig-security)" title="Security Findings">⬥2</span>
+      <span class="rail-count" style="color:var(--sig-fracture)" title="Oracle Divergences">⬥1</span>
+    </div>
+    <div class="pane-toolbar">
+      <span class="pane-title">Diagnostics</span>
+    </div>
+    <div class="diag-scroll">
+      
+      <!-- EXECUTION DIAGNOSIS -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon diagnosis"></div>
+          <span class="diag-section-title">Execution Diagnosis</span>
+          <span class="diag-confidence high">HIGH</span>
+        </div>
+        <div class="diagnosis-card">
+          <div class="dx-headline">EIP-150 call gas calculation: 2-gas delta at CALL depth transition</div>
+          <div class="dx-detail-grid">
+            <span class="dx-k">First divergence</span>
+            <span class="dx-v fracture">Step 850 · CALL · depth 2 → 3</span>
+            <span class="dx-k">Observed</span>
+            <span class="dx-v">REVM gas_remaining: 7,238,700</span>
+            <span class="dx-k">Expected</span>
+            <span class="dx-v">Schlieren: 7,238,702</span>
+            <span class="dx-k">Delta</span>
+            <span class="dx-v fracture">−2 gas</span>
+            <span class="dx-k">Subsystem</span>
+            <span class="dx-v state">EIP-150 · 63/64 call stipend</span>
+            <span class="dx-k">Confidence</span>
+            <span class="dx-v">EELS agrees with Schlieren</span>
+          </div>
+          <div class="dx-evidence-link">→ Open step 850 in Workbench</div>
+          <div class="dx-evidence-link">→ Show in Interference view</div>
+        </div>
+      </div>
+
+      <!-- SECURITY FINDINGS -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon security"></div>
+          <span class="diag-section-title">Security Findings</span>
+        </div>
+        <div class="security-card">
+          <div class="sec-severity warning">WARNING</div>
+          <div class="sec-title">Unchecked CALL return value</div>
+          <div class="sec-detail">CALL at PC 0x34C returns to stack but ISZERO+JUMPI may not cover all failure modes. Verify revert propagation.</div>
+        </div>
+        <div class="security-card">
+          <div class="sec-severity info">INFO</div>
+          <div class="sec-title">Storage slot 0x00 written from external input</div>
+          <div class="sec-detail">Value derived from calldata flows into SSTORE at step 847. No access control gate observed in this frame.</div>
+        </div>
+      </div>
+
+      <!-- ORACLE COMPARISON -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon oracle"></div>
+          <span class="diag-section-title">Oracle Comparison</span>
+        </div>
+        <div class="oracle-comparison">
+          <div class="oracle-row match">
+            <span class="or-name">EELS</span>
+            <span class="or-badge ok">MATCH</span>
+            <span class="or-detail">All 2,014 steps agree</span>
+          </div>
+          <div class="oracle-row diverge">
+            <span class="or-name">REVM</span>
+            <span class="or-badge fail">DIVERGE</span>
+            <span class="or-detail">gas_remaining ≠ at step 850</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVIDENCE -->
+      <div class="diag-section">
+        <div class="diag-section-header">
+          <div class="diag-section-icon evidence"></div>
+          <span class="diag-section-title">Evidence Chain</span>
+        </div>
+        <div class="evidence-item">
+          <div class="ev-type divergence">ORACLE DIVERGENCE</div>
+          <div class="ev-description">REVM returns gas_remaining = 7,238,700 after CALL at step 850. Schlieren and EELS both compute 7,238,702.</div>
+          <div class="ev-location">Step 850 · PC 0x34C · CALL · depth 2→3</div>
+        </div>
+        <div class="evidence-item">
+          <div class="ev-type gas">GAS RULE</div>
+          <div class="ev-description">EIP-150 stipend: floor(gas/64) remainder handling. Known REVM Berlin-era edge case (REVM-BUG-001).</div>
+          <div class="ev-location">Schlieren.Core/Gas/Eip150.cs:47</div>
+        </div>
+        <div class="evidence-item">
+          <div class="ev-type behavior">EXPECTED BEHAVIOR</div>
+          <div class="ev-description">EELS (authoritative) agrees with Schlieren. This is a known REVM limitation, not a Schlieren bug.</div>
+          <div class="ev-location">REVM_KNOWN_LIMITATIONS.md · REVM-BUG-001</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STATUS BAR ═══ -->
+<div class="status-bar">
+  <div class="status-item">
+    <div class="status-dot green"></div>
+    <span>EELS oracle</span>
+  </div>
+  <div class="status-item">
+    <div class="status-dot green"></div>
+    <span>REVM oracle</span>
+  </div>
+  <div class="status-sep"></div>
+  <span>Conformance: 1,124 passed · 2 known limitations</span>
+  <div class="status-sep"></div>
+  <div class="density-picker">
+    <span style="color:var(--t-ghost);font-size:9px;margin-right:4px;">DENSITY</span>
+    <div class="density-btn active" data-d="comfortable">Comfortable</div>
+    <div class="density-btn" data-d="compact">Compact</div>
+    <div class="density-btn" data-d="instrument">Instrument</div>
+  </div>
+  <span style="margin-left:16px;color:var(--t-ghost)">Schlieren 1.0.0 · .NET 8 · osaka</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// HARVEST VIEW — JS
+// n8n base: http://localhost:5678
+// Workflow IDs are discovered on load via GET /api/v1/workflows
+// ═══════════════════════════════════════════════════════════════
+
+const N8N_BASE = 'http://localhost:5678/api/v1';
+const N8N_API_KEY = '';  // set if auth enabled
+
+let wfAId = null;
+let wfBId = null;
+let harvesting = true;
+
+// ─── n8n API helpers ───────────────────────────────────────────
+async function n8nGet(path) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (N8N_API_KEY) headers['X-N8N-API-KEY'] = N8N_API_KEY;
+  try {
+    const r = await fetch(N8N_BASE + path, { headers });
+    if (!r.ok) return null;
+    return r.json();
+  } catch { return null; }
+}
+
+async function n8nPost(path) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (N8N_API_KEY) headers['X-N8N-API-KEY'] = N8N_API_KEY;
+  try {
+    const r = await fetch(N8N_BASE + path, { method: 'POST', headers });
+    return r.ok;
+  } catch { return false; }
+}
+
+// ─── Load workflow IDs and current active state ─────────────────
+async function discoverWorkflows() {
+  const data = await n8nGet('/workflows');
+  if (!data || !data.data) return;
+  for (const wf of data.data) {
+    if (wf.name.includes('Workflow A') || wf.name.includes('Mainnet Scanner')) {
+      wfAId = wf.id;
+      setWfStatus('wfA', wf.active, 'WF-A &middot; Scanner');
+    }
+    if (wf.name.includes('Workflow B') || wf.name.includes('Candidate Capture')) {
+      wfBId = wf.id;
+      setWfStatus('wfB', wf.active, 'WF-B &middot; Capture');
+    }
+  }
+  // Determine master toggle state from workflow states
+  harvesting = !!(wfAId || wfBId);
+  updateToggleUI(harvesting);
+}
+
+function setWfStatus(id, active, label) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `<div class="wf-dot ${active ? 'active' : ''}"></div>${label}`;
+  el.className = 'wf-status' + (active ? ' active' : '');
+}
+
+// ─── Toggle both workflows on/off ──────────────────────────────
+document.getElementById('pipelineToggle').addEventListener('click', async () => {
+  harvesting = !harvesting;
+  updateToggleUI(harvesting);
+
+  // Hit n8n API for both workflows
+  const action = harvesting ? 'activate' : 'deactivate';
+  if (wfAId) {
+    const ok = await n8nPost(`/workflows/${wfAId}/${action}`);
+    setWfStatus('wfA', harvesting && ok, 'WF-A &middot; Scanner');
+  }
+  if (wfBId) {
+    const ok = await n8nPost(`/workflows/${wfBId}/${action}`);
+    setWfStatus('wfB', harvesting && ok, 'WF-B &middot; Capture');
+  }
+});
+
+function updateToggleUI(on) {
+  const track  = document.getElementById('toggleTrack');
+  const pulse  = document.getElementById('pipelinePulse');
+  const label  = document.getElementById('pipelineLabel');
+  track.classList.toggle('on', on);
+  pulse.className = 'pipeline-pulse' + (on ? '' : ' off');
+  label.className = 'pipeline-label ' + (on ? 'on' : 'off');
+  label.textContent = on ? 'Harvesting' : 'Paused';
+}
+
+// ─── Feed filter ────────────────────────────────────────────────
+document.querySelectorAll('.feed-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.feed-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.corpus-row').forEach(row => {
+      const outcome = row.dataset.outcome;
+      row.style.display = (filter === 'all' || outcome === filter) ? '' : 'none';
+    });
+  });
+});
+
+// ─── Load in Workbench ──────────────────────────────────────────
+function loadInWorkbench(btn) {
+  const row = btn.closest('.corpus-row');
+  const hash = row.querySelector('.cr-hash').textContent;
+  // In production: navigate to Workbench tab and load fixture from corpus
+  // For prototype: just navigate with hash as query param
+  window.location.href = 'schlieren-v2.html?fixture=' + encodeURIComponent(hash);
+}
+
+// ─── Diagnostics collapse + resize (same as other views) ────────
+const diagPanel = document.getElementById('diagPanel');
+const diagBtn   = document.getElementById('diagCollapseBtn');
+let diagCollapsed = false;
+
+diagBtn.addEventListener('click', () => {
+  diagCollapsed = !diagCollapsed;
+  diagPanel.classList.toggle('collapsed', diagCollapsed);
+  diagBtn.textContent = diagCollapsed ? '›' : '‹';
+  document.getElementById('workspace').style.gridTemplateColumns = diagCollapsed ? '1fr 36px' : '1fr var(--diag-width)';
+  document.getElementById('diagResizeHandle').style.display = diagCollapsed ? 'none' : '';
+});
+
+(function() {
+  const handle    = document.getElementById('diagResizeHandle');
+  const workspace = document.getElementById('workspace');
+  let dragging = false, startX = 0, startW = 320;
+  handle.addEventListener('mousedown', e => {
+    dragging = true; startX = e.clientX;
+    startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--diag-width')) || 320;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const newW = Math.min(600, Math.max(200, startW + (startX - e.clientX)));
+    document.documentElement.style.setProperty('--diag-width', newW + 'px');
+    workspace.style.gridTemplateColumns = `1fr ${newW}px`;
+    handle.style.right = newW + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; handle.classList.remove('dragging');
+    document.body.style.userSelect = ''; document.body.style.cursor = '';
+  });
+})();
+
+// ─── Density picker ─────────────────────────────────────────────
+document.querySelectorAll('.density-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.body.dataset.density = btn.dataset.d;
+  });
+});
+
+// ─── Init ────────────────────────────────────────────────────────
+discoverWorkflows();
+</script>
+
+</body>
+</html>

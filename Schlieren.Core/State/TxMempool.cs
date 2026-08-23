@@ -27,31 +27,53 @@ public sealed class TxMempool : ITxMempool
 
     public int Count => _lookup.Count;
 
-    public void Add(Transaction tx)
+    /// <summary>
+    /// Attempts to add a transaction. Returns false if the pool is full, the transaction
+    /// is a duplicate, or it loses a same-nonce replacement (needs a strictly higher gas
+    /// price than the transaction it would replace) — callers that need to report a
+    /// rejection back to their caller (e.g. eth_sendRawTransaction) should check this.
+    /// </summary>
+    public bool Add(Transaction tx)
     {
         var hashKey = Convert.ToHexString(tx.Hash);
 
-        if (_lookup.Count >= MaxMempoolSize) return;
-        if (_lookup.ContainsKey(hashKey)) return;
-
+        // Size/duplicate checks and the mutation itself all happen under one lock so a
+        // concurrent Add can't slip past the cap or double-add the same hash (TOCTOU).
         lock (_lock)
         {
-            if (_lookup.TryAdd(hashKey, tx))
+            if (_lookup.Count >= MaxMempoolSize) return false;
+            if (_lookup.ContainsKey(hashKey)) return false;
+
+            var accountTxs = _pendingByAccount.GetOrAdd(tx.From, _ => new ConcurrentDictionary<ulong, Transaction>());
+
+            if (accountTxs.TryGetValue(tx.Nonce, out var existing))
             {
-                var accountTxs = _pendingByAccount.GetOrAdd(tx.From, _ => new ConcurrentDictionary<ulong, Transaction>());
-                accountTxs.TryAdd(tx.Nonce, tx);
+                // Same-nonce resubmission (speed-up). Require a strictly higher gas price;
+                // otherwise reject outright. On acceptance, the old hash must be evicted from
+                // _lookup too — leaving it there orphans it from _pendingByAccount bookkeeping,
+                // and it would still get popped later and fail with NonceTooLow post-replacement.
+                if (tx.GasPrice <= existing.GasPrice) return false;
+                _lookup.TryRemove(Convert.ToHexString(existing.Hash), out _);
             }
+
+            accountTxs[tx.Nonce] = tx;
+            return _lookup.TryAdd(hashKey, tx);
         }
     }
 
     public Transaction? PeekBest()
     {
-        // For simplicity in this MVP, we still prioritize by GasPrice globally, 
-        // but the PopBest logic will ensure sequential application.
-        // A truly robust mempool would only return the "best" eligible transaction.
         lock (_lock)
         {
+            // Only the lowest-nonce pending transaction per sender is eligible. Offering a
+            // higher-nonce transaction while a lower one from the same sender is still
+            // pending fails with NonceTooHigh on apply — and since the requeued transaction
+            // keeps winning this comparison on every retry, that starves the eligible
+            // lower-nonce transaction into a persistent livelock. Price ordering still
+            // applies, but only across senders' respective front-of-queue transactions.
             return _lookup.Values
+                .GroupBy(t => t.From)
+                .Select(g => g.OrderBy(t => t.Nonce).First())
                 .OrderByDescending(t => t.GasPrice)
                 .ThenBy(t => t.Nonce)
                 .FirstOrDefault();

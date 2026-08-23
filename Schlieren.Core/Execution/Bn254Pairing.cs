@@ -12,7 +12,9 @@ namespace Schlieren.Core.Execution;
 ///       Revert if either coordinate ≥ field modulus or point not on curve.
 ///     – G2: bytes [0..31]=x.c1, [32..63]=x.c0, [64..95]=y.c1, [96..127]=y.c0 (Fp2 big-endian).
 ///       Revert if any coordinate ≥ field modulus or point not on twisted curve.
-///       No subgroup check (matches geth / EIP-197).
+///       G2 must also have order q (EIP-197 §Specification; EELS
+///       alt_bn128_pairing_check multiplies by curve_order). geth's
+///       bn256 Unmarshal only checks the twist equation — do not match that.
 ///   • Empty input (k=0) → success, output = 32-byte 1.
 ///   • All pairs valid → Ate pairing product; return 1 if = 1 in GT else 0.
 ///   • Any decode failure → return null (revert).
@@ -140,9 +142,7 @@ internal static class Bn254Pairing
 
         pt = new G2(x, y, false);
 
-        // EIP-197 (updated): G2 point must be in the r-order subgroup.
-        // Verify: r * P == infinity (cofactor of G2 over Fp2 is 21888...- r).
-        // This catches points on the twist that are not in the correct subgroup.
+        // EIP-197 / EELS: G2 must lie in the r-order subgroup (r·P = ∞).
         if (!IsInG2Subgroup(pt)) return false;
 
         return true;

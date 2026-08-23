@@ -19,13 +19,19 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Catch any unhandled exceptions so they show in status bar instead of crashing
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            System.IO.File.AppendAllText(
+                @"C:\projects\Schlieren\crash.log",
+                $"[{DateTime.Now}] {e.ExceptionObject}\n\n");
+        };
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _workbench = new WorkbenchViewModel();
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = _workbench
-            };
+            var window = new MainWindow(_workbench);
+            desktop.MainWindow = window;
 
             desktop.Exit += (_, _) =>
             {

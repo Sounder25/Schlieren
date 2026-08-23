@@ -1,0 +1,14 @@
+System.IO.FileNotFoundException: The resource /Assets/schlieren-watermark.png could not be found.
+   at Avalonia.Platform.StandardAssetLoader.OpenAndGetAssembly(Uri uri, Uri baseUri)
+   at Avalonia.Platform.StandardAssetLoader.Open(Uri uri, Uri baseUri)
+   at Avalonia.Markup.Xaml.Converters.BitmapTypeConverter.ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+   at Schlieren.UI.Views.MainWindow.!XamlIlPopulate(IServiceProvider, MainWindow) in C:\projects\Schlieren\Schlieren.UI\Views/MainWindow.axaml:line 445
+   at Schlieren.UI.Views.MainWindow.!XamlIlPopulateTrampoline(MainWindow)
+   at Schlieren.UI.Views.MainWindow.InitializeComponent(Boolean loadXaml, Boolean attachDevTools) in C:\projects\Schlieren\Schlieren.UI\obj\Debug\net8.0\Avalonia.Generators\Avalonia.Generators.NameGenerator.AvaloniaNameSourceGenerator\Schlieren.UI.Views.MainWindow.g.cs:line 64
+   at Schlieren.UI.Views.MainWindow..ctor() in C:\projects\Schlieren\Schlieren.UI\Views\MainWindow.axaml.cs:line 16
+   at Schlieren.UI.App.OnFrameworkInitializationCompleted() in C:\projects\Schlieren\Schlieren.UI\App.axaml.cs:line 25
+   at Avalonia.AppBuilder.SetupUnsafe()
+   at Avalonia.AppBuilder.Setup()
+   at Avalonia.AppBuilder.SetupWithLifetime(IApplicationLifetime lifetime)
+   at Avalonia.ClassicDesktopStyleApplicationLifetimeExtensions.StartWithClassicDesktopLifetime(AppBuilder builder, String[] args, Action`1 lifetimeBuilder)
+   at Schlieren.UI.Program.Main(String[] args) in C:\projects\Schlieren\Schlieren.UI\Program.cs:line 29

@@ -1,0 +1,11 @@
+{
+  "name": "Permit2",
+  "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "network": "mainnet",
+  "fetchedAtBlock": "0x18977d4",
+  "runtimeBytes": 9152,
+  "note": "Uniswap's canonical signature-based approval contract. Same address on every EVM chain (CREATE2 vanity deployment — note the address itself is nearly all zero bytes, a deliberately mined vanity prefix). Heavy on EIP-712 typed-data hashing and ecrecover, plus a packed-word nonce bitmap (each storage slot tracks 256 nonces via bit flags) — a genuinely different storage-packing pattern from the Uniswap V2 pair's reserve packing. One of the most-called contracts on mainnet, so failure modes here are directly 'what real users will hit'.",
+  "knownSelectors": {
+    "unknown": "not yet decoded from the dispatcher — verified real via address + code length only. Decode selectors before writing test calls."
+  }
+}

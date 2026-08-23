@@ -177,8 +177,23 @@ public static class ConformanceRunService
             return (0, 1, 1);
         }
 
+        progress.Report(LoadTick(cases.Count, $"Loaded {cases.Count:N0} cases — starting {forkName}…", fixtureRoot));
+        return await RunCasesAsync(cases, executor.ExecuteAsync, progress, ct);
+    }
+
+    /// <summary>
+    /// Runs a pre-built list of cases against an executor delegate, streaming progress.
+    /// Extracted from <see cref="RunAsync"/> so the crash-isolation behavior (one case
+    /// throwing must not lose the rest of the batch) can be exercised directly in tests
+    /// without needing real fixture files on disk to force a genuine executor exception.
+    /// </summary>
+    public static async Task<(int Passed, int Failed, int Total)> RunCasesAsync(
+        IReadOnlyList<EelsStateCase> cases,
+        Func<EelsStateCase, CancellationToken, Task<EelsCaseExecutionReport>> execute,
+        IProgress<ConformanceProgress> progress,
+        CancellationToken ct)
+    {
         int total  = cases.Count;
-        progress.Report(LoadTick(total, $"Loaded {total:N0} cases — starting {forkName}…", fixtureRoot));
         int passed = 0;
         int failed = 0;
 
@@ -197,7 +212,35 @@ public static class ConformanceRunService
                     $"Running {c.CaseId}",
                     null, null, c.FixturePath,
                     0, 0, string.Empty, string.Empty, string.Empty));
-                var report = await executor.ExecuteAsync(c, ct);
+
+                EelsCaseExecutionReport report;
+                try
+                {
+                    report = await execute(c, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // real cancellation must still abort the whole run
+                }
+                catch (Exception ex)
+                {
+                    // A crash in a single fixture (e.g. a NullReferenceException deep in the
+                    // executor) must not take down the entire fork sweep via Task.WhenAll and
+                    // silently lose every other case's results — tally it as a failure instead.
+                    int fCrash = Interlocked.Increment(ref failed);
+                    int pCrash = Volatile.Read(ref passed);
+                    progress.Report(new ConformanceProgress(
+                        pCrash, fCrash, total,
+                        c.CaseId,
+                        $"executor crashed: {ex.Message}",
+                        new[] { ex.ToString() },
+                        c.FixturePath,
+                        0, 0,
+                        "other", string.Empty,
+                        BuildClusterKey("other", "executor_crash")));
+                    return;
+                }
+
                 bool ok = report.StateMatches && report.ReceiptStatusMatches;
 
                 int p, f;

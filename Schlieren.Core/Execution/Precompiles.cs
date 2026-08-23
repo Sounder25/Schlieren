@@ -210,10 +210,15 @@ public static class Precompiles
         var mSizeBig = ReadUint256(input, 64);
 
         // EIP-7823 (Osaka+): hard cap 1024 on each length field.
-        // Pre-Osaka EELS historically allowed larger declared lengths (up to 8192).
-        BigInteger maxDeclared = eip7883 ? 1024 : 8192;
-        if (bSizeBig > maxDeclared || eSizeBig > maxDeclared || mSizeBig > maxDeclared)
+        // Pre-Osaka: no protocol length cap — large inputs are valid, just expensive.
+        if (eip7883 && (bSizeBig > 1024 || eSizeBig > 1024 || mSizeBig > 1024))
             return (null, gasLimit); // ExceptionalHalt: consume all remaining gas
+
+        // If any declared length exceeds int.MaxValue the gas formula produces a value
+        // that will always exceed any realistic gas limit — return OOG without attempting
+        // to allocate multi-gigabyte buffers or overflow a cast.
+        if (bSizeBig > int.MaxValue || eSizeBig > int.MaxValue || mSizeBig > int.MaxValue)
+            return (null, gasLimit);
 
         int bLen = (int)bSizeBig, eLen = (int)eSizeBig, mLen = (int)mSizeBig;
 
@@ -330,23 +335,21 @@ public static class Precompiles
         {
             // floor 500, no /3
             var gasRaw = multComp * iterCount;
-            if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
-            return Math.Max(500UL, (ulong)gasRaw);
+            // If result exceeds ulong.MaxValue it will OOG against any realistic gas limit.
+            return gasRaw > ulong.MaxValue ? ulong.MaxValue : Math.Max(500UL, (ulong)gasRaw);
         }
 
         if (eip2565)
         {
             // EIP-2565: divisor=3, floor=200
             var gasRaw = multComp * iterCount / 3;
-            if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
-            return Math.Max(200UL, (ulong)gasRaw);
+            return gasRaw > ulong.MaxValue ? ulong.MaxValue : Math.Max(200UL, (ulong)gasRaw);
         }
 
         // EIP-198: divisor=20, no floor
         {
             var gasRaw = multComp * iterCount / 20;
-            if (gasRaw > 10_000_000_000UL) return 10_000_000_000UL;
-            return gasRaw.IsZero ? 0UL : (ulong)gasRaw;
+            return gasRaw > ulong.MaxValue ? ulong.MaxValue : (gasRaw.IsZero ? 0UL : (ulong)gasRaw);
         }
     }
 
@@ -508,7 +511,9 @@ public static class Precompiles
                     var path = Path.Combine(AppContext.BaseDirectory, "kzg_trusted_setup.txt");
                     _kzgSetup = Ckzg.Ckzg.LoadTrustedSetup(path, 0);
                     if (_kzgSetup == IntPtr.Zero)
-                        throw new InvalidOperationException("Failed to load KZG trusted setup.");
+                        // Trusted setup unavailable: treat as precompile failure (consume all gas).
+                        // Do NOT throw — a host exception would bypass the EVM error budget.
+                        return (null, gasLimit);
                 }
             }
         }

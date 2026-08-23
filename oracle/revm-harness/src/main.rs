@@ -197,9 +197,9 @@ fn execute_case(case: ExecutionCase) -> Result<ExecutionResponse> {
     // 3. Create context with mainnet defaults
     let mut ctx = Context::mainnet().with_db(db);
 
-    // 4. Configure fork (spec)
+    // 4. Configure fork (spec) — MUST use set_spec_and_mainnet_gas_params to rebuild gas table
     let spec = parse_fork(&case.fork)?;
-    ctx.cfg.spec = spec;
+    ctx.cfg.set_spec_and_mainnet_gas_params(spec);
 
     // 5. Configure block environment
     ctx.block.number = U256::from(case.block_number);
@@ -234,8 +234,13 @@ fn execute_case(case: ExecutionCase) -> Result<ExecutionResponse> {
 
     // 8. Extract execution details
     let success = exec_result.result.is_success();
-    let gas_used = exec_result.result.tx_gas_used(); // Use tx_gas_used instead of deprecated gas_used
-    let refund = 0; // Refund info not directly available in ExecutionResult anymore
+    let gas_used = exec_result.result.tx_gas_used(); // After refund (receipt value)
+    let result_gas = exec_result.result.gas();
+    let refund = result_gas.inner_refunded(); // Actual refund REVM computed
+    let total_gas_spent = result_gas.total_gas_spent(); // Before refund
+    // Diagnostic: print to stderr so it doesn't corrupt JSON stdout
+    eprintln!("DIAG: total_gas_spent={}, refund={}, tx_gas_used={}, floor_gas={}", 
+              total_gas_spent, refund, gas_used, result_gas.floor_gas());
     let return_data = match exec_result.result.output() {
         Some(bytes) => format!("0x{}", hex::encode(bytes)),
         None => "0x".to_string(),

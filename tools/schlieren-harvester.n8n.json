@@ -1,0 +1,340 @@
+{
+  "name": "Schlieren Mainnet Harvester",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Schedule: Every 2 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 2 }]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "Load Checkpoint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ── Configuration (edit these) ──────────────────────────────────────\nconst ETH_RPC       = process.env.SCHLIEREN_ETH_RPC   || 'https://ethereum.publicnode.com';\nconst DEBUG_RPC     = process.env.SCHLIEREN_DEBUG_RPC || ''; // Alchemy/QuickNode/Geth w/ debug_*\nconst CORPUS_DIR    = process.env.SCHLIEREN_CORPUS_DIR || 'C:/projects/Schlieren/muscle/corpus';\nconst LIMIT_PER_RUN = parseInt(process.env.SCHLIEREN_LIMIT || '10');\nconst EXECUTE       = process.env.SCHLIEREN_EXECUTE !== 'false'; // set to 'false' to harvest-only\n// ─────────────────────────────────────────────────────────────────────\n\nconst fs = require('fs');\nconst path = require('path');\n\n// Ensure corpus dir exists\nif (!fs.existsSync(CORPUS_DIR)) fs.mkdirSync(CORPUS_DIR, { recursive: true });\n\n// Load checkpoint\nconst checkpointPath = path.join(CORPUS_DIR, '.checkpoint.json');\nlet lastBlock = 0;\nif (fs.existsSync(checkpointPath)) {\n  try {\n    const cp = JSON.parse(fs.readFileSync(checkpointPath, 'utf8'));\n    lastBlock = cp.lastProcessedBlock || 0;\n  } catch {}\n}\n\nreturn [{\n  json: {\n    ethRpc:      ETH_RPC,\n    debugRpc:    DEBUG_RPC,\n    corpusDir:   CORPUS_DIR,\n    limitPerRun: LIMIT_PER_RUN,\n    execute:     EXECUTE,\n    checkpointPath,\n    lastBlock,\n    harvested:   0,\n    passed:      0,\n    failed:      0,\n    results:     [],\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "Get Finalized Block",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getBlockByNumber",
+          "params": ["finalized", false],
+          "id": 1
+        },
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "Determine Start Block",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prev     = $('Load Checkpoint').first().json;\nconst finalized = parseInt($input.first().json.result.number, 16);\n\n// Start 5 blocks behind finalized (safety buffer)\nconst safeHead  = finalized - 5;\nconst startBlock = prev.lastBlock > 0\n  ? Math.min(prev.lastBlock + 1, safeHead)\n  : safeHead;\n\nreturn [{\n  json: {\n    ...prev,\n    finalizedBlock: finalized,\n    startBlock,\n    currentBlock:   startBlock,\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "Get Block + Transactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getBlockByNumber",
+          "params": ["={{ '0x' + $json.currentBlock.toString(16) }}", true],
+          "id": 1
+        },
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "Filter + Split Transactions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ── Known high-value protocol addresses (battle-tested corpus) ──────\nconst KNOWN_PROTOCOLS = new Set([\n  '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // WETH9\n  '0x7a250d5630b4cf539739df2c5dacb4c659f2488d', // Uniswap V2 Router\n  '0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45', // Uniswap V3 Router2\n  '0xe592427a0aece92de3edee1f18e0157c05861564', // Uniswap V3 SwapRouter\n  '0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Aave V3 Pool\n  '0xba12222222228d8ba445958a75a0704d566bf2c8', // Balancer Vault\n  '0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7', // Curve 3pool\n  '0x1111111254eeb25477b68fb85ed929f73a960582', // 1inch v5\n  '0xdef1c0ded9bec7f1a1670819833240f027b25eff', // 0x V4\n  '0x00000000219ab540356cbb839cbe05303d7705fa', // ETH2 Deposit\n]);\n\nfunction isInteresting(tx) {\n  const to     = (tx.to || '').toLowerCase();\n  const data   = tx.input || '0x';\n\n  // Skip: pure ETH transfers\n  if (to && (data === '0x' || data === '')) return { keep: false, reason: 'plain_eth' };\n  // Skip: contract creations (we can add these later)\n  if (!tx.to) return { keep: true, reason: 'contract_creation' };\n  // Keep: known protocols\n  if (KNOWN_PROTOCOLS.has(to)) return { keep: true, reason: `protocol:${to.slice(0,10)}` };\n  // Keep: ABI call (4-byte selector present)\n  if (data.length >= 10) return { keep: true, reason: 'abi_call' };\n\n  return { keep: false, reason: 'uninteresting' };\n}\n\nconst prev     = $('Load Checkpoint').first().json;\nconst blockData = $input.first().json.result;\nconst txs = (blockData.transactions || []);\n\n// Filter and output one item per interesting tx\nconst items = [];\nfor (const tx of txs) {\n  const { keep, reason } = isInteresting(tx);\n  if (!keep) continue;\n  items.push({\n    json: {\n      ...prev,\n      block:      blockData,\n      tx,\n      filterReason: reason,\n    }\n  });\n}\n\nconsole.log(`Block ${parseInt(blockData.number, 16)}: ${txs.length} txs → ${items.length} interesting`);\nreturn items;"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0007-0007-0007-000000000007",
+      "name": "Get Receipt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getTransactionReceipt",
+          "params": ["={{ $json.tx.hash }}"],
+          "id": 1
+        },
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0008-0008-0008-000000000008",
+      "name": "Post-Receipt Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const receipt = $input.item.json.result;\nif (!receipt) return []; // tx not mined yet — skip\n\nconst gasUsed = parseInt(receipt.gasUsed || '0x0', 16);\n\n// Apply receipt-level filters (we now have real gas + logs)\nconst logs   = receipt.logs || [];\nconst status = receipt.status;\n\n// Discard trivial executions (< 25k gas, no logs, success only)\nif (gasUsed < 25000 && logs.length === 0 && status === '0x1') return [];\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    receipt,\n    gasUsed,\n    logCount: logs.length,\n    reverted: status === '0x0',\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0009-0009-0009-000000000009",
+      "name": "Capture Prestate (debug)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.debugRpc || $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "debug_traceTransaction",
+          "params": [
+            "={{ $json.tx.hash }}",
+            { "tracer": "prestateTracer" }
+          ],
+          "id": 1
+        },
+        "options": {
+          "timeout": 60000,
+          "response": { "response": { "neverError": true } }
+        },
+        "onError": "continueRegularOutput"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000010",
+      "name": "Prestate: debug or fallback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2220, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [{
+            "id": "cond-01",
+            "leftValue": "={{ $json.result !== undefined && $json.error === undefined }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true" }
+          }]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0011-0011-0011-000000000011",
+      "name": "Fallback: eth_getBalance (sender)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2440, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getBalance",
+          "params": [
+            "={{ $json.tx.from }}",
+            "={{ '0x' + (parseInt($json.block.number, 16) - 1).toString(16) }}"
+          ],
+          "id": 1
+        },
+        "options": { "timeout": 15000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0012-0012-0012-000000000012",
+      "name": "Fallback: eth_getCode (target)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2660, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ethRpc }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "jsonrpc": "2.0",
+          "method": "eth_getCode",
+          "params": [
+            "={{ $json.tx.to || '0x0000000000000000000000000000000000000000' }}",
+            "={{ '0x' + (parseInt($json.block.number, 16) - 1).toString(16) }}"
+          ],
+          "id": 1
+        },
+        "options": { "timeout": 15000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000013",
+      "name": "Build + Write Fixture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 300],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fs   = require('fs');\nconst path = require('path');\n\nconst item    = $input.item.json;\nconst tx      = item.tx;\nconst block   = item.block;\nconst receipt = item.receipt;\n\n// ── Determine prestate source ────────────────────────────────────────\nlet prestate = {};\nlet prestateMethod = 'eth_fallback';\n\nif (item.debugPrestate) {\n  // debug_traceTransaction result — normalize\n  prestateMethod = 'debug_prestateTracer';\n  for (const [addr, acct] of Object.entries(item.debugPrestate)) {\n    const storage = {};\n    for (const [slot, val] of Object.entries(acct.storage || {})) {\n      const k = slot.startsWith('0x') ? slot : '0x' + slot;\n      const v = val.startsWith('0x')  ? val  : '0x' + val;\n      if (parseInt(v, 16) !== 0) storage[k] = v;\n    }\n    prestate[addr.toLowerCase()] = {\n      balance: acct.balance || '0x0',\n      nonce:   acct.nonce   || '0x0',\n      code:    acct.code    || '0x',\n      storage,\n    };\n  }\n} else {\n  // Fallback: sender + target from individual eth_* calls\n  const senderBalance = item.senderBalance || '0x0';\n  const senderNonce   = item.senderNonce   || '0x0';\n  const targetCode    = item.targetCode    || '0x';\n  const targetBalance = item.targetBalance || '0x0';\n  const targetNonce   = item.targetNonce   || '0x0';\n\n  if (tx.from) {\n    prestate[tx.from.toLowerCase()] = {\n      balance: senderBalance, nonce: senderNonce, code: '0x', storage: {}\n    };\n  }\n  if (tx.to) {\n    prestate[tx.to.toLowerCase()] = {\n      balance: targetBalance, nonce: targetNonce, code: targetCode, storage: {}\n    };\n  }\n}\n\n// ── Detect fork from block number ─────────────────────────────────────\nfunction detectFork(n) {\n  if (n >= 22000000) return 'Osaka';\n  if (n >= 20000000) return 'Prague';\n  if (n >= 19426587) return 'Cancun';\n  if (n >= 17034870) return 'Shanghai';\n  if (n >= 15537394) return 'Paris';\n  if (n >= 12965000) return 'London';\n  return 'Berlin';\n}\n\nconst blockNum = parseInt(block.number, 16);\nconst fork     = detectFork(blockNum);\nconst txHash   = tx.hash;\n\n// ── Build ExecutionFixture ────────────────────────────────────────────\nconst fixture = {\n  [`mainnet::${txHash}`]: {\n    _provenance: {\n      chain:          'mainnet',\n      chainId:        '0x1',\n      txHash,\n      blockNumber:    block.number,\n      blockNumberDec: blockNum,\n      fork,\n      prestateMethod,\n      filterReason:   item.filterReason,\n      harvestedAt:    new Date().toISOString(),\n    },\n    env: {\n      currentCoinbase:      block.miner || '0x0000000000000000000000000000000000000000',\n      currentGasLimit:      block.gasLimit      || '0x0',\n      currentNumber:        block.number        || '0x0',\n      currentTimestamp:     block.timestamp     || '0x0',\n      currentBaseFee:       block.baseFeePerGas || '0x0',\n      currentDifficulty:    block.difficulty    || '0x0',\n      currentRandom:        block.mixHash       || ('0x' + '0'.repeat(64)),\n      currentExcessBlobGas: block.excessBlobGas || '0x0',\n    },\n    pre: prestate,\n    transaction: {\n      nonce:               tx.nonce,\n      gasPrice:            tx.gasPrice            || '0x0',\n      maxFeePerGas:        tx.maxFeePerGas        || null,\n      maxPriorityFeePerGas: tx.maxPriorityFeePerGas || null,\n      gasLimit:            [tx.gas],\n      to:                  tx.to,\n      value:               [tx.value || '0x0'],\n      data:                [tx.input || '0x'],\n      sender:              tx.from,\n      type:                tx.type || '0x0',\n      accessList:          tx.accessList || [],\n    },\n    // Ground truth — what Ethereum mainnet already settled.\n    // Schlieren diffs against this. No external EVM needed.\n    realReceipt: {\n      status:            receipt.status,\n      gasUsed:           receipt.gasUsed,\n      cumulativeGasUsed: receipt.cumulativeGasUsed,\n      logCount:          (receipt.logs || []).length,\n      contractAddress:   receipt.contractAddress || null,\n    },\n  }\n};\n\n// ── Write to corpus ───────────────────────────────────────────────────\nconst corpusDir  = item.corpusDir;\nconst date       = new Date().toISOString().slice(0, 10);\nconst safeHash   = txHash.slice(2, 12);\nconst filename   = `${date}-${blockNum}-${safeHash}.json`;\nconst outPath    = path.join(corpusDir, filename);\nfs.writeFileSync(outPath, JSON.stringify(fixture, null, 2));\n\nconsole.log(`Wrote: ${filename}  fork=${fork}  gas=${parseInt(receipt.gasUsed,16).toLocaleString()}  logs=${(receipt.logs||[]).length}`);\n\nreturn [{\n  json: {\n    ...item,\n    fixturePath: outPath,\n    fixtureFile: filename,\n    fork,\n    prestateMethod,\n    blockNum,\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000014",
+      "name": "Should Execute?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3100, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [{
+            "id": "cond-02",
+            "leftValue": "={{ $json.execute }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true" }
+          }]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0015-0015-0015-000000000015",
+      "name": "Run Schlieren",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [3320, 200],
+      "parameters": {
+        "command": "dotnet run --project C:/projects/Schlieren/tools/RealTxRunner/RealTxRunner.csproj --no-build -- \"{{ $json.fixturePath }}\" --fork {{ $json.fork }} 2>&1"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000016",
+      "name": "Parse Schlieren Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3540, 200],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const output   = $input.item.json.stdout || '';\nconst passed   = output.includes('✓ All checks passed') || output.includes('MATCH');\nconst gasLine  = output.split('\\n').find(l => l.includes('Gas used'));\nconst statusLine = output.split('\\n').find(l => l.includes('Status'));\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    schlierenPassed:  passed,\n    schlierenOutput:  output.slice(-800), // last 800 chars for logging\n    schlierenGasLine: gasLine?.trim(),\n    schlierenStatus:  statusLine?.trim(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0017-0017-0017-000000000017",
+      "name": "Save Checkpoint + Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3760, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const fs   = require('fs');\nconst path = require('path');\n\nconst items = $input.all();\nif (!items.length) return [];\n\nconst first = items[0].json;\nconst corpusDir = first.corpusDir;\nconst checkpointPath = first.checkpointPath;\n\n// Save checkpoint — furthest block processed\nconst maxBlock = Math.max(...items.map(i => i.json.blockNum || first.currentBlock));\nfs.writeFileSync(checkpointPath, JSON.stringify({\n  lastProcessedBlock: maxBlock,\n  savedAt: new Date().toISOString(),\n}, null, 2));\n\n// Build run summary\nconst total   = items.length;\nconst passed  = items.filter(i => i.json.schlierenPassed === true).length;\nconst failed  = items.filter(i => i.json.schlierenPassed === false).length;\nconst harvest = items.filter(i => i.json.schlierenPassed === undefined).length;\n\nconst summaryLines = [\n  `═══════════════════════════════════`,\n  `  SCHLIEREN HARVEST RUN COMPLETE`,\n  `  Fixtures written : ${total}`,\n  `  Passed           : ${passed}`,\n  `  Failed/Diagnostic: ${failed}`,\n  `  Harvest-only     : ${harvest}`,\n  `  Block checkpoint : ${maxBlock}`,\n  `═══════════════════════════════════`,\n];\nconsole.log(summaryLines.join('\\n'));\n\n// Write run manifest\nconst date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);\nconst manifest = {\n  runAt:     new Date().toISOString(),\n  fromBlock: first.startBlock,\n  toBlock:   maxBlock,\n  total, passed, failed, harvest,\n  fixtures:  items.map(i => ({\n    file:           i.json.fixtureFile,\n    fork:           i.json.fork,\n    txHash:         i.json.tx?.hash,\n    reason:         i.json.filterReason,\n    prestate:       i.json.prestateMethod,\n    schlierenPassed: i.json.schlierenPassed,\n    gasLine:        i.json.schlierenGasLine,\n  }))\n};\nfs.writeFileSync(\n  path.join(corpusDir, `manifest-${date}.json`),\n  JSON.stringify(manifest, null, 2)\n);\n\nreturn [{ json: { summary: summaryLines.join('\\n'), manifest } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule: Every 2 min": {
+      "main": [[{ "node": "Load Checkpoint", "type": "main", "index": 0 }]]
+    },
+    "Load Checkpoint": {
+      "main": [[{ "node": "Get Finalized Block", "type": "main", "index": 0 }]]
+    },
+    "Get Finalized Block": {
+      "main": [[{ "node": "Determine Start Block", "type": "main", "index": 0 }]]
+    },
+    "Determine Start Block": {
+      "main": [[{ "node": "Get Block + Transactions", "type": "main", "index": 0 }]]
+    },
+    "Get Block + Transactions": {
+      "main": [[{ "node": "Filter + Split Transactions", "type": "main", "index": 0 }]]
+    },
+    "Filter + Split Transactions": {
+      "main": [[{ "node": "Get Receipt", "type": "main", "index": 0 }]]
+    },
+    "Get Receipt": {
+      "main": [[{ "node": "Post-Receipt Filter", "type": "main", "index": 0 }]]
+    },
+    "Post-Receipt Filter": {
+      "main": [[{ "node": "Capture Prestate (debug)", "type": "main", "index": 0 }]]
+    },
+    "Capture Prestate (debug)": {
+      "main": [[{ "node": "Prestate: debug or fallback?", "type": "main", "index": 0 }]]
+    },
+    "Prestate: debug or fallback?": {
+      "main": [
+        [{ "node": "Build + Write Fixture", "type": "main", "index": 0 }],
+        [{ "node": "Fallback: eth_getBalance (sender)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fallback: eth_getBalance (sender)": {
+      "main": [[{ "node": "Fallback: eth_getCode (target)", "type": "main", "index": 0 }]]
+    },
+    "Fallback: eth_getCode (target)": {
+      "main": [[{ "node": "Build + Write Fixture", "type": "main", "index": 0 }]]
+    },
+    "Build + Write Fixture": {
+      "main": [[{ "node": "Should Execute?", "type": "main", "index": 0 }]]
+    },
+    "Should Execute?": {
+      "main": [
+        [{ "node": "Run Schlieren", "type": "main", "index": 0 }],
+        [{ "node": "Save Checkpoint + Log", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run Schlieren": {
+      "main": [[{ "node": "Parse Schlieren Result", "type": "main", "index": 0 }]]
+    },
+    "Parse Schlieren Result": {
+      "main": [[{ "node": "Save Checkpoint + Log", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [{ "name": "schlieren" }, { "name": "harvester" }],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "schlieren-harvester-v1"
+  }
+}

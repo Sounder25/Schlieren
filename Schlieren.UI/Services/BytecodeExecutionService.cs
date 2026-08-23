@@ -304,9 +304,13 @@ public static class BytecodeExecutionService
     {
         if (string.IsNullOrWhiteSpace(hex)) return null;
         var t = hex.Trim();
-        if (t is "0x" or "0X" or "0x0" or "0x00") return null;
         var cleaned = CleanHex(t);
-        if (cleaned.Length == 0 || cleaned.Trim('0').Length == 0) return null;
+        // Only a short placeholder (fewer than the 40 hex chars of a real 20-byte address,
+        // e.g. "0x", "0x0", "0x00") means "no recipient" (CREATE). A full-length address
+        // that happens to be all zero (0x0000...0000, the literal zero address) is a
+        // legitimate message-call target — it must not be treated as absent, or a call to
+        // address zero silently gets misclassified as a contract deployment.
+        if (cleaned.Length < 40) return null;
         return Address.FromHex(t);
     }
 
@@ -348,9 +352,14 @@ public static class BytecodeExecutionService
     private static bool TryAddress(string? hex, out Address addr)
     {
         addr = default;
+        if (string.IsNullOrWhiteSpace(hex)) return false;
+        var cleaned = CleanHex(hex.Trim());
+        // Require at least 40 hex chars — a short/empty string would pad to Address.Zero,
+        // silently inserting a spurious zero-address entry into the pre-state snapshot.
+        if (cleaned.Length < 40) return false;
         try
         {
-            addr = Address.FromHex(hex ?? "");
+            addr = Address.FromHex(hex);
             return true;
         }
         catch

@@ -40,8 +40,9 @@ public sealed class OpcodeCreate : IOpcode
         var initCodeWordGas = context.Block.Rules.HasEip3860InitcodeLimit
             ? 2UL * ((ulong)(lengthInt + 31) / 32)
             : 0UL;
-        // Base CREATE gas: 32000
-        context.ConsumeGas(32000 + initCodeWordGas);
+        // Base CREATE gas: 32000, but only for Homestead+ (EIP-2)
+        var createSurcharge = context.Block.Rules.HasCreateTxSurcharge ? 32000UL : 0UL;
+        context.ConsumeGas(createSurcharge + initCodeWordGas);
 
         var initCode = context.Memory.Load(offsetInt, lengthInt);
 
@@ -86,13 +87,16 @@ public sealed class OpcodeCreate : IOpcode
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
 
-        // EELS account_deployable() / EIP-7610: CREATE collides when destination has
-        // nonzero nonce, existing code, or any storage. Message gas already reserved
-        // (EIP-150) remains consumed; creator nonce already bumped.
-        if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
+        // EIP-7610 (Paris+): CREATE collides when destination has nonzero nonce,
+        // existing code, or any storage. Message gas already reserved (EIP-150) 
+        // remains consumed; creator nonce already bumped.
+        if (context.Block.Rules.HasEip7610CreateCollisionBurn)
         {
-            context.Stack.TryPush(0);
-            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+            if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
+            {
+                context.Stack.TryPush(0);
+                return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+            }
         }
 
         // Construct internal tx for creation
@@ -129,10 +133,10 @@ public sealed class OpcodeCreate : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            // EIP-170: oversized code → ExceptionalHalt. Revert creation account only
+            // EIP-170 (SpuriousDragon+): oversized code → ExceptionalHalt. Revert creation account only
             // (sub-call overlay already discarded initcode state changes).
             const int maxCodeSize = 24576;
-            if (runtimeCode.Length > maxCodeSize)
+            if (context.Block.Rules.HasEip170CodeSizeLimit && runtimeCode.Length > maxCodeSize)
             {
                 await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
                 context.Stack.TryPush(0);
@@ -307,13 +311,27 @@ public sealed class OpcodeCall : IOpcode
         ulong valueTransferCost = value.IsZero ? 0UL : 9000UL;
 
         // Gap 3: EIP-161 new-account surcharge – 25000 if callee is empty and value > 0.
+        // Pre-Spurious Dragon: account exists if balance>0 OR code>0 OR nonce>0.
+        // Spurious Dragon+ (EIP-161): account exists if balance>0 OR code>0 OR nonce>1.
         ulong newAccountCost = 0;
         if (!value.IsZero)
         {
             var calleeCode = await context.GlobalState.GetCodeAsync(toAddress, ct);
             var calleeBalance = await context.GlobalState.GetBalanceAsync(toAddress, ct);
             var calleeNonce = await context.GlobalState.GetNonceAsync(toAddress, ct);
-            bool isEmpty = calleeCode.Length == 0 && calleeBalance == 0 && calleeNonce == 0;
+            
+            bool isEmpty;
+            if (context.Block.Rules.HasEip161ContractNonce)
+            {
+                // Spurious Dragon+ (EIP-161): contracts start with nonce=1
+                isEmpty = calleeCode.Length == 0 && calleeBalance == 0 && calleeNonce <= 1;
+            }
+            else
+            {
+                // Pre-Spurious Dragon: account exists if any field nonzero
+                isEmpty = calleeCode.Length == 0 && calleeBalance == 0 && calleeNonce == 0;
+            }
+            
             if (isEmpty) newAccountCost = 25_000;
         }
 
@@ -337,13 +355,18 @@ public sealed class OpcodeCall : IOpcode
                 if (!exists) newAccountCost = 25_000;
             }
 
-            var requestedGasFrontier = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+            // Overflow-safe: clamp requestedGas to available so the multi-term sum cannot wrap.
+            // If gas arg > available the parent will OOG anyway (frontierCost > available).
+            var availableBeforeCall = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+            var requestedGasFrontier = gas > (BigInteger)availableBeforeCall ? availableBeforeCall : (ulong)gas;
             // Parent pays: base + gas_arg + value_cost + new_account_cost (no ExtAccountCost)
             // In Frontier CallBaseCost=40 and ExtAccountCost is NOT part of CALL overhead.
             ulong frontierCost = rules.CallBaseCost + requestedGasFrontier + valueTransferCost + newAccountCost;
             context.ConsumeGas(frontierCost);
             var stipendFrontier = value.IsZero ? 0UL : 2300UL;
-            var childGasLimitFrontier = requestedGasFrontier + stipendFrontier;
+            var childGasLimitFrontier = requestedGasFrontier <= ulong.MaxValue - stipendFrontier
+                ? requestedGasFrontier + stipendFrontier
+                : ulong.MaxValue;
 
             // Balance check
             if (!value.IsZero)
@@ -351,7 +374,7 @@ public sealed class OpcodeCall : IOpcode
                 var callerBalance = await context.GlobalState.GetBalanceAsync(context.ContractAddress, ct);
                 if (callerBalance < value)
                 {
-                    context.RefundGas(requestedGasFrontier + stipendFrontier);
+                    context.RefundGas(childGasLimitFrontier);
                     context.Stack.TryPush(0);
                     return (ExecutionResult.Success(0), context.ProgramCounter + 1);
                 }
@@ -559,9 +582,10 @@ public sealed class OpcodeCreate2 : IOpcode
         var initCodeWordGas = context.Block.Rules.HasEip3860InitcodeLimit
             ? 2UL * ((ulong)(lengthInt + 31) / 32)
             : 0UL;
-        // Base CREATE2 gas: 32000 + hash gas (6 per word)
+        // Base CREATE2 gas: 32000 + hash gas (6 per word), but only for Homestead+ (CREATE2 is Constantinople+)
+        var createSurcharge = context.Block.Rules.HasCreateTxSurcharge ? 32000UL : 0UL;
         var hashWordGas = 6UL * ((ulong)(lengthInt + 31) / 32);
-        context.ConsumeGas(32000 + initCodeWordGas + hashWordGas);
+        context.ConsumeGas(createSurcharge + initCodeWordGas + hashWordGas);
 
         var initCode = context.Memory.Load(offsetInt, lengthInt);
         
@@ -608,12 +632,15 @@ public sealed class OpcodeCreate2 : IOpcode
         // EIP-211: Clear return data buffer before any call-like operation
         context.LastReturnData = Array.Empty<byte>();
 
-        // EELS account_deployable() / EIP-7610: CREATE2 collides when destination
-        // has nonzero nonce, existing code, or any storage. Message gas reserved.
-        if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
+        // EIP-7610 (Paris+): CREATE2 collides when destination has nonzero nonce,
+        // existing code, or any storage. Message gas reserved.
+        if (context.Block.Rules.HasEip7610CreateCollisionBurn)
         {
-            context.Stack.TryPush(0);
-            return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+            if (!await AccountDeployability.IsDeployableAsync(context.GlobalState, newAddress, ct))
+            {
+                context.Stack.TryPush(0);
+                return (ExecutionResult.Success(0), context.ProgramCounter + 1);
+            }
         }
 
         var tx = new Transaction
@@ -648,10 +675,10 @@ public sealed class OpcodeCreate2 : IOpcode
             var runtimeCode = result.ReturnData;
             var codeDepositCost = checked((ulong)runtimeCode.Length * 200UL);
 
-            // EIP-170: oversized code → ExceptionalHalt. Revert creation account only
+            // EIP-170 (SpuriousDragon+): oversized code → ExceptionalHalt. Revert creation account only
             // (sub-call overlay already discarded initcode state changes).
             const int maxCodeSize = 24576;
-            if (runtimeCode.Length > maxCodeSize)
+            if (context.Block.Rules.HasEip170CodeSizeLimit && runtimeCode.Length > maxCodeSize)
             {
                 await CreateRevertHelper.RevertCreationAccount(context, newAddress, ct);
                 context.Stack.TryPush(0);
@@ -918,7 +945,10 @@ public sealed class OpcodeCallCode : IOpcode
         // Balance check happens AFTER gas charge; on fail, refund sub_call gas.
         if (rules.HasPreEip150CallGas)
         {
-            var requestedGasPre = gas > ulong.MaxValue ? ulong.MaxValue : (ulong)gas;
+            // Overflow-safe: clamp to available gas so accessCost + requestedGas + valueTransferCost
+            // cannot wrap ulong. If gas arg > available the sum exceeds available and ConsumeGas OOGs.
+            var availableBeforeCallCode = context.GasLimit > context.GasUsed ? context.GasLimit - context.GasUsed : 0UL;
+            var requestedGasPre = gas > (BigInteger)availableBeforeCallCode ? availableBeforeCallCode : (ulong)gas;
             var stipendPre = value.IsZero ? 0UL : 2300UL;
             // Cost: CALL_BASE + gas_arg + value_transfer_cost (create_gas_cost=0 since to=self)
             ulong frontierCallCodeCost = accessCost + requestedGasPre + valueTransferCost;
@@ -937,7 +967,9 @@ public sealed class OpcodeCallCode : IOpcode
                 }
             }
 
-            var childGasLimitPre = requestedGasPre + stipendPre;
+            var childGasLimitPre = requestedGasPre <= ulong.MaxValue - stipendPre
+                ? requestedGasPre + stipendPre
+                : ulong.MaxValue;
             var tx = new Transaction
             {
                 From = context.ContractAddress,

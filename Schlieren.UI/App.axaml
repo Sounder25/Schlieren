@@ -25,7 +25,27 @@
         <SolidColorBrush x:Key="Schlieren.Alert" Color="#FF8A65"/>
         <SolidColorBrush x:Key="Schlieren.ActiveLineBg" Color="#1A2740"/>
         <SolidColorBrush x:Key="Schlieren.VulnerableLineBg" Color="#2A1818"/>
-        <SolidColorBrush x:Key="Schlieren.SelectionBg" Color="#243044"/>
+        <!-- ─── Signal model (Schlieren design system) ─── -->
+        <SolidColorBrush x:Key="Schlieren.SigFlow"       Color="#5B8EC9"/><!-- control flow: CALL, JUMP, RETURN -->
+        <SolidColorBrush x:Key="Schlieren.SigMemory"     Color="#4BA89A"/><!-- memory: MLOAD, MSTORE -->
+        <SolidColorBrush x:Key="Schlieren.SigState"      Color="#C8943C"/><!-- state mutation: SSTORE, SLOAD -->
+        <SolidColorBrush x:Key="Schlieren.SigFracture"   Color="#C43A52"/><!-- oracle divergence — THE rare red -->
+        <SolidColorBrush x:Key="Schlieren.SigHalt"       Color="#B85A32"/><!-- REVERT, OOG, INVALID -->
+        <SolidColorBrush x:Key="Schlieren.SigSecurity"   Color="#7B5EA7"/><!-- security findings -->
+        <SolidColorBrush x:Key="Schlieren.SigDiagnosis"  Color="#B89B4A"/><!-- diagnostic insights -->
+        <SolidColorBrush x:Key="Schlieren.SigAgree"      Color="#5A8A6C"/><!-- oracle match, test pass -->
+        <SolidColorBrush x:Key="Schlieren.SigCursor"     Color="#FFFFFF"/><!-- selected step -->
+        <!-- ─── Chassis surfaces ─── -->
+        <SolidColorBrush x:Key="Schlieren.Void"          Color="#060607"/>
+        <SolidColorBrush x:Key="Schlieren.Chassis"       Color="#0B0C0D"/>
+        <SolidColorBrush x:Key="Schlieren.Panel"         Color="#111214"/>
+        <SolidColorBrush x:Key="Schlieren.Raised"        Color="#181A1D"/>
+        <SolidColorBrush x:Key="Schlieren.Elevated"      Color="#1F2225"/>
+        <SolidColorBrush x:Key="Schlieren.Inset"         Color="#090A0B"/>
+        <SolidColorBrush x:Key="Schlieren.BorderHard"    Color="#2A2D32"/>
+        <SolidColorBrush x:Key="Schlieren.TextSecondary" Color="#A0A8B4"/>
+        <SolidColorBrush x:Key="Schlieren.TextTertiary"  Color="#6A7280"/>
+        <SolidColorBrush x:Key="Schlieren.TextGhost"     Color="#454B54"/>
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />

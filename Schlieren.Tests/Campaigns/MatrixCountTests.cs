@@ -42,7 +42,8 @@ public class MatrixCountTests
         _output.WriteLine($"  Gas boundary: {gasBoundary}");
         _output.WriteLine($"  Exotic (SELFDESTRUCT/CREATE): {exotic}");
         
-        // Expect ~200 cases
-        Assert.InRange(cases.Count, 190, 250);
+        // Deduplication by canonical fingerprint consolidates semantically identical cases.
+        // 137 unique cases after dedup (previously ~200 before dedup was added).
+        Assert.InRange(cases.Count, 120, 160);
     }
 }

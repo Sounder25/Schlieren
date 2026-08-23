@@ -58,6 +58,31 @@ public class EthGetLogsRpcTests
         Assert.Empty(logs);
     }
 
+    [Fact]
+    public void GetLogs_UnrecognizedBlockTag_ThrowsInsteadOfSilentlyUsingDefault()
+    {
+        // ParseBlockTag used to silently fall through to defaultValue for any tag it didn't
+        // recognize (e.g. "safe"/"finalized"), querying the wrong block range with no error.
+        var handlers = BuildFixture();
+        var filter = JsonSerializer.Deserialize<JsonElement>("{\"fromBlock\":\"safe\"}");
+
+        var ex = Assert.Throws<RpcException>(() => handlers.HandleGetLogs(new object[] { filter }));
+        Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
+        Assert.Contains("Invalid 'fromBlock' block tag", ex.Message);
+    }
+
+    [Fact]
+    public void GetLogs_NonStringBlockTag_ThrowsInvalidParams_NotUnhandledException()
+    {
+        // A bare JSON number where a string tag is expected used to throw an unhandled
+        // InvalidOperationException from JsonElement.GetString() (wrong ValueKind).
+        var handlers = BuildFixture();
+        var filter = JsonSerializer.Deserialize<JsonElement>("{\"fromBlock\":1}");
+
+        var ex = Assert.Throws<RpcException>(() => handlers.HandleGetLogs(new object[] { filter }));
+        Assert.Equal(JsonRpcErrorCodes.InvalidParams, ex.ErrorCode);
+    }
+
     private static EthHandlers BuildFixture()
     {
         var globalState = new GlobalState();

@@ -11,17 +11,41 @@ namespace Schlieren.UI.Views;
 
 public partial class MainWindow : Window
 {
+    private double _zoomLevel = 1.0;
+    private const double ZoomMin  = 0.5;
+    private const double ZoomMax  = 2.0;
+    private const double ZoomStep = 0.1;
+
     public MainWindow()
     {
         InitializeComponent();
-        // Tunnel + handledEventsToo: F5 must fire even when a TextBox has focus
-        // (bytecode / calldata / fixture path). Bubble-only KeyDown is eaten there.
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-        BuildAppearanceMenu();
-        ApplyWatermarkArt(SkinService.Current);
+        AddHandler(PointerWheelChangedEvent, OnWindowWheel, RoutingStrategies.Tunnel, handledEventsToo: false);
         SkinService.SkinChanged += OnSkinChanged;
         if (this.FindControl<ConformanceView>("ConformancePanel") is { } panel)
             panel.OpenInWorkbench += OnOpenFixtureInWorkbench;
+    }
+
+    private void OnWindowWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        e.Handled = true;
+        ApplyZoomDelta(e.Delta.Y > 0 ? ZoomStep : -ZoomStep);
+    }
+
+    private void ApplyZoomDelta(double delta)
+    {
+        _zoomLevel = Math.Clamp(_zoomLevel + delta, ZoomMin, ZoomMax);
+        _zoomLevel = Math.Round(_zoomLevel, 1);
+        ApplyZoom();
+    }
+
+    private void ApplyZoom()
+    {
+        if (this.FindControl<LayoutTransformControl>("ZoomHost") is { } host)
+            host.LayoutTransform = new ScaleTransform(_zoomLevel, _zoomLevel);
+        if (DataContext is WorkbenchViewModel vm)
+            vm.StatusMessage = $"Zoom: {_zoomLevel * 100:0}%  (Ctrl+0 to reset)";
     }
 
     private void OnOpenFixtureInWorkbench(string json, string sourceName, string fork, string caseId)
@@ -31,15 +55,99 @@ public partial class MainWindow : Window
         SetConformanceMode(false);
     }
 
+    private HarvestViewModel? _harvestVm;
+
     public MainWindow(WorkbenchViewModel viewModel) : this()
     {
         DataContext = viewModel;
+
+        _harvestVm = new HarvestViewModel();
+        _harvestVm.LoadFixtureRequested += OnHarvestLoadFixture;
+
+        // Wire DataContext after window is fully loaded
+        Opened += (_, _) =>
+        {
+            if (this.FindControl<HarvestView>("HarvestPanel") is { } hv)
+                hv.DataContext = _harvestVm;
+            _harvestVm.StartPolling();
+            BuildAppearanceMenu();
+        };
+    }
+
+    private void OnHarvestLoadFixture(string fixturePath, string txHash, string fork)
+    {
+        if (DataContext is not WorkbenchViewModel vm) return;
+        try
+        {
+            var text = File.ReadAllText(fixturePath);
+
+            // Try standard fixture formats first
+            if (WorkbenchFixtureLoader.LooksLikeStateTest(text) ||
+                WorkbenchPrestateLoader.LooksLikePrestate(text))
+            {
+                vm.ImportContractSource(text, txHash, fork, txHash);
+            }
+            else
+            {
+                // Harvest fixture — extract bytecode + calldata directly
+                using var doc = System.Text.Json.JsonDocument.Parse(text);
+                var root = doc.RootElement;
+
+                var bytecode = root.TryGetProperty("bytecode", out var bc)
+                    ? bc.GetString() ?? "" : "";
+                var calldata = root.TryGetProperty("calldata", out var cd)
+                    ? cd.GetString() ?? "" : "";
+                var forkStr = root.TryGetProperty("fork", out var fk)
+                    ? fk.GetString() ?? fork : fork;
+
+                if (!string.IsNullOrEmpty(bytecode) && bytecode != "0x")
+                {
+                    if (forkStr != null && vm.AvailableForks.Contains(forkStr))
+                        vm.SelectedFork = forkStr;
+
+                    vm.BytecodeInput = bytecode;
+                    if (!string.IsNullOrEmpty(calldata) && calldata != "0x")
+                        vm.CallDataHex = calldata;
+
+                    vm.StatusMessage = $"Loaded {txHash[..20]}… — press F5 to run";
+                }
+                else
+                {
+                    vm.StatusMessage = "No bytecode found in harvest fixture";
+                    return;
+                }
+            }
+
+            SetHarvestMode(false);
+            SetActiveTab("Workbench");
+        }
+        catch (Exception ex)
+        {
+            if (DataContext is WorkbenchViewModel v)
+                v.StatusMessage = $"Harvest load failed: {ex.Message}";
+        }
+    }
+
+    private void OnHarvestClick(object? sender, PointerPressedEventArgs e)
+    {
+        var panel = this.FindControl<HarvestView>("HarvestPanel");
+        if (panel is null) return;
+        SetHarvestMode(!panel.IsVisible);
+    }
+
+    private void SetHarvestMode(bool enabled)
+    {
+        if (this.FindControl<HarvestView>("HarvestPanel") is { } panel)
+            panel.IsVisible = enabled;
+        if (this.FindControl<Grid>("WorkbenchView") is { } wb)
+            wb.IsVisible = !enabled && !(this.FindControl<ConformanceView>("ConformancePanel")?.IsVisible ?? false);
+        if (enabled) { SetActiveTab("Harvest"); }
+        else         { SetActiveTab("Workbench"); }
     }
 
     private void OnSkinChanged(UiSkin skin)
     {
         RefreshAppearanceChecks();
-        ApplyWatermarkArt(skin);
     }
 
     private void BuildAppearanceMenu()
@@ -104,43 +212,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Swap center-panel watermark art to match the active skin motif.</summary>
-    private void ApplyWatermarkArt(UiSkin skin)
-    {
-        var schlieren = this.FindControl<Control>("WatermarkSchlieren");
-        var eth = this.FindControl<Control>("WatermarkEth");
-        var sounder = this.FindControl<Control>("WatermarkSounder");
-        var voidSigil = this.FindControl<Control>("WatermarkVoid");
-
-        void Show(Control? c, bool on)
-        {
-            if (c is not null) c.IsVisible = on;
-        }
-
-        Show(schlieren, false);
-        Show(eth, false);
-        Show(sounder, false);
-        Show(voidSigil, false);
-
-        switch (skin.ArtMotif)
-        {
-            case SkinArtMotif.EthDiamond:
-                Show(eth, true);
-                break;
-            case SkinArtMotif.SounderSigil:
-                Show(sounder, true);
-                break;
-            case SkinArtMotif.VoidSigil:
-                Show(voidSigil, true);
-                break;
-            case SkinArtMotif.None:
-                break;
-            default:
-                Show(schlieren, true);
-                break;
-        }
-    }
-
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         var focused = FocusManager?.GetFocusedElement();
@@ -164,9 +235,46 @@ public partial class MainWindow : Window
 
         if (DataContext is not WorkbenchViewModel vm) return;
 
-        // Ctrl+O / Ctrl+Shift+O
+        // Ctrl+O / Ctrl+Shift+O / Ctrl+1 / Ctrl+2 / Ctrl+3
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
+            if (e.Key == Key.D0 || e.Key == Key.NumPad0)
+            {
+                _zoomLevel = 1.0;
+                ApplyZoom();
+                e.Handled = true; return;
+            }
+            if (e.Key == Key.OemPlus || e.Key == Key.Add)
+            {
+                ApplyZoomDelta(ZoomStep);
+                e.Handled = true; return;
+            }
+            if (e.Key == Key.OemMinus || e.Key == Key.Subtract)
+            {
+                ApplyZoomDelta(-ZoomStep);
+                e.Handled = true; return;
+            }
+            if (e.Key == Key.D0 || e.Key == Key.NumPad0)
+            {
+                _zoomLevel = 1.0;
+                ApplyZoom();
+                e.Handled = true; return;
+            }
+            if (e.Key == Key.D1 || e.Key == Key.NumPad1)
+            {
+                OnWorkbenchViewClick(this, new RoutedEventArgs());
+                e.Handled = true; return;
+            }
+            if (e.Key == Key.D2 || e.Key == Key.NumPad2)
+            {
+                SetConformanceMode(!this.FindControl<ConformanceView>("ConformancePanel")?.IsVisible ?? false);
+                e.Handled = true; return;
+            }
+            if (e.Key == Key.D3 || e.Key == Key.NumPad3)
+            {
+                SetHarvestMode(!this.FindControl<HarvestView>("HarvestPanel")?.IsVisible ?? false);
+                e.Handled = true; return;
+            }
             if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
             {
                 OnOpenFolderClick(this, new RoutedEventArgs());
@@ -289,28 +397,9 @@ public partial class MainWindow : Window
     {
         if (this.FindControl<ConformanceView>("ConformancePanel") is { } panel)
             panel.IsVisible = enabled;
-
-        if (this.FindControl<Grid>("MainWorkbenchGrid") is { } grid)
-            grid.IsVisible = !enabled;
-
-        SetVisible("WorkbenchTopCenter", !enabled);
-        SetVisible("WorkbenchTopActions", !enabled);
-        SetVisible("WorkbenchTabActions", !enabled);
-        SetVisible("WorkbenchBytecodeBar", !enabled);
-        SetVisible("WorkbenchFindingsBar", !enabled);
-        SetVisible("ConformanceModeBadge", enabled);
-
-        if (this.FindControl<Border>("ConformanceTab") is { } tab)
-        {
-            var hex = enabled ? SkinService.Current.SelectionBg : SkinService.Current.PanelBg;
-            tab.Background = new SolidColorBrush(Color.Parse(hex));
-        }
-    }
-
-    private void SetVisible(string name, bool visible)
-    {
-        if (this.FindControl<Control>(name) is { } c)
-            c.IsVisible = visible;
+        if (this.FindControl<Grid>("WorkbenchView") is { } wb)
+            wb.IsVisible = !enabled && !(this.FindControl<HarvestView>("HarvestPanel")?.IsVisible ?? false);
+        SetActiveTab(enabled ? "Conformance" : "Workbench");
     }
 
     private void OnCallGraphRowClick(object? sender, PointerPressedEventArgs e)
@@ -539,5 +628,99 @@ public partial class MainWindow : Window
         }
     }
 
+    // Menu-compatible overloads (MenuItem.Click uses RoutedEventArgs)
     public void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+    private void OnConformanceMenuClick(object? sender, RoutedEventArgs e)
+    {
+        var panel = this.FindControl<ConformanceView>("ConformancePanel");
+        if (panel is null) return;
+        SetConformanceMode(!panel.IsVisible);
+    }
+
+    private void OnHarvestMenuClick(object? sender, RoutedEventArgs e)
+    {
+        var panel = this.FindControl<HarvestView>("HarvestPanel");
+        if (panel is null) return;
+        SetHarvestMode(!panel.IsVisible);
+    }
+
+    private void OnWorkbenchViewClick(object? sender, RoutedEventArgs e)
+    {
+        SetConformanceMode(false);
+        SetHarvestMode(false);
+    }
+
+    private void OnWorkbenchTabClick(object? sender, PointerPressedEventArgs e)
+    {
+        SetConformanceMode(false);
+        SetHarvestMode(false);
+        SetActiveTab("Workbench");
+    }
+
+    private void OnConformanceTabClick(object? sender, PointerPressedEventArgs e)
+    {
+        SetHarvestMode(false);
+        SetConformanceMode(true);
+        SetActiveTab("Conformance");
+    }
+
+    private void OnHarvestTabClick(object? sender, PointerPressedEventArgs e)
+    {
+        SetConformanceMode(false);
+        SetHarvestMode(true);
+        SetActiveTab("Harvest");
+    }
+
+    private void OnInterferenceTabClick(object? sender, PointerPressedEventArgs e)
+    {
+        SetConformanceMode(false);
+        SetHarvestMode(false);
+        // Interference view placeholder — will show WorkbenchView until implemented
+        SetActiveTab("Interference");
+    }
+
+    private void OnFlowTabClick(object? sender, PointerPressedEventArgs e)
+    {
+        SetConformanceMode(false);
+        SetHarvestMode(false);
+        // Flow view placeholder — will show WorkbenchView until implemented
+        SetActiveTab("Flow");
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        if (this.FindControl<Border>("TabWorkbench")    is { } tw)  tw.Classes.Set("active",  tab == "Workbench");
+        if (this.FindControl<Border>("TabInterference") is { } ti)  ti.Classes.Set("active",  tab == "Interference");
+        if (this.FindControl<Border>("TabFlow")         is { } tf)  tf.Classes.Set("active",  tab == "Flow");
+        if (this.FindControl<Border>("TabConformance")  is { } tc)  tc.Classes.Set("active",  tab == "Conformance");
+        if (this.FindControl<Border>("TabHarvest")      is { } th)  th.Classes.Set("active",  tab == "Harvest");
+    }
+
+    private void OnOpenN8nClick(object? sender, RoutedEventArgs e)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+              { FileName = "http://localhost:5678", UseShellExecute = true }); }
+        catch { }
+    }
+
+    private void OnOpenCorpusFolderClick(object? sender, RoutedEventArgs e)
+    {
+        const string corpus = @"C:\projects\Schlieren\muscle\corpus";
+        if (!Directory.Exists(corpus)) Directory.CreateDirectory(corpus);
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+              { FileName = corpus, UseShellExecute = true }); }
+        catch { }
+    }
+
+    private void OnHarvestSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        // For now open Harvest panel — settings dialog comes later
+        SetHarvestMode(true);
+    }
+
+    private void OnAboutClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is WorkbenchViewModel vm)
+            vm.StatusMessage = "SCHLIEREN — .NET 8 Ethereum Execution & Verification Engine · github.com/schlieren";
+    }
 }

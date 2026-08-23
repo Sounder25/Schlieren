@@ -37,10 +37,11 @@ public static class LibraryGuardDetector
             if (step.Op == "PUSH32" && i < 5)
             {
                 hasPush32Early = true;
-                // Try to extract the constant from stack if available
-                if (step.Stack?.Count > 0)
+                // Stack on this step is pre-execution. The PUSH32 result appears
+                // as stack[0] on the next step.
+                if (i + 1 < trace.Count && trace[i + 1].Stack is { Count: > 0 } nextStack)
                 {
-                    embeddedConstant = step.Stack[0];
+                    embeddedConstant = nextStack[0];
                 }
             }
             
@@ -74,7 +75,8 @@ public static class LibraryGuardDetector
         {
             var evidence = new List<string>
             {
-                $"Early 32-byte constant at step {FindPush32Step(trace)}",
+                $"Early 32-byte constant at step {FindPush32Step(trace)}" +
+                    (embeddedConstant != null ? $" ({embeddedConstant})" : ""),
                 $"Comparison at step {FindComparisonStep(trace)}",
                 $"Branch at step {branchStep}",
                 $"Execution terminated after {trace.Count} steps",

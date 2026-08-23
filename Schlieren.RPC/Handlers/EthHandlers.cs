@@ -76,7 +76,7 @@ public sealed class EthHandlers
         // eth_call is not a real tx: use current account nonce (or explicit) so NonceTooLow
         // does not wipe return data after prior deploys/sends from the same from.
         if (callObj.Value.TryGetProperty("nonce", out var callNonceProp))
-            tx.Nonce = (ulong)ParseHexQuantityElement(callNonceProp, "nonce");
+            tx.Nonce = ToUlongChecked(ParseHexQuantityElement(callNonceProp, "nonce"), "nonce");
         else
             tx.Nonce = await _globalState.GetNonceAsync(tx.From, ct);
 
@@ -102,7 +102,7 @@ public sealed class EthHandlers
 
         // Use sender's current nonce unless explicitly provided.
         tx.Nonce = callObj.Value.TryGetProperty("nonce", out var nonceProp)
-            ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
+            ? ToUlongChecked(ParseHexQuantityElement(nonceProp, "nonce"), "nonce")
             : await _globalState.GetNonceAsync(tx.From, ct);
 
         var intrinsicGas = ComputeIntrinsicGas(tx);
@@ -158,7 +158,9 @@ public sealed class EthHandlers
             {
                 throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Invalid transaction signature");
             }
-            _mempool.Add(tx);
+            if (!_mempool.Add(tx))
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams,
+                    "Transaction rejected: mempool full, duplicate, or underpriced replacement (needs a strictly higher gas price than the pending transaction at this nonce)");
             await MaybeAutomineAsync(ct);
             return EthereumTypes.ToEthHex(tx.Hash);
         }
@@ -683,14 +685,23 @@ public sealed class EthHandlers
 
     private ulong ParseBlockTag(JsonElement filter, string propertyName, ulong defaultValue)
     {
-        if (filter.TryGetProperty(propertyName, out var prop))
-        {
-            var tag = prop.GetString();
-            if (tag == "latest" || tag == "pending") return _chainState.CurrentBlock.Number;
-            if (tag == "earliest") return 0;
-            if (tag != null && tag.StartsWith("0x")) return EthereumTypes.FromEthHex(tag);
-        }
-        return defaultValue;
+        if (!filter.TryGetProperty(propertyName, out var prop))
+            return defaultValue;
+
+        // A non-string value (e.g. a bare JSON number) used to throw an unhandled
+        // InvalidOperationException from prop.GetString() instead of a clean RPC error.
+        if (prop.ValueKind != JsonValueKind.String)
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{propertyName}' block tag");
+
+        var tag = prop.GetString();
+        if (tag == "latest" || tag == "pending") return _chainState.CurrentBlock.Number;
+        if (tag == "earliest") return 0;
+        if (tag != null && tag.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) return EthereumTypes.FromEthHex(tag);
+
+        // An unrecognized tag ("safe", "finalized", garbage) used to silently fall through to
+        // defaultValue instead of being rejected — that can query the wrong block range with
+        // no indication anything went wrong.
+        throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{propertyName}' block tag: {tag}");
     }
 
     private static bool TopicsMatch(List<HashSet<string>?> filters, List<string> logTopics)
@@ -782,7 +793,7 @@ public sealed class EthHandlers
         var toAddress = ParseOptionalAddress(txObj.Value, "to");
         var value = ParseOptionalQuantity(txObj.Value, "value", BigInteger.Zero);
         var data = ParseOptionalData(txObj.Value, "data");
-        var gasLimit = (ulong)ParseOptionalQuantity(txObj.Value, "gas", _chainState.CurrentBlock.GasLimit);
+        var gasLimit = ToUlongChecked(ParseOptionalQuantity(txObj.Value, "gas", _chainState.CurrentBlock.GasLimit), "gas");
         var gasPrice = ResolveSendTransactionGasPrice(txObj.Value);
 
         // Build the transaction
@@ -800,7 +811,7 @@ public sealed class EthHandlers
         // Set nonce (if not provided)
         if (txObj.Value.TryGetProperty("nonce", out var nonceProp))
         {
-            tx.Nonce = (ulong)ParseHexQuantityElement(nonceProp, "nonce");
+            tx.Nonce = ToUlongChecked(ParseHexQuantityElement(nonceProp, "nonce"), "nonce");
         }
         else
         {
@@ -810,7 +821,9 @@ public sealed class EthHandlers
 
         tx.Hash = ComputeUnsignedTransactionHash(tx);
 
-        _mempool.Add(tx);
+        if (!_mempool.Add(tx))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams,
+                "Transaction rejected: mempool full, duplicate, or underpriced replacement (needs a strictly higher gas price than the pending transaction at this nonce)");
         await MaybeAutomineAsync(ct);
         return EthereumTypes.ToEthHex(tx.Hash);
     }
@@ -979,13 +992,14 @@ public sealed class EthHandlers
 
         // Fallback: try to find transaction and replay (for un-traced transactions)
         Transaction? tx = null;
+        Block? foundBlock = null;
         foreach (var block in _chainState.BlockStore.GetAllBlocks())
         {
             tx = block.Transactions.FirstOrDefault(t => EthereumTypes.ToEthHex(t.Hash) == normalizedHash);
-            if (tx != null) break;
+            if (tx != null) { foundBlock = block; break; }
         }
 
-        if (tx == null)
+        if (tx == null || foundBlock == null)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Transaction not found");
 
         var replay = new Transaction
@@ -1002,10 +1016,12 @@ public sealed class EthHandlers
             EnableTracing = true
         };
 
+        // Replay in the transaction's own block context (NUMBER/TIMESTAMP/BASEFEE/COINBASE),
+        // not the current head — matches HandleDebugWhyNot/TraceBlockTransactions.
         var result = await _stateTransition.ApplyTransactionAsync(
             replay,
             _globalState,
-            BuildCurrentBlockContext(),
+            BuildBlockContextForTrace(foundBlock),
             commit: false,
             ct: ct);
 
@@ -1128,7 +1144,7 @@ public sealed class EthHandlers
         var tx = BuildCallTransaction(requestObj.Value, blockContext.GasLimit);
         tx.EnableTracing = true;
         tx.Nonce = requestObj.Value.TryGetProperty("nonce", out var nonceProp)
-            ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
+            ? ToUlongChecked(ParseHexQuantityElement(nonceProp, "nonce"), "nonce")
             : await _globalState.GetNonceAsync(tx.From, ct);
 
         // Parse mismatches array (optional)
@@ -1205,7 +1221,7 @@ public sealed class EthHandlers
 
             tx = BuildCallTransaction(je, blockContext.GasLimit);
             tx.Nonce = je.TryGetProperty("nonce", out var nonceProp)
-                ? (ulong)ParseHexQuantityElement(nonceProp, "nonce")
+                ? ToUlongChecked(ParseHexQuantityElement(nonceProp, "nonce"), "nonce")
                 : await _globalState.GetNonceAsync(tx.From, ct);
             tx.EnableTracing = true;
             source = "callObject";
@@ -1351,7 +1367,13 @@ public sealed class EthHandlers
         if (requestedNumber > head)
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "eth_call block number is greater than current head");
 
-        // Historical state snapshots are not yet persisted; execution uses current state with validated block context.
+        if (requestedNumber < head)
+            // Historical state snapshots are not yet persisted. Executing against current
+            // state while reporting a past block number would silently return wrong data,
+            // so reject rather than lie about which state was used.
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams,
+                $"Historical state for block {requestedNumber} is not available; only the current head ({head}) can be queried");
+
         return BuildCurrentBlockContext();
     }
 
@@ -1383,11 +1405,15 @@ public sealed class EthHandlers
 
         var tx = new Transaction
         {
+            // 'from' is guarded in HandleEthCall but not every other caller of this shared
+            // helper (eth_estimateGas, debug_traceCall, debug_inspect) — validate both address
+            // fields here so a malformed value throws a clean RpcException instead of an
+            // uncaught exception from Address.FromHex.
             From = callObj.TryGetProperty("from", out var fromProp) && !string.IsNullOrWhiteSpace(fromProp.GetString())
-                ? Address.FromHex(fromProp.GetString()!)
+                ? ParseValidatedAddress(fromProp.GetString()!, "from")
                 : Address.Zero,
             To = callObj.TryGetProperty("to", out var toProp) && !string.IsNullOrWhiteSpace(toProp.GetString())
-                ? Address.FromHex(toProp.GetString()!)
+                ? ParseValidatedAddress(toProp.GetString()!, "to")
                 : null,
             Data = data,
             Value = callObj.TryGetProperty("value", out var valueProp)
@@ -1733,7 +1759,13 @@ public sealed class EthHandlers
             var s = value.GetString();
             if (string.IsNullOrWhiteSpace(s))
                 throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be a non-empty quantity");
-            parsed = (int)EthereumTypes.FromEthHex(s);
+            var ulongValue = EthereumTypes.FromEthHex(s);
+            // Unchecked ulong->int would silently wrap a value above int.MaxValue into an
+            // unrelated (possibly positive) int instead of erroring — a silent-wrong-value
+            // bug, not just a crash.
+            if (ulongValue > int.MaxValue)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' out of range");
+            parsed = (int)ulongValue;
             return parsed < 0
                 ? throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Trace option '{name}' must be >= 0")
                 : parsed;
@@ -1760,6 +1792,30 @@ public sealed class EthHandlers
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid {parameterName}");
 
         return EthereumTypes.FromEthHex(hex);
+    }
+
+    /// <summary>
+    /// Parses an address hex string, throwing a clean InvalidParams error instead of an
+    /// uncaught exception from Address.FromHex on malformed input (odd length, wrong length,
+    /// non-hex characters).
+    /// </summary>
+    private static Address ParseValidatedAddress(string hex, string fieldName)
+    {
+        if (!EthereumTypes.IsValidAddress(hex))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid '{fieldName}' address");
+        return Address.FromHex(hex);
+    }
+
+    /// <summary>
+    /// Casts a parsed quantity to ulong, throwing a clean InvalidParams error instead of an
+    /// uncaught OverflowException for a value outside [0, ulong.MaxValue] (e.g. a client
+    /// sending "nonce": "0x10000000000000000").
+    /// </summary>
+    private static ulong ToUlongChecked(BigInteger value, string fieldName)
+    {
+        if (value < BigInteger.Zero || value > new BigInteger(ulong.MaxValue))
+            throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"'{fieldName}' out of range");
+        return (ulong)value;
     }
 
     private static BigInteger ParseHexQuantityElement(JsonElement element, string fieldName)

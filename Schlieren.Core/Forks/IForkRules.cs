@@ -52,9 +52,9 @@ public interface IForkRules
     bool HasEip3860InitcodeLimit  { get; }  // Shanghai+: initcode size limit + cost
     bool HasEip4844BlobTx         { get; }  // Cancun+
     int  MaxBlobsPerTransaction   { get; }  // Cancun: 6; Prague+: 9 (EIP-7516 / larger block target)
+    bool HasEip7610CreateCollisionBurn { get; }  // Paris+: CREATE/CREATE2 fails on storage collisions
     bool HasEip7623CalldataFloor  { get; }  // Prague+
     bool HasEip7702SetCode        { get; }  // Prague+
-    bool HasEip7610CreateCollisionBurn     { get; }  // Paris+: CREATE/CREATE2 fails on storage collisions (EIP-7610)
     bool HasEip7951P256Verify     { get; }  // Osaka+
     bool HasEip7939Clz            { get; }  // Osaka+: CLZ opcode (0x1E)
     bool HasEip7883ModExpIncrease  { get; }  // Osaka+: ModExp gas cost increase

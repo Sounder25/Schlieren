@@ -29,9 +29,6 @@ public static class SchlierenBrand
 
     // Asset paths (avares)
     public const string IconAvares = "avares://Schlieren.UI/Assets/schlieren-icon.png";
-    public const string WatermarkAvares = "avares://Schlieren.UI/Assets/schlieren-watermark.png";
-    public const string LogoFullAvares = "avares://Schlieren.UI/Assets/schlieren-logo-full.png";
-    public const string LockupAvares = "avares://Schlieren.UI/Assets/schlieren-lockup.png";
 
     /// <summary>Live accent from the active skin (for code-behind brushes).</summary>
     public static string LiveAccent => SkinService.Current.Accent;

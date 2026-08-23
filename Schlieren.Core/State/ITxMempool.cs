@@ -4,7 +4,8 @@ namespace Schlieren.Core.State;
 
 public interface ITxMempool
 {
-    void Add(Transaction tx);
+    /// <summary>Returns false if rejected (pool full, duplicate, or lost a same-nonce replacement).</summary>
+    bool Add(Transaction tx);
     Transaction? PeekBest();
     Transaction? PopBest();
     /// <summary>Snapshot of currently pending transactions (for eth_getTransactionByHash).</summary>
