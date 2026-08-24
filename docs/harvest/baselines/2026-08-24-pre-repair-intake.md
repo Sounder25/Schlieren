@@ -17,12 +17,15 @@
 | EELS fixtures | Present at `fixtures/` (state_tests, blockchain_tests) |
 | `EELS_FIXTURES_ROOT` | Not set (tests use relative path) |
 
-## Full Suite Measurements
+## Core Solution Test Gate
+
+**Scope:** `Schlieren.Tests/Schlieren.Tests.csproj` only. This measures unit, integration, regression, campaign, and architecture tests. It does **not** include any EELS state-test or blockchain-test conformance sweep. No EELS cases were enumerated, executed, or compared in these runs.
 
 ### Run 1
 
 | Metric | Value |
 |---|---|
+| Project | `Schlieren.Tests` |
 | Total | 658 |
 | Passed | 653 |
 | Failed | 0 |
@@ -34,6 +37,7 @@
 
 | Metric | Value |
 |---|---|
+| Project | `Schlieren.Tests` |
 | Total | 658 |
 | Passed | 653 |
 | Failed | 0 |
@@ -44,6 +48,12 @@
 ### Consistency
 
 Runs 1 and 2 are **identical** in totals, pass/fail/skip, and test identities. No flaky test observed in this pair.
+
+### TRX Artifact Status
+
+TRX files were not retained. The `--logger "trx;..."` flag was not used in the intake measurement commands (they used `--nologo` output parsing only). This is a **baseline limitation**: no durable machine-readable artifact exists for these two runs.
+
+**Correction for Task 12:** The certification gate's three-run suite requirement must use `--logger "trx;LogFileName=..."`, retain all three TRX files under a non-gitignored path or reference their SHA-256 hashes in the suite-gate record, and refuse certification if any TRX is absent or its hash does not match the recorded value.
 
 ### Skipped Tests (5)
 
@@ -75,7 +85,7 @@ Runs 1 and 2 are **identical** in totals, pass/fail/skip, and test identities. N
 
 **Note:** Existing tests use shallow overlay chains. The `StateOverlay.GetStorageAtAsync` stack-overflow occurs with deeply nested overlays (e.g., during full taxonomy sweeps with many sub-call frames). The defect is latent in this probe but documented as the cause of prior taxonomy host aborts.
 
-### EelsTaxonomyDrill
+### EelsTaxonomyDrill (discovery-only — zero EELS cases compared)
 
 | Metric | Value |
 |---|---|
@@ -84,8 +94,10 @@ Runs 1 and 2 are **identical** in totals, pass/fail/skip, and test identities. N
 | Failed | 0 |
 | Duration | <1ms |
 | Host termination | None |
+| EELS cases enumerated | 0 |
+| EELS cases compared | 0 |
 
-**Note:** The taxonomy drill requires `EELS_FIXTURES_ROOT` and specific runsettings to actually sweep cases. With default settings it runs its discovery path only — no EELS cases were enumerated or compared. This probe does not confirm the overlay stack-overflow is resolved; it confirms the harness starts without crash under default configuration.
+**Note:** The taxonomy drill requires `EELS_FIXTURES_ROOT` and specific runsettings to actually sweep cases. With default settings it runs its discovery path only — no EELS cases were enumerated or compared. This result proves only that the harness starts without crash under default configuration. It does not confirm the overlay stack-overflow is resolved, and it provides zero conformance evidence.
 
 ## Credential Findings
 
