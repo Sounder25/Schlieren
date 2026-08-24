@@ -45,6 +45,7 @@
 ### Amendment log
 
 - **2026-08-24 — Amendment 1:** Added prospective acceptance/change-control rules, deterministic concurrent-test requirements, and the Task 2 review boundary before Task 2 implementation began.
+- **2026-08-24 — Amendment 2:** Expanded Task 3's declared file list and composition contract before Task 3 began so external configuration reaches `HarvestService`, `HarvestViewModel`, and `MainWindow` without hidden constructors or hard-coded corpus paths.
 
 ---
 
@@ -192,10 +193,24 @@ git commit -m "fix: make overlay storage traversal non-recursive"
 
 - Modify: `Schlieren.UI/Services/HarvestService.cs`
 - Add: `Schlieren.UI/Services/HarvestServiceOptions.cs`
+- Modify: `Schlieren.UI/ViewModels/HarvestViewModel.cs`
+- Modify: `Schlieren.UI/Views/MainWindow.axaml.cs`
+- Modify: `Schlieren.UI/App.axaml.cs`
 - Add: `Schlieren.Tests/UI/HarvestServiceConfigurationTests.cs`
 - Add: `tools/verify_no_tracked_secrets.ps1`
 - Modify: `docs/security/JOURNAL_SECURITY_EVIDENCE.md`
 - Modify: `CONFORMANCE_STATUS.md`
+
+**Task 3 acceptance boundary:**
+
+- `App.OnFrameworkInitializationCompleted` is the composition root. It loads `HarvestServiceOptions` from the four named environment keys, constructs one `HarvestService`, constructs one `HarvestViewModel`, and passes that ViewModel into `MainWindow`.
+- `MainWindow` must not construct `HarvestViewModel`. `HarvestViewModel` must not construct `HarvestService`. Constructors receive these dependencies explicitly.
+- `HarvestService` owns its `HttpClient` and consumes `HarvestServiceOptions`; `HarvestViewModel` consumes the service and options. App shutdown disposes the ViewModel/service once.
+- Remove every operational JWT and the compiled `C:\projects\Schlieren\muscle\corpus` path from tracked C# source, including `HarvestViewModel.ClearAllAsync`.
+- The literal loopback default `http://localhost:5678` is allowed because it is a non-secret service default, but an environment value overrides it. No credential receives a compiled default.
+- If `SCHLIEREN_N8N_API_KEY` is absent, status/poll calls do not send `X-N8N-API-KEY` and the UI reports the n8n integration as unconfigured. If `SCHLIEREN_MCP_TOKEN` is absent, workflow execution sends no bearer header and returns an explicit disabled result. If `SCHLIEREN_HARVEST_CORPUS` is absent, corpus read/clear operations use no fallback directory and report corpus integration as unconfigured.
+- Rotation is an external operational action. This task must document both exposed token fingerprints as requiring rotation; it must not claim rotation occurred without independent evidence.
+- Do not redesign the Harvest UI, n8n workflow protocol, polling interval, corpus JSON schema, or workflow identifiers in Task 3.
 
 - [ ] **Step 1: Add failing configuration and tracked-secret checks**
 
@@ -208,12 +223,29 @@ public sealed record HarvestServiceOptions(
     Uri N8nBaseUri,
     string? N8nApiKey,
     string? McpToken,
-    string CorpusDirectory);
+    string? CorpusDirectory)
+{
+    public static HarvestServiceOptions FromEnvironment(Func<string, string?> read);
+}
 ```
+
+`FromEnvironment` reads only `SCHLIEREN_N8N_BASE_URL`, `SCHLIEREN_N8N_API_KEY`, `SCHLIEREN_MCP_TOKEN`, and `SCHLIEREN_HARVEST_CORPUS`. It validates an absolute HTTP/HTTPS base URI, trims blank credentials to `null`, canonicalizes a nonblank corpus path with `Path.GetFullPath`, and leaves a missing corpus path as `null`.
+
+The construction contracts are:
+
+```csharp
+public HarvestService(HarvestServiceOptions options, HttpMessageHandler? handler = null);
+public HarvestViewModel(HarvestService service, HarvestServiceOptions options);
+public MainWindow(WorkbenchViewModel viewModel, HarvestViewModel harvestViewModel);
+```
+
+The optional handler exists only to make request headers and destinations observable in tests; `HarvestService` still creates and owns the `HttpClient`.
 
 - [ ] **Step 2: Externalize configuration and remove all embedded values**
 
 Resolve local settings at the application composition root from environment/configuration keys `SCHLIEREN_N8N_BASE_URL`, `SCHLIEREN_N8N_API_KEY`, `SCHLIEREN_MCP_TOKEN`, and `SCHLIEREN_HARVEST_CORPUS`. Missing optional integration credentials disable the integration with a visible status; they do not crash core execution.
+
+Update `HarvestViewModel.ClearAllAsync` to use the configured corpus directory. When it is absent, do not write a file and set `StatusMessage` to `"Harvest corpus is not configured"`. Ensure the application exit handler disposes the injected Harvest ViewModel alongside the Workbench.
 
 - [ ] **Step 3: Update evidence documentation**
 
@@ -224,12 +256,15 @@ Document current typed journal rule IDs and call-family semantics from the produ
 ```powershell
 pwsh -File tools/verify_no_tracked_secrets.ps1
 dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~HarvestServiceConfigurationTests --no-restore
+dotnet build Schlieren.sln --no-restore
 ```
+
+Expected: secret scan exits 0 without printing credential material; configuration tests pass with no live network dependency; solution build exits 0. Also run `git diff --check` and require a clean working tree after the task commit.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add Schlieren.UI/Services/HarvestService.cs Schlieren.UI/Services/HarvestServiceOptions.cs Schlieren.Tests/UI/HarvestServiceConfigurationTests.cs tools/verify_no_tracked_secrets.ps1 docs/security/JOURNAL_SECURITY_EVIDENCE.md CONFORMANCE_STATUS.md
+git add Schlieren.UI/Services/HarvestService.cs Schlieren.UI/Services/HarvestServiceOptions.cs Schlieren.UI/ViewModels/HarvestViewModel.cs Schlieren.UI/Views/MainWindow.axaml.cs Schlieren.UI/App.axaml.cs Schlieren.Tests/UI/HarvestServiceConfigurationTests.cs tools/verify_no_tracked_secrets.ps1 docs/security/JOURNAL_SECURITY_EVIDENCE.md CONFORMANCE_STATUS.md
 git commit -m "security: externalize harvest credentials"
 ```
 
