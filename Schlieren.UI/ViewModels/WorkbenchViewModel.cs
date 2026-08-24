@@ -265,7 +265,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     private void ApplyOpSec()
     {
-        OpSecLockout.IsEnabled = OpSecEnabled;
+        // OpSec state is now per-async-flow isolated via AsyncLocal.
+        // The Workbench only updates its local UI label here.
+        // Actual OpSec isolation is applied when executing via ExecuteIsolatedAsync.
         OpSecLabel = OpSecEnabled ? "OPSEC: ON" : "OPSEC: OFF";
     }
 
@@ -852,7 +854,12 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         try
         {
-            var run = await BytecodeExecutionService.RunAsync(BytecodeInput, BuildRunOptions(), ct);
+            // Apply OpSec isolation only when the UI toggle is enabled
+            Task<WorkbenchRunResult?> runTask = OpSecEnabled
+                ? OpSecLockout.ExecuteIsolatedAsync(() => BytecodeExecutionService.RunAsync(BytecodeInput, BuildRunOptions(), ct))
+                : BytecodeExecutionService.RunAsync(BytecodeInput, BuildRunOptions(), ct);
+
+            var run = await runTask;
             if (run is null)
             {
                 StatusMessage = "Invalid hex (bytecode or calldata) — check input";
