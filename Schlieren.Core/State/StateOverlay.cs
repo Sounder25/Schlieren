@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Numerics;
-using System.Linq;
+using System.Runtime.CompilerServices;
 using Schlieren.Core.Primitives;
 
 namespace Schlieren.Core.State;
@@ -57,12 +57,40 @@ public sealed class StateOverlay : IGlobalState
         return await _parent.GetCodeAsync(address, ct);
     }
 
+    /// <summary>
+    /// Iterative storage lookup through nested overlays with cancellation and cycle detection.
+    /// Walks consecutive StateOverlay instances in a loop, checking tombstones and buffered
+    /// values at each level, then awaits the first non-overlay parent's GetStorageAtAsync.
+    /// </summary>
     public async ValueTask<BigInteger> GetStorageAtAsync(Address address, BigInteger key, CancellationToken ct = default)
     {
-        if (_tombstones.Contains(address)) return BigInteger.Zero;
-        if (_buffer.TryGetValue(address, out var acc) && acc.Storage.TryGetValue(key, out var val))
-            return val;
-        return await _parent.GetStorageAtAsync(address, key, ct);
+        // Cycle detection: track visited overlays by reference identity
+        var visited = new HashSet<ReferenceIdentity>();
+
+        IGlobalState current = this;
+        while (current is StateOverlay overlay)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // Cycle guard
+            var identity = new ReferenceIdentity(overlay);
+            if (!visited.Add(identity))
+                throw new InvalidOperationException("StateOverlay parent cycle detected.");
+
+            // Tombstone blocks read-through
+            if (overlay._tombstones.Contains(address))
+                return BigInteger.Zero;
+
+            // Local buffer hit at this level
+            if (overlay._buffer.TryGetValue(address, out var acc) && acc.Storage.TryGetValue(key, out var val))
+                return val;
+
+            // Continue walking
+            current = overlay._parent;
+        }
+
+        // Reached a non-overlay parent (GlobalState, etc.)
+        return await current.GetStorageAtAsync(address, key, ct);
     }
 
     public async ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default)
@@ -246,5 +274,25 @@ public sealed class StateOverlay : IGlobalState
         _tombstones.Clear();
         // Restore the underlying parent state
         _parent.RestoreSnapshot(snapshot);
+    }
+
+    /// <summary>
+    /// Reference identity wrapper for cycle detection. Uses RuntimeHelpers.GetHashCode
+    /// to get a stable identity hash even if the object doesn't override GetHashCode.
+    /// </summary>
+    private readonly struct ReferenceIdentity : IEquatable<ReferenceIdentity>
+    {
+        private readonly object _reference;
+        private readonly int _hashCode;
+
+        public ReferenceIdentity(object reference)
+        {
+            _reference = reference;
+            _hashCode = RuntimeHelpers.GetHashCode(reference);
+        }
+
+        public bool Equals(ReferenceIdentity other) => ReferenceEquals(_reference, other._reference);
+        public override bool Equals(object? obj) => obj is ReferenceIdentity other && Equals(other);
+        public override int GetHashCode() => _hashCode;
     }
 }
