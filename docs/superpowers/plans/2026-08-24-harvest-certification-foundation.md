@@ -10,6 +10,16 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-24-harvest-certification-foundation-design.md`
 
+## Current Progress
+
+- **Task 0 — Complete:** Intake baseline recorded at `58648ce`; audit labels corrected at `a107531`.
+- **Task 1 — Complete:** Async-flow-scoped OpSec and deterministic regression coverage completed through `4c730c3`.
+- **Task 2 — Complete:** Iterative storage traversal completed at `9ea8586`; exact test-gate consolidation completed at `5ac71f1`.
+- **Task 3 — Ready to start:** Credential-externalization contract was amended before implementation at `66463e5`.
+- **Tasks 4–13 — Not started.**
+
+Resume from the latest clean `origin/main`, read the approved specification and this plan, and execute Task 3 only. Stop after its commit and written test report for review before Task 4.
+
 ## Global Constraints
 
 - Work test-first: add one failing contract test, run it and record the expected failure, make the smallest production change, then rerun it.
@@ -49,7 +59,7 @@
 
 ---
 
-## Task 0: Capture the pre-repair intake baseline
+## Task 0: Capture the pre-repair intake baseline — COMPLETE
 
 **Files:**
 
@@ -90,7 +100,7 @@ git commit -m "test: record harvest pre-repair intake baseline"
 
 ---
 
-## Task 1: Stabilize OpSec isolation
+## Task 1: Stabilize OpSec isolation — COMPLETE
 
 **Files:**
 
@@ -147,7 +157,7 @@ git commit -m "fix: isolate opsec state per execution flow"
 
 ---
 
-## Task 2: Make overlay storage traversal bounded and non-recursive
+## Task 2: Make overlay storage traversal bounded and non-recursive — COMPLETE
 
 **Files:**
 
