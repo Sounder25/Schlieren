@@ -16,7 +16,6 @@ public class OpSecConcurrencyTests
         // Uses TaskCompletionSource to coordinate without sleeps.
 
         var insideScopeActive = new TaskCompletionSource();
-        var outsideCanProceed = new TaskCompletionSource();
         var outsideFinishedReading = new TaskCompletionSource();
 
         var insideTask = Task.Run(async () =>
@@ -25,20 +24,23 @@ public class OpSecConcurrencyTests
             {
                 Assert.True(OpSecLockout.IsEnabled);
                 insideScopeActive.SetResult(); // Signal: OpSec is now active inside
-                await outsideCanProceed.Task;   // Wait for outside to read
+                await outsideFinishedReading.Task; // Wait for outside to finish reading
             });
         });
 
         var outsideTask = Task.Run(async () =>
         {
             await insideScopeActive.Task; // Wait until inside scope is active
-            bool outsideSawEnabled = OpSecLockout.IsEnabled;
-            outsideFinishedReading.SetResult();
-            Assert.False(outsideSawEnabled, "Outside flow observed OpSec enabled — state is leaking between flows");
+            try
+            {
+                bool outsideSawEnabled = OpSecLockout.IsEnabled;
+                Assert.False(outsideSawEnabled, "Outside flow observed OpSec enabled — state is leaking between flows");
+            }
+            finally
+            {
+                outsideFinishedReading.SetResult(); // Release inside scope
+            }
         });
-
-        // Allow outside to read while inside scope is still active
-        outsideCanProceed.SetResult();
 
         await Task.WhenAll(insideTask, outsideTask);
     }
