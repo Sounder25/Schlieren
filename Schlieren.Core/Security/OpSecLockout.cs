@@ -25,7 +25,7 @@ public sealed class OpSecViolationException : Exception
 /// Concurrent flows do not interfere with each other. Use <see cref="EnterScope"/>
 /// or <see cref="ExecuteIsolatedAsync"/> to enable OpSec for a single flow.
 /// </summary>
-public sealed class OpSecLockout
+public static class OpSecLockout
 {
     private static readonly AsyncLocal<int> _scopeDepth = new();
 
@@ -108,16 +108,17 @@ public sealed class OpSecLockout
         return await func();
     }
 
-    private sealed class OpSecScope : IDisposable
+}
+
+file sealed class OpSecScope : IDisposable
+{
+    private Action? _exit;
+
+    public OpSecScope(Action exit) => _exit = exit;
+
+    public void Dispose()
     {
-        private Action? _exit;
-
-        public OpSecScope(Action exit) => _exit = exit;
-
-        public void Dispose()
-        {
-            _exit?.Invoke();
-            _exit = null;
-        }
+        _exit?.Invoke();
+        _exit = null;
     }
 }

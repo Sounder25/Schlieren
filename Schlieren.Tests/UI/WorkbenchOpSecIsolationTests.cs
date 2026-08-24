@@ -60,4 +60,39 @@ public class WorkbenchOpSecIsolationTests
         Assert.False(workbenchSawEnabled, "Workbench incorrectly saw OpSec enabled");
         Assert.True(isolatedSawDisabled, "Isolated flow saw Workbench OpSec state — flows are not isolated");
     }
+
+    [Fact]
+    public async Task Workbench_DoesNotAffectActivelyIsolatedFlow()
+    {
+        // One flow is actively inside EnterScope, verifying it stays enabled
+        // while another flow constructs, toggles, and disposes WorkbenchViewModel.
+
+        var insideScopeActive = new TaskCompletionSource();
+        var workbenchCanProceed = new TaskCompletionSource();
+        var workbenchFinished = new TaskCompletionSource();
+
+        var isolatedTask = Task.Run(async () =>
+        {
+            using var scope = OpSecLockout.EnterScope();
+            Assert.True(OpSecLockout.IsEnabled);
+            insideScopeActive.SetResult();
+            await workbenchFinished.Task;
+            // Must still be enabled after Workbench ran in another flow
+            Assert.True(OpSecLockout.IsEnabled, "Isolated flow lost OpSec during Workbench lifecycle");
+        });
+
+        var workbenchTask = Task.Run(async () =>
+        {
+            await insideScopeActive.Task; // Wait until isolated flow has active scope
+
+            using var vm = new WorkbenchViewModel();
+            vm.OpSecEnabled = true;
+            vm.OpSecEnabled = false;
+            vm.OpSecEnabled = true;
+
+            workbenchFinished.SetResult();
+        });
+
+        await Task.WhenAll(isolatedTask, workbenchTask);
+    }
 }

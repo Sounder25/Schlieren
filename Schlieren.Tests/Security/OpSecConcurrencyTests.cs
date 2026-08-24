@@ -5,7 +5,6 @@ namespace Schlieren.Tests.Security;
 
 /// <summary>
 /// Proves OpSecLockout isolation per async execution flow.
-/// These tests fail against the current process-global implementation.
 /// </summary>
 public class OpSecConcurrencyTests
 {
@@ -14,30 +13,34 @@ public class OpSecConcurrencyTests
     {
         // Two concurrent tasks: one enters OpSec, the other stays outside.
         // The outside task must never see IsEnabled = true.
-        var barrier = new Barrier(2);
-        var outsideObservedTrue = false;
+        // Uses TaskCompletionSource to coordinate without sleeps.
+
+        var insideScopeActive = new TaskCompletionSource();
+        var outsideCanProceed = new TaskCompletionSource();
+        var outsideFinishedReading = new TaskCompletionSource();
 
         var insideTask = Task.Run(async () =>
         {
-            barrier.SignalAndWait();
             await OpSecLockout.ExecuteIsolatedAsync(async () =>
             {
                 Assert.True(OpSecLockout.IsEnabled);
-                await Task.Delay(100); // Hold OpSec active
+                insideScopeActive.SetResult(); // Signal: OpSec is now active inside
+                await outsideCanProceed.Task;   // Wait for outside to read
             });
         });
 
-        var outsideTask = Task.Run(() =>
+        var outsideTask = Task.Run(async () =>
         {
-            barrier.SignalAndWait();
-            Thread.Sleep(50); // Let the inside task establish its scope
-            if (OpSecLockout.IsEnabled)
-                outsideObservedTrue = true;
-            return Task.CompletedTask;
+            await insideScopeActive.Task; // Wait until inside scope is active
+            bool outsideSawEnabled = OpSecLockout.IsEnabled;
+            outsideFinishedReading.SetResult();
+            Assert.False(outsideSawEnabled, "Outside flow observed OpSec enabled — state is leaking between flows");
         });
 
+        // Allow outside to read while inside scope is still active
+        outsideCanProceed.SetResult();
+
         await Task.WhenAll(insideTask, outsideTask);
-        Assert.False(outsideObservedTrue, "Outside flow observed OpSec enabled — state is leaking between flows");
     }
 
     [Fact]
@@ -82,27 +85,41 @@ public class OpSecConcurrencyTests
         Assert.False(OpSecLockout.IsEnabled);
     }
 
-    // [Fact] — uncomment after EnterScope is implemented
+    [Fact]
     public void EnterScope_ProvidesDisposableIsolation()
     {
-        // The new contract: EnterScope returns IDisposable that enables OpSec
-        // for the current async flow only, nesting correctly.
-        // This test will compile once EnterScope is implemented.
-        // Assert.False(OpSecLockout.IsEnabled);
+        Assert.False(OpSecLockout.IsEnabled);
 
-        // using (OpSecLockout.EnterScope())
-        // {
-        //     Assert.True(OpSecLockout.IsEnabled);
-        //
-        //     using (OpSecLockout.EnterScope())
-        //     {
-        //         Assert.True(OpSecLockout.IsEnabled);
-        //     }
-        //
-        //     // Still active after inner dispose
-        //     Assert.True(OpSecLockout.IsEnabled);
-        // }
-        //
-        // Assert.False(OpSecLockout.IsEnabled);
+        using (var scope1 = OpSecLockout.EnterScope())
+        {
+            Assert.True(OpSecLockout.IsEnabled);
+
+            using (var scope2 = OpSecLockout.EnterScope())
+            {
+                Assert.True(OpSecLockout.IsEnabled);
+                // Nested scope: depth = 2
+            }
+
+            // Still active after inner dispose (depth = 1)
+            Assert.True(OpSecLockout.IsEnabled);
+        }
+
+        Assert.False(OpSecLockout.IsEnabled);
+    }
+
+    [Fact]
+    public void EnterScope_IdempotentDispose()
+    {
+        Assert.False(OpSecLockout.IsEnabled);
+
+        var scope = OpSecLockout.EnterScope();
+        Assert.True(OpSecLockout.IsEnabled);
+
+        scope.Dispose();
+        Assert.False(OpSecLockout.IsEnabled);
+
+        // Double-dispose should not throw or go negative
+        scope.Dispose();
+        Assert.False(OpSecLockout.IsEnabled);
     }
 }
