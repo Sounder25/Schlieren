@@ -11,7 +11,7 @@ namespace Schlieren.Tests.State;
 /// provides correct isolation for CREATE frames (EIP-1153).
 ///
 /// Each overlay may mutate only its immediate parent during its own Commit().
-/// 
+///
 /// Root cause: DeleteAccount used to bypass the overlay buffer and
 /// directly mutate _parent. SetNonce/SetCode left orphan entries in
 /// the buffer that got committed later, resurrecting ghost accounts.
@@ -30,6 +30,8 @@ public sealed class OverlayIsolationTests
         if (code.Length > 0) gs.SetCode(addr, Convert.FromHexString(code));
         return gs;
     }
+
+    private static Address TestAddr => new(Convert.FromHexString("AA".PadLeft(40, '0')));
 
     // ── 1: discard path ────────────────────────────────────────────────────────
     [Fact]
@@ -194,6 +196,105 @@ public sealed class OverlayIsolationTests
 
         Assert.DoesNotContain(addr, outer.GetAccountsMarkedForDeletion());
     }
+
+    // ── 9: deep traversal — inherited value through 8,192 overlays ───────────────
+    [Fact]
+    public async Task DeepTraversal_InheritedValue_ReturnsWithoutStackOverflow()
+    {
+        // Proves GetStorageAtAsync handles arbitrary depth without stack overflow.
+        // This is a regression test for the taxonomy host crash caused by
+        // recursive parent-chain walks.
+        const int depth = 8192;
+        var root = new GlobalState();
+        root.SetStorageAt(TestAddr, BigInteger.One, 42);
+
+        // Build chain: root → ov_1 → ov_2 → ... → ov_depth
+        IGlobalState current = root;
+        for (int i = 0; i < depth; i++)
+            current = new StateOverlay(current);
+
+        // Read inherited value from the deepest overlay
+        var result = await current.GetStorageAtAsync(TestAddr, BigInteger.One);
+        Assert.Equal(42, result);
+    }
+
+    // ── 10: deep traversal — ancestor override found through chain ─────────────
+    [Fact]
+    public async Task DeepTraversal_AncestorOverride_ReturnsAncestorValue()
+    {
+        // Prove that traversal actually walks the chain to find an ancestor override.
+        // Override is placed at an ancestor overlay, then 2,048+ overlays are stacked
+        // above it. The deepest overlay must traverse and find the ancestor's value.
+        const int ancestorDepth = 100;
+        const int chainAbove = 2048;
+        const int totalDepth = ancestorDepth + chainAbove;
+
+        var root = new GlobalState();
+        root.SetStorageAt(TestAddr, BigInteger.One, 1); // root value
+
+        IGlobalState current = root;
+        for (int i = 0; i < totalDepth; i++)
+        {
+            current = new StateOverlay(current);
+
+            // Place override at the ancestor position
+            if (i == ancestorDepth)
+                ((StateOverlay)current).SetStorageAt(TestAddr, BigInteger.One, 999);
+        }
+
+        // Read from deepest overlay; must find ancestor override, not root
+        var result = await current.GetStorageAtAsync(TestAddr, BigInteger.One);
+        Assert.Equal(999, result);
+    }
+
+    // ── 11: deep traversal — cancellation throws ───────────────────────────────
+    [Fact]
+    public async Task DeepTraversal_Cancellation_ThrowsOperationCanceled()
+    {
+        const int depth = 8192;
+        var root = new GlobalState();
+        root.SetStorageAt(TestAddr, BigInteger.One, 1);
+
+        IGlobalState current = root;
+        for (int i = 0; i < depth; i++)
+            current = new StateOverlay(current);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            current.GetStorageAtAsync(TestAddr, BigInteger.One, cts.Token).AsTask());
+    }
+
+    // ── 12: shallow chain — behavior unchanged after fix ────────────────────────
+    [Fact]
+    public async Task ShallowChain_CommitPropagation_WorksCorrectly()
+    {
+        var root = new GlobalState();
+        root.SetStorageAt(TestAddr, BigInteger.One, 10);
+
+        var ov1 = new StateOverlay(root);
+        var ov2 = new StateOverlay(ov1);
+
+        ov1.SetStorageAt(TestAddr, BigInteger.One, 20);
+        ov2.SetStorageAt(TestAddr, BigInteger.One, 30);
+
+        // ov2 sees its own override
+        Assert.Equal(30, await ov2.GetStorageAtAsync(TestAddr, BigInteger.One));
+
+        // ov1 sees its own override
+        Assert.Equal(20, await ov1.GetStorageAtAsync(TestAddr, BigInteger.One));
+
+        // root is unchanged before commit
+        Assert.Equal(10, await root.GetStorageAtAsync(TestAddr, BigInteger.One));
+
+        // Commit ov2 → ov1 → root
+        ov2.Commit();
+        Assert.Equal(30, await ov1.GetStorageAtAsync(TestAddr, BigInteger.One));
+
+        ov1.Commit();
+        Assert.Equal(30, await root.GetStorageAtAsync(TestAddr, BigInteger.One));
+    }
 }
 
 // Note: EIP-1153 transient storage isolation for CREATE frames is covered by the
@@ -209,4 +310,3 @@ public sealed class OverlayIsolationTests
 // CREATE frames before EIP-170/deposit-OOG/EIP-3541 validation ran, leaking
 // transient writes into the parent. Fix: gate transientFrame.Commit() on
 // !creationAddress.HasValue so CREATE frames never auto-commit transient storage.
-
