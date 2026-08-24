@@ -1,7 +1,7 @@
 # Harvest Certification Foundation Design
 
 Date: 2026-08-24
-Status: Draft for written review
+Status: Approved 2026-08-24
 Target: First internal Harvest certification cycle
 
 ## Purpose
