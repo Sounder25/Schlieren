@@ -1,0 +1,316 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TX DRAWER
+   
+   Slide-in panel from the right for transaction parameter configuration.
+   Precision instrument aesthetic — tight spacing, mono data fields,
+   Inter chrome labels. Sits above the dock area with a dim backdrop.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Backdrop ─── */
+
+.tx-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: transparent;
+  transition: background var(--duration-normal) var(--ease-out);
+}
+
+.tx-drawer-backdrop--open {
+  pointer-events: auto;
+  background: rgba(6, 6, 7, 0.55);
+}
+
+/* ─── Drawer panel ─── */
+
+.tx-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--s-panel);
+  border-left: 1px solid var(--b-hard);
+  transform: translateX(100%);
+  transition: transform var(--duration-slow) var(--ease-out);
+  overflow: hidden;
+  /* Pull it above any dock/panel z-indexes */
+  z-index: 201;
+}
+
+.tx-drawer--open {
+  transform: translateX(0);
+}
+
+/* ─── Header ─── */
+
+.tx-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 36px;
+  flex-shrink: 0;
+  background: var(--s-raised);
+  border-bottom: 1px solid var(--b-hard);
+}
+
+.tx-drawer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tx-drawer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sig-state);
+  flex-shrink: 0;
+}
+
+.tx-drawer-title {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--t-tertiary);
+  text-transform: uppercase;
+}
+
+.tx-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--t-ghost);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--duration-fast), border-color var(--duration-fast),
+              background var(--duration-fast);
+}
+
+.tx-drawer-close:hover {
+  color: var(--t-secondary);
+  border-color: var(--b-focus);
+  background: var(--s-elevated);
+}
+
+/* ─── Body ─── */
+
+.tx-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ─── Divider ─── */
+
+.tx-divider {
+  height: 1px;
+  background: var(--b-subtle);
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+/* ─── Row (side-by-side fields) ─── */
+
+.tx-row {
+  display: flex;
+  gap: 10px;
+}
+
+.tx-row .tx-field--half {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── Field ─── */
+
+.tx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.tx-field:last-child {
+  margin-bottom: 0;
+}
+
+/* Fork field needs no bottom margin since divider follows */
+.tx-field--fork {
+  margin-bottom: 0;
+}
+
+/* ─── Labels ─── */
+
+.tx-label {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: var(--t-tertiary);
+  text-transform: uppercase;
+  line-height: 1;
+  user-select: none;
+}
+
+/* ─── Inputs ─── */
+
+.tx-input {
+  font-family: var(--font-data);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--t-primary);
+  background: var(--s-inset);
+  border: 1px solid var(--b-subtle);
+  border-radius: 3px;
+  padding: 0 8px;
+  height: 26px;
+  outline: none;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tx-input::placeholder {
+  color: var(--t-ghost);
+}
+
+.tx-input:hover {
+  border-color: var(--b-hard);
+}
+
+.tx-input:focus {
+  border-color: var(--b-focus);
+  background: var(--s-raised);
+}
+
+/* Address — full 42-char hex; make it slightly dimmer when placeholder */
+.tx-input--addr {
+  letter-spacing: 0.3px;
+}
+
+/* Hex value field */
+.tx-input--hex {
+  letter-spacing: 0.4px;
+}
+
+/* Gas limit — numeric feel */
+.tx-input--num {
+  letter-spacing: 0.2px;
+}
+
+/* Calldata — wider, allow it to clip with overflow */
+.tx-input--calldata {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Hint lines ─── */
+
+.tx-hint {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-ghost);
+  line-height: 1;
+}
+
+/* ─── Fork selector ─── */
+
+.tx-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tx-select {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--t-primary);
+  background: var(--s-inset);
+  border: 1px solid var(--b-subtle);
+  border-radius: 3px;
+  padding: 0 28px 0 8px;
+  height: 26px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.tx-select:hover {
+  border-color: var(--b-hard);
+}
+
+.tx-select:focus {
+  border-color: var(--b-focus);
+  background: var(--s-raised);
+}
+
+/* Tint the selected fork name with state color to signal it drives execution */
+.tx-select option {
+  background: var(--s-panel);
+  color: var(--t-primary);
+}
+
+.tx-select-arrow {
+  position: absolute;
+  right: 8px;
+  font-size: 10px;
+  color: var(--t-ghost);
+  pointer-events: none;
+  line-height: 1;
+  user-select: none;
+}
+
+/* ─── Footer ─── */
+
+.tx-drawer-footer {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  background: var(--s-raised);
+  border-top: 1px solid var(--b-subtle);
+}
+
+.tx-footer-note {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-ghost);
+  font-style: italic;
+}
+
+/* ─── Scrollbar (match rest of app) ─── */
+
+.tx-drawer-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tx-drawer-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tx-drawer-body::-webkit-scrollbar-thumb {
+  background: var(--b-hard);
+  border-radius: 2px;
+}
+
+.tx-drawer-body::-webkit-scrollbar-thumb:hover {
+  background: var(--b-focus);
+}

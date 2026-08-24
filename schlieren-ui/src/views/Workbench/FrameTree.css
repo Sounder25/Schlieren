@@ -1,0 +1,335 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FRAME CHAIN
+   
+   A tappable chain of call frames. Each node shows the call type, address,
+   disposition, and indicators. Tap to expand detail. Children hang below
+   connected by a visible line.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ft-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--s-panel);
+}
+
+/* ─── Header ─── */
+.ft-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--s-raised);
+  border-bottom: 1px solid var(--b-subtle);
+  flex-shrink: 0;
+}
+
+.ft-header-title {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--t-tertiary);
+  text-transform: uppercase;
+}
+
+.ft-header-findings {
+  margin-left: auto;
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: rgba(123, 94, 167, 0.15);
+  color: var(--sig-security);
+}
+
+/* ─── Scroll area ─── */
+.ft-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 10px 20px;
+}
+
+/* ─── Empty ─── */
+.ft-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.ft-empty-glyph {
+  font-size: 28px;
+  color: var(--t-ghost);
+}
+
+.ft-empty-text {
+  font-family: var(--font-chrome);
+  font-size: var(--text-label);
+  color: var(--t-ghost);
+  line-height: 1.6;
+  max-width: 200px;
+}
+
+/* ─── Chain node wrapper ─── */
+.cn-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+}
+
+/* vertical line descending from parent to this node */
+.cn-line-v {
+  width: 2px;
+  height: 10px;
+  background: var(--b-hard);
+  margin-left: 18px;
+  flex-shrink: 0;
+}
+
+/* ─── The node card ─── */
+.cn-node {
+  width: 100%;
+  background: var(--s-raised);
+  border: 1px solid var(--b-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 40px;
+}
+
+.cn-node:hover {
+  border-color: var(--b-focus);
+  background: var(--s-elevated);
+}
+
+.cn-node:active {
+  background: var(--s-chassis);
+}
+
+.cn-selected {
+  border-color: var(--sig-flow) !important;
+  background: rgba(91, 142, 201, 0.06) !important;
+}
+
+.cn-reverted {
+  opacity: 0.55;
+  border-style: dashed !important;
+}
+
+.cn-flagged {
+  border-color: rgba(123, 94, 167, 0.4) !important;
+}
+
+.cn-dissociated {
+  border-left: 3px solid var(--sig-state);
+}
+
+/* ─── Top row inside node ─── */
+.cn-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* ─── Call type badge ─── */
+.cn-calltype {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ct-call     { background: rgba(91,142,201,0.12);  color: var(--sig-flow);     border-color: rgba(91,142,201,0.25); }
+.ct-delegate { background: rgba(200,148,60,0.12);   color: var(--sig-state);    border-color: rgba(200,148,60,0.25); }
+.ct-callcode { background: rgba(184,90,50,0.12);    color: var(--sig-halt);     border-color: rgba(184,90,50,0.25); }
+.ct-static   { background: rgba(75,168,154,0.12);   color: var(--sig-memory);   border-color: rgba(75,168,154,0.25); }
+.ct-create   { background: rgba(123,94,167,0.12);   color: var(--sig-security); border-color: rgba(123,94,167,0.25); }
+
+/* ─── Address ─── */
+.cn-addr {
+  font-family: var(--font-data);
+  font-size: var(--text-micro);
+  color: var(--t-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cn-storage-addr { color: var(--sig-state); }
+.cn-code-addr    { color: var(--t-tertiary); }
+.cn-dissoc-arrow { color: var(--t-ghost); font-size: 9px; }
+
+/* ─── Indicators ─── */
+.cn-indicators {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.cn-finding-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sig-security);
+  box-shadow: 0 0 5px var(--sig-security);
+  flex-shrink: 0;
+}
+
+.cn-rev-tag {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--sig-fracture);
+  letter-spacing: 0.3px;
+}
+
+.cn-effects-tag {
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: var(--t-ghost);
+  background: rgba(255,255,255,0.04);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.cn-chevron {
+  font-size: 14px;
+  color: var(--t-ghost);
+  transition: transform 0.18s var(--ease-out);
+  line-height: 1;
+  display: inline-block;
+}
+
+.cn-chevron-open {
+  transform: rotate(90deg);
+}
+
+/* ─── Expanded detail ─── */
+.cn-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--b-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cn-detail-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.cn-detail-label {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-ghost);
+  min-width: 72px;
+  flex-shrink: 0;
+}
+
+.cn-detail-val {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-secondary);
+  word-break: break-all;
+}
+
+.cn-detail-val.cn-mono {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--t-tertiary);
+}
+
+.cn-ok  { color: var(--sig-agree) !important; }
+.cn-rev { color: var(--sig-fracture) !important; }
+
+/* ─── Findings in detail ─── */
+.cn-findings-list {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cn-finding {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 3px;
+  background: rgba(123,94,167,0.06);
+  border: 1px solid rgba(123,94,167,0.15);
+}
+
+.cn-finding-sev {
+  font-family: var(--font-chrome);
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.cn-finding.sev-critical .cn-finding-sev { color: #e05070; }
+.cn-finding.sev-high     .cn-finding-sev { color: var(--sig-fracture); }
+.cn-finding.sev-medium   .cn-finding-sev { color: var(--sig-thermal-high); }
+.cn-finding.sev-low      .cn-finding-sev { color: var(--sig-agree); }
+.cn-finding.sev-informational .cn-finding-sev { color: var(--t-ghost); }
+
+.cn-finding-text {
+  font-family: var(--font-chrome);
+  font-size: var(--text-micro);
+  color: var(--t-secondary);
+  line-height: 1.5;
+}
+
+/* ─── Children layout ─── */
+.cn-children {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  width: 100%;
+}
+
+/* horizontal line bridging parent to children column */
+.cn-line-h {
+  width: 18px;
+  height: 2px;
+  background: var(--b-hard);
+  margin-top: 20px;
+  flex-shrink: 0;
+}
+
+.cn-children-nodes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
