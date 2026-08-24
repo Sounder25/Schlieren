@@ -8,37 +8,43 @@ namespace Schlieren.Tests.Security;
 /// </summary>
 public class OpSecConcurrencyTests
 {
+    private static readonly TimeSpan DeadlockGuard = TimeSpan.FromSeconds(5);
+
     [Fact]
     public async Task ConcurrentFlows_DoNotInterfere()
     {
-        // Two concurrent tasks: one enters OpSec, the other stays outside.
-        // The outside task must never see IsEnabled = true.
-        // Uses TaskCompletionSource to coordinate without sleeps.
-
         var insideScopeActive = new TaskCompletionSource();
         var outsideFinishedReading = new TaskCompletionSource();
 
         var insideTask = Task.Run(async () =>
         {
-            await OpSecLockout.ExecuteIsolatedAsync(async () =>
+            try
             {
-                Assert.True(OpSecLockout.IsEnabled);
-                insideScopeActive.SetResult(); // Signal: OpSec is now active inside
-                await outsideFinishedReading.Task; // Wait for outside to finish reading
-            });
+                await OpSecLockout.ExecuteIsolatedAsync(async () =>
+                {
+                    Assert.True(OpSecLockout.IsEnabled);
+                    insideScopeActive.TrySetResult(); // Signal: OpSec is now active inside
+                    await outsideFinishedReading.Task.WaitAsync(DeadlockGuard);
+                });
+            }
+            catch
+            {
+                insideScopeActive.TrySetResult(); // Release dependent on failure
+                throw;
+            }
         });
 
         var outsideTask = Task.Run(async () =>
         {
-            await insideScopeActive.Task; // Wait until inside scope is active
             try
             {
+                await insideScopeActive.Task.WaitAsync(DeadlockGuard);
                 bool outsideSawEnabled = OpSecLockout.IsEnabled;
                 Assert.False(outsideSawEnabled, "Outside flow observed OpSec enabled — state is leaking between flows");
             }
             finally
             {
-                outsideFinishedReading.SetResult(); // Release inside scope
+                outsideFinishedReading.TrySetResult(); // Always release inside scope
             }
         });
 

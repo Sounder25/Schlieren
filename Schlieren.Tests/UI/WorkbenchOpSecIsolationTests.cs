@@ -9,6 +9,8 @@ namespace Schlieren.Tests.UI;
 /// </summary>
 public class WorkbenchOpSecIsolationTests
 {
+    private static readonly TimeSpan DeadlockGuard = TimeSpan.FromSeconds(5);
+
     [Fact]
     public void ConstructingAndDisposingWorkbench_DoesNotAffectOtherFlowOpSec()
     {
@@ -31,9 +33,6 @@ public class WorkbenchOpSecIsolationTests
     [Fact]
     public async Task Workbench_DoesNotAffectActivelyIsolatedFlow()
     {
-        // One flow is actively inside EnterScope, verifying it stays enabled
-        // while another flow constructs, toggles OpSecEnabled, and disposes WorkbenchViewModel.
-
         var isolatedScopeActive = new TaskCompletionSource();
         var workbenchHolding = new TaskCompletionSource();
         var isolatedCanRelease = new TaskCompletionSource();
@@ -41,25 +40,42 @@ public class WorkbenchOpSecIsolationTests
         var isolatedTask = Task.Run(async () =>
         {
             using var scope = OpSecLockout.EnterScope();
-            Assert.True(OpSecLockout.IsEnabled);
-            isolatedScopeActive.SetResult();
-            await workbenchHolding.Task;
-            // Must still be enabled while Workbench holds OpSecEnabled = false in another flow
-            Assert.True(OpSecLockout.IsEnabled, "Isolated flow lost OpSec while Workbench held OpSecEnabled=false");
-            isolatedCanRelease.SetResult();
+            try
+            {
+                Assert.True(OpSecLockout.IsEnabled);
+                isolatedScopeActive.TrySetResult();
+                await workbenchHolding.Task.WaitAsync(DeadlockGuard);
+                Assert.True(OpSecLockout.IsEnabled, "Isolated flow lost OpSec while Workbench held OpSecEnabled=false");
+                isolatedCanRelease.TrySetResult();
+            }
+            catch
+            {
+                isolatedScopeActive.TrySetResult(); // Release dependent on failure
+                isolatedCanRelease.TrySetResult();  // Release dependent on failure
+                throw;
+            }
         });
 
         var workbenchTask = Task.Run(async () =>
         {
-            await isolatedScopeActive.Task; // Wait until isolated flow has active scope
+            try
+            {
+                await isolatedScopeActive.Task.WaitAsync(DeadlockGuard);
 
-            using var vm = new WorkbenchViewModel();
-            vm.OpSecEnabled = true;  // Workbench enables its own toggle
-            vm.OpSecEnabled = false; // Workbench disables its own toggle
-            workbenchHolding.SetResult(); // Signal: Workbench is holding OpSecEnabled=false
+                using var vm = new WorkbenchViewModel();
+                vm.OpSecEnabled = true;
+                vm.OpSecEnabled = false;
+                workbenchHolding.TrySetResult();
 
-            await isolatedCanRelease.Task; // Wait for isolated to verify
-            // vm disposed here
+                await isolatedCanRelease.Task.WaitAsync(DeadlockGuard);
+            }
+            catch
+            {
+                isolatedScopeActive.TrySetResult(); // Release dependent on failure
+                workbenchHolding.TrySetResult();
+                isolatedCanRelease.TrySetResult();
+                throw;
+            }
         });
 
         await Task.WhenAll(isolatedTask, workbenchTask);
@@ -68,35 +84,50 @@ public class WorkbenchOpSecIsolationTests
     [Fact]
     public async Task Workbench_TogglingDoesNotAffectIsolatedExecution()
     {
-        // Isolated execution with OpSec enabled should not be affected
-        // by Workbench toggling OpSecEnabled in another flow.
-
         var isolatedEntered = new TaskCompletionSource();
         var isolatedFinished = new TaskCompletionSource();
 
         var isolatedTask = Task.Run(async () =>
         {
-            await OpSecLockout.ExecuteIsolatedAsync(async () =>
+            try
             {
-                Assert.True(OpSecLockout.IsEnabled);
-                isolatedEntered.SetResult();
-                await isolatedFinished.Task;
-                Assert.True(OpSecLockout.IsEnabled, "Isolated execution lost OpSec during Workbench toggle");
-            });
+                await OpSecLockout.ExecuteIsolatedAsync(async () =>
+                {
+                    Assert.True(OpSecLockout.IsEnabled);
+                    isolatedEntered.TrySetResult();
+                    await isolatedFinished.Task.WaitAsync(DeadlockGuard);
+                    Assert.True(OpSecLockout.IsEnabled, "Isolated execution lost OpSec during Workbench toggle");
+                });
+            }
+            catch
+            {
+                isolatedEntered.TrySetResult(); // Release dependent on failure
+                isolatedFinished.TrySetResult();
+                throw;
+            }
         });
 
         var workbenchTask = Task.Run(async () =>
         {
-            await isolatedEntered.Task;
+            try
+            {
+                await isolatedEntered.Task.WaitAsync(DeadlockGuard);
 
-            using var vm = new WorkbenchViewModel();
-            vm.OpSecEnabled = false;
-            Assert.False(OpSecLockout.IsEnabled); // Workbench's own flow sees disabled
+                using var vm = new WorkbenchViewModel();
+                vm.OpSecEnabled = false;
+                Assert.False(OpSecLockout.IsEnabled); // Workbench's own flow sees disabled
 
-            vm.OpSecEnabled = true;
-            Assert.False(OpSecLockout.IsEnabled); // Still disabled; Workbench toggle is UI-only
+                vm.OpSecEnabled = true;
+                Assert.False(OpSecLockout.IsEnabled); // Still disabled; Workbench toggle is UI-only
 
-            isolatedFinished.SetResult();
+                isolatedFinished.TrySetResult();
+            }
+            catch
+            {
+                isolatedEntered.TrySetResult(); // Release dependent on failure
+                isolatedFinished.TrySetResult();
+                throw;
+            }
         });
 
         await Task.WhenAll(isolatedTask, workbenchTask);
