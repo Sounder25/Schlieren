@@ -24,6 +24,28 @@
 - A missing oracle, malformed fixture, timeout, crash, cancellation, partial artifact, or worker termination is never a pass.
 - Commit after every completed task using the commit text given below. Do not begin the next task with a dirty tree.
 
+### Acceptance and change control (effective from Task 2)
+
+- A task is accepted or rejected only against this plan, the approved specification, and correctness properties necessarily implied by the code being changed. Reviewers must cite the exact written requirement or demonstrate a concrete correctness, security, data-loss, consensus, or false-certification defect.
+- A reviewer preference, additional hardening idea, broader refactor, or newly imagined test is advisory unless it was written here before the task began. Advisory findings go into the next planned task or a documented backlog; they do not block the current task.
+- New blocking requirements require a committed plan amendment before implementation of the affected task starts. The amendment must name the affected task, files, test, command, expected result, and scope boundary.
+- Do not apply new acceptance criteria retroactively. The only emergency exception is a demonstrated risk of credential exposure, unrecoverable data loss, consensus corruption, or a false conformance certificate. Record and approve that exception explicitly before further implementation.
+- Reviews may require correction without a plan amendment when committed code fails an existing test, does not compile, contradicts an explicit interface or status rule, changes an out-of-scope contract, or does not implement a listed step.
+- Test reports use `passed / failed / skipped / total` and identify the projects actually executed. A discovery-only or zero-case EELS run is never labeled a conformance run.
+
+### Deterministic concurrent-test contract (effective from Task 2)
+
+- Do not use `Thread.Sleep`, `Task.Delay`, elapsed-time assumptions, or scheduler luck to establish ordering. Timeouts may guard against deadlock but may not decide which action happens first.
+- Coordinate participants with explicit signals. For task-based tests, use `TaskCompletionSource` with `TaskCreationOptions.RunContinuationsAsynchronously` and a two-way handshake that proves the asserted states overlap.
+- Bound every coordination wait in unit tests with `WaitAsync(TimeSpan.FromSeconds(5))` so a regression fails instead of hanging the test host.
+- Release or fault every dependent signal from `finally`/`catch` paths using `TrySetResult`, `TrySetException`, or cancellation. A failed assertion or constructor must not orphan a companion task.
+- A regression test must be capable of failing against the replaced implementation. If the old implementation would pass because the asserted states did not overlap, the test is not evidence.
+- These rules govern new or modified concurrent tests from Task 2 forward. Task 1 voluntarily satisfies them at commit `4c730c3`; Task 1 is closed and is not reopened by this amendment.
+
+### Amendment log
+
+- **2026-08-24 — Amendment 1:** Added prospective acceptance/change-control rules, deterministic concurrent-test requirements, and the Task 2 review boundary before Task 2 implementation began.
+
 ---
 
 ## Task 0: Capture the pre-repair intake baseline
@@ -130,6 +152,15 @@ git commit -m "fix: isolate opsec state per execution flow"
 
 - Modify: `Schlieren.Core/State/StateOverlay.cs`
 - Modify: `Schlieren.Tests/State/OverlayIsolationTests.cs`
+
+**Task 2 acceptance boundary:**
+
+- Required production scope is `StateOverlay.GetStorageAtAsync` and only the private helpers necessary to make that method iterative, cancellation-aware, and cycle-safe.
+- Required behavior is nearest-overlay precedence, tombstone-as-zero, inherited-value lookup through 2,048 overlays, overridden-value lookup through 2,048 overlays, cancellation on traversal, unchanged shallow-chain behavior, and the exact cycle exception named below.
+- Do not change `StateTransition`, `EvmMachine`, journal types, gas semantics, other `IGlobalState` implementations, taxonomy reporting, or EELS fixture parsing in Task 2.
+- `GetStorageKeysAsync`, `GetStoragePresenceAsync`, balance, nonce, code, account-existence, commit, snapshot, and restore behavior are outside Task 2 unless an existing focused test proves the `GetStorageAtAsync` change broke them.
+- A newly noticed deep-recursion risk in another getter is recorded for a separately approved task; it is not grounds to expand or block Task 2.
+- Review gates are exactly the focused tests and commands written in Steps 1–3 plus compilation and a clean-tree check. Additional stress depths, benchmarks, or taxonomy sweeps are advisory.
 
 - [ ] **Step 1: Reproduce deep parent traversal without crashing the test host**
 
