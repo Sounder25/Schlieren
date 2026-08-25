@@ -21,12 +21,14 @@ public static class FixtureSnapshotBuilder
 {
     /// <summary>
     /// Builds an expected ExecutionSnapshot from the first variant of the given fork
-    /// in the fixture file. Returns null with a reason string if the fixture cannot
-    /// supply the required fields (callers map this to FixtureInvalid or HarnessError).
+    /// in the fixture file. When <paramref name="caseId"/> is provided, selects that
+    /// specific top-level entry; otherwise falls back to the first entry.
+    /// Returns null with a reason string if the fixture cannot supply the required fields.
     /// </summary>
     public static (ExecutionSnapshot? Snapshot, string? Error) Build(
         string absoluteFixturePath,
-        string forkName)
+        string forkName,
+        string? caseId = null)
     {
         byte[] bytes;
         try { bytes = File.ReadAllBytes(absoluteFixturePath); }
@@ -47,12 +49,21 @@ public static class FixtureSnapshotBuilder
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
                 return (null, "Fixture root is not a JSON object");
 
-            // Take first test entry
-            var entry = doc.RootElement.EnumerateObject().FirstOrDefault();
-            if (entry.Value.ValueKind != JsonValueKind.Object)
-                return (null, "No test entries in fixture");
-
-            var caseNode = entry.Value;
+            // Select the specific case by CaseId, or fall back to first entry
+            JsonElement caseNode;
+            if (!string.IsNullOrEmpty(caseId))
+            {
+                if (!doc.RootElement.TryGetProperty(caseId, out caseNode) ||
+                    caseNode.ValueKind != JsonValueKind.Object)
+                    return (null, $"CaseId '{caseId}' not found in fixture file");
+            }
+            else
+            {
+                var entry = doc.RootElement.EnumerateObject().FirstOrDefault();
+                if (entry.Value.ValueKind != JsonValueKind.Object)
+                    return (null, "No test entries in fixture");
+                caseNode = entry.Value;
+            }
             if (!caseNode.TryGetProperty("post", out var postNode) ||
                 !postNode.TryGetProperty(forkName, out var forkArray) ||
                 forkArray.ValueKind != JsonValueKind.Array)

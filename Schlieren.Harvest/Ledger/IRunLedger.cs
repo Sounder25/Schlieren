@@ -20,6 +20,9 @@ public interface IRunLedger
     /// Stages a run with its per-case outcomes and cluster records, then atomically
     /// finalizes it by moving from staging to the committed path with a completion marker.
     ///
+    /// <paramref name="expectedCaseCount"/> is the manifest's declared case count.
+    /// Finalization throws if the actual outcome count does not match.
+    ///
     /// Throws <see cref="LedgerCollisionException"/> if the run is already finalized.
     /// Throws <see cref="InvalidOperationException"/> if case count doesn't match the manifest.
     /// </summary>
@@ -27,6 +30,7 @@ public interface IRunLedger
         RunRecord record,
         IReadOnlyList<CaseOutcome> nonPassOutcomes,
         IReadOnlyList<ClusterRecord> clusters,
+        int expectedCaseCount,
         CancellationToken cancellationToken = default);
 
     /// <summary>Reads a finalized run's summary record (from run.json).</summary>

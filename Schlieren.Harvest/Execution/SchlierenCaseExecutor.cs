@@ -47,17 +47,19 @@ public sealed class SchlierenCaseExecutor
                 "catalogRoot is required when FixtureCaseMetadata.RelativePath is a relative path", nameof(catalogRoot));
         }
 
-        return await ExecuteFromPathAsync(absolutePath, meta.Fork, journalEnabled, ct);
+        return await ExecuteFromPathAsync(absolutePath, meta.Fork, journalEnabled, meta.CaseId, ct);
     }
 
     /// <summary>
     /// Execute directly from an absolute fixture path and fork name.
-    /// Used by tests that already have absolute paths.
+    /// When <paramref name="caseId"/> is provided, selects that specific top-level
+    /// entry in the fixture JSON; otherwise uses the first entry.
     /// </summary>
     public async Task<ExecutionSnapshot> ExecuteFromPathAsync(
         string absoluteFixturePath,
         string forkName,
         bool journalEnabled,
+        string? caseId = null,
         CancellationToken ct = default)
     {
         byte[] bytes;
@@ -72,9 +74,21 @@ public sealed class SchlierenCaseExecutor
         if (doc.RootElement.ValueKind != JsonValueKind.Object)
             throw new InvalidOperationException("Fixture root is not a JSON object");
 
-        // Take the first test entry
-        var entry = doc.RootElement.EnumerateObject().First();
-        return await ExecuteCaseNodeAsync(entry.Value, forkName, journalEnabled, ct);
+        // Select by CaseId or fall back to first entry
+        JsonElement selectedEntry;
+        if (!string.IsNullOrEmpty(caseId))
+        {
+            if (!doc.RootElement.TryGetProperty(caseId, out selectedEntry) ||
+                selectedEntry.ValueKind != JsonValueKind.Object)
+                throw new InvalidOperationException(
+                    $"CaseId '{caseId}' not found in fixture file {absoluteFixturePath}");
+        }
+        else
+        {
+            selectedEntry = doc.RootElement.EnumerateObject().First().Value;
+        }
+
+        return await ExecuteCaseNodeAsync(selectedEntry, forkName, journalEnabled, ct);
     }
 
     private async Task<ExecutionSnapshot> ExecuteCaseNodeAsync(

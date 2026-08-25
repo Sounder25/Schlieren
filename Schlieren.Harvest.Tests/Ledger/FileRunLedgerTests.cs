@@ -77,7 +77,7 @@ public class FileRunLedgerTests : IDisposable
         var ledger = new FileRunLedger(_root);
         var record = MakeRecord("run-rt");
 
-        await ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+        await ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), record.Summary.Total);
         var envelope = await ledger.ReadRunAsync("run-rt");
 
         Assert.Equal("run-rt", envelope.Payload.RunId);
@@ -92,7 +92,7 @@ public class FileRunLedgerTests : IDisposable
     {
         var ledger = new FileRunLedger(_root);
         await ledger.FinalizeRunAsync(MakeRecord("run-marker"),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
 
         var markerPath = LedgerPaths.CompletionPath(_root, "run-marker");
         Assert.True(File.Exists(markerPath));
@@ -112,7 +112,7 @@ public class FileRunLedgerTests : IDisposable
         var record  = MakeRecord("run-cases");
         var outcome = MakeDivergence("tests/berlin/storage_test");
 
-        await ledger.FinalizeRunAsync(record, new[] { outcome }, Array.Empty<ClusterRecord>());
+        await ledger.FinalizeRunAsync(record, new[] { outcome }, Array.Empty<ClusterRecord>(), record.Summary.Total);
 
         var caseEnvelope = await ledger.ReadCaseAsync("run-cases", "tests/berlin/storage_test");
         Assert.Equal("tests/berlin/storage_test", caseEnvelope.Payload.CaseId);
@@ -128,7 +128,7 @@ public class FileRunLedgerTests : IDisposable
         var record  = MakeRecord("run-clusters");
         var cluster = MakeCluster("fam-gas-001", "case-a", "case-b");
 
-        await ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), new[] { cluster });
+        await ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), new[] { cluster }, record.Summary.Total);
 
         var clusterPath = Path.Combine(
             LedgerPaths.RunDir(_root, "run-clusters"),
@@ -145,9 +145,9 @@ public class FileRunLedgerTests : IDisposable
         var ledger = new FileRunLedger(_root);
         var record = MakeRecord("run-dup");
 
-        await ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+        await ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), record.Summary.Total);
         await Assert.ThrowsAsync<LedgerCollisionException>(
-            () => ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>()));
+            () => ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), record.Summary.Total));
     }
 
     // ── Test 6: Staging cleanup on interrupted run ────────────────────────
@@ -157,7 +157,7 @@ public class FileRunLedgerTests : IDisposable
     {
         var ledger = new FileRunLedger(_root);
         await ledger.FinalizeRunAsync(MakeRecord("run-good"),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
 
         // Simulate an incomplete staging leftover in runs/ (no completion marker)
         var fakeRunDir = LedgerPaths.RunDir(_root, "run-incomplete");
@@ -180,7 +180,7 @@ public class FileRunLedgerTests : IDisposable
         Assert.False(ledger.RunExists("run-exist"));
 
         await ledger.FinalizeRunAsync(MakeRecord("run-exist"),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
 
         Assert.True(ledger.RunExists("run-exist"));
     }
@@ -218,7 +218,7 @@ public class FileRunLedgerTests : IDisposable
     {
         var ledger = new FileRunLedger(_root);
         await ledger.FinalizeRunAsync(MakeRecord("run-tamper"),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
 
         var runPath = LedgerPaths.RunPath(_root, "run-tamper");
         var json    = await File.ReadAllTextAsync(runPath);
@@ -237,7 +237,7 @@ public class FileRunLedgerTests : IDisposable
         var ledger = new FileRunLedger(_root);
         var record = MakeRecord("../evil");
         await Assert.ThrowsAsync<ArgumentException>(
-            () => ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>()));
+            () => ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), record.Summary.Total));
     }
 
     // ── Test 12: Unknown RunId ────────────────────────────────────────────
@@ -272,11 +272,11 @@ public class FileRunLedgerTests : IDisposable
         var t3 = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
         await ledger.FinalizeRunAsync(MakeRecord("run-b", completedUtc: t2),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
         await ledger.FinalizeRunAsync(MakeRecord("run-a", completedUtc: t1),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
         await ledger.FinalizeRunAsync(MakeRecord("run-c", completedUtc: t3),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
 
         var result = await ledger.ListRunsAsync();
         Assert.Equal(3, result.Entries.Count);
@@ -292,7 +292,7 @@ public class FileRunLedgerTests : IDisposable
     {
         var ledger = new FileRunLedger(_root);
         await ledger.FinalizeRunAsync(MakeRecord("run-staging"),
-            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+            Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), 4);
 
         var stagingDir = LedgerPaths.StagingDir(_root, "run-staging");
         Assert.False(Directory.Exists(stagingDir));

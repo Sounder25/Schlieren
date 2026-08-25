@@ -121,7 +121,8 @@ try
                 var snapshot = await executor.ExecuteFromPathAsync(
                     execReq.FixturePath,
                     execReq.Fork,
-                    journalEnabled: execReq.JournalEnabled);
+                    journalEnabled: execReq.JournalEnabled,
+                    caseId: execReq.CaseId);
 
                 // Serialize the ExecutionSnapshot as the result
                 var resultJson = JsonSerializer.Serialize(snapshot,

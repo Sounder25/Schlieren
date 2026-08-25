@@ -130,7 +130,8 @@ public sealed class CampaignRunner
 
         // Finalize atomically — use CancellationToken.None because the apparatus-failed
         // record must persist even when the run was cancelled.
-        await _ledger.FinalizeRunAsync(record, nonPassOutcomes, clusters, CancellationToken.None);
+        await _ledger.FinalizeRunAsync(record, nonPassOutcomes, clusters,
+            manifest.Cases.Count, CancellationToken.None);
 
         return runId;
     }

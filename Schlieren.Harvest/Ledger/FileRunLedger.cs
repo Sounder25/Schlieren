@@ -43,10 +43,18 @@ public sealed class FileRunLedger : IRunLedger
         RunRecord record,
         IReadOnlyList<CaseOutcome> nonPassOutcomes,
         IReadOnlyList<ClusterRecord> clusters,
+        int expectedCaseCount,
         CancellationToken cancellationToken = default)
     {
         if (record is null) throw new ArgumentNullException(nameof(record));
         LedgerPaths.ValidateSegment(record.RunId, nameof(record.RunId));
+
+        // Validate case count against manifest expectation
+        // ApparatusFailed runs are allowed to have fewer outcomes (cancellation/crash)
+        if (record.State != RunState.ApparatusFailed && record.Summary.Total != expectedCaseCount)
+            throw new InvalidOperationException(
+                $"Run has {record.Summary.Total} case outcomes but manifest declares {expectedCaseCount} cases. " +
+                "Cannot finalize an incomplete run.");
 
         var finalDir   = LedgerPaths.RunDir(_root, record.RunId);
         var stagingDir = LedgerPaths.StagingDir(_root, record.RunId);
@@ -102,11 +110,10 @@ public sealed class FileRunLedger : IRunLedger
             }
 
             // 4. Write completion marker LAST in staging
-            var runContentHash = ContentHasher.Compute(BuildEnvelope(record) with { ContentHash = "" });
             var marker = new CompletionMarker(
                 RunId:             record.RunId,
                 RunContentHash:    runEnvelope.ContentHash,
-                ExpectedCaseCount: record.Summary.Total,
+                ExpectedCaseCount: expectedCaseCount,
                 ActualCaseCount:   record.Summary.Total,
                 FinalizedUtc:      DateTime.UtcNow);
             var markerJson = HarvestJson.Serialize(marker);

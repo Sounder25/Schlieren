@@ -42,7 +42,7 @@ public class RepairOrderServiceTests : IDisposable
             new EnvironmentIdentity("W", "8", "h", 4),
             new ToolIdentity("s", "1", "a", null), null,
             new RunCaseSummary(2, 1, 0, 0, 0, 0), outcomes);
-        await _ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>());
+        await _ledger.FinalizeRunAsync(record, Array.Empty<CaseOutcome>(), Array.Empty<ClusterRecord>(), record.Summary.Total);
         return runId;
     }
 
