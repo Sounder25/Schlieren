@@ -52,7 +52,8 @@ public static class ConformanceComparator
         }
 
         // 3. Refund (Gas layer)
-        if (expected.GasRefundCounter != actual.GasRefundCounter)
+        if (expected.GasRefundCounter.HasValue &&
+            expected.GasRefundCounter != actual.GasRefundCounter)
         {
             deltas.Add(Delta(DiscrepancyLayer.Gas, DiscrepancyKind.RefundCounter,
                 expected.GasRefundCounter, actual.GasRefundCounter));
@@ -141,13 +142,15 @@ public static class ConformanceComparator
                     ea.Code, aa.Code));
 
             // Storage — sorted by slot
-            var allSlots = ea.Storage.Keys.Union(aa.Storage.Keys, StringComparer.OrdinalIgnoreCase)
+            var expStorage = NormalizeStorageKeys(ea.Storage);
+            var actStorage = NormalizeStorageKeys(aa.Storage);
+            var allSlots = expStorage.Keys.Union(actStorage.Keys, StringComparer.OrdinalIgnoreCase)
                                      .OrderBy(s => s, StringComparer.Ordinal);
 
             foreach (var slot in allSlots)
             {
-                ea.Storage.TryGetValue(slot, out var expVal);
-                aa.Storage.TryGetValue(slot, out var actVal);
+                expStorage.TryGetValue(slot, out var expVal);
+                actStorage.TryGetValue(slot, out var actVal);
                 expVal ??= "0x0";
                 actVal ??= "0x0";
 
@@ -209,6 +212,20 @@ public static class ConformanceComparator
         return normalizedExpected is not null && normalizedActual is not null
             ? string.Equals(normalizedExpected, normalizedActual, StringComparison.Ordinal)
             : string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, string> NormalizeStorageKeys(
+        IReadOnlyDictionary<string, string> storage)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in storage)
+        {
+            var normalizedKey = NormalizeHexQuantity(key) ?? key;
+            if (!normalized.TryAdd(normalizedKey, value))
+                throw new InvalidDataException($"Duplicate storage slot after normalization: {key}");
+        }
+
+        return normalized;
     }
 
     private static string? NormalizeHexQuantity(string value)

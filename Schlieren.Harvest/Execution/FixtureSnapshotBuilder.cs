@@ -124,7 +124,7 @@ public static class FixtureSnapshotBuilder
             var snapshot = new ExecutionSnapshot(
                 IsSuccess:          isSuccess,
                 GasUsed:            gasUsed,
-                GasRefundCounter:   0,   // refund counter not in fixture; comparator skips if both are 0
+                GasRefundCounter:   null, // fixture post-state has no authoritative refund counter
                 ReturnData:         returnData,
                 Logs:               logs,
                 PostState:          postAccounts);

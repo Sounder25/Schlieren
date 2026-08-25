@@ -37,7 +37,7 @@ public class ConformanceComparatorTests
     private static ExecutionSnapshot MakeSnapshot(
         bool isSuccess  = true,
         ulong gasUsed   = 21_000,
-        long refund     = 0,
+        long? refund    = 0,
         string returnData = "0x",
         List<SnapshotLog>? logs = null,
         List<SnapshotAccount>? postState = null)
@@ -372,5 +372,52 @@ public class ConformanceComparatorTests
 
         Assert.Equal(CaseStatus.Pass, result.Status);
         Assert.DoesNotContain(result.Deltas, d => d.Kind == DiscrepancyKind.StorageValue);
+    }
+
+    [Theory]
+    [InlineData("0x01", "0x1")]
+    [InlineData("0x00", "0x0")]
+    [InlineData("0X000ABC", "0xabc")]
+    public void Compare_EquivalentHexQuantityStorageKeys_DoNotProduceDelta(
+        string expectedKey,
+        string actualKey)
+    {
+        var expected = MakeSnapshot(postState: new List<SnapshotAccount>
+        {
+            MakeAccount(storage: new Dictionary<string, string> { [expectedKey] = "0x67" })
+        });
+        var actual = MakeSnapshot(postState: new List<SnapshotAccount>
+        {
+            MakeAccount(storage: new Dictionary<string, string> { [actualKey] = "0x67" })
+        });
+
+        var result = ConformanceComparator.Compare(expected, actual);
+
+        Assert.Equal(CaseStatus.Pass, result.Status);
+        Assert.DoesNotContain(result.Deltas, d => d.Kind == DiscrepancyKind.StorageValue);
+    }
+
+    [Fact]
+    public void Compare_UnknownExpectedRefund_DoesNotProduceDelta()
+    {
+        var expected = MakeSnapshot(refund: null);
+        var actual = MakeSnapshot(refund: 15_000);
+
+        var result = ConformanceComparator.Compare(expected, actual);
+
+        Assert.Equal(CaseStatus.Pass, result.Status);
+        Assert.DoesNotContain(result.Deltas, d => d.Kind == DiscrepancyKind.RefundCounter);
+    }
+
+    [Fact]
+    public void Compare_KnownExpectedRefundMismatch_ProducesDelta()
+    {
+        var expected = MakeSnapshot(refund: 0);
+        var actual = MakeSnapshot(refund: 15_000);
+
+        var result = ConformanceComparator.Compare(expected, actual);
+
+        Assert.Equal(CaseStatus.Divergence, result.Status);
+        Assert.Contains(result.Deltas, d => d.Kind == DiscrepancyKind.RefundCounter);
     }
 }

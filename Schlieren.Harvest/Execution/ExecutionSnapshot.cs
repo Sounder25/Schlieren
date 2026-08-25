@@ -40,7 +40,7 @@ public sealed record ExecutionSnapshot(
     // ── Receipt fields ───────────────────────────────────────────────────
     bool   IsSuccess,
     ulong  GasUsed,
-    long   GasRefundCounter,
+    long?  GasRefundCounter,
     string ReturnData,
 
     // ── Logs ─────────────────────────────────────────────────────────────
