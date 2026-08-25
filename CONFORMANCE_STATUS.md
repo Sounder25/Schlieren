@@ -1,56 +1,61 @@
 # Schlieren Conformance Status
 
-## Current State: Pre-Task 13 (Audit Remediation Complete)
+## Current State: Campaign 1 Certified
 
 **Date:** 2026-08-25
-**HEAD:** 2abebdc
-**All 9 audit findings resolved.** Ready for manifest re-freeze and baseline inspection.
 
-### Audit Remediation Summary (post-3b181c3)
+Campaign 1 completed through the production subprocess path with an independently
+invoked EELS 2.19.0 oracle. All certification gates passed.
 
-| Finding | Status | Commit |
-|---|---|---|
-| 1. Subprocess execution (no in-process bypass) | ✅ Fixed | 547a93c |
-| 2. Suite gate parses JSON, checks certificationEligibility | ✅ Fixed | 547a93c |
-| 3. Manifest hash from file, not run record (non-tautological) | ✅ Fixed | 547a93c |
-| 4. Calibration read + regression check (real inputs) | ✅ Fixed | 547a93c |
-| 5. CaseId selection (not first entry) | ✅ Fixed | 3547371 |
-| 6. Fixture root SHA-256 + EELS commit populated | ✅ Fixed | 2abebdc |
-| 7. Secret scan gate passes | ✅ Fixed | 547a93c |
-| 8. Repair lifecycle (fingerprint key match, proper close) | ✅ Fixed | 547a93c |
-| 9. Ledger case-count validation (manifest vs actual) | ✅ Fixed | 3547371 |
+### Certificate
 
-### Calibration Record
+- Certificate: `cert-20260825224015-673d69`
+- Run: `storage-lifecycle-v1_20260825222546_61c42767`
+- Manifest: `64d1a71f69d31696fc33cd323361cb51439c76ed7988bfaf09d75cb55afb197e`
+- Schlieren execution commit: `cf20f21`
+- Result: 50 pass, 0 divergence, 0 fixture invalid, 0 harness error,
+  0 aborted, 0 quarantined
+- Run content hash: `dc545aeec0b93dc0345a22fe69a8c5b27136f5e43bf083a3e0851a86edb96c28`
 
-Calibration ID: `cal-20260825174020` — All 6 probes classified correctly.
+### Closed Repair Families
+
+| Family | Before | After | Repair commit |
+|---|---:|---:|---|
+| `Unknown/Account/Balance` | 14 | 0 | `6f6bea7` |
+| `Unknown/Gas/GasUsed` | 7 | 0 | `6f6bea7` |
+| `Unknown/Storage/StorageValue` | 21 | 0 | `cf20f21` |
+| `Unknown/Gas/RefundCounter` | 29 | 0 | `cf20f21` |
+
+The balance and storage families were hex-quantity normalization defects in the
+comparison apparatus. The gas-used family was caused by omitted EIP-2930 access
+lists during fixture materialization. Fixture post-state does not provide an
+authoritative refund counter, so refund comparison is now performed only when an
+independent expected value exists.
 
 ### Suite Gate
 
-Suite gate at `harvest/ledger/suite-gate-fd19735.json`:
-- `certificationEligibility: false` (1 flaky test in run 3)
-- This will correctly BLOCK certification via the new gate logic
+Suite gate: `harvest/ledger/suite-gate-0ae041e.json`
 
-### Existing Manifests (Historical — Not Certifiable)
+- Harvest tests: 188 passed, 0 failed, 0 skipped, three consecutive runs
+- Main tests: 701 passed, 0 failed, 5 skipped, three consecutive runs
+- All six TRX SHA-256 hashes recorded
+- `certificationEligibility: true`
 
-| Hash | Issue |
-|---|---|
-| `c9b9e058...` | `allowNullIdentity: true`, no EELS identity |
-| `a045393d...` | Has EELS SHA+version but null commit and null fixtureRootSha256 |
+The previous suite instability came from hard-coded fixture paths and concurrent
+mutation of static pathological-case generator state. Both causes are repaired.
 
-### Next Steps
+### Calibration And Identity
 
-1. Re-freeze Campaign 1 with full identity (EELS commit + fixture root SHA-256)
-2. Execute frozen manifest via `campaign run` (subprocess worker)
-3. Record honest results — divergences, passes, apparatus failures
-4. Attempt certification (expected: refusal due to suite gate + likely divergences)
+- Calibration: `cal-20260825174020`, all 6 probes classified correctly
+- EELS: ethereum-spec-evm 2.19.0
+- EELS executable SHA-256: `c2a25c7f60a104f0cc024748256526a6fe511193bf320c98834dba55ad58bb10`
+- Fixture root SHA-256: `ed5e2dc9d4847fb83f1a820959308044b18a50be78d2d299b5211d85ad33738f`
+- Fixture suite: tests@v20.0.1
+- Runtime: .NET 8.0.29
 
-### Environment
+### Audit Remediation
 
-- OS: Windows 10
-- Runtime: .NET 8.0.6
-- EELS: ethereum-spec-evm 2.19.0 (commit 5b2b22c75f69bda02615204396b70a91e00529e0)
-- EELS executable SHA-256: c2a25c7f60a104f0cc024748256526a6fe511193bf320c98834dba55ad58bb10
-- Fixture root: `C:\Projects\Schlieren\fixtures\fixtures\state_tests` (tests@v20.0.1)
-- Harvest tests: 178 pass / 0 fail
-- CLI tests: 17 pass / 0 fail
-- Secret scan: 0 findings
+All nine Harvest audit findings remain resolved: subprocess execution, suite-gate
+parsing, independent manifest lookup, calibration and regression inputs, exact
+CaseId selection, fixture and EELS identity, secret scanning, repair lifecycle,
+and ledger case-count validation.
