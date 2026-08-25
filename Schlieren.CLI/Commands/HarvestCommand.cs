@@ -653,24 +653,22 @@ public static class HarvestCommand
                 var manifestDir = Path.Combine(ledger, "campaigns");
                 if (Directory.Exists(manifestDir))
                 {
-                    // Find manifest for this campaign
-                    var campaignDir = Directory.GetDirectories(manifestDir)
-                        .FirstOrDefault(d => Path.GetFileName(d) == run.CampaignId);
-                    if (campaignDir is not null)
+                    // Use the run's manifest hash to locate the exact manifest file
+                    var campaignDir = Path.Combine(manifestDir, run.CampaignId, run.ManifestHash);
+                    var manifestFile = Path.Combine(campaignDir, "manifest.json");
+                    if (File.Exists(manifestFile))
                     {
-                        var hashDirs = Directory.GetDirectories(campaignDir);
-                        if (hashDirs.Length > 0)
-                        {
-                            // Use the most recent manifest hash directory
-                            var manifestFile = Path.Combine(hashDirs[^1], "manifest.json");
-                            if (File.Exists(manifestFile))
-                            {
-                                var mJson = await File.ReadAllTextAsync(manifestFile);
-                                var mObj = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
-                                    Schlieren.Harvest.Campaigns.CampaignManifest>(mJson);
-                                expectedManifestHash = mObj?.ManifestHash ?? "";
-                            }
-                        }
+                        var mJson = await File.ReadAllTextAsync(manifestFile);
+                        var mObj = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
+                            Schlieren.Harvest.Campaigns.CampaignManifest>(mJson);
+                        expectedManifestHash = mObj?.ManifestHash ?? "";
+                    }
+                    else
+                    {
+                        // Manifest file not found at the expected path — cannot verify
+                        Console.Error.WriteLine(
+                            $"Manifest file not found at {manifestFile}. " +
+                            "Cannot verify run was executed against the correct manifest.");
                     }
                 }
 
