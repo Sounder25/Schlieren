@@ -195,4 +195,28 @@ public class FixtureCatalogTests
         Assert.Single(result);
         Assert.NotEqual(AdmissionReasonCode.Admitted, result[0].Admission);
     }
+
+    // ── AmbiguousVariant — multiple supported forks ───────────────────────
+
+    [Fact]
+    public void Catalog_MultipleSupportedForks_RejectsAsAmbiguousVariant()
+    {
+        var catalog = new FixtureCatalog(SamplesDir);
+        var result  = catalog.Admit(new[] { Sample("ambiguous_multi_fork.json") });
+
+        Assert.Single(result);
+        Assert.Equal(AdmissionReasonCode.AmbiguousVariant, result[0].Admission);
+    }
+
+    // ── MissingStatusAuthority ────────────────────────────────────────────
+
+    [Fact]
+    public void Catalog_MissingStatusAuthority_RejectsAsMissingStatusAuthority()
+    {
+        var catalog = new FixtureCatalog(SamplesDir);
+        var result  = catalog.Admit(new[] { Sample("missing_status_authority.json") });
+
+        Assert.Single(result);
+        Assert.Equal(AdmissionReasonCode.MissingStatusAuthority, result[0].Admission);
+    }
 }

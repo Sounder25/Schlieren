@@ -51,12 +51,7 @@ public class HarvestServiceConfigurationTests
 
     // ── FromEnvironment ──────────────────────────────────────────────────────
 
-    [Fact]
-    public void FromEnvironment_NoBaseUrl_UsesLocalhostDefault()
-    {
-        var opts = HarvestServiceOptions.FromEnvironment(_ => null);
-        Assert.Equal(DefaultBase, opts.N8nBaseUri);
-    }
+    // (Absent base URL test consolidated into FromEnvironment_AbsentBaseUrl_UsesLocalhostDefault below)
 
     [Fact]
     public void FromEnvironment_ReadsAllFourKeys()
@@ -91,11 +86,19 @@ public class HarvestServiceConfigurationTests
     }
 
     [Fact]
-    public void FromEnvironment_InvalidBaseUrl_FallsBackToLocalhostDefault()
+    public void FromEnvironment_InvalidBaseUrl_ThrowsForNonblankInvalidValue()
     {
-        var opts = HarvestServiceOptions.FromEnvironment(k =>
-            k == "SCHLIEREN_N8N_BASE_URL" ? "not-a-uri" : null);
-        Assert.Equal(DefaultBase, opts.N8nBaseUri);
+        // Nonblank but invalid URI must be rejected — not silently fallen back to localhost.
+        Assert.Throws<InvalidOperationException>(() =>
+            HarvestServiceOptions.FromEnvironment(k =>
+                k == "SCHLIEREN_N8N_BASE_URL" ? "not-a-uri" : null));
+    }
+
+    [Fact]
+    public void FromEnvironment_AbsentBaseUrl_UsesLocalhostDefault()
+    {
+        var opts = HarvestServiceOptions.FromEnvironment(_ => null);
+        Assert.Equal(new Uri("http://localhost:5678"), opts.N8nBaseUri);
     }
 
     // ── Absent API key → no X-N8N-API-KEY header ────────────────────────────

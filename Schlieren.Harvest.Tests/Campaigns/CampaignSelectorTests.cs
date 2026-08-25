@@ -162,6 +162,12 @@ public class CampaignSelectorTests
         Assert.NotEmpty(m.ManifestHash);
         Assert.NotEmpty(m.CampaignId);
         Assert.NotEmpty(m.SchemaVersion);
+        Assert.NotEmpty(m.CampaignVersion);
+        Assert.NotEmpty(m.FamilyName);
+        Assert.True(m.BatchSize > 0);
+        Assert.NotEmpty(m.SelectionPolicyVersion);
+        Assert.NotEmpty(m.ToolVersion);
+        Assert.NotEmpty(m.RequiredComparisonFields);
         Assert.Equal(1, m.Cases.Count);
         Assert.NotEmpty(m.Cases[0].CaseId);
         Assert.NotEmpty(m.Cases[0].RelativePath);

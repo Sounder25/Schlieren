@@ -11,6 +11,9 @@ public sealed partial class HarvestViewModel : ObservableObject, IDisposable
     private readonly HarvestServiceOptions _options;
     private CancellationTokenSource _cts = new();
 
+    /// <summary>Exposes the configured corpus directory for UI consumers (e.g. MainWindow).</summary>
+    public string? CorpusDirectory => _options.CorpusDirectory;
+
     /// <summary>
     /// Explicit constructor. Both dependencies are supplied by the composition root
     /// (App.OnFrameworkInitializationCompleted). HarvestViewModel must not construct

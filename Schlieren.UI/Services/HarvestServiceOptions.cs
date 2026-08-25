@@ -26,15 +26,23 @@ public sealed record HarvestServiceOptions(
 
         Uri baseUri;
         var rawBase = read("SCHLIEREN_N8N_BASE_URL");
-        if (!string.IsNullOrWhiteSpace(rawBase) &&
-            Uri.TryCreate(rawBase.Trim(), UriKind.Absolute, out var parsed) &&
-            (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
+        if (string.IsNullOrWhiteSpace(rawBase))
         {
+            // Absent → use the non-secret service default
+            baseUri = new Uri(localhostDefault);
+        }
+        else if (Uri.TryCreate(rawBase.Trim(), UriKind.Absolute, out var parsed) &&
+                 (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
+        {
+            // Valid absolute HTTP/HTTPS URI
             baseUri = parsed;
         }
         else
         {
-            baseUri = new Uri(localhostDefault);
+            // Nonblank but invalid — reject rather than silently fall back.
+            // Callers that want a default should unset the variable entirely.
+            throw new InvalidOperationException(
+                $"SCHLIEREN_N8N_BASE_URL is set but is not a valid absolute HTTP/HTTPS URI: '{rawBase.Trim()}'");
         }
 
         var apiKey = NullIfBlank(read("SCHLIEREN_N8N_API_KEY"));

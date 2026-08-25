@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Schlieren.Harvest.Execution;
 using Schlieren.Harvest.Worker;
 
 // Schlieren.Harvest.Worker
@@ -5,10 +7,10 @@ using Schlieren.Harvest.Worker;
 // Receives one WorkerRequest from stdin (JSON), executes the requested operation,
 // writes one WorkerResponse to stdout (JSON), then exits.
 //
-// Supported operations (Task 6):
+// Supported operations:
 //   "execute"           — execute one manifest case via SchlierenCaseExecutor
-//   "calibration-crash" — deliberately terminates the worker (proves parent can
-//                         persist Aborted evidence when a worker is killed)
+//   "calibration-crash" — deliberately terminates the worker process (proves the
+//                         parent can detect and persist Aborted evidence)
 //
 // Any unrecognised operation returns ProtocolError.
 // A crash, timeout, or cancellation at the parent is classified by WorkerExitClassifier.
@@ -32,20 +34,62 @@ try
     }
     else if (req.Operation == "execute")
     {
-        // Task 6: full execution wiring arrives via SchlierenCaseExecutor.
-        // For now validate the request fields and return ProtocolError if missing,
-        // or a stub Completed response if all fields are present.
-        // Full execution is wired in Task 6 Step 4 integration.
         if (string.IsNullOrEmpty(req.Payload))
         {
             response = WorkerResponse.ProtocolError("execute request missing payload");
         }
         else
         {
-            // Execution will be wired here in full Task 6 production integration.
-            // The worker is exercised by WorkerExitClassifier tests via process launch.
-            response = WorkerResponse.ProtocolError(
-                "execute operation payload received but full wiring pending Task 6 integration");
+            // Deserialize the execute request payload
+            ExecuteRequest? execReq;
+            try
+            {
+                execReq = JsonSerializer.Deserialize<ExecuteRequest>(req.Payload,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (Exception ex)
+            {
+                response = WorkerResponse.ProtocolError($"execute payload is not valid JSON: {ex.Message}");
+                goto WriteAndExit;
+            }
+
+            if (execReq is null ||
+                string.IsNullOrEmpty(execReq.FixturePath) ||
+                string.IsNullOrEmpty(execReq.Fork) ||
+                string.IsNullOrEmpty(execReq.ManifestHash) ||
+                string.IsNullOrEmpty(execReq.CaseId))
+            {
+                response = WorkerResponse.ProtocolError(
+                    "execute payload missing required fields: fixturePath, fork, manifestHash, caseId");
+                goto WriteAndExit;
+            }
+
+            // Validate fixture path is an absolute path to an existing file
+            if (!Path.IsPathRooted(execReq.FixturePath) || !File.Exists(execReq.FixturePath))
+            {
+                response = WorkerResponse.ProtocolError(
+                    $"fixturePath is not an absolute path to an existing file: {execReq.FixturePath}");
+                goto WriteAndExit;
+            }
+
+            // Execute the case via the canonical Schlieren path
+            try
+            {
+                var executor = new SchlierenCaseExecutor();
+                var snapshot = await executor.ExecuteFromPathAsync(
+                    execReq.FixturePath,
+                    execReq.Fork,
+                    journalEnabled: execReq.JournalEnabled);
+
+                // Serialize the ExecutionSnapshot as the result
+                var resultJson = JsonSerializer.Serialize(snapshot,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                response = WorkerResponse.Completed(resultJson);
+            }
+            catch (Exception ex)
+            {
+                response = WorkerResponse.ProtocolError($"Case execution failed: {ex.Message}");
+            }
         }
     }
     else
@@ -59,5 +103,6 @@ catch (Exception ex)
     response = WorkerResponse.ProtocolError($"Unhandled exception: {ex.Message}");
 }
 
+WriteAndExit:
 Console.WriteLine(WorkerProtocol.Serialize(response));
 return 0;

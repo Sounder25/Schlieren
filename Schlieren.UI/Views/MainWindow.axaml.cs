@@ -709,7 +709,15 @@ public partial class MainWindow : Window
 
     private void OnOpenCorpusFolderClick(object? sender, RoutedEventArgs e)
     {
-        const string corpus = @"C:\projects\Schlieren\muscle\corpus";
+        // Use the configured corpus directory from HarvestServiceOptions.
+        // No compiled machine-specific path. If unconfigured, show a status message.
+        var corpus = _harvestVm?.CorpusDirectory;
+        if (string.IsNullOrEmpty(corpus))
+        {
+            if (DataContext is WorkbenchViewModel vm)
+                vm.StatusMessage = "Harvest corpus is not configured (set SCHLIEREN_HARVEST_CORPUS)";
+            return;
+        }
         if (!Directory.Exists(corpus)) Directory.CreateDirectory(corpus);
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
               { FileName = corpus, UseShellExecute = true }); }

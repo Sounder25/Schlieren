@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Schlieren.Harvest.Fixtures;
 using Schlieren.Harvest.Serialization;
 
@@ -15,33 +14,70 @@ public sealed record ManifestCase(
     IReadOnlyList<StorageDimension> Dimensions);
 
 /// <summary>
+/// Identity record for the EELS executable and revision used during a run.
+/// Included in the manifest so every certificate binds to a specific oracle.
+/// </summary>
+public sealed record EelsIdentity(
+    string ExecutableSha256,
+    string ReportedVersion,
+    string? CommitSha);
+
+/// <summary>
 /// Immutable campaign manifest. Once frozen it must not be mutated.
-/// Replacing or reclassifying a case requires a new version with a new manifest.
+/// Replacing or reclassifying a case requires a new campaign version and manifest.
 ///
-/// <see cref="ManifestHash"/> is the canonical SHA-256 fingerprint of the manifest
-/// content (computed via <see cref="Freeze"/>). It is excluded from the bytes that
-/// are hashed (same convention as <c>ContentHasher</c>).
+/// Fields required by the approved spec (docs/superpowers/specs/...-design.md):
+///   - schema version, campaign ID and version, family name, batch size
+///   - selection-policy version
+///   - EELS release/commit identity
+///   - fixture root identity (SHA-256 of root path + corpus identity)
+///   - ordered cases with checksums
+///   - required comparison fields
+///   - creation timestamp and tool version
+///   - canonical manifest hash
+///
+/// <see cref="ManifestHash"/> is the SHA-256 fingerprint of the manifest content
+/// (computed via <see cref="Freeze"/>), excluded from the hashed bytes.
 /// </summary>
 public sealed record CampaignManifest(
-    string                    SchemaVersion,
-    string                    CampaignId,
-    DateTime                  CreatedUtc,
-    string                    SelectionPolicyVersion,
+    string                      SchemaVersion,
+    string                      CampaignId,
+    string                      CampaignVersion,
+    string                      FamilyName,
+    int                         BatchSize,
+    DateTime                    CreatedUtc,
+    string                      SelectionPolicyVersion,
+    EelsIdentity?               EelsIdentity,
+    string?                     FixtureRootSha256,
+    IReadOnlyList<string>       RequiredComparisonFields,
+    string                      ToolVersion,
     IReadOnlyList<ManifestCase> Cases,
-    string                    ManifestHash)
+    string                      ManifestHash)
 {
-    public const string CurrentSchemaVersion         = "1";
+    public const string CurrentSchemaVersion          = "1";
     public const string CurrentSelectionPolicyVersion = "storage-lifecycle-v1";
+    public const string CurrentFamilyName             = "storage-lifecycle";
+    public const string CurrentToolVersion            = "schlieren-harvest-1";
+
+    public static readonly IReadOnlyList<string> StorageLifecycleComparisonFields =
+        new[] { "status", "gasUsed", "logs", "postState.storage" };
 
     /// <summary>
     /// Freezes an ordered list of admitted cases into an immutable manifest.
-    /// The <paramref name="createdUtc"/> timestamp is supplied by the caller (injected
-    /// from a <c>TimeProvider</c> at the call site) — never read from the wall clock here.
+    ///
+    /// <paramref name="createdUtc"/> is supplied by the caller (injected from a
+    /// TimeProvider) — never read from the wall clock here.
+    ///
+    /// <paramref name="eelsIdentity"/> and <paramref name="fixtureRootSha256"/>
+    /// may be null during testing but must be set for Campaign 1 certification.
     /// </summary>
     public static CampaignManifest Freeze(
         IReadOnlyList<FixtureCaseMetadata> cases,
         string campaignId,
-        DateTime createdUtc)
+        DateTime createdUtc,
+        string campaignVersion = "1",
+        EelsIdentity? eelsIdentity = null,
+        string? fixtureRootSha256 = null)
     {
         var manifestCases = cases.Select(c => new ManifestCase(
             CaseId:       c.CaseId,
@@ -51,30 +87,31 @@ public sealed record CampaignManifest(
             Dimensions:   c.Dimensions.OrderBy(d => d.ToString(), StringComparer.Ordinal).ToList()
         )).ToList();
 
-        // Build a deterministic hash over canonical JSON with manifestHash field blank
         var stub = new CampaignManifest(
-            SchemaVersion:          CurrentSchemaVersion,
-            CampaignId:             campaignId,
-            CreatedUtc:             createdUtc,
-            SelectionPolicyVersion: CurrentSelectionPolicyVersion,
-            Cases:                  manifestCases,
-            ManifestHash:           "");
+            SchemaVersion:           CurrentSchemaVersion,
+            CampaignId:              campaignId,
+            CampaignVersion:         campaignVersion,
+            FamilyName:              CurrentFamilyName,
+            BatchSize:               manifestCases.Count,
+            CreatedUtc:              createdUtc,
+            SelectionPolicyVersion:  CurrentSelectionPolicyVersion,
+            EelsIdentity:            eelsIdentity,
+            FixtureRootSha256:       fixtureRootSha256,
+            RequiredComparisonFields: StorageLifecycleComparisonFields,
+            ToolVersion:             CurrentToolVersion,
+            Cases:                   manifestCases,
+            ManifestHash:            "");
 
         var hash = ComputeHash(stub);
-
         return stub with { ManifestHash = hash };
     }
 
     private static string ComputeHash(CampaignManifest stub)
     {
-        // Serialize to canonical JSON (sorted keys, camelCase, no indent)
-        var json  = HarvestJson.Serialize(stub);
-
-        // Parse and remove the manifestHash field
-        var node  = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject
-                    ?? throw new InvalidOperationException("Manifest did not serialize to a JSON object");
+        var json     = HarvestJson.Serialize(stub);
+        var node     = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject
+                       ?? throw new InvalidOperationException("Manifest did not serialize to a JSON object");
         node.Remove("manifestHash");
-
         var stripped = node.ToJsonString(HarvestJson.Options);
         var hash     = SHA256.HashData(Encoding.UTF8.GetBytes(stripped));
         return Convert.ToHexString(hash).ToLowerInvariant();

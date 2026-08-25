@@ -1,0 +1,53 @@
+{
+  "tests/sample/ambiguous_multi_fork": {
+    "_info": { "fixture-format": "state_test" },
+    "env": {
+      "currentCoinbase": "0x0000000000000000000000000000000000000000",
+      "currentGasLimit": "0x7fffffffffffffff",
+      "currentNumber": "0x1",
+      "currentTimestamp": "0x1",
+      "currentDifficulty": "0x20000"
+    },
+    "pre": {
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+        "balance": "0xffffffffffffffff",
+        "nonce": "0x0",
+        "code": "0x",
+        "storage": {}
+      }
+    },
+    "transaction": {
+      "sender": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "nonce": "0x0",
+      "gasPrice": "0x1",
+      "gasLimit": ["0x5208"],
+      "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "value": ["0x0"],
+      "data": ["0x"]
+    },
+    "post": {
+      "Berlin": [
+        {
+          "hash": "0xaaaa",
+          "logs": "0xbbbb",
+          "indexes": { "data": 0, "gas": 0, "value": 0 },
+          "receipt": { "status": true, "cumulativeGasUsed": "0x5208" },
+          "state": {
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": { "storage": {} }
+          }
+        }
+      ],
+      "London": [
+        {
+          "hash": "0xcccc",
+          "logs": "0xdddd",
+          "indexes": { "data": 0, "gas": 0, "value": 0 },
+          "receipt": { "status": true, "cumulativeGasUsed": "0x5208" },
+          "state": {
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": { "storage": {} }
+          }
+        }
+      ]
+    }
+  }
+}

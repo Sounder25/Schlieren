@@ -4,9 +4,21 @@ namespace Schlieren.Harvest.Worker;
 
 /// <summary>
 /// Minimal stdin/stdout JSON protocol between the parent CampaignRunner and the
-/// worker child process. Full execution wiring arrives in Task 6.
+/// worker child process.
 /// </summary>
 public sealed record WorkerRequest(string Operation, string? Payload);
+
+/// <summary>
+/// Typed payload for the "execute" operation.
+/// All identity fields are required; the parent validates them before spawning the worker.
+/// </summary>
+public sealed record ExecuteRequest(
+    string ManifestHash,
+    string CaseId,
+    string FixturePath,
+    string SourceSha256,
+    string Fork,
+    bool   JournalEnabled = false);
 
 public sealed record WorkerResponse(
     bool Success,
