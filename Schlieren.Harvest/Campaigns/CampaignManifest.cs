@@ -68,8 +68,13 @@ public sealed record CampaignManifest(
     /// <paramref name="createdUtc"/> is supplied by the caller (injected from a
     /// TimeProvider) — never read from the wall clock here.
     ///
-    /// <paramref name="eelsIdentity"/> and <paramref name="fixtureRootSha256"/>
-    /// may be null during testing but must be set for Campaign 1 certification.
+    /// <paramref name="eelsIdentity"/> is required for Campaign 1 certification and must
+    /// be provided whenever a real EELS oracle run is performed. Pass null only in unit
+    /// tests that do not run the oracle. A manifest frozen without EELS identity will be
+    /// rejected by the certification gate.
+    ///
+    /// <paramref name="allowNullIdentity"/> must be explicitly set to true in tests that
+    /// intentionally freeze without oracle identity. This makes the omission visible.
     /// </summary>
     public static CampaignManifest Freeze(
         IReadOnlyList<FixtureCaseMetadata> cases,
@@ -77,8 +82,14 @@ public sealed record CampaignManifest(
         DateTime createdUtc,
         string campaignVersion = "1",
         EelsIdentity? eelsIdentity = null,
-        string? fixtureRootSha256 = null)
+        string? fixtureRootSha256 = null,
+        bool allowNullIdentity = false)
     {
+        if (eelsIdentity is null && !allowNullIdentity)
+            throw new InvalidOperationException(
+                "EelsIdentity is required to freeze a Campaign 1 manifest. " +
+                "If this is a test-only manifest that intentionally omits the oracle identity, " +
+                "pass allowNullIdentity: true explicitly.");
         var manifestCases = cases.Select(c => new ManifestCase(
             CaseId:       c.CaseId,
             RelativePath: c.RelativePath,

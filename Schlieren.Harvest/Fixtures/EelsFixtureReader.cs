@@ -173,6 +173,13 @@ public static class EelsFixtureReader
                 $"Fork {admittedFork} variant[0] receipt has no cumulativeGasUsed field");
         }
 
+        // Note: MissingLogsAuthority is NOT checked from fixture data because log entries
+        // are not included in fixture post-state (only a logs hash is). The independent log
+        // authority comes from running the EELS executable (EelsProcessOracle). A fixture
+        // without log data is admitted; the comparator will leave log deltas empty if EELS
+        // does not produce log output. MissingLogsAuthority would be emitted by the oracle
+        // runner if EELS fails to produce log output for a required-log case.
+
         // Duplicate check
         if (!seenCaseIds.Add(caseId))
             return Reject(caseId, relPath, sha256, AdmissionReasonCode.DuplicateCaseId, "Duplicate caseId");

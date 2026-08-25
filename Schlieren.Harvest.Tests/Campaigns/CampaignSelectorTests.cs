@@ -111,8 +111,8 @@ public class CampaignSelectorTests
         Assert.True(result.IsSuccess);
 
         var fixedTime = new DateTime(2026, 8, 24, 12, 0, 0, DateTimeKind.Utc);
-        var m1 = CampaignManifest.Freeze(result.Cases!, "campaign-001", fixedTime);
-        var m2 = CampaignManifest.Freeze(result.Cases!, "campaign-001", fixedTime);
+        var m1 = CampaignManifest.Freeze(result.Cases!, "campaign-001", fixedTime, allowNullIdentity: true);
+        var m2 = CampaignManifest.Freeze(result.Cases!, "campaign-001", fixedTime, allowNullIdentity: true);
 
         Assert.Equal(m1.ManifestHash, m2.ManifestHash);
     }
@@ -126,8 +126,8 @@ public class CampaignSelectorTests
         Assert.True(result.IsSuccess);
 
         var fixedTime = new DateTime(2026, 8, 24, 12, 0, 0, DateTimeKind.Utc);
-        var m1 = CampaignManifest.Freeze(result.Cases!, "campaign-A", fixedTime);
-        var m2 = CampaignManifest.Freeze(result.Cases!, "campaign-B", fixedTime);
+        var m1 = CampaignManifest.Freeze(result.Cases!, "campaign-A", fixedTime, allowNullIdentity: true);
+        var m2 = CampaignManifest.Freeze(result.Cases!, "campaign-B", fixedTime, allowNullIdentity: true);
 
         Assert.NotEqual(m1.ManifestHash, m2.ManifestHash);
     }
@@ -141,7 +141,7 @@ public class CampaignSelectorTests
         Assert.True(result.IsSuccess);
 
         var pinned = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var m      = CampaignManifest.Freeze(result.Cases!, "campaign-001", pinned);
+        var m      = CampaignManifest.Freeze(result.Cases!, "campaign-001", pinned, allowNullIdentity: true);
 
         Assert.Equal(pinned, m.CreatedUtc);
     }
@@ -157,7 +157,7 @@ public class CampaignSelectorTests
         Assert.True(result.IsSuccess);
 
         var m = CampaignManifest.Freeze(result.Cases!, "campaign-001",
-            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), allowNullIdentity: true);
 
         Assert.NotEmpty(m.ManifestHash);
         Assert.NotEmpty(m.CampaignId);
@@ -188,7 +188,7 @@ public class CampaignSelectorTests
         if (!result.IsSuccess) return; // not enough admitted cases — skip gracefully
 
         var m = CampaignManifest.Freeze(result.Cases!, "campaign-001",
-            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), allowNullIdentity: true);
 
         Assert.Equal(
             result.Cases!.Select(c => c.CaseId).ToList(),
@@ -206,7 +206,7 @@ public class CampaignSelectorTests
         Assert.True(result.IsSuccess);
 
         var m = CampaignManifest.Freeze(result.Cases!, "campaign-001",
-            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), allowNullIdentity: true);
 
         Assert.Matches("^[0-9a-f]{64}$", m.ManifestHash);
     }
