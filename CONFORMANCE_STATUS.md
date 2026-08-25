@@ -1,62 +1,56 @@
 # Schlieren Conformance Status
 
-## Current State: Campaign 1 Frozen (Corrected)
+## Current State: Pre-Task 13 (Audit Remediation Complete)
 
 **Date:** 2026-08-25
-**Commit:** c0744d1 + amendment (EELS identity fix)
-**Apparatus Gate:** PASSED (6/6 calibration probes correct)
+**HEAD:** 2abebdc
+**All 9 audit findings resolved.** Ready for manifest re-freeze and baseline inspection.
+
+### Audit Remediation Summary (post-3b181c3)
+
+| Finding | Status | Commit |
+|---|---|---|
+| 1. Subprocess execution (no in-process bypass) | ✅ Fixed | 547a93c |
+| 2. Suite gate parses JSON, checks certificationEligibility | ✅ Fixed | 547a93c |
+| 3. Manifest hash from file, not run record (non-tautological) | ✅ Fixed | 547a93c |
+| 4. Calibration read + regression check (real inputs) | ✅ Fixed | 547a93c |
+| 5. CaseId selection (not first entry) | ✅ Fixed | 3547371 |
+| 6. Fixture root SHA-256 + EELS commit populated | ✅ Fixed | 2abebdc |
+| 7. Secret scan gate passes | ✅ Fixed | 547a93c |
+| 8. Repair lifecycle (fingerprint key match, proper close) | ✅ Fixed | 547a93c |
+| 9. Ledger case-count validation (manifest vs actual) | ✅ Fixed | 3547371 |
 
 ### Calibration Record
 
-| Probe | Expected | Actual | Result |
-|---|---|---|---|
-| ExactMatch | Pass | Pass | ✓ |
-| GasMismatch | Divergence | Divergence | ✓ |
-| StatusMismatch | Divergence | Divergence | ✓ |
-| StorageMismatch | Divergence | Divergence | ✓ |
-| MalformedFixture | FixtureInvalid | FixtureInvalid | ✓ |
-| KilledWorker | Aborted | Aborted | ✓ |
+Calibration ID: `cal-20260825174020` — All 6 probes classified correctly.
 
-Calibration ID: `cal-20260825174020`
+### Suite Gate
 
-### Suite Gate (Three Consecutive Runs)
+Suite gate at `harvest/ledger/suite-gate-fd19735.json`:
+- `certificationEligibility: false` (1 flaky test in run 3)
+- This will correctly BLOCK certification via the new gate logic
 
-| Project | Run 1 | Run 2 | Run 3 | Stable |
-|---|---|---|---|---|
-| Schlieren.Harvest.Tests | 176P/0F/0S | 176P/0F/0S | 176P/0F/0S | ✓ |
-| Schlieren.Tests | 694P/6F/5S | 694P/6F/5S | 694P/6F/5S | ✓ |
+### Existing Manifests (Historical — Not Certifiable)
 
-**Known pre-existing failures (6):** These are environmental, not Harvest apparatus defects:
-- 2× AllOpcodesOsakaTest (blockchain_test fixtures not installed — only state_tests present)
-- 3× UI conformance loader tests (fixture loader path dependencies)
-- 1× Reset results test (UI state dependency)
+| Hash | Issue |
+|---|---|
+| `c9b9e058...` | `allowNullIdentity: true`, no EELS identity |
+| `a045393d...` | Has EELS SHA+version but null commit and null fixtureRootSha256 |
 
-These do NOT satisfy a clean suite gate for certification. Task 13 certification will record these as an unmet gate unless resolved.
+### Next Steps
 
-### Campaign 1: storage-lifecycle-v1
-
-- **Fixture corpus:** EELS tests@v20.0.1 (8,172 files, 54,587 admitted cases)
-- **Selection policy:** storage-lifecycle greedy set-cover (25 dimensions)
-- **Cases selected:** 50
-- **Manifest hash:** `a045393de4906bcbe2eca805a8d0b7b0d8a44761af6dc2839179422c6bb7437d`
-- **EELS identity (pinned):**
-  - Executable SHA-256: `c2a25c7f60a104f0cc024748256526a6fe511193bf320c98834dba55ad58bb10`
-  - Reported version: `2.19.0`
-  - Specs commit: `5b2b22c75f69bda02615204396b70a91e00529e0`
-
-### Historical (superseded) manifest
-
-The manifest `c9b9e05827c5baa28ece31d9c36698add019ae181b4eed6e46b39e2edcc7ff46` was frozen without EELS identity (`allowNullIdentity: true`). It is retained as historical evidence but is **not certifiable**. The corrected manifest above is the Campaign 1 certification target.
-
-### Next Step
-
-Task 13: Execute the frozen manifest against Schlieren's canonical EVM, compare outputs against fixture post-state oracle, cluster divergences, and attempt certification.
+1. Re-freeze Campaign 1 with full identity (EELS commit + fixture root SHA-256)
+2. Execute frozen manifest via `campaign run` (subprocess worker)
+3. Record honest results — divergences, passes, apparatus failures
+4. Attempt certification (expected: refusal due to suite gate + likely divergences)
 
 ### Environment
 
 - OS: Windows 10
 - Runtime: .NET 8.0.6
-- Schlieren commit: c0744d1 (+ Task 12 amendment)
-- Fixture root: `C:\Projects\Schlieren\fixtures\fixtures\state_tests`
-- EELS fixtures release: tests@v20.0.1
-- EELS executable: `C:\projects\eels-venv\Scripts\ethereum-spec-evm.exe` (v2.19.0)
+- EELS: ethereum-spec-evm 2.19.0 (commit 5b2b22c75f69bda02615204396b70a91e00529e0)
+- EELS executable SHA-256: c2a25c7f60a104f0cc024748256526a6fe511193bf320c98834dba55ad58bb10
+- Fixture root: `C:\Projects\Schlieren\fixtures\fixtures\state_tests` (tests@v20.0.1)
+- Harvest tests: 178 pass / 0 fail
+- CLI tests: 17 pass / 0 fail
+- Secret scan: 0 findings
