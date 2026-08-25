@@ -92,13 +92,15 @@ public sealed class RepairOrderService
     ///   - Required fields are missing.
     ///   - The reinspection run does not exist.
     ///   - The order is not in Open status.
+    ///   - The reinspection run's manifest hash differs from the source run's.
+    ///   - familyEliminated is claimed but the family still appears in the reinspection run.
     /// </summary>
-    public RepairOrder Close(
+    public async Task<RepairOrder> CloseAsync(
         RepairOrder order,
         string commitSha,
         string permanentTestReference,
         string reinspectionRunId,
-        bool familyEliminated)
+        CancellationToken ct = default)
     {
         if (order is null) throw new ArgumentNullException(nameof(order));
         if (order.Status != RepairOrderStatus.Open)
@@ -114,13 +116,35 @@ public sealed class RepairOrderService
             throw new InvalidOperationException(
                 $"Cannot close repair: reinspection run '{reinspectionRunId}' is not finalized.");
 
+        // Verify identical manifest hash between source run and reinspection run
+        var sourceEnvelope = await _ledger.ReadRunAsync(order.RunId, ct);
+        var reinspEnvelope = await _ledger.ReadRunAsync(reinspectionRunId, ct);
+
+        if (!string.Equals(sourceEnvelope.Payload.ManifestHash,
+                           reinspEnvelope.Payload.ManifestHash,
+                           StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Cannot close repair: source run manifest hash '{sourceEnvelope.Payload.ManifestHash}' " +
+                $"differs from reinspection run manifest hash '{reinspEnvelope.Payload.ManifestHash}'. " +
+                "Repairs require identical-manifest reinspection.");
+
+        // Determine actual family elimination from the reinspection run's outcomes
+        var reinspOutcomes = reinspEnvelope.Payload.Outcomes;
+        var familyStillPresent = reinspOutcomes
+            .Where(o => o.Status == CaseStatus.Divergence && o.Deltas.Count > 0)
+            .Any(o => order.AffectedCaseIds.Contains(o.CaseId));
+
+        var familyEliminated = !familyStillPresent;
+
         return order with
         {
             Status                 = familyEliminated ? RepairOrderStatus.Closed : RepairOrderStatus.NotFixed,
             RepairCommitSha        = commitSha,
             PermanentTestReference = permanentTestReference,
             ReinspectionRunId      = reinspectionRunId,
-            Disposition            = familyEliminated ? "Family eliminated" : "Family persists after repair",
+            Disposition            = familyEliminated
+                ? "Family eliminated — no affected cases diverge in reinspection"
+                : "Family persists — affected cases still diverge in reinspection",
             ClosedUtc              = DateTime.UtcNow
         };
     }

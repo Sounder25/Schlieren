@@ -72,6 +72,48 @@ try
                 goto WriteAndExit;
             }
 
+            // Validate SourceSha256 matches the actual fixture file
+            if (!string.IsNullOrEmpty(execReq.SourceSha256))
+            {
+                using var sha = System.Security.Cryptography.SHA256.Create();
+                using var stream = File.OpenRead(execReq.FixturePath);
+                var actualHash = Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
+                if (!string.Equals(actualHash, execReq.SourceSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    response = WorkerResponse.ProtocolError(
+                        $"SourceSha256 mismatch: expected {execReq.SourceSha256}, got {actualHash} for {execReq.FixturePath}");
+                    goto WriteAndExit;
+                }
+            }
+
+            // Validate CaseId exists in the fixture file
+            try
+            {
+                var fixtureText = File.ReadAllText(execReq.FixturePath);
+                using var doc = JsonDocument.Parse(fixtureText);
+                var found = false;
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (string.Equals(prop.Name, execReq.CaseId, StringComparison.Ordinal))
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    response = WorkerResponse.ProtocolError(
+                        $"CaseId '{execReq.CaseId}' not found in fixture file {execReq.FixturePath}");
+                    goto WriteAndExit;
+                }
+            }
+            catch (JsonException ex)
+            {
+                response = WorkerResponse.ProtocolError(
+                    $"Fixture file is not valid JSON: {ex.Message}");
+                goto WriteAndExit;
+            }
+
             // Execute the case via the canonical Schlieren path
             try
             {

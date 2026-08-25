@@ -71,6 +71,7 @@ public sealed class CertificationService
     public CertificationResult Certify(
         RunRecord run,
         string runContentHash,
+        string expectedManifestHash,
         bool calibrationPassed,
         bool suiteGatePassed,
         bool repositoryClean,
@@ -83,6 +84,10 @@ public sealed class CertificationService
         if (!calibrationPassed)
             refusals.Add(new(CertificationRefusalReason.CalibrationNotPassed,
                 "Calibration suite did not pass all 6 signals."));
+
+        if (!string.Equals(run.ManifestHash, expectedManifestHash, StringComparison.OrdinalIgnoreCase))
+            refusals.Add(new(CertificationRefusalReason.ManifestHashMismatch,
+                $"Run manifest hash '{run.ManifestHash}' does not match expected '{expectedManifestHash}'."));
 
         if (run.Summary.Total != expectedCaseCount)
             refusals.Add(new(CertificationRefusalReason.IncompleteCaseCount,

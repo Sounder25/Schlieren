@@ -42,7 +42,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "hash123",
+        var result = svc.Certify(run, "hash123", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -60,7 +60,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: false, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -75,7 +75,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(passCount: 45, eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -90,7 +90,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(passCount: 48, divCount: 2, eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -105,7 +105,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: true, hasRegressions: false);
 
@@ -120,7 +120,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: false, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -135,7 +135,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: false,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -150,7 +150,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: null);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -165,7 +165,7 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "",
+        var result = svc.Certify(run, "", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
 
@@ -180,11 +180,26 @@ public class CertificationServiceTests
     {
         var svc    = new CertificationService();
         var run    = MakeRun(eels: ValidEels);
-        var result = svc.Certify(run, "hash",
+        var result = svc.Certify(run, "hash", "manifest-hash",
             calibrationPassed: true, suiteGatePassed: true,
             repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: true);
 
         Assert.False(result.Certified);
         Assert.Contains(result.Refusals, r => r.Reason == CertificationRefusalReason.DownstreamRegression);
+    }
+
+    // ── Test 11: Manifest hash mismatch ───────────────────────────────────
+
+    [Fact]
+    public void Certify_ManifestHashMismatch_Refuses()
+    {
+        var svc    = new CertificationService();
+        var run    = MakeRun(eels: ValidEels);
+        var result = svc.Certify(run, "hash", "WRONG-MANIFEST-HASH",
+            calibrationPassed: true, suiteGatePassed: true,
+            repositoryClean: true, hasOpenRepairOrders: false, hasRegressions: false);
+
+        Assert.False(result.Certified);
+        Assert.Contains(result.Refusals, r => r.Reason == CertificationRefusalReason.ManifestHashMismatch);
     }
 }

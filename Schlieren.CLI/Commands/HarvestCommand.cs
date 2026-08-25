@@ -109,9 +109,33 @@ public static class HarvestCommand
 
         cmd.SetHandler((fixtures, eels, eelsVersion) =>
         {
-            Console.WriteLine($"[harvest catalog] fixtures={fixtures} eels={eels} version={eelsVersion}");
-            Console.WriteLine("Catalog: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                var catalog = new Schlieren.Harvest.Fixtures.FixtureCatalog(fixtures);
+                var allFiles = Directory.GetFiles(fixtures, "*.json", SearchOption.AllDirectories);
+                Console.WriteLine($"Scanning {allFiles.Length} fixture files...");
+                var admitted = catalog.Admit(allFiles);
+                var admittedCount = admitted.Count(m => m.Admission == Schlieren.Harvest.Fixtures.AdmissionReasonCode.Admitted);
+                var rejected = admitted.Count - admittedCount;
+                Console.WriteLine($"Total entries: {admitted.Count}");
+                Console.WriteLine($"Admitted: {admittedCount}");
+                Console.WriteLine($"Rejected: {rejected}");
+
+                // Show rejection breakdown
+                var reasons = admitted
+                    .Where(m => m.Admission != Schlieren.Harvest.Fixtures.AdmissionReasonCode.Admitted)
+                    .GroupBy(m => m.Admission)
+                    .OrderByDescending(g => g.Count());
+                foreach (var g in reasons)
+                    Console.WriteLine($"  {g.Key}: {g.Count()}");
+
+                Environment.ExitCode = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Catalog error: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
         }, fixturesOpt, eelsOpt, eelsVersionOpt);
 
         return cmd;
@@ -221,11 +245,91 @@ public static class HarvestCommand
             manifestArg, ledgerOpt, timeoutOpt
         };
 
-        cmd.SetHandler((manifest, ledger, timeout) =>
+        cmd.SetHandler(async (manifest, ledger, timeout) =>
         {
-            Console.WriteLine($"[harvest campaign run] manifest={manifest} ledger={ledger} timeout={timeout}s");
-            Console.WriteLine("Campaign run: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                // Load manifest
+                if (!File.Exists(manifest))
+                {
+                    Console.Error.WriteLine($"Manifest not found: {manifest}");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+
+                var manifestJson = await File.ReadAllTextAsync(manifest);
+                var campaignManifest = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
+                    Schlieren.Harvest.Campaigns.CampaignManifest>(manifestJson);
+                if (campaignManifest is null)
+                {
+                    Console.Error.WriteLine("Failed to deserialize manifest.");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+
+                // Determine catalog root from manifest path
+                // manifest is at: ledger/campaigns/{id}/{hash}/manifest.json
+                // catalog root is EELS_FIXTURES_ROOT
+                var fixturesRoot = Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT") ?? "";
+                if (string.IsNullOrEmpty(fixturesRoot) || !Directory.Exists(fixturesRoot))
+                {
+                    Console.Error.WriteLine("EELS_FIXTURES_ROOT environment variable not set or directory missing.");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+
+                Console.WriteLine($"Campaign: {campaignManifest.CampaignId} ({campaignManifest.Cases.Count} cases)");
+                Console.WriteLine($"Manifest hash: {campaignManifest.ManifestHash}");
+                Console.WriteLine($"Fixture root: {fixturesRoot}");
+                Console.WriteLine($"Timeout per case: {timeout}s");
+                Console.WriteLine();
+
+                var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
+                var worker     = new Schlieren.Harvest.Campaigns.DirectCaseWorker(timeout);
+                var runner     = new Schlieren.Harvest.Campaigns.CampaignRunner(worker, fileLedger);
+
+                var env = new Schlieren.Harvest.Domain.EnvironmentIdentity(
+                    System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                    System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+                    System.Net.Dns.GetHostName(),
+                    Environment.ProcessorCount);
+
+                var tool = new Schlieren.Harvest.Domain.ToolIdentity(
+                    "schlieren", "1.0.0",
+                    "8a83b70", // current commit
+                    null);
+
+                var runId = await runner.RunAsync(
+                    campaignManifest, fixturesRoot,
+                    Schlieren.Harvest.Domain.RunKind.Inspection,
+                    env, tool,
+                    campaignManifest.EelsIdentity);
+
+                var envelope = await fileLedger.ReadRunAsync(runId);
+                var record = envelope.Payload;
+
+                Console.WriteLine($"Run ID: {runId}");
+                Console.WriteLine($"State: {record.State}");
+                Console.WriteLine($"Pass: {record.Summary.PassCount}");
+                Console.WriteLine($"Divergence: {record.Summary.DivergenceCount}");
+                Console.WriteLine($"FixtureInvalid: {record.Summary.FixtureInvalidCount}");
+                Console.WriteLine($"HarnessError: {record.Summary.HarnessErrorCount}");
+                Console.WriteLine($"Aborted: {record.Summary.AbortedCount}");
+                Console.WriteLine($"Quarantined: {record.Summary.QuarantinedCount}");
+                Console.WriteLine($"Total: {record.Summary.Total}");
+
+                if (record.State == Schlieren.Harvest.Domain.RunState.Completed)
+                    Environment.ExitCode = 0;
+                else if (record.Summary.DivergenceCount > 0)
+                    Environment.ExitCode = 4;
+                else
+                    Environment.ExitCode = 3;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Campaign run error: {ex.Message}");
+                Environment.ExitCode = 3;
+            }
         }, manifestArg, ledgerOpt, timeoutOpt);
 
         return cmd;
@@ -245,11 +349,40 @@ public static class HarvestCommand
             beforeArg, afterArg, ledgerOpt
         };
 
-        cmd.SetHandler((before, after, ledger) =>
+        cmd.SetHandler(async (before, after, ledger) =>
         {
-            Console.WriteLine($"[harvest compare] before={before} after={after} ledger={ledger}");
-            Console.WriteLine("Compare: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                var fileLedger    = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
+                var beforeEnvelope = await fileLedger.ReadRunAsync(before);
+                var afterEnvelope  = await fileLedger.ReadRunAsync(after);
+
+                var result = Schlieren.Harvest.Comparison.RunComparator.Compare(beforeEnvelope, afterEnvelope);
+
+                Console.WriteLine($"Comparison: {result.BeforeRunId} → {result.AfterRunId}");
+                Console.WriteLine($"Manifest: {result.ManifestHash}");
+                Console.WriteLine($"Duration: {result.BeforeDuration:hh\\:mm\\:ss} → {result.AfterDuration:hh\\:mm\\:ss}");
+                Console.WriteLine($"Family changes: {result.FamilyChanges.Count}");
+                foreach (var fc in result.FamilyChanges)
+                    Console.WriteLine($"  {fc.FamilyKey}: {fc.Change} ({fc.BeforeCount}→{fc.AfterCount})");
+                Console.WriteLine($"Regressions: {result.Regressions.Count}");
+                foreach (var r in result.Regressions)
+                    Console.WriteLine($"  {r.CaseId}: {r.BeforeStatus}→{r.AfterStatus}");
+
+                // Persist comparison record
+                var compJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(result);
+                var compPath = Schlieren.Harvest.Ledger.LedgerPaths.ComparisonPath(ledger, before, after);
+                Directory.CreateDirectory(Path.GetDirectoryName(compPath)!);
+                await File.WriteAllTextAsync(compPath, compJson);
+                Console.WriteLine($"Artifact: {compPath}");
+
+                Environment.ExitCode = result.Regressions.Count > 0 ? 4 : 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Compare error: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
         }, beforeArg, afterArg, ledgerOpt);
 
         return cmd;
@@ -278,11 +411,40 @@ public static class HarvestCommand
             familyArg, runOpt, ledgerOpt
         };
 
-        cmd.SetHandler((family, run, ledger) =>
+        cmd.SetHandler(async (family, run, ledger) =>
         {
-            Console.WriteLine($"[harvest repair open] family={family} run={run} ledger={ledger}");
-            Console.WriteLine("Repair open: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
+                var svc = new Schlieren.Harvest.Repairs.RepairOrderService(fileLedger);
+
+                // Read run to get affected case IDs for this family
+                var envelope = await fileLedger.ReadRunAsync(run);
+                var affectedCases = envelope.Payload.Outcomes
+                    .Where(o => o.Status == Schlieren.Harvest.Domain.CaseStatus.Divergence)
+                    .Select(o => o.CaseId)
+                    .ToList();
+
+                var order = svc.Open(run, family, family, affectedCases);
+
+                // Persist repair order
+                var repairJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(order);
+                var repairPath = Schlieren.Harvest.Ledger.LedgerPaths.RepairPath(ledger, order.RepairOrderId);
+                Directory.CreateDirectory(Path.GetDirectoryName(repairPath)!);
+                await File.WriteAllTextAsync(repairPath, repairJson);
+
+                Console.WriteLine($"Repair order opened: {order.RepairOrderId}");
+                Console.WriteLine($"  Family: {family}");
+                Console.WriteLine($"  Run: {run}");
+                Console.WriteLine($"  Affected cases: {affectedCases.Count}");
+                Console.WriteLine($"  Artifact: {repairPath}");
+                Environment.ExitCode = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Repair open error: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
         }, familyArg, runOpt, ledgerOpt);
 
         return cmd;
@@ -305,11 +467,49 @@ public static class HarvestCommand
             repairArg, commitOpt, runOpt, testOpt, ledgerOpt
         };
 
-        cmd.SetHandler((repair, commit, run, test, ledger) =>
+        cmd.SetHandler(async (repair, commit, run, test, ledger) =>
         {
-            Console.WriteLine($"[harvest repair close] repair={repair} commit={commit} run={run} test={test}");
-            Console.WriteLine("Repair close: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                // Load the existing repair order from disk
+                var repairPath = Schlieren.Harvest.Ledger.LedgerPaths.RepairPath(ledger, repair);
+                if (!File.Exists(repairPath))
+                {
+                    Console.Error.WriteLine($"Repair order not found: {repairPath}");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+                var orderJson = await File.ReadAllTextAsync(repairPath);
+                var order = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
+                    Schlieren.Harvest.Repairs.RepairOrder>(orderJson);
+                if (order is null)
+                {
+                    Console.Error.WriteLine("Failed to deserialize repair order.");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+
+                var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
+                var svc = new Schlieren.Harvest.Repairs.RepairOrderService(fileLedger);
+                var closed = await svc.CloseAsync(order, commit, test, run);
+
+                // Persist the closed revision alongside the original
+                var closedPath = repairPath.Replace(".json", $"-closed.json");
+                var closedJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(closed);
+                await File.WriteAllTextAsync(closedPath, closedJson);
+
+                Console.WriteLine($"Repair {repair}: {closed.Status}");
+                Console.WriteLine($"  Disposition: {closed.Disposition}");
+                Console.WriteLine($"  Commit: {closed.RepairCommitSha}");
+                Console.WriteLine($"  Reinspection: {closed.ReinspectionRunId}");
+                Console.WriteLine($"  Artifact: {closedPath}");
+                Environment.ExitCode = closed.Status == Schlieren.Harvest.Repairs.RepairOrderStatus.Closed ? 0 : 4;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Repair close error: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
         }, repairArg, commitOpt, runOpt, testOpt, ledgerOpt);
 
         return cmd;
@@ -330,11 +530,86 @@ public static class HarvestCommand
             runArg, ledgerOpt, suiteGateOpt
         };
 
-        cmd.SetHandler((runId, ledger, suiteGate) =>
+        cmd.SetHandler(async (runId, ledger, suiteGate) =>
         {
-            Console.WriteLine($"[harvest certify] run={runId} ledger={ledger} suite-gate={suiteGate}");
-            Console.WriteLine("Certify: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
+                var envelope   = await fileLedger.ReadRunAsync(runId);
+                var run        = envelope.Payload;
+
+                // Check suite gate file exists
+                var suiteGatePassed = File.Exists(suiteGate);
+                if (!suiteGatePassed)
+                    Console.Error.WriteLine($"Suite gate record not found: {suiteGate}");
+
+                // Check calibration exists
+                var calDir = Path.Combine(ledger, "calibrations");
+                var calibrationPassed = Directory.Exists(calDir) &&
+                    Directory.GetFiles(calDir, "*.json").Length > 0;
+
+                // Check repository cleanliness
+                bool repoClean;
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo("git", "status --porcelain")
+                    { RedirectStandardOutput = true, UseShellExecute = false };
+                    using var proc = System.Diagnostics.Process.Start(psi)!;
+                    var output = await proc.StandardOutput.ReadToEndAsync();
+                    await proc.WaitForExitAsync();
+                    repoClean = string.IsNullOrWhiteSpace(output);
+                }
+                catch { repoClean = false; }
+
+                // Check for open repair orders
+                var repairsDir = Path.Combine(ledger, "repairs");
+                var hasOpenRepairs = false;
+                if (Directory.Exists(repairsDir))
+                {
+                    foreach (var f in Directory.GetFiles(repairsDir, "*.json"))
+                    {
+                        if (f.Contains("-closed")) continue;
+                        var json = await File.ReadAllTextAsync(f);
+                        if (json.Contains("\"open\"", StringComparison.OrdinalIgnoreCase))
+                        { hasOpenRepairs = true; break; }
+                    }
+                }
+
+                var svc = new Schlieren.Harvest.Certification.CertificationService();
+                var result = svc.Certify(
+                    run, envelope.ContentHash, run.ManifestHash,
+                    calibrationPassed, suiteGatePassed, repoClean,
+                    hasOpenRepairs, hasRegressions: false);
+
+                if (result.Certified)
+                {
+                    Console.WriteLine($"✅ CERTIFIED: {result.Certificate!.CertificateId}");
+                    Console.WriteLine($"  Run: {result.Certificate.RunId}");
+                    Console.WriteLine($"  Manifest: {result.Certificate.ManifestHash}");
+                    Console.WriteLine($"  Schlieren commit: {result.Certificate.SchlierenCommit}");
+                    Console.WriteLine($"  EELS: {result.Certificate.EelsVersion} ({result.Certificate.EelsExecutableSha256[..12]}...)");
+
+                    // Persist certificate
+                    var certJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(result.Certificate);
+                    var certPath = Schlieren.Harvest.Ledger.LedgerPaths.CertificatePath(ledger, result.Certificate.CertificateId);
+                    Directory.CreateDirectory(Path.GetDirectoryName(certPath)!);
+                    await File.WriteAllTextAsync(certPath, certJson);
+                    Console.WriteLine($"  Artifact: {certPath}");
+                    Environment.ExitCode = 0;
+                }
+                else
+                {
+                    Console.WriteLine($"❌ CERTIFICATION REFUSED ({result.Refusals.Count} gate(s) failed):");
+                    foreach (var r in result.Refusals)
+                        Console.WriteLine($"  • {r.Reason}: {r.Detail}");
+                    Environment.ExitCode = 5;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Certify error: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
         }, runArg, ledgerOpt, suiteGateOpt);
 
         return cmd;
