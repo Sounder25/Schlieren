@@ -43,6 +43,9 @@ $credMatches = & git grep -n -P "(?:N8nApiKey|McpToken|BearerToken|ApiSecret|Aut
 foreach ($match in $credMatches) {
     $parts = $match -split ":", 3
     if ($parts.Count -ge 3) {
+        # Apply the same self-match and historical-evidence exclusions as the JWT scan.
+        if ($parts[0] -like "*verify_no_tracked_secrets*") { continue }
+        if ($parts[0] -like "*docs/harvest/baselines/*") { continue }
         $context = $parts[2].Trim()
         # Extract value after = "
         if ($context -match '=\s*"(.{4})') {
