@@ -58,3 +58,6 @@ tools/*.txt
 
 # Local isolated development worktrees
 .worktrees/
+
+# Harvest ledger staging (transient write-ahead state)
+harvest/ledger/staging/
