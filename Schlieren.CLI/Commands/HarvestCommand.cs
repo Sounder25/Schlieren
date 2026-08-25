@@ -285,7 +285,18 @@ public static class HarvestCommand
                 Console.WriteLine();
 
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
-                var worker     = new Schlieren.Harvest.Campaigns.DirectCaseWorker(timeout);
+
+                // Locate worker executable
+                var workerExe = FindWorkerExecutable();
+                if (workerExe is null)
+                {
+                    Console.Error.WriteLine("Schlieren.Harvest.Worker executable not found. Build the worker project first.");
+                    Environment.ExitCode = 3;
+                    return;
+                }
+                Console.WriteLine($"Worker: {workerExe}");
+
+                var worker     = new Schlieren.Harvest.Campaigns.SubprocessCaseWorker(workerExe, timeout);
                 var runner     = new Schlieren.Harvest.Campaigns.CampaignRunner(worker, fileLedger);
 
                 var env = new Schlieren.Harvest.Domain.EnvironmentIdentity(
@@ -296,7 +307,7 @@ public static class HarvestCommand
 
                 var tool = new Schlieren.Harvest.Domain.ToolIdentity(
                     "schlieren", "1.0.0",
-                    "8a83b70", // current commit
+                    GetGitCommitShort(), // dynamic, not hardcoded
                     null);
 
                 var runId = await runner.RunAsync(
@@ -418,12 +429,20 @@ public static class HarvestCommand
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
                 var svc = new Schlieren.Harvest.Repairs.RepairOrderService(fileLedger);
 
-                // Read run to get affected case IDs for this family
+                // Read run and filter cases by actual fingerprint key match
                 var envelope = await fileLedger.ReadRunAsync(run);
                 var affectedCases = envelope.Payload.Outcomes
-                    .Where(o => o.Status == Schlieren.Harvest.Domain.CaseStatus.Divergence)
+                    .Where(o => o.Status == Schlieren.Harvest.Domain.CaseStatus.Divergence && o.Deltas.Count > 0)
+                    .Where(o => Schlieren.Harvest.Clustering.FailureFingerprint.FromDeltas("Unknown", o.Deltas).Key == family)
                     .Select(o => o.CaseId)
                     .ToList();
+
+                if (affectedCases.Count == 0)
+                {
+                    Console.Error.WriteLine($"No divergences match family key '{family}' in run '{run}'.");
+                    Environment.ExitCode = 2;
+                    return;
+                }
 
                 var order = svc.Open(run, family, family, affectedCases);
 
@@ -493,16 +512,16 @@ public static class HarvestCommand
                 var svc = new Schlieren.Harvest.Repairs.RepairOrderService(fileLedger);
                 var closed = await svc.CloseAsync(order, commit, test, run);
 
-                // Persist the closed revision alongside the original
-                var closedPath = repairPath.Replace(".json", $"-closed.json");
+                // Persist the closed state — overwrite the original so certification
+                // scan finds the closed status, not the stale open file
                 var closedJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(closed);
-                await File.WriteAllTextAsync(closedPath, closedJson);
+                await File.WriteAllTextAsync(repairPath, closedJson);
 
                 Console.WriteLine($"Repair {repair}: {closed.Status}");
                 Console.WriteLine($"  Disposition: {closed.Disposition}");
                 Console.WriteLine($"  Commit: {closed.RepairCommitSha}");
                 Console.WriteLine($"  Reinspection: {closed.ReinspectionRunId}");
-                Console.WriteLine($"  Artifact: {closedPath}");
+                Console.WriteLine($"  Artifact: {repairPath}");
                 Environment.ExitCode = closed.Status == Schlieren.Harvest.Repairs.RepairOrderStatus.Closed ? 0 : 4;
             }
             catch (Exception ex)
@@ -538,15 +557,88 @@ public static class HarvestCommand
                 var envelope   = await fileLedger.ReadRunAsync(runId);
                 var run        = envelope.Payload;
 
-                // Check suite gate file exists
-                var suiteGatePassed = File.Exists(suiteGate);
+                // Check suite gate — must parse and verify certificationEligibility
+                bool suiteGatePassed = false;
+                if (File.Exists(suiteGate))
+                {
+                    try
+                    {
+                        var gateJson = await File.ReadAllTextAsync(suiteGate);
+                        using var gateDoc = System.Text.Json.JsonDocument.Parse(gateJson);
+                        if (gateDoc.RootElement.TryGetProperty("certificationEligibility", out var eligProp))
+                            suiteGatePassed = eligProp.GetBoolean();
+                    }
+                    catch { /* parse failure = gate not passed */ }
+                }
                 if (!suiteGatePassed)
-                    Console.Error.WriteLine($"Suite gate record not found: {suiteGate}");
+                    Console.Error.WriteLine($"Suite gate not satisfied (file: {suiteGate})");
 
-                // Check calibration exists
+                // Check calibration — read the record and verify ApparatusGatePassed
                 var calDir = Path.Combine(ledger, "calibrations");
-                var calibrationPassed = Directory.Exists(calDir) &&
-                    Directory.GetFiles(calDir, "*.json").Length > 0;
+                bool calibrationPassed = false;
+                if (Directory.Exists(calDir))
+                {
+                    var calFiles = Directory.GetFiles(calDir, "*.json")
+                        .OrderByDescending(f => f).ToArray();
+                    if (calFiles.Length > 0)
+                    {
+                        try
+                        {
+                            var calJson = await File.ReadAllTextAsync(calFiles[0]);
+                            var calEnvelope = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
+                                Schlieren.Harvest.Domain.ContentEnvelope<Schlieren.Harvest.Calibration.CalibrationRecord>>(calJson);
+                            calibrationPassed = calEnvelope?.Payload.ApparatusGatePassed == true;
+                        }
+                        catch { /* parse failure = not passed */ }
+                    }
+                }
+
+                // Manifest hash — read from the canonical manifest file, not from the run record
+                string expectedManifestHash = "";
+                var manifestDir = Path.Combine(ledger, "campaigns");
+                if (Directory.Exists(manifestDir))
+                {
+                    // Find manifest for this campaign
+                    var campaignDir = Directory.GetDirectories(manifestDir)
+                        .FirstOrDefault(d => Path.GetFileName(d) == run.CampaignId);
+                    if (campaignDir is not null)
+                    {
+                        var hashDirs = Directory.GetDirectories(campaignDir);
+                        if (hashDirs.Length > 0)
+                        {
+                            // Use the most recent manifest hash directory
+                            var manifestFile = Path.Combine(hashDirs[^1], "manifest.json");
+                            if (File.Exists(manifestFile))
+                            {
+                                var mJson = await File.ReadAllTextAsync(manifestFile);
+                                var mObj = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
+                                    Schlieren.Harvest.Campaigns.CampaignManifest>(mJson);
+                                expectedManifestHash = mObj?.ManifestHash ?? "";
+                            }
+                        }
+                    }
+                }
+
+                // Check for regressions — compare against previous run if one exists
+                bool hasRegressions = false;
+                var listResult = await fileLedger.ListRunsAsync();
+                var previousRuns = listResult.Entries
+                    .Where(e => e.RunId != runId && e.CampaignId == run.CampaignId)
+                    .OrderByDescending(e => e.CompletedUtc)
+                    .ToList();
+                if (previousRuns.Count > 0)
+                {
+                    try
+                    {
+                        var prevEnvelope = await fileLedger.ReadRunAsync(previousRuns[0].RunId);
+                        if (string.Equals(prevEnvelope.Payload.ManifestHash, run.ManifestHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var comparison = Schlieren.Harvest.Comparison.RunComparator.Compare(prevEnvelope, envelope);
+                            hasRegressions = comparison.Regressions.Count > 0;
+                        }
+                    }
+                    catch { /* no previous comparable run */ }
+                }
 
                 // Check repository cleanliness
                 bool repoClean;
@@ -568,18 +660,19 @@ public static class HarvestCommand
                 {
                     foreach (var f in Directory.GetFiles(repairsDir, "*.json"))
                     {
-                        if (f.Contains("-closed")) continue;
                         var json = await File.ReadAllTextAsync(f);
-                        if (json.Contains("\"open\"", StringComparison.OrdinalIgnoreCase))
+                        var repairOrder = Schlieren.Harvest.Serialization.HarvestJson.Deserialize<
+                            Schlieren.Harvest.Repairs.RepairOrder>(json);
+                        if (repairOrder?.Status == Schlieren.Harvest.Repairs.RepairOrderStatus.Open)
                         { hasOpenRepairs = true; break; }
                     }
                 }
 
                 var svc = new Schlieren.Harvest.Certification.CertificationService();
                 var result = svc.Certify(
-                    run, envelope.ContentHash, run.ManifestHash,
+                    run, envelope.ContentHash, expectedManifestHash,
                     calibrationPassed, suiteGatePassed, repoClean,
-                    hasOpenRepairs, hasRegressions: false);
+                    hasOpenRepairs, hasRegressions);
 
                 if (result.Certified)
                 {
@@ -613,5 +706,46 @@ public static class HarvestCommand
         }, runArg, ledgerOpt, suiteGateOpt);
 
         return cmd;
+    }
+
+    // ── Shared helpers ────────────────────────────────────────────────────
+
+    private static string? FindWorkerExecutable()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "Schlieren.Harvest.Worker.exe"),
+            Path.Combine(baseDir, "Schlieren.Harvest.Worker"),
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..",
+                "Schlieren.Harvest.Worker", "bin", "Debug", "net8.0", "Schlieren.Harvest.Worker.exe")),
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..",
+                "Schlieren.Harvest.Worker", "bin", "Release", "net8.0", "Schlieren.Harvest.Worker.exe")),
+            // Also check from project root
+            Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(),
+                "Schlieren.Harvest.Worker", "bin", "Debug", "net8.0", "Schlieren.Harvest.Worker.exe")),
+            Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(),
+                "Schlieren.Harvest.Worker", "bin", "Release", "net8.0", "Schlieren.Harvest.Worker.exe")),
+        };
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string? GetGitCommitShort()
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("git", "rev-parse --short HEAD")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc is null) return null;
+            var output = proc.StandardOutput.ReadToEnd().Trim();
+            proc.WaitForExit(5000);
+            return string.IsNullOrEmpty(output) ? null : output;
+        }
+        catch { return null; }
     }
 }

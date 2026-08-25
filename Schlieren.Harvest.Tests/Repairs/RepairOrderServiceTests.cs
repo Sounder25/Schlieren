@@ -113,7 +113,7 @@ public class RepairOrderServiceTests : IDisposable
         await SeedRun("run-reinsp2", "hash-abc", new[] { MakeDiv("case-a") });
 
         var svc   = new RepairOrderService(_ledger);
-        var order = svc.Open("run-src2", "fam-001", "key", new[] { "case-a" });
+        var order = svc.Open("run-src2", "fam-001", "Unknown/Gas/GasUsed", new[] { "case-a" });
 
         var closed = await svc.CloseAsync(order, "abc123", "Test.Name", "run-reinsp2");
 

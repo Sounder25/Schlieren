@@ -129,10 +129,11 @@ public sealed class RepairOrderService
                 "Repairs require identical-manifest reinspection.");
 
         // Determine actual family elimination from the reinspection run's outcomes
+        // A family is eliminated when NO reinspection divergence has the same fingerprint key
         var reinspOutcomes = reinspEnvelope.Payload.Outcomes;
         var familyStillPresent = reinspOutcomes
             .Where(o => o.Status == CaseStatus.Divergence && o.Deltas.Count > 0)
-            .Any(o => order.AffectedCaseIds.Contains(o.CaseId));
+            .Any(o => Clustering.FailureFingerprint.FromDeltas("Unknown", o.Deltas).Key == order.FamilyKey);
 
         var familyEliminated = !familyStillPresent;
 

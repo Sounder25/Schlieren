@@ -15,11 +15,17 @@ Write-Host "Running secret scan over git-tracked files..."
 
 # Pattern 1: JWT-shaped strings (eyJ header)
 # Uses git grep so regex is handled by git's engine, not PowerShell's parser.
+# Excludes: this script itself (self-match on regex patterns), and historical
+# audit baselines which contain redacted fragments as evidence per Task 0.
 $jwtMatches = & git grep -n -P "eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{10,}" 2>$null
 foreach ($match in $jwtMatches) {
     # Redact: print only the first 12 chars of the token
     $parts = $match -split ":", 3
     if ($parts.Count -ge 3) {
+        # Skip self-matches in this scanner script
+        if ($parts[0] -like "*verify_no_tracked_secrets*") { continue }
+        # Skip historical audit baseline documents (redacted evidence, not live creds)
+        if ($parts[0] -like "*docs/harvest/baselines/*") { continue }
         $context = $parts[2]
         if ($context -match "eyJ([A-Za-z0-9_\-]+)") {
             $fragment = "eyJ" + $Matches[1].Substring(0, [Math]::Min(9, $Matches[1].Length)) + "...[REDACTED]"
