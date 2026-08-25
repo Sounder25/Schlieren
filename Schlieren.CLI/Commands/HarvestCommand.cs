@@ -194,21 +194,60 @@ public static class HarvestCommand
                     return;
                 }
 
-                // 3. Freeze manifest with real EELS identity
                 // Compute EELS executable SHA-256
                 string eelsSha256;
                 using (var sha = System.Security.Cryptography.SHA256.Create())
                 using (var stream = File.OpenRead(eels))
                     eelsSha256 = Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
 
+                // Get EELS commit from the specs repo if available
+                string? eelsCommit = null;
+                var specsRoot = Environment.GetEnvironmentVariable("EELS_SPECS_ROOT");
+                if (!string.IsNullOrEmpty(specsRoot) && Directory.Exists(specsRoot))
+                {
+                    try
+                    {
+                        var psi = new System.Diagnostics.ProcessStartInfo("git", "rev-parse HEAD")
+                        { RedirectStandardOutput = true, UseShellExecute = false, WorkingDirectory = specsRoot };
+                        using var proc = System.Diagnostics.Process.Start(psi);
+                        if (proc is not null)
+                        {
+                            eelsCommit = proc.StandardOutput.ReadToEnd().Trim();
+                            proc.WaitForExit(5000);
+                            if (string.IsNullOrEmpty(eelsCommit)) eelsCommit = null;
+                        }
+                    }
+                    catch { /* not fatal */ }
+                }
+
                 var eelsIdentity = new Schlieren.Harvest.Campaigns.EelsIdentity(
                     ExecutableSha256: eelsSha256,
                     ReportedVersion:  eelsVersion,
-                    CommitSha:        null); // populated if user supplies --eels-commit
+                    CommitSha:        eelsCommit);
+
+                // Compute fixture root SHA-256 (hash of sorted admitted file paths + their hashes)
+                Console.WriteLine("Computing fixture root identity...");
+                string fixtureRootSha256;
+                using (var rootHasher = System.Security.Cryptography.SHA256.Create())
+                {
+                    var admittedFiles = admitted
+                        .Where(m => m.Admission == Schlieren.Harvest.Fixtures.AdmissionReasonCode.Admitted)
+                        .Select(m => m.SourceSha256 + ":" + m.RelativePath)
+                        .OrderBy(s => s, StringComparer.Ordinal);
+                    foreach (var entry in admittedFiles)
+                    {
+                        var entryBytes = System.Text.Encoding.UTF8.GetBytes(entry + "\n");
+                        rootHasher.TransformBlock(entryBytes, 0, entryBytes.Length, null, 0);
+                    }
+                    rootHasher.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    fixtureRootSha256 = Convert.ToHexString(rootHasher.Hash!).ToLowerInvariant();
+                }
+                Console.WriteLine($"Fixture root SHA-256: {fixtureRootSha256[..16]}...");
 
                 var manifest = Schlieren.Harvest.Campaigns.CampaignManifest.Freeze(
                     result.Cases!, $"{family}-v1", DateTime.UtcNow,
-                    eelsIdentity: eelsIdentity);
+                    eelsIdentity: eelsIdentity,
+                    fixtureRootSha256: fixtureRootSha256);
 
                 // 4. Persist to ledger
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
