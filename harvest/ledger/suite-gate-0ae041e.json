@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1",
+  "createdUtc": "2026-08-25T22:39:40.0056056Z",
+  "schlierenCommit": "0ae041e",
+  "configuration": "Release",
+  "fixtureRoot": "C:\\Projects\\Schlieren\\fixtures\\fixtures\\state_tests",
+  "runs": [
+    {
+      "runNumber": 1,
+      "harvestTests": { "passed": 188, "failed": 0, "skipped": 0, "total": 188 },
+      "mainTests": { "passed": 701, "failed": 0, "skipped": 5, "total": 706 },
+      "harvestTrxSha256": "3c101cdb5c2893dc40c8309782b77992cd78babd5241a26aac1dfd75667fd652",
+      "mainTrxSha256": "888c96281876a6721d40eaa846054eec5231a11ed9e8301411c8184163cb7fa3"
+    },
+    {
+      "runNumber": 2,
+      "harvestTests": { "passed": 188, "failed": 0, "skipped": 0, "total": 188 },
+      "mainTests": { "passed": 701, "failed": 0, "skipped": 5, "total": 706 },
+      "harvestTrxSha256": "0f26e006eb356805cf2f78cccde6aaa4ace92bb5e22eb26beb3ad46de330a541",
+      "mainTrxSha256": "ec5d6f79dda0006128da89df3092fdeeeb0913b0e6265a2ac8466a6e86a2c780"
+    },
+    {
+      "runNumber": 3,
+      "harvestTests": { "passed": 188, "failed": 0, "skipped": 0, "total": 188 },
+      "mainTests": { "passed": 701, "failed": 0, "skipped": 5, "total": 706 },
+      "harvestTrxSha256": "5961ca56c4e1cf147f7964729453fd4df8e492bfd7a44de003ad8b896c590644",
+      "mainTrxSha256": "6c0181e8324fce1064a9737fd6fface87cb517cef66b3e66f8c1cd2beb0bcda7"
+    }
+  ],
+  "skippedTests": 5,
+  "gateStatus": "PASS - three consecutive clean, identical full-suite outcomes",
+  "certificationEligibility": true
+}
