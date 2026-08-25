@@ -9,6 +9,10 @@ namespace Schlieren.Core.Execution.Causal;
 ///   - Schlieren.Tests/Campaigns/Synthetic/SyntheticDifferentialRunner.cs → FailureClusterer
 ///   - Schlieren.Tests/Campaigns/PathologicalExecution/PathologicalDifferentialRunner.cs → PathologicalClusterer
 ///   - Schlieren.EELS.Tests/Conformance/EelsTaxonomyAnalyzer.cs → inline bucketing
+///
+/// Task 8: extracted ClusterByKey&lt;T&gt; as a shared typed primitive so the Harvest
+/// layer can cluster FieldDelta-based failures without string parsing or duplicating
+/// the grouping logic.
 /// </summary>
 public static class FailureClusteringService
 {
@@ -82,17 +86,17 @@ public static class FailureClusteringService
 
                 return new FailureCluster
                 {
-                    FamilyId = $"{root.Phase.ToLabel()} / {root.RuleId} ({g.Count()} cases)",
+                    FamilyId    = $"{root.Phase.ToLabel()} / {root.RuleId} ({g.Count()} cases)",
                     Fingerprint = first.Report.Fingerprint,
-                    RuleId = root.RuleId,
-                    Phase = root.Phase,
-                    Grade = root.Grade,
-                    Count = g.Count(),
-                    GasDelta = gasDelta,
-                    Forks = forks,
-                    CaseIds = caseIds,
-                    Title = root.Title,
-                    LikelyFix = root.LikelyFix,
+                    RuleId      = root.RuleId,
+                    Phase       = root.Phase,
+                    Grade       = root.Grade,
+                    Count       = g.Count(),
+                    GasDelta    = gasDelta,
+                    Forks       = forks,
+                    CaseIds     = caseIds,
+                    Title       = root.Title,
+                    LikelyFix   = root.LikelyFix,
                     CodeBoundary = root.CodeBoundary
                 };
             })
@@ -117,6 +121,24 @@ public static class FailureClusteringService
 
         return Cluster(analyzed);
     }
+
+    /// <summary>
+    /// Generic typed primitive: group entries by a stable string key, ordered by
+    /// count descending then key ascending. Used by Harvest's FailureFamilyClusterer
+    /// so the grouping logic is shared and clustering is never done on rendered strings.
+    ///
+    /// The key extractor must produce the same string for logically identical geometry
+    /// regardless of input ordering. Callers must not include human-readable summaries,
+    /// test names, or source paths in the key.
+    /// </summary>
+    public static IReadOnlyList<(string Key, int Count, IReadOnlyList<T> Members)>
+        ClusterByKey<T>(IEnumerable<T> entries, Func<T, string> keySelector)
+        => entries
+            .GroupBy(keySelector, StringComparer.Ordinal)
+            .Select(g => (Key: g.Key, Count: g.Count(), Members: (IReadOnlyList<T>)g.ToList()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Key, StringComparer.Ordinal)
+            .ToList();
 
     /// <summary>
     /// Render a cluster summary as human-readable text.
