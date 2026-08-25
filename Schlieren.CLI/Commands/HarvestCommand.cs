@@ -170,9 +170,21 @@ public static class HarvestCommand
                     return;
                 }
 
-                // 3. Freeze manifest
+                // 3. Freeze manifest with real EELS identity
+                // Compute EELS executable SHA-256
+                string eelsSha256;
+                using (var sha = System.Security.Cryptography.SHA256.Create())
+                using (var stream = File.OpenRead(eels))
+                    eelsSha256 = Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
+
+                var eelsIdentity = new Schlieren.Harvest.Campaigns.EelsIdentity(
+                    ExecutableSha256: eelsSha256,
+                    ReportedVersion:  eelsVersion,
+                    CommitSha:        null); // populated if user supplies --eels-commit
+
                 var manifest = Schlieren.Harvest.Campaigns.CampaignManifest.Freeze(
-                    result.Cases!, $"{family}-v1", DateTime.UtcNow, allowNullIdentity: true);
+                    result.Cases!, $"{family}-v1", DateTime.UtcNow,
+                    eelsIdentity: eelsIdentity);
 
                 // 4. Persist to ledger
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
