@@ -10,6 +10,7 @@ namespace Schlieren.UI;
 public partial class App : Application
 {
     private WorkbenchViewModel? _workbench;
+    private HarvestViewModel?   _harvest;
 
     public override void Initialize()
     {
@@ -23,20 +24,32 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             System.IO.File.AppendAllText(
-                @"C:\projects\Schlieren\crash.log",
+                @"crash.log",
                 $"[{DateTime.Now}] {e.ExceptionObject}\n\n");
         };
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // ── Composition root ──────────────────────────────────────────────
+            // Load HarvestServiceOptions from the four named environment keys.
+            // No credential or corpus path has a compiled default.
+            var harvestOptions = HarvestServiceOptions.FromEnvironment(
+                key => Environment.GetEnvironmentVariable(key));
+
+            var harvestService = new HarvestService(harvestOptions);
+
             _workbench = new WorkbenchViewModel();
-            var window = new MainWindow(_workbench);
+            _harvest   = new HarvestViewModel(harvestService, harvestOptions);
+
+            var window = new MainWindow(_workbench, _harvest);
             desktop.MainWindow = window;
 
             desktop.Exit += (_, _) =>
             {
                 _workbench?.Dispose();
                 _workbench = null;
+                _harvest?.Dispose();
+                _harvest = null;
             };
         }
 

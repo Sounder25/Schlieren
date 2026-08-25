@@ -57,11 +57,15 @@ public partial class MainWindow : Window
 
     private HarvestViewModel? _harvestVm;
 
-    public MainWindow(WorkbenchViewModel viewModel) : this()
+    /// <summary>
+    /// Primary constructor. MainWindow receives the HarvestViewModel explicitly from
+    /// the composition root; it does not construct HarvestViewModel internally.
+    /// </summary>
+    public MainWindow(WorkbenchViewModel viewModel, HarvestViewModel harvestViewModel) : this()
     {
         DataContext = viewModel;
 
-        _harvestVm = new HarvestViewModel();
+        _harvestVm = harvestViewModel;
         _harvestVm.LoadFixtureRequested += OnHarvestLoadFixture;
 
         // Wire DataContext after window is fully loaded

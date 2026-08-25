@@ -1,7 +1,8 @@
 # Schlieren EELS Conformance Status
 
-**Last Updated:** 2026-08-15
-**Commit:** `d77dfe2` (tag: `schlieren-eels-100`)
+**Last Updated:** 2026-08-24
+**Commit:** `d77dfe2` (tag: `schlieren-eels-100`) — EELS conformance baseline
+**Phase 0 credential repair:** Task 3 (`security: externalize harvest credentials`) — see `docs/security/JOURNAL_SECURITY_EVIDENCE.md`
 **Fixture Source:** `ethereum/execution-specs` — `tests@v20.0.1` (Jul 2, 2026)
 
 ---

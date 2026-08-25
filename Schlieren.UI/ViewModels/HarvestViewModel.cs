@@ -7,8 +7,20 @@ namespace Schlieren.UI.ViewModels;
 
 public sealed partial class HarvestViewModel : ObservableObject, IDisposable
 {
-    private readonly HarvestService _svc = new();
+    private readonly HarvestService _svc;
+    private readonly HarvestServiceOptions _options;
     private CancellationTokenSource _cts = new();
+
+    /// <summary>
+    /// Explicit constructor. Both dependencies are supplied by the composition root
+    /// (App.OnFrameworkInitializationCompleted). HarvestViewModel must not construct
+    /// HarvestService internally.
+    /// </summary>
+    public HarvestViewModel(HarvestService service, HarvestServiceOptions options)
+    {
+        _svc     = service;
+        _options = options;
+    }
 
     // ─── Pipeline state ────────────────────────────────────────────────────
 
@@ -155,7 +167,7 @@ public sealed partial class HarvestViewModel : ObservableObject, IDisposable
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName               = "python",
-                    Arguments              = @"C:\projects\Schlieren\tools\harvester.py --blocks 25",
+                    Arguments              = @"tools\harvester.py --blocks 25",
                     RedirectStandardOutput = true,
                     RedirectStandardError  = true,
                     UseShellExecute        = false,
@@ -214,11 +226,17 @@ public sealed partial class HarvestViewModel : ObservableObject, IDisposable
         _allEntries.Remove(entry);
         if (SelectedEntry == entry) SelectedEntry = null;
 
+        if (string.IsNullOrEmpty(_options.CorpusDirectory))
+        {
+            ApplyFilter();
+            return;
+        }
+
         // Persist deletion back to harvest_index.json
+        var corpusDir = _options.CorpusDirectory;
         _ = Task.Run(async () =>
         {
-            var indexFile = System.IO.Path.Combine(
-                @"C:\projects\Schlieren\muscle\corpus", "harvest_index.json");
+            var indexFile = System.IO.Path.Combine(corpusDir, "harvest_index.json");
             if (!System.IO.File.Exists(indexFile)) return;
             try
             {
@@ -267,6 +285,12 @@ public sealed partial class HarvestViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (string.IsNullOrEmpty(_options.CorpusDirectory))
+        {
+            StatusMessage = "Harvest corpus is not configured";
+            return;
+        }
+
         // DISCOVERED entry — fetch bytecode from RPC and build a minimal fixture
         StatusMessage = $"Fetching bytecode for {entry.ShortHash}…";
         try
@@ -279,7 +303,7 @@ public sealed partial class HarvestViewModel : ObservableObject, IDisposable
             }
 
             // Write to a temp fixture file then load
-            var dir      = Path.Combine(@"C:\projects\Schlieren\muscle\corpus", "fixtures");
+            var dir      = Path.Combine(_options.CorpusDirectory, "fixtures");
             Directory.CreateDirectory(dir);
             var safeName = entry.TxHash.Replace("0x", "")[..16];
             var path     = Path.Combine(dir, $"{safeName}.json");
@@ -356,8 +380,13 @@ public sealed partial class HarvestViewModel : ObservableObject, IDisposable
         SelectedEntry = null;
         VisibleEntries.Clear();
 
-        var indexFile = System.IO.Path.Combine(
-            @"C:\projects\Schlieren\muscle\corpus", "harvest_index.json");
+        if (string.IsNullOrEmpty(_options.CorpusDirectory))
+        {
+            StatusMessage = "Harvest corpus is not configured";
+            return;
+        }
+
+        var indexFile = System.IO.Path.Combine(_options.CorpusDirectory, "harvest_index.json");
         var empty = $"{{\"scannedAt\":\"{DateTime.UtcNow:O}\",\"totalScored\":0,\"candidates\":[]}}";
         try { await System.IO.File.WriteAllTextAsync(indexFile, empty); } catch { }
 

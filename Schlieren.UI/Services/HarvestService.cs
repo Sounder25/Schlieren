@@ -8,25 +8,34 @@ namespace Schlieren.UI.Services;
 
 /// <summary>
 /// Talks to n8n via the public REST API (X-N8N-API-KEY).
-/// Base: http://localhost:5678/api/v1
+/// Base: configured via SCHLIEREN_N8N_BASE_URL (default http://localhost:5678)
+///
+/// Credentials are supplied exclusively through HarvestServiceOptions loaded
+/// from environment variables at the application composition root. No credential
+/// or corpus path has a compiled default.
 /// </summary>
 public sealed class HarvestService : IDisposable
 {
-    private const string N8nBase   = "http://localhost:5678";
-    private const string N8nApiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjNDc0ODZhOS1iZDNiLTQ2N2UtOTI3NC1jODczODI5ZGFjOTEiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiNTBmNzE4YTAtNjhjMy00Y2I0LWI3NTMtMzQyYjgxZDlhOTliIiwiaWF0IjoxNzg3MTIyNzcwLCJleHAiOjE3ODk3MDc2MDB9.TFFmx9336vQR2LE9diMHMC_4RQlEPPravpTx0UsIdzw";
-    private const string McpToken  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjNDc0ODZhOS1iZDNiLTQ2N2UtOTI3NC1jODczODI5ZGFjOTEiLCJpc3MiOiJuOG4iLCJhdWQiOiJtY3Atc2VydmVyLWFwaSIsImp0aSI6IjllYzM0MjZlLWFmMDYtNGQ4OC1iNjhjLTRmNmZiOTUwZjA1NyIsImlhdCI6MTc4NzExNjM1MX0.isubWPXKR2uuB0xrba4S76SKG6RRHsm0Sz4a5xbzMFE";
-
     public const string WfAId = "A1b2c3d4E5f6G7h8";
     public const string WfBId = "B1c2d3e4F5g6H7i8";
 
-    private const string CorpusDir = @"C:\projects\Schlieren\muscle\corpus";
-
+    private readonly HarvestServiceOptions _options;
     private readonly HttpClient _http;
 
-    public HarvestService()
+    /// <summary>
+    /// Primary constructor. Accepts an optional <paramref name="handler"/> so
+    /// tests can observe request headers without live network access.
+    /// </summary>
+    public HarvestService(HarvestServiceOptions options, HttpMessageHandler? handler = null)
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        _http.DefaultRequestHeaders.Add("X-N8N-API-KEY", N8nApiKey);
+        _options = options;
+        _http = handler is not null
+            ? new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) }
+            : new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+
+        // Send the API key on every request when configured; omit the header entirely when absent.
+        if (!string.IsNullOrEmpty(options.N8nApiKey))
+            _http.DefaultRequestHeaders.Add("X-N8N-API-KEY", options.N8nApiKey);
     }
 
     // ─── Pipeline status ──────────────────────────────────────────────────
@@ -35,7 +44,8 @@ public sealed class HarvestService : IDisposable
     {
         try
         {
-            var list = await _http.GetFromJsonAsync<N8nWorkflowList>($"{N8nBase}/api/v1/workflows");
+            var list = await _http.GetFromJsonAsync<N8nWorkflowList>(
+                $"{_options.N8nBaseUri}api/v1/workflows");
             if (list?.Data is null) return (false, false);
 
             bool a = false, b = false;
@@ -51,8 +61,16 @@ public sealed class HarvestService : IDisposable
 
     // ─── Execute workflow via MCP ─────────────────────────────────────────
 
+    /// <summary>
+    /// Executes a workflow via MCP. When <c>McpToken</c> is absent, returns an
+    /// explicit disabled result without making any network call, per the Task 3
+    /// contract: absent token → no bearer header, explicit disabled result.
+    /// </summary>
     public async Task<(bool ok, string? executionId)> ExecuteWorkflowAsync(string workflowId)
     {
+        if (string.IsNullOrEmpty(_options.McpToken))
+            return (false, null);
+
         try
         {
             var payload = new
@@ -68,8 +86,8 @@ public sealed class HarvestService : IDisposable
             };
 
             var body = System.Text.Json.JsonSerializer.Serialize(payload);
-            var req  = new HttpRequestMessage(HttpMethod.Post, $"{N8nBase}/mcp-server/http");
-            req.Headers.Add("Authorization", $"Bearer {McpToken}");
+            var req  = new HttpRequestMessage(HttpMethod.Post, $"{_options.N8nBaseUri}mcp-server/http");
+            req.Headers.Add("Authorization", $"Bearer {_options.McpToken}");
             req.Headers.Add("Accept", "application/json, text/event-stream");
             req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
@@ -107,7 +125,7 @@ public sealed class HarvestService : IDisposable
         try
         {
             var list = await _http.GetFromJsonAsync<N8nExecutionList>(
-                $"{N8nBase}/api/v1/executions?workflowId={workflowId}&limit=1");
+                $"{_options.N8nBaseUri}api/v1/executions?workflowId={workflowId}&limit=1");
 
             var exec = list?.Data?.FirstOrDefault();
             if (exec is null) return "never";
@@ -127,12 +145,20 @@ public sealed class HarvestService : IDisposable
 
     // ─── Corpus reader ────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Reads the harvest corpus. When <c>CorpusDirectory</c> is absent (not
+    /// configured), returns an empty list with no file I/O, per the Task 3
+    /// contract: absent corpus path → no fallback read/write.
+    /// </summary>
     public async Task<List<HarvestEntry>> ReadCorpusAsync(int maxEntries = 500)
     {
         var entries = new List<HarvestEntry>();
 
+        if (string.IsNullOrEmpty(_options.CorpusDirectory))
+            return entries;
+
         // Primary: read harvest_index.json written by harvester.py
-        var indexFile = Path.Combine(CorpusDir, "harvest_index.json");
+        var indexFile = Path.Combine(_options.CorpusDirectory, "harvest_index.json");
         if (File.Exists(indexFile))
         {
             try
@@ -181,9 +207,9 @@ public sealed class HarvestService : IDisposable
         }
 
         // Fallback: scan corpus directory for individual fixture files
-        if (!Directory.Exists(CorpusDir)) return entries;
+        if (!Directory.Exists(_options.CorpusDirectory)) return entries;
 
-        var files = Directory.GetFiles(CorpusDir, "*.json", SearchOption.TopDirectoryOnly)
+        var files = Directory.GetFiles(_options.CorpusDirectory, "*.json", SearchOption.TopDirectoryOnly)
                              .Where(f => !f.EndsWith("_state.json") && !f.EndsWith("harvest_index.json"))
                              .OrderByDescending(File.GetLastWriteTimeUtc)
                              .Take(maxEntries);
