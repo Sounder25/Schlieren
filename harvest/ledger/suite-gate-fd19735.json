@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1",
+  "createdUtc": "2026-08-25T18:15:00Z",
+  "schlierenCommit": "fd19735",
+  "configuration": "Release",
+  "runs": [
+    {
+      "runNumber": 1,
+      "harvestTests": { "passed": 178, "failed": 0, "skipped": 0, "total": 178 },
+      "mainTests": { "passed": 694, "failed": 6, "skipped": 5, "total": 705 }
+    },
+    {
+      "runNumber": 2,
+      "harvestTests": { "passed": 178, "failed": 0, "skipped": 0, "total": 178 },
+      "mainTests": { "passed": 694, "failed": 6, "skipped": 5, "total": 705 }
+    },
+    {
+      "runNumber": 3,
+      "harvestTests": { "passed": 178, "failed": 0, "skipped": 0, "total": 178 },
+      "mainTests": { "passed": 693, "failed": 7, "skipped": 5, "total": 705 },
+      "note": "One additional transient failure in run 3 (flaky test, not reproducible in subsequent runs)"
+    }
+  ],
+  "stableFailures": [
+    "Schlieren.Tests.Campaigns.AllOpcodesOsakaTest.R7_EEST_AllOpcodes_Osaka(blockchain_test)",
+    "Schlieren.Tests.Campaigns.AllOpcodesOsakaTest.R7_EEST_AllOpcodes_Osaka(blockchain_test_engine)",
+    "Fixture loader reports file progress while parsing",
+    "Conformance run reports a loading update before the first case result",
+    "ExcludeFolder drops ported_static fixtures from the load",
+    "Reset results clears scores and failures but keeps fork"
+  ],
+  "stableFailureReason": "Pre-existing environmental dependencies: blockchain_test fixtures not installed (only state_tests present), UI conformance loader path dependencies",
+  "gateStatus": "PARTIAL — Harvest tests stable (178/178 × 3), main tests have 6 stable env-dependent failures + 1 transient flake in run 3",
+  "certificationEligibility": false,
+  "certificationBlocker": "Suite gate requires identical outcomes across all 3 runs; run 3 had 7 failures vs 6 in runs 1-2 due to a timing-sensitive flaky test"
+}
