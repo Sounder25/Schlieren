@@ -1,0 +1,7 @@
+// Minimal sample fixtures for FixtureCatalogTests
+// These are data-only JSON documents — they do not need to represent valid
+// Ethereum execution. They only need to satisfy the admission predicates
+// under test (present/absent fields, path containment, fork values, etc.).
+
+// This file is a placeholder — actual .json samples live in Samples/*.json
+// and are referenced by file path in the test class below.

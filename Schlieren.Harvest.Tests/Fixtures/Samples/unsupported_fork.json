@@ -1,0 +1,13 @@
+{
+  "tests/sample/unsupported_fork": {
+    "_info": { "fixture-format": "state_test" },
+    "env": { "currentNumber": "0x1" },
+    "pre": { "0xaaaa": { "balance": "0x0", "nonce": "0x0", "code": "0x", "storage": {} } },
+    "transaction": { "sender": "0xaaaa" },
+    "post": {
+      "FutureFork99": [
+        { "indexes": { "data": 0, "gas": 0, "value": 0 }, "state": {} }
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "tests/sample/missing_pre": {
+    "_info": { "fixture-format": "state_test" },
+    "env": { "currentNumber": "0x1" },
+    "transaction": { "sender": "0xaaaa" },
+    "post": {
+      "Berlin": [
+        { "indexes": { "data": 0, "gas": 0, "value": 0 }, "state": {} }
+      ]
+    }
+  }
+}
