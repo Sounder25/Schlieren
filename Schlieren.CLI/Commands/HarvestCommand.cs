@@ -335,7 +335,23 @@ public static class HarvestCommand
                 }
                 Console.WriteLine($"Worker: {workerExe}");
 
-                var worker     = new Schlieren.Harvest.Campaigns.SubprocessCaseWorker(workerExe, timeout);
+                // Create EELS oracle from environment
+                var eelsExePath = "C:/projects/eels-venv/Scripts/ethereum-spec-evm.exe";
+                if (!File.Exists(eelsExePath))
+                {
+                    Console.Error.WriteLine($"EELS oracle executable not found at {eelsExePath}. Set EELS_EXE or install EELS.");
+                    Environment.ExitCode = 3;
+                    return;
+                }
+                var oracleOpts = new Schlieren.Harvest.Execution.EelsOracleOptions(
+                    ExecutablePath:   eelsExePath,
+                    ExpectedVersion:  "", // skip version check during run (already pinned in manifest)
+                    WorkingDirectory: fixturesRoot,
+                    Timeout:          TimeSpan.FromSeconds(timeout));
+                var oracle = new Schlieren.Harvest.Execution.EelsProcessOracle(oracleOpts);
+                Console.WriteLine($"EELS oracle: {eelsExePath}");
+
+                var worker     = new Schlieren.Harvest.Campaigns.SubprocessCaseWorker(workerExe, oracle, timeout);
                 var runner     = new Schlieren.Harvest.Campaigns.CampaignRunner(worker, fileLedger);
 
                 var env = new Schlieren.Harvest.Domain.EnvironmentIdentity(
