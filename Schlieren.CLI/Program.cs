@@ -30,6 +30,7 @@ class Program
         root.AddCommand(BuildRunCommand());
         root.AddCommand(BuildTestCommand());
         root.AddCommand(BuildTraceCommand());
+        root.AddCommand(HarvestCommand.Build());
 
         // Default: no subcommand → show help
         root.SetHandler(() =>
@@ -43,6 +44,7 @@ class Program
             Console.WriteLine("  run       Run a .csx script against the node");
             Console.WriteLine("  test      Run *.test.csx test files");
             Console.WriteLine("  trace     Gas causality tree for a transaction");
+            Console.WriteLine("  harvest   Harvest certification pipeline");
             Console.WriteLine();
             Console.WriteLine("Run 'schlieren <command> --help' for details.");
         });
