@@ -48,11 +48,44 @@ public static class HarvestCommand
             ledgerOpt, eelsOpt, eelsVersionOpt
         };
 
-        cmd.SetHandler((ledger, eels, eelsVersion) =>
+        cmd.SetHandler(async (ledger, eels, eelsVersion) =>
         {
-            Console.WriteLine($"[harvest calibrate] ledger={ledger} eels={eels} version={eelsVersion}");
-            Console.WriteLine("Calibration: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                var record = await Schlieren.Harvest.Calibration.CalibrationSuite.RunAsync();
+
+                // Persist calibration record
+                var ledgerDir = Path.Combine(ledger, "calibrations");
+                Directory.CreateDirectory(ledgerDir);
+                var calId = $"cal-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                var envelope = new Schlieren.Harvest.Domain.ContentEnvelope<Schlieren.Harvest.Calibration.CalibrationRecord>(
+                    "1", DateTime.UtcNow, "", record);
+                var hash = Schlieren.Harvest.Serialization.ContentHasher.Compute(envelope);
+                envelope = envelope with { ContentHash = hash };
+                var json = Schlieren.Harvest.Serialization.HarvestJson.Serialize(envelope);
+                var path = Path.Combine(ledgerDir, $"{calId}.json");
+                await File.WriteAllTextAsync(path, json);
+
+                Console.WriteLine($"Calibration ID: {calId}");
+                Console.WriteLine($"Apparatus gate: {(record.ApparatusGatePassed ? "PASSED" : "FAILED")}");
+                foreach (var p in record.ProbeResults)
+                    Console.WriteLine($"  {p.Kind,-20} expected={p.ExpectedStatus,-15} actual={p.ActualStatus,-15} {(p.ClassifiedCorrectly ? "✓" : "✗")}");
+                if (!record.ApparatusGatePassed)
+                {
+                    Console.Error.WriteLine($"Gate failure: {record.GateFailureReason}");
+                    Environment.ExitCode = 3;
+                }
+                else
+                {
+                    Console.WriteLine($"Artifact: {path}");
+                    Environment.ExitCode = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Calibration error: {ex.Message}");
+                Environment.ExitCode = 3;
+            }
         }, ledgerOpt, eelsOpt, eelsVersionOpt);
 
         return cmd;
@@ -114,12 +147,49 @@ public static class HarvestCommand
             familyArg, countOpt, fixturesOpt, eelsOpt, eelsVersionOpt, ledgerOpt
         };
 
-        cmd.SetHandler((family, count, fixtures, eels, eelsVersion, ledger) =>
+        cmd.SetHandler(async (family, count, fixtures, eels, eelsVersion, ledger) =>
         {
-            Console.WriteLine($"[harvest campaign create] family={family} count={count}");
-            Console.WriteLine($"  fixtures={fixtures} eels={eels} version={eelsVersion} ledger={ledger}");
-            Console.WriteLine("Campaign create: not yet wired to live execution.");
-            Environment.ExitCode = 0;
+            try
+            {
+                // 1. Catalog all fixture files from the root
+                var catalog = new Schlieren.Harvest.Fixtures.FixtureCatalog(fixtures);
+                var allFiles = Directory.GetFiles(fixtures, "*.json", SearchOption.AllDirectories);
+                Console.WriteLine($"Scanning {allFiles.Length} fixture files...");
+                var admitted = catalog.Admit(allFiles);
+                var admittedCount = admitted.Count(m => m.Admission == Schlieren.Harvest.Fixtures.AdmissionReasonCode.Admitted);
+                Console.WriteLine($"Admitted: {admittedCount}, Rejected: {admitted.Count - admittedCount}");
+
+                // 2. Select cases deterministically
+                var selector = new Schlieren.Harvest.Campaigns.CampaignSelector();
+                var result = selector.TrySelect(admitted, count);
+                if (!result.IsSuccess)
+                {
+                    Console.Error.WriteLine($"Insufficient coverage: {result.InsufficientReport!.Reason}");
+                    Console.Error.WriteLine($"  Requested: {result.InsufficientReport.RequestedCount}, Available: {result.InsufficientReport.AvailableCount}");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+
+                // 3. Freeze manifest
+                var manifest = Schlieren.Harvest.Campaigns.CampaignManifest.Freeze(
+                    result.Cases!, $"{family}-v1", DateTime.UtcNow, allowNullIdentity: true);
+
+                // 4. Persist to ledger
+                var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
+                var manifestJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(manifest);
+                await fileLedger.StoreManifestAsync($"{family}-v1", manifest.ManifestHash, manifestJson);
+
+                Console.WriteLine($"Campaign: {family}-v1");
+                Console.WriteLine($"Cases selected: {manifest.Cases.Count}");
+                Console.WriteLine($"Manifest hash: {manifest.ManifestHash}");
+                Console.WriteLine($"Stored at: {Schlieren.Harvest.Ledger.LedgerPaths.ManifestPath(ledger, $"{family}-v1", manifest.ManifestHash)}");
+                Environment.ExitCode = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Campaign create error: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
         }, familyArg, countOpt, fixturesOpt, eelsOpt, eelsVersionOpt, ledgerOpt);
 
         return cmd;
