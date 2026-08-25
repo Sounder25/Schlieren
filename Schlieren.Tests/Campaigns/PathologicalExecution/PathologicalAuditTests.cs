@@ -16,6 +16,17 @@ public sealed class PathologicalAuditTests
     public PathologicalAuditTests(ITestOutputHelper out_) => _out = out_;
 
     [Fact]
+    public async Task Generator_ConcurrentCalls_ReturnIdenticalCases()
+    {
+        var runs = await Task.WhenAll(Enumerable.Range(0, 24)
+            .Select(_ => Task.Run(() => PathologicalCaseGenerator.Generate())));
+        var expected = runs[0].Select(c => c.Fingerprint()).ToArray();
+
+        Assert.All(runs, run =>
+            Assert.Equal(expected, run.Select(c => c.Fingerprint()).ToArray()));
+    }
+
+    [Fact]
     public void Audit_GeneratorCounts_And_MaterializerSafety()
     {
         var cases = PathologicalCaseGenerator.Generate();

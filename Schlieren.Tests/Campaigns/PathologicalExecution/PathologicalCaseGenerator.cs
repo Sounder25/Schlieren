@@ -26,25 +26,29 @@ public static class PathologicalCaseGenerator
     private static int _serial = 0;
     private static readonly HashSet<string> _seen = new();
     private static readonly List<PathologicalCase> _out = new();
+    private static readonly object _sync = new();
 
     // ── Public entry point ────────────────────────────────────────────────────
 
     public static List<PathologicalCase> Generate(string fork = "Cancun")
     {
-        _serial = 0;
-        _seen.Clear();
-        _out.Clear();
+        lock (_sync)
+        {
+            _serial = 0;
+            _seen.Clear();
+            _out.Clear();
 
-        BigIntegerNarrowing(fork);
-        MemoryBoundaries(fork);
-        CopyReturndata(fork);
-        PrecompilePathological(fork);
-        ExceptionalHalts(fork);
-        CreateLifecycle(fork);
-        StackDepth(fork);
-        ArithmeticBoundaries(fork);
+            BigIntegerNarrowing(fork);
+            MemoryBoundaries(fork);
+            CopyReturndata(fork);
+            PrecompilePathological(fork);
+            ExceptionalHalts(fork);
+            CreateLifecycle(fork);
+            StackDepth(fork);
+            ArithmeticBoundaries(fork);
 
-        return _out.ToList();
+            return _out.ToList();
+        }
     }
 
     // ── Family 1: BigInteger / narrowing (offset/size on the EVM stack → int/ulong) ──
