@@ -18,6 +18,9 @@ namespace Schlieren.Harvest.Tests.Execution;
 /// </summary>
 public class SchlierenCaseExecutorTests
 {
+    private const string SenderAddress = "0x1000000000000000000000000000000000000001";
+    private const string ContractAddress = "0x2000000000000000000000000000000000000002";
+
     private static readonly string SamplesDir = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Fixtures", "Samples"));
 
@@ -92,5 +95,81 @@ public class SchlierenCaseExecutorTests
         Assert.Equal(r1.IsSuccess, r2.IsSuccess);
         Assert.Equal(r1.GasUsed,   r2.GasUsed);
         Assert.Equal(r1.ReturnData, r2.ReturnData);
+    }
+
+    [Fact]
+    public async Task Execute_Eip2930AccessList_ChargesIntrinsicCostAndWarmsStorageSlot()
+    {
+        var withoutAccessList = await ExecuteAccessListFixtureAsync(includeAccessList: false);
+        var withAccessList = await ExecuteAccessListFixtureAsync(includeAccessList: true);
+
+        Assert.True(withoutAccessList.IsSuccess);
+        Assert.True(withAccessList.IsSuccess);
+        Assert.Equal(23_103UL, withoutAccessList.GasUsed);
+        Assert.Equal(25_403UL, withAccessList.GasUsed);
+        Assert.Equal(2_300UL, withAccessList.GasUsed - withoutAccessList.GasUsed);
+    }
+
+    private static async Task<ExecutionSnapshot> ExecuteAccessListFixtureAsync(bool includeAccessList)
+    {
+        var caseId = includeAccessList ? "with-access-list" : "without-access-list";
+        var accessLists = includeAccessList
+            ? $"[[{{\"address\":\"{ContractAddress}\",\"storageKeys\":[\"0x00\"]}}]]"
+            : "[[]]";
+        var fixture = $$"""
+        {
+          "{{caseId}}": {
+            "pre": {
+              "{{SenderAddress}}": {
+                "nonce": "0x00",
+                "balance": "0x1000000",
+                "code": "0x",
+                "storage": {}
+              },
+              "{{ContractAddress}}": {
+                "nonce": "0x01",
+                "balance": "0x00",
+                "code": "0x60005400",
+                "storage": { "0x00": "0x01" }
+              }
+            },
+            "transaction": {
+              "chainId": "0x01",
+              "nonce": "0x00",
+              "gasPrice": "0x01",
+              "gasLimit": ["0x0186a0"],
+              "to": "{{ContractAddress}}",
+              "value": ["0x00"],
+              "data": ["0x"],
+              "accessLists": {{accessLists}},
+              "sender": "{{SenderAddress}}"
+            },
+            "post": {
+              "Berlin": [{
+                "indexes": { "data": 0, "gas": 0, "value": 0 },
+                "receipt": { "status": true, "cumulativeGasUsed": "0x0" },
+                "state": {}
+              }]
+            }
+          }
+        }
+        """;
+
+        var fixturePath = Path.Combine(
+            Path.GetTempPath(),
+            $"schlieren-access-list-{Guid.NewGuid():N}.json");
+        try
+        {
+            await File.WriteAllTextAsync(fixturePath, fixture);
+            return await new SchlierenCaseExecutor().ExecuteFromPathAsync(
+                fixturePath,
+                "Berlin",
+                journalEnabled: false,
+                caseId: caseId);
+        }
+        finally
+        {
+            File.Delete(fixturePath);
+        }
     }
 }

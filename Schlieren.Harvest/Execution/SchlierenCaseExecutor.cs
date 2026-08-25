@@ -195,6 +195,7 @@ public sealed class SchlierenCaseExecutor
         var data     = GetVariantBytes(txEl, "data", dataIdx);
         var gasPrice = ParseBigHex(GetStr(txEl, "gasPrice"));
         var nonce    = ParseHexUlong(GetStr(txEl, "nonce"));
+        var accessList = GetVariantAccessList(txEl, dataIdx);
 
         // Check for expected exception (invalid tx declared in fixture)
         var expectedException = variant.TryGetProperty("expectException", out var excEl) &&
@@ -223,6 +224,8 @@ public sealed class SchlierenCaseExecutor
             MaxFeePerGas  = gasPrice,
             Value         = value,
             Data          = data,
+            AccessList    = accessList,
+            TxType        = accessList.Count > 0 ? (byte)1 : (byte)0,
             Authorization = TransactionAuthorization.Impersonated,
             EnableJournal = journalEnabled,
         };
@@ -357,6 +360,52 @@ public sealed class SchlierenCaseExecutor
             v.ValueKind == JsonValueKind.Number)
             return v.GetInt64();
         return 0;
+    }
+
+    private static IReadOnlyList<AccessListEntry> GetVariantAccessList(
+        JsonElement transaction,
+        int dataIndex)
+    {
+        if (!transaction.TryGetProperty("accessLists", out var variants) ||
+            variants.ValueKind != JsonValueKind.Array)
+            return Array.Empty<AccessListEntry>();
+
+        var selected = variants.EnumerateArray().Skip(dataIndex).FirstOrDefault();
+        if (selected.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return Array.Empty<AccessListEntry>();
+        if (selected.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("transaction.accessLists variant must be an array");
+
+        var entries = new List<AccessListEntry>();
+        foreach (var entry in selected.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object ||
+                !entry.TryGetProperty("address", out var addressElement) ||
+                addressElement.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("Access-list entry is missing an address");
+
+            var storageKeys = new List<BigInteger>();
+            if (entry.TryGetProperty("storageKeys", out var keysElement))
+            {
+                if (keysElement.ValueKind != JsonValueKind.Array)
+                    throw new InvalidDataException("Access-list storageKeys must be an array");
+
+                foreach (var key in keysElement.EnumerateArray())
+                {
+                    if (key.ValueKind != JsonValueKind.String)
+                        throw new InvalidDataException("Access-list storage key must be a hex string");
+                    storageKeys.Add(ParseBigHex(key.GetString()!));
+                }
+            }
+
+            entries.Add(new AccessListEntry
+            {
+                Address = ParseAddress(addressElement.GetString()!),
+                StorageKeys = storageKeys
+            });
+        }
+
+        return entries;
     }
 
     private static ulong GetVariantUlong(JsonElement txEl, string key, int index)

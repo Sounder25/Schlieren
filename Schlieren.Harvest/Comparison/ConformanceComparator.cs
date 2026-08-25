@@ -131,7 +131,7 @@ public static class ConformanceComparator
                     ea.Nonce, aa.Nonce));
 
             // Balance
-            if (!string.Equals(ea.Balance, aa.Balance, StringComparison.OrdinalIgnoreCase))
+            if (!HexQuantityEquals(ea.Balance, aa.Balance))
                 deltas.Add(Delta(DiscrepancyLayer.Account, DiscrepancyKind.Balance,
                     ea.Balance, aa.Balance));
 
@@ -151,7 +151,7 @@ public static class ConformanceComparator
                 expVal ??= "0x0";
                 actVal ??= "0x0";
 
-                if (!string.Equals(expVal, actVal, StringComparison.OrdinalIgnoreCase))
+                if (!HexQuantityEquals(expVal, actVal))
                     deltas.Add(Delta(DiscrepancyLayer.Storage, DiscrepancyKind.StorageValue,
                         expVal, actVal));
             }
@@ -200,6 +200,36 @@ public static class ConformanceComparator
         new(CaseStatus.Quarantined, Array.Empty<FieldDelta>(), independentEvidence);
 
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    private static bool HexQuantityEquals(string expected, string actual)
+    {
+        var normalizedExpected = NormalizeHexQuantity(expected);
+        var normalizedActual = NormalizeHexQuantity(actual);
+
+        return normalizedExpected is not null && normalizedActual is not null
+            ? string.Equals(normalizedExpected, normalizedActual, StringComparison.Ordinal)
+            : string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeHexQuantity(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var digits = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? value[2..]
+            : value;
+
+        if (digits.Length == 0)
+            return "0";
+        if (digits.Any(c => !Uri.IsHexDigit(c)))
+            return null;
+
+        var significantDigits = digits.TrimStart('0');
+        return significantDigits.Length == 0
+            ? "0"
+            : significantDigits.ToLowerInvariant();
+    }
 
     private static FieldDelta Delta<TExp, TAct>(
         DiscrepancyLayer layer,

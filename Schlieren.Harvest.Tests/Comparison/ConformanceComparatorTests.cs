@@ -332,4 +332,45 @@ public class ConformanceComparatorTests
 
         Assert.Contains(result.Deltas, d => d.Kind == DiscrepancyKind.Balance);
     }
+
+    [Theory]
+    [InlineData("0x00", "0x0")]
+    [InlineData("0x0281ca", "0x281ca")]
+    [InlineData("0X000ABC", "0xabc")]
+    public void Compare_EquivalentHexQuantityBalances_DoNotProduceDelta(
+        string expectedBalance,
+        string actualBalance)
+    {
+        var expected = MakeSnapshot(postState: new List<SnapshotAccount>
+        {
+            MakeAccount(balance: expectedBalance)
+        });
+        var actual = MakeSnapshot(postState: new List<SnapshotAccount>
+        {
+            MakeAccount(balance: actualBalance)
+        });
+
+        var result = ConformanceComparator.Compare(expected, actual);
+
+        Assert.Equal(CaseStatus.Pass, result.Status);
+        Assert.DoesNotContain(result.Deltas, d => d.Kind == DiscrepancyKind.Balance);
+    }
+
+    [Fact]
+    public void Compare_EquivalentHexQuantityStorageValues_DoNotProduceDelta()
+    {
+        var expected = MakeSnapshot(postState: new List<SnapshotAccount>
+        {
+            MakeAccount(storage: new Dictionary<string, string> { ["0x01"] = "0x000a" })
+        });
+        var actual = MakeSnapshot(postState: new List<SnapshotAccount>
+        {
+            MakeAccount(storage: new Dictionary<string, string> { ["0x01"] = "0xa" })
+        });
+
+        var result = ConformanceComparator.Compare(expected, actual);
+
+        Assert.Equal(CaseStatus.Pass, result.Status);
+        Assert.DoesNotContain(result.Deltas, d => d.Kind == DiscrepancyKind.StorageValue);
+    }
 }
