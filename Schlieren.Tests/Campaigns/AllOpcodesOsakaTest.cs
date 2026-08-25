@@ -15,19 +15,15 @@ namespace Schlieren.Tests.Campaigns;
 
 public sealed class AllOpcodesOsakaTest
 {
-    private const string BlockchainFixture =
-        @"C:\projects\Schlieren\fixtures\blockchain_tests\for_osaka\frontier\opcodes\all_opcodes\all_opcodes.json";
-    private const string EngineFixture =
-        @"C:\projects\Schlieren\fixtures\blockchain_tests_engine\for_osaka\frontier\opcodes\all_opcodes\all_opcodes.json";
-
     private readonly ITestOutputHelper _out;
     public AllOpcodesOsakaTest(ITestOutputHelper output) => _out = output;
 
     [Theory]
-    [InlineData("blockchain_test", BlockchainFixture)]
-    [InlineData("blockchain_test_engine", EngineFixture)]
-    public async Task R7_EEST_AllOpcodes_Osaka(string format, string fixturePath)
+    [InlineData("blockchain_test", "blockchain_tests")]
+    [InlineData("blockchain_test_engine", "blockchain_tests_engine")]
+    public async Task R7_EEST_AllOpcodes_Osaka(string format, string fixtureDirectory)
     {
+        var fixturePath = FixturePath(fixtureDirectory);
         // ── Load fixture ──────────────────────────────────────────────────────
         Assert.True(System.IO.File.Exists(fixturePath), $"missing {format}: {fixturePath}");
         var json   = await System.IO.File.ReadAllTextAsync(fixturePath);
@@ -71,7 +67,7 @@ public sealed class AllOpcodesOsakaTest
         JsonDocument? siblingDoc = null;
         if (!test.TryGetProperty("blocks", out _))
         {
-            var siblingJson = await System.IO.File.ReadAllTextAsync(BlockchainFixture);
+            var siblingJson = await System.IO.File.ReadAllTextAsync(FixturePath("blockchain_tests"));
             siblingDoc = JsonDocument.Parse(siblingJson);
             txSource = siblingDoc.RootElement.EnumerateObject().First().Value;
         }
@@ -246,6 +242,19 @@ public sealed class AllOpcodesOsakaTest
         {
             siblingDoc?.Dispose();
         }
+    }
+
+    private static string FixturePath(string fixtureDirectory)
+    {
+        var stateTestsRoot = Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT");
+        var corpusRoot = !string.IsNullOrWhiteSpace(stateTestsRoot)
+            ? Directory.GetParent(Path.GetFullPath(stateTestsRoot))?.FullName
+            : @"C:\projects\Schlieren\fixtures";
+
+        return Path.Combine(
+            corpusRoot ?? throw new InvalidOperationException("Fixture corpus root is unavailable"),
+            fixtureDirectory,
+            "for_osaka", "frontier", "opcodes", "all_opcodes", "all_opcodes.json");
     }
 
     // ── Hex helpers ───────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
 
     // ── State ────────────────────────────────────────────────────────────────
     [ObservableProperty] private string  _selectedFork        = "Osaka";
-    [ObservableProperty] private string  _fixturesBasePath    = @"C:\projects\Schlieren\fixtures\state_tests";
+    [ObservableProperty] private string  _fixturesBasePath    = ResolveDefaultFixturesBasePath();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
@@ -84,6 +84,11 @@ public partial class ConformanceViewModel : ObservableObject, IDisposable
         RefreshFixturePath();
         ClearSelectionUi();
     }
+
+    private static string ResolveDefaultFixturesBasePath() =>
+        Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT") is { Length: > 0 } configured
+            ? Path.GetFullPath(configured)
+            : @"C:\projects\Schlieren\fixtures\state_tests";
 
     // ── Derived ──────────────────────────────────────────────────────────────
     partial void OnSelectedForkChanged(string value)     => RefreshFixturePath();

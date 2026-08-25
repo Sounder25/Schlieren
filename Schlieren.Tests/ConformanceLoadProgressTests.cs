@@ -16,10 +16,13 @@ public sealed class ConformanceLoadProgressTests
     }
 
     private static string SmallOsakaRoot()
-        => Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..",
-            "fixtures", "state_tests", "for_osaka", "osaka", "eip7825_transaction_gas_limit_cap"));
+        => Path.Combine(FixtureRoot(), "for_osaka", "osaka", "eip7825_transaction_gas_limit_cap");
+
+    private static string FixtureRoot() =>
+        Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT") is { Length: > 0 } configured
+            ? Path.GetFullPath(configured)
+            : Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory, "..", "..", "..", "..", "fixtures", "state_tests"));
 
     [Fact(DisplayName = "Fixture loader reports file progress while parsing")]
     public void LoadCases_ReportsFileProgress()
@@ -55,9 +58,8 @@ public sealed class ConformanceLoadProgressTests
     [Fact(DisplayName = "ExcludeFolder drops ported_static fixtures from the load")]
     public void LoadCases_ExcludePortedStatic_OmitsThatFolder()
     {
-        var root = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..",
-            "fixtures", "state_tests", "for_prague", "ported_static", "stCreate2", "create2collision_code"));
+        var root = Path.Combine(
+            FixtureRoot(), "for_prague", "ported_static", "stCreate2", "create2collision_code");
         Assert.True(Directory.Exists(root), root);
 
         var included = new EelsStateFixtureLoader().LoadCases(
