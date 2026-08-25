@@ -19,8 +19,19 @@ public class EelsOutputParserTests
 {
     // ── Helpers ──────────────────────────────────────────────────────────
 
-    private static EelsParseResult Parse(string stdout, int exitCode = 0)
-        => EelsOutputParser.Parse(stdout, exitCode);
+    private static EelsParseResult Parse(string stdout, int exitCode = 0, string? stderr = null)
+        => EelsOutputParser.Parse(stdout, exitCode, stderr);
+
+    // Real EELS stderr structLog summary (from actual run)
+    private const string RealStderrWithGas =
+        "{\"pc\":0,\"op\":96,\"gas\":\"0x726bbf8\",\"gasCost\":\"0x3\",\"memSize\":0,\"stack\":[],\"returnData\":\"0x\",\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}\n" +
+        "{\"output\":\"\",\"gasUsed\":\"0x83e6\"}\n" +
+        "{\"stateRoot\": \"0xaabbcc\"}";
+
+    private const string StderrWithReturnData =
+        "{\"pc\":0,\"op\":96,\"gas\":\"0xff\",\"gasCost\":\"0x3\",\"memSize\":0,\"stack\":[],\"returnData\":\"0x\",\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}\n" +
+        "{\"output\":\"0xdeadbeef\",\"gasUsed\":\"0x5208\"}\n" +
+        "{\"stateRoot\": \"0xaabb\"}";
 
     // ── Success case ─────────────────────────────────────────────────────
 
@@ -157,5 +168,58 @@ public class EelsOutputParserTests
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.ParseError);
+    }
+
+    // ── Stderr gasUsed parsing ────────────────────────────────────────────
+
+    [Fact]
+    public void Parse_WithStderrSummary_ExtractsGasUsed()
+    {
+        var stdout = """[{"name":"test/x","fork":"Berlin","pass":true,"stateRoot":"0xaabb"}]""";
+        var result = Parse(stdout, stderr: RealStderrWithGas);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Cases);
+        Assert.Equal(0x83e6UL, result.Cases[0].GasUsed);
+    }
+
+    [Fact]
+    public void Parse_WithStderrSummary_ExtractsReturnData()
+    {
+        var stdout = """[{"name":"test/x","fork":"Berlin","pass":true,"stateRoot":"0xaabb"}]""";
+        var result = Parse(stdout, stderr: StderrWithReturnData);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Cases);
+        Assert.Equal("0xdeadbeef", result.Cases[0].ReturnData);
+        Assert.Equal(0x5208UL, result.Cases[0].GasUsed);
+    }
+
+    [Fact]
+    public void Parse_WithNoStderr_GasUsedIsZero_NotGuessedSuccess()
+    {
+        // Absent stderr → GasUsed=0 and ReturnData="0x"
+        // This is NOT treated as a successful gas=0 — it means "unknown"
+        var stdout = """[{"name":"test/x","fork":"Berlin","pass":true,"stateRoot":"0xaabb"}]""";
+        var result = Parse(stdout, stderr: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0UL, result.Cases[0].GasUsed);
+        Assert.Equal("0x", result.Cases[0].ReturnData);
+    }
+
+    [Fact]
+    public void Parse_StderrOpCodeLinesIgnored_SummaryLineExtracted()
+    {
+        // Opcode lines (have "pc") must be ignored; only summary line (no "pc") is parsed
+        var stderr =
+            "{\"pc\":5,\"op\":85,\"gas\":\"0x100\",\"gasCost\":\"0x50\",\"memSize\":0,\"stack\":[],\"returnData\":\"0x\",\"depth\":1,\"refund\":0,\"opName\":\"SSTORE\"}\n" +
+            "{\"output\":\"0xabcd\",\"gasUsed\":\"0x1234\"}\n";
+        var stdout = """[{"name":"test/s","fork":"Istanbul","pass":true,"stateRoot":"0xcc"}]""";
+        var result = Parse(stdout, stderr: stderr);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0x1234UL, result.Cases[0].GasUsed);
+        Assert.Equal("0xabcd", result.Cases[0].ReturnData);
     }
 }
