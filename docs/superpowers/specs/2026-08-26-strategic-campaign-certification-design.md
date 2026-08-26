@@ -1,7 +1,7 @@
 # Strategic Campaign Certification Design
 
 Date: 2026-08-26
-Status: Draft for written approval
+Status: Approved 2026-08-26
 Depends on: `2026-08-24-harvest-certification-foundation-design.md`
 Target: Campaigns 2-7 and the first multi-campaign Harvest certificate
 
