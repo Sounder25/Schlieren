@@ -347,7 +347,8 @@ public static class HarvestCommand
                 Console.WriteLine($"Worker: {workerExe}");
 
                 // Create EELS oracle from environment
-                var eelsExePath = "C:/projects/eels-venv/Scripts/ethereum-spec-evm.exe";
+                var eelsExePath = Environment.GetEnvironmentVariable("EELS_EXE")
+                    ?? "C:/projects/eels-venv/Scripts/ethereum-spec-evm.exe";
                 if (!File.Exists(eelsExePath))
                 {
                     Console.Error.WriteLine($"EELS oracle executable not found at {eelsExePath}. Set EELS_EXE or install EELS.");

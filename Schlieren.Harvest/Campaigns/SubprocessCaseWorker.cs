@@ -106,13 +106,16 @@ public sealed class SubprocessCaseWorker : ICaseWorker
             return new ComparisonResult(CaseStatus.FixtureInvalid, Array.Empty<FieldDelta>(),
                 $"Cannot build expected snapshot: {parseError}");
 
-        // Cross-validate: EELS pass/fail must agree with fixture's declared status
-        if (matchingEntry.Pass != expectedSnapshot.IsSuccess)
+        // Cross-validate: EELS pass=False means the oracle could not reproduce the
+        // fixture's expected post-state. This is always an apparatus defect regardless
+        // of whether the tx itself succeeded or failed.
+        // Note: pass=True + isSuccess=False is VALID (a failed tx whose post-state is correct).
+        if (!matchingEntry.Pass)
         {
             return new ComparisonResult(CaseStatus.HarnessError, Array.Empty<FieldDelta>(),
-                $"EELS oracle disagrees with fixture: EELS says pass={matchingEntry.Pass}, " +
-                $"fixture post-state says isSuccess={expectedSnapshot.IsSuccess}. " +
-                "This indicates a fixture or oracle defect.");
+                $"EELS oracle could not confirm fixture post-state: pass={matchingEntry.Pass}, " +
+                $"stateRoot={matchingEntry.StateRoot}. " +
+                "The oracle disagrees with the fixture's expected outcome.");
         }
 
         // 3. Spawn worker subprocess to execute Schlieren

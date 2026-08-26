@@ -64,7 +64,7 @@ public sealed class EelsProcessOracle : IReferenceOracle
         var psi = new ProcessStartInfo
         {
             FileName               = _options.ExecutablePath,
-            Arguments              = $"statetest --json \"{fixturePath}\"",
+            Arguments              = BuildArguments(fixturePath, _options),
             WorkingDirectory       = _options.WorkingDirectory,
             UseShellExecute        = false,
             RedirectStandardOutput = true,
@@ -142,6 +142,16 @@ public sealed class EelsProcessOracle : IReferenceOracle
             return combined;
         }
         catch { return ""; }
+    }
+
+    /// <summary>
+    /// Build EELS command-line arguments. Uses --noreturndata --nostack --nomemory
+    /// to suppress expensive per-step trace diagnostics that cause timeouts on
+    /// deep-execution fixtures, while retaining the --json stdout result (pass/stateRoot).
+    /// </summary>
+    public static string BuildArguments(string fixturePath, EelsOracleOptions options)
+    {
+        return $"statetest --json --noreturndata --nostack --nomemory \"{fixturePath}\"";
     }
 
     private static void TryKillTree(Process process)
