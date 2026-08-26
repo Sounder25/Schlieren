@@ -175,6 +175,18 @@ public static class HarvestCommand
         {
             try
             {
+                // Resolve campaign family policy
+                var policy = Schlieren.Harvest.Campaigns.CampaignFamilyPolicy.TryGet(family);
+                if (policy is null)
+                {
+                    Console.Error.WriteLine($"Unknown campaign family '{family}'.");
+                    Console.Error.WriteLine($"Known families: {string.Join(", ", Schlieren.Harvest.Campaigns.CampaignFamilyPolicy.AllFamilyNames)}");
+                    Environment.ExitCode = 2;
+                    return;
+                }
+                Console.WriteLine($"Campaign family: {policy.FamilyName} v{policy.FamilyVersion}");
+                Console.WriteLine($"Description: {policy.Description}");
+
                 // 1. Catalog all fixture files from the root
                 var catalog = new Schlieren.Harvest.Fixtures.FixtureCatalog(fixtures);
                 var allFiles = Directory.GetFiles(fixtures, "*.json", SearchOption.AllDirectories);
@@ -183,9 +195,8 @@ public static class HarvestCommand
                 var admittedCount = admitted.Count(m => m.Admission == Schlieren.Harvest.Fixtures.AdmissionReasonCode.Admitted);
                 Console.WriteLine($"Admitted: {admittedCount}, Rejected: {admitted.Count - admittedCount}");
 
-                // 2. Select cases deterministically
-                var selector = new Schlieren.Harvest.Campaigns.CampaignSelector();
-                var result = selector.TrySelect(admitted, count);
+                // 2. Select cases using the family's policy (path filter + keyword set-cover)
+                var result = policy.TrySelect(admitted, count);
                 if (!result.IsSuccess)
                 {
                     Console.Error.WriteLine($"Insufficient coverage: {result.InsufficientReport!.Reason}");
@@ -245,19 +256,19 @@ public static class HarvestCommand
                 Console.WriteLine($"Fixture root SHA-256: {fixtureRootSha256[..16]}...");
 
                 var manifest = Schlieren.Harvest.Campaigns.CampaignManifest.Freeze(
-                    result.Cases!, $"{family}-v1", DateTime.UtcNow,
+                    result.Cases!, $"{policy.FamilyName}-v{policy.FamilyVersion}", DateTime.UtcNow,
                     eelsIdentity: eelsIdentity,
                     fixtureRootSha256: fixtureRootSha256);
 
                 // 4. Persist to ledger
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
                 var manifestJson = Schlieren.Harvest.Serialization.HarvestJson.Serialize(manifest);
-                await fileLedger.StoreManifestAsync($"{family}-v1", manifest.ManifestHash, manifestJson);
+                await fileLedger.StoreManifestAsync($"{policy.FamilyName}-v{policy.FamilyVersion}", manifest.ManifestHash, manifestJson);
 
-                Console.WriteLine($"Campaign: {family}-v1");
+                Console.WriteLine($"Campaign: {policy.FamilyName}-v{policy.FamilyVersion}");
                 Console.WriteLine($"Cases selected: {manifest.Cases.Count}");
                 Console.WriteLine($"Manifest hash: {manifest.ManifestHash}");
-                Console.WriteLine($"Stored at: {Schlieren.Harvest.Ledger.LedgerPaths.ManifestPath(ledger, $"{family}-v1", manifest.ManifestHash)}");
+                Console.WriteLine($"Stored at: {Schlieren.Harvest.Ledger.LedgerPaths.ManifestPath(ledger, $"{policy.FamilyName}-v{policy.FamilyVersion}", manifest.ManifestHash)}");
                 Environment.ExitCode = 0;
             }
             catch (Exception ex)

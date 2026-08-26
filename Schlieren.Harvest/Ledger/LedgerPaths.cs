@@ -108,7 +108,8 @@ public static class LedgerPaths
     }
 
     /// <summary>
-    /// Replaces characters unsafe for filenames with underscores.
+    /// Replaces characters unsafe for filenames with underscores, and truncates to
+    /// 200 characters to stay well within Windows MAX_PATH limits.
     /// Used for case IDs which may contain slashes (e.g., "tests/berlin/...").
     /// </summary>
     public static string SanitizeFileName(string input)
@@ -120,6 +121,10 @@ public static class LedgerPaths
             if (Array.IndexOf(invalid, chars[i]) >= 0 || chars[i] == '/' || chars[i] == '\\')
                 chars[i] = '_';
         }
-        return new string(chars);
+        var sanitized = new string(chars);
+        // Truncate to 200 chars to stay within Windows MAX_PATH
+        if (sanitized.Length > 200)
+            sanitized = sanitized[..200];
+        return sanitized;
     }
 }
