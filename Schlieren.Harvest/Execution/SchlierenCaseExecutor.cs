@@ -193,9 +193,38 @@ public sealed class SchlierenCaseExecutor
         var gasLimit = GetVariantUlong(txEl, "gasLimit", gasIdx);
         var value    = GetVariantBigInteger(txEl, "value", valueIdx);
         var data     = GetVariantBytes(txEl, "data", dataIdx);
-        var gasPrice = ParseBigHex(GetStr(txEl, "gasPrice"));
+        var gasPrice           = ParseBigHex(GetStr(txEl, "gasPrice"));
+        var maxFeePerGas       = ParseBigHex(GetStr(txEl, "maxFeePerGas"));
+        var maxPriorityFeePerGas = ParseBigHex(GetStr(txEl, "maxPriorityFeePerGas"));
         var nonce    = ParseHexUlong(GetStr(txEl, "nonce"));
         var accessList = GetVariantAccessList(txEl, dataIdx);
+
+        // Determine transaction type from fixture fields
+        // Type 2: has maxFeePerGas / maxPriorityFeePerGas (EIP-1559)
+        // Type 1: has accessList (EIP-2930)
+        // Type 0: legacy
+        byte txType;
+        BigInteger effectiveGasPrice;
+        BigInteger effectiveMaxFeePerGas;
+        if (maxFeePerGas > BigInteger.Zero)
+        {
+            // Type-2 (EIP-1559) or type-3 (blob — treat as 2 for state-test purposes)
+            txType = 2;
+            effectiveMaxFeePerGas = maxFeePerGas;
+            effectiveGasPrice = gasPrice > BigInteger.Zero ? gasPrice : maxFeePerGas; // fallback
+        }
+        else if (accessList.Count > 0)
+        {
+            txType = 1;
+            effectiveMaxFeePerGas = gasPrice;
+            effectiveGasPrice = gasPrice;
+        }
+        else
+        {
+            txType = 0;
+            effectiveMaxFeePerGas = gasPrice;
+            effectiveGasPrice = gasPrice;
+        }
 
         // Check for expected exception (invalid tx declared in fixture)
         var expectedException = variant.TryGetProperty("expectException", out var excEl) &&
@@ -220,12 +249,13 @@ public sealed class SchlierenCaseExecutor
             To            = to,
             Nonce         = nonce,
             GasLimit      = gasLimit,
-            GasPrice      = gasPrice,
-            MaxFeePerGas  = gasPrice,
+            GasPrice      = effectiveGasPrice,
+            MaxFeePerGas  = effectiveMaxFeePerGas,
+            MaxPriorityFeePerGas = maxPriorityFeePerGas,
             Value         = value,
             Data          = data,
             AccessList    = accessList,
-            TxType        = accessList.Count > 0 ? (byte)1 : (byte)0,
+            TxType        = txType,
             Authorization = TransactionAuthorization.Impersonated,
             EnableJournal = journalEnabled,
         };
