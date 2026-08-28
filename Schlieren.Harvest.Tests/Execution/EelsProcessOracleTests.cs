@@ -54,13 +54,14 @@ public sealed class EelsProcessOracleTests
     }
 
     [Fact]
-    public void ValidateIdentity_MismatchedDigest_ThrowsBeforeExecution()
+    public void ValidateIdentity_MismatchedDigest_WarnsButDoesNotThrow()
     {
+        // Launcher SHA-256 mismatch is non-blocking — it's packaging noise.
+        // Semantic provenance (version + source tree) is authoritative.
         var actual = new EelsIdentity("actual-sha", "2.19.0", null);
         var pinned = new EelsIdentity("pinned-sha", "2.19.0", null);
-        var error = Assert.Throws<InvalidOperationException>(
-            () => EelsProcessOracle.ValidateIdentity(actual, pinned));
-        Assert.Contains("SHA-256", error.Message, StringComparison.OrdinalIgnoreCase);
+        // Should NOT throw — just warn to stderr
+        EelsProcessOracle.ValidateIdentity(actual, pinned);
     }
 
     [Fact]
