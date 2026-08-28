@@ -14,6 +14,13 @@
 | Gate 4: Repair causal families | ⏳ Pending | Gate 3 |
 | Gate 5: Final same-commit inspection | ⏳ Pending | Gate 4 |
 
+## Implementation checkpoint
+
+- Task 1, typed apparatus evidence and strict EELS configuration: **complete at `d63b239`**.
+- `EELS_EXE` is mandatory and its executable SHA-256/version must match the frozen manifest before a run is created.
+- Oracle timeout/exit/protocol errors are durable `HarnessError` evidence; worker timeout/crash/protocol errors and cancellation are durable `Aborted` evidence.
+- No campaign was rerun at this checkpoint. The next authorized work is Task 2's exact Return Data case; historical campaign counts below are unchanged.
+
 ## Campaign current state (at `0f12679`)
 
 | Campaign | Pass | Div | HE | Ab | Status |
@@ -40,3 +47,4 @@
 |---|---|
 | `8fcd976` | Task 0: record strategic campaign certification intake |
 | `0f12679` | Gate 1: eliminate apparatus failures |
+| `d63b239` | Task 1: preserve typed apparatus evidence and validate EELS identity |

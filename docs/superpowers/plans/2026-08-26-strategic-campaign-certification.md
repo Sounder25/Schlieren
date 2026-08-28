@@ -136,7 +136,7 @@ git commit -m "test: record strategic campaign certification intake"
 - Modify: `Schlieren.Harvest.Tests/Execution/WorkerExitClassifierTests.cs`
 - Modify: `Schlieren.Tests/CLI/HarvestCommandTests.cs`
 
-- [ ] **Step 1: Write failing configuration and evidence tests**
+- [x] **Step 1: Write failing configuration and evidence tests**
 
 Add tests proving:
 
@@ -167,7 +167,7 @@ public sealed record ExecutionAttemptEvidence(
 
 Persist this as structured case evidence without changing the six-way `CaseStatus` enum.
 
-- [ ] **Step 2: Prove current failures**
+- [x] **Step 2: Prove current failures**
 
 ```powershell
 dotnet test Schlieren.Harvest.Tests/Schlieren.Harvest.Tests.csproj --filter "FullyQualifiedName~EelsProcessOracleTests|FullyQualifiedName~SubprocessCaseWorkerTests" --no-restore
@@ -176,11 +176,11 @@ dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~H
 
 Expected: the new tests fail because the command hard-codes `C:/projects/eels-venv/...` and case evidence is currently flattened into strings or null snapshots.
 
-- [ ] **Step 3: Implement typed apparatus evidence**
+- [x] **Step 3: Implement typed apparatus evidence**
 
 Use argument-safe `ProcessStartInfo.ArgumentList`, await both redirected streams to completion, kill the whole process tree on timeout, and hash retained stream content. Read `EELS_EXE` at the CLI composition root. Preserve the pinned version and executable digest from the manifest; a mismatch refuses execution.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```powershell
 dotnet test Schlieren.Harvest.Tests/Schlieren.Harvest.Tests.csproj --filter "FullyQualifiedName~EelsProcessOracle|FullyQualifiedName~SubprocessCaseWorker|FullyQualifiedName~WorkerExitClassifier|FullyQualifiedName~CampaignRunner" --no-restore
@@ -188,14 +188,16 @@ dotnet test Schlieren.Tests/Schlieren.Tests.csproj --filter FullyQualifiedName~H
 dotnet test Schlieren.sln --no-restore
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add Schlieren.Harvest Schlieren.Harvest.Tests Schlieren.Cli/Commands/HarvestCommand.cs Schlieren.Tests/CLI/HarvestCommandTests.cs
 git commit -m "fix: preserve typed harvest apparatus evidence"
 ```
 
-**Stop:** confirm no campaign engine result was changed.
+**Completed:** `d63b239` (`fix: preserve typed harvest apparatus evidence`). No campaign engine result was changed. The Harvest suite passed 225/225, CLI tests passed 18/18, and the solution built in Release with zero errors. The repository-wide test command also reconfirmed the known absent EELS fixture directories; its long-running core test host was stopped after the independently run `Schlieren.Tests` suite had already passed 702/702 with 5 skips.
+
+**Stop:** Task 1 is closed. Resume at Task 2 only.
 
 ---
 
