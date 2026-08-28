@@ -201,6 +201,73 @@ git commit -m "fix: preserve typed harvest apparatus evidence"
 
 ---
 
+## Task 1.5: Correct EELS oracle identity model (pulled ahead from Task 3)
+
+**Reason:** The v1 manifests pinned a pip console-launcher SHA-256 (`c2a25c7f...`) as the EELS executable identity. That launcher no longer exists on this machine; the current 2.19.0 installation produces a different launcher hash (`ee46923d...`) because the venv was recreated. The launcher hash is packaging noise—it does not identify the oracle's execution behavior.
+
+Additionally, `ethereum-spec-evm.exe --version` inherits the working directory's git state rather than reporting EELS source provenance.
+
+**Design:** `docs/harvest/design/2026-08-28-eels-semantic-provenance.md`
+
+**Files:**
+
+- Add: `Schlieren.Harvest/Domain/EelsSemanticIdentity.cs`
+- Add: `Schlieren.Harvest/Configuration/EelsProvenanceProbe.cs`
+- Add: `Schlieren.Harvest.Tests/Configuration/EelsProvenanceProbeTests.cs`
+- Modify: `Schlieren.Harvest/Campaigns/CampaignManifest.cs`
+- Modify: `Schlieren.Harvest/Configuration/EelsExecutableResolver.cs`
+- Modify: `Schlieren.CLI/Commands/HarvestCommand.cs`
+- Add: v2 manifest under `harvest/ledger/campaigns/return-data-v1/`
+- Add: `docs/harvest/baselines/2026-08-28-eels-provenance-equivalence.md`
+- Modify: `harvest/ledger/reports/strategic-campaign-train-status.md`
+
+- [ ] **Step 1: Write failing semantic identity tests**
+
+Test that the provenance probe:
+- Reads package version from the installed distribution
+- Computes source tree SHA-256
+- Computes evm_tools SHA-256
+- Reads the source commit from the execution-specs repo
+- Records Python version and platform
+- Records installed dependency versions
+- Refuses to produce identity if the executable path doesn't exist
+
+- [ ] **Step 2: Implement EelsProvenanceProbe**
+
+A static utility that, given:
+- an EELS executable path
+- the execution-specs repository root
+
+produces a complete `EelsSemanticIdentity`. The launcher hash is retained as non-authoritative metadata.
+
+- [ ] **Step 3: Modify campaign run to accept semantic identity**
+
+The v2 manifest carries `EelsSemanticIdentity`. The campaign run command validates:
+- Package version matches
+- Source tree hash matches (if available in manifest)
+- Source commit matches (if available)
+
+The v1 launcher-hash check becomes a skip-with-warning when the manifest schema is v1.
+
+- [ ] **Step 4: Create v2 Return Data manifest**
+
+Copy the 50 frozen cases from the v1 manifest. Attach the current semantic identity. Store under a new content-addressed subdirectory of `harvest/ledger/campaigns/return-data-v1/`.
+
+- [ ] **Step 5: Run equivalence probes**
+
+Select 5 cases from the Return Data manifest (including the exact Task 2 case). Run each through pinned EELS. Compare outputs against historical v1 run records. If all probes match, record equivalence evidence.
+
+- [ ] **Step 6: Commit**
+
+```powershell
+git add Schlieren.Harvest Schlieren.Harvest.Tests Schlieren.CLI harvest/ledger docs/harvest
+git commit -m "fix: replace launcher-hash EELS identity with semantic provenance"
+```
+
+**Stop:** Task 2 resumes against the v2 manifest once equivalence is established.
+
+---
+
 ## Task 2: Execute the exact Return Data timeout case successfully
 
 **Files:**
