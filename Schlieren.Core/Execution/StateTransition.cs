@@ -553,7 +553,7 @@ public sealed class StateTransition : IStateTransition
 
                         result = ExecutionResult.Success(
                             result.GasUsed + depositGas,
-                            result.ReturnData,
+                            Array.Empty<byte>(), // CREATE tx output is empty; init RETURN becomes deployed code, not tx returnData
                             result.Logs,
                             result.TraceSteps) with { GasRefundCounter = result.GasRefundCounter };
                     }
