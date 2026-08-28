@@ -1,392 +1,363 @@
-# Certification-Aware Visualization — Architecture & Plan
+# Execution Visualization Architecture — Certified Baseline Integration
 
-**Context:** Schlieren has reached 350/350 certification against EELS 2.19.0 at commit `d2f7e1d`. This is a verified baseline. All future visualization and diagnostic work must preserve this baseline and make certification status visible in the UI.
+**What Schlieren Is:** An EVM diagnostic instrument. It executes Ethereum bytecode and reveals *why* execution produced the result it did — gas flows, control paths, storage mutations, call frames.
 
-**Objective:** Make certification provenance visible in diagnostic output, enable historical bug replay, and ensure the visualization layer never independently determines correctness.
+**What the Visualization Does:** Renders execution traces so a human can understand what happened. Not a dashboard. An execution microscope.
 
----
-
-## Part 1: Current Architecture
-
-### 1.1 Evidence Pipeline
-
-```
-Fixture → SchlierenCaseExecutor → ExecutionSnapshot → ConformanceComparator → ComparisonResult
-                                    ↑                                              ↓
-                              EELS Oracle                                     CaseOutcome
-                                    ↓                                              ↓
-                            ExecutionSnapshot ──────────────────────────> CaseOutcome.metadata.json
-```
-
-**Key files:**
-- `Schlieren.Harvest/Execution/ExecutionSnapshot.cs` — normalized post-state (IsSuccess, GasUsed, ReturnData, PostState, Logs)
-- `Schlieren.Harvest/Comparison/ConformanceComparator.cs` — produces `ComparisonResult(Status, Deltas[], Detail)`
-- `Schlieren.Harvest/Domain/Models.cs` — `FieldDelta(Layer, Kind, Expected, Actual)`, `CaseStatus` enum
-- `Schlieren.Harvest/Campaigns/CampaignRunner.cs` — orchestrated case execution
-- `Schlieren.Harvest/Certification/CertificationService.cs` — certificate issuing
-- `harvest/ledger/runs/{run-id}/run.json` — persisted run with outcomes
-
-### 1.2 Trace Pipeline
-
-```
-ExecutionResult → ExecutionTraceStep[] → JournalTraceAssembler → JournalTraceDto
-                                                            ↘
-                                                        TraceDivergenceLocator
-```
-
-**Key files:**
-- `Schlieren.Core/Execution/ExecutionTraceStep.cs` — step record (Pc, Op, Gas, GasCost, Depth, Stack, Memory)
-- `Schlieren.Core/Execution/TraceDivergenceLocator.cs` — step-by-step comparison against reference trace
-- `Schlieren.Core/Execution/Journal/JournalTraceDtos.cs` — rich journal output (frames, steps, gas tree, state effects, security findings)
-- `Schlieren.Core/Execution/Journal/JournalTraceAssembler.cs` — assembles journal from execution context
-
-### 1.3 UI Layer
-
-- `Schlieren.UI/ViewModels/ConformanceViewModel.cs` — orchestrates conformance runs, shows failure rows
-- `Schlieren.UI/ViewModels/ConformanceViewModel.cs:ConformanceFailureRow` — single failure row with Layer 1 diagnosis
-- `Schlieren.UI/Views/ConformanceView.axaml` — XAML view for conformance tab
-- `Schlieren.UI/Views/MainWindow.axaml` — main app window
-
-### 1.4 Certification Ledger
-
-```
-harvest/ledger/
-├── campaigns/
-│   └── {campaign-id}/
-│       └── {manifest-hash}/
-│           └── manifest.json
-├── runs/
-│   └── {run-id}/
-│       ├── run.json (outcomes + summary)
-│       ├── cases/
-│       │   └── {case-id}.json (comparison details)
-│       └── complete.json
-├── certificates/
-│   └── {certificate-id}.md
-└── reports/
-    └── {rca-id}.md
-```
+**Why Certification Matters:** The visualization without certification is just pretty pictures about Schlieren's output. With certification, it's pictures about *Ethereum's* behavior — because we know Schlieren matches the reference. The baseline is what makes the microscope trustworthy.
 
 ---
 
-## Part 2: What's Missing
+## The Core Loop
 
-### 2.1 No Certification Provenance in ComparisonResult
+```
+User wants to understand an execution:
+  1. Load fixture or bytecode
+  2. Execute through Schlieren (with journal/tracing enabled)
+  3. Compare against EELS reference (deterministic)
+  4. Visualization renders:
+       - Full execution trace (steps, gas, frames, state)
+       - First divergence point (if any)
+       - Propagation path (how divergence cascaded)
+       - Downstream consequences (where execution "snapped")
+       - Evidence links (case, delta, reference fixture)
+```
 
-`ComparisonResult` knows `Pass` vs `Divergence` but does NOT know:
-- Whether this case is in the certified corpus
-- Which campaign/certificate attests to it
-- The certification run ID
-- Whether the divergence is new vs a known historical issue
-
-### 2.2 No Historical Bug Replay
-
-The three consensus bugs (EIP-161, Type-3/4 decoding, CREATE returnData) have:
-- Root cause analyses in `harvest/ledger/reports/`
-- Pre-fix run records with divergences
-- Known commit SHAs where they were fixed
-
-But there's no mechanism to:
-- Mark a case as "historically divergent at commit X"
-- Replay it as a historical diagnostic without failing the current build
-- Show the fix commit and RCA link
-
-### 2.3 Visualization Not Connected to Certification
-
-`ConformanceFailureRow` builds detail strings from raw deltas. It cannot:
-- Distinguish "new divergence" from "known historical issue"
-- Link to the certification evidence (run ID, campaign, certificate)
-- Show when Schlieren changed vs when the reference changed
-
-### 2.4 No Certified Baseline Model
-
-There is no `CertifiedBaseline` model that captures:
-- The commit SHA known good
-- The campaign manifests and their hashes
-- The certificate IDs and issue dates
-- The list of certified case IDs
+The user isn't looking at a "test result." They're looking at an execution — and the certification baseline is what lets us say "what you're seeing is what Ethereum does."
 
 ---
 
-## Part 3: Proposed Architecture
+## What the Visualization Must Render
 
-### 3.1 New Models
+### For a Certified-Equivalent Execution
 
-#### CertifiedBaseline
+When Schlieren and EELS agree (350/350 baseline):
+
+- **Normal execution is visually compact.** Don't flood the user with noise. Show structure: call tree topography, gas allocation by frame, key state transitions.
+- **The trace is navigable.** User can drill into any frame, step through opcodes, see stack/memory/storage at each point.
+- **Certification is background, not foreground.** A small badge: "Certified equivalent ✓" — not the focus. The focus is the execution itself.
+
+### For a Divergent Execution
+
+When Schlieren and EELS disagree:
+
+- **First divergence card.** The exact step where execution split — opcode, PC, depth, gas remaining, what Schlieren did vs what Ethereum expected.
+- **The "why" is visible.** Not just "gas mismatch" but "EIP-2929 cold account access (2600) charged incorrectly" — the comparison pipeline produces this, not the renderer.
+- **Propagation visualization.** Show how that first divergence rippled:
+  - Stack state diverged → subsequent opcodes saw wrong values
+  - Gas went negative → execution halted early
+  - Storage slot written differently → downstream SLOAD returned wrong value
+- **The "snap" point.** Where the divergence became unrecoverable — REVERT instead of STOP, out-of-gas that shouldn't happen, invalid opcode that shouldn't be reached.
+- **Evidence chain.** Link back to:
+  - Case ID
+  - Campaign that discovered it
+  - Reference fixture
+  - Comparison deltas
+  - Certification baseline comparison (did this pass before?)
+
+### For a Historical Bug Replay
+
+The three consensus bugs are now fixed. But they're valuable:
+
+- **They're canonical examples of real divergences.** The visualization must be able to show them.
+- **Replay mode.** Load the pre-fix execution, render the first divergence, show the propagation — but mark clearly:"Historical. Fixed in commit X. This is a diagnostic replay, not a current failure."
+- **RCA link.** Connect to the root-cause analysis document.
+
+---
+
+## Architecture: Minimal, Evidence-Driven
+
+### Principle: Renderer Consumes Facts
+
+The visualization layer NEVER determines correctness. It renders what the execution/comparison pipeline discovered.
+
+Correctness is determined by:
+- EELS comparison (ConformanceComparator)
+- Trace divergence (TraceDivergenceLocator)
+- Certification baseline (CertifiedBaseline)
+
+The renderer's job:
+- Take `JournalTraceDto` → render execution steps, frames, gas tree
+- Take `TraceDivergence` → render first divergence card with context
+- Take `ComparisonResult` → render deltas, link to fixture
+- Take `CertificationProvenance` → show certification status, historical context
+
+### What Flows to the Renderer
 
 ```csharp
-namespace Schlieren.Harvest.Certification;
-
-public sealed record CertifiedBaseline(
-    string         BaselineId,          // e.g., "d2f7e1d-2026-08-28"
-    string         CommitSha,           // e.g., "d2f7e1d"
-    DateTime       CertifiedUtc,
-    IReadOnlyList<CertifiedCampaign> Campaigns,
-    IReadOnlyList<HistoricalBug>     HistoricalBugs);
-
-public sealed record CertifiedCampaign(
-    string         CampaignId,
-    string         ManifestHash,
-    string         CertificateId,
-    int            PassCount,
-    int            TotalCount,
-    string         CertificationRunId);
-
-public sealed record HistoricalBug(
-    string         BugId,               // e.g., "EIP-161-EMPTY-ACCOUNT"
-    string         Description,
-    IReadOnlyList<string> AffectedCaseIds,
-    string         FixedInCommitSha,
-    string         RcaReportPath);
-```
-
-#### CertificationProvenance
-
-```csharp
-namespace Schlieren.Harvest.Comparison;
-
-public enum CertificationStatus
+public sealed class ExecutionDiagnosticBundle
 {
-    CertifiedEquivalent,    // Case passed at d2f7e1d, still passes
-    NewDivergence,          // Case passed at d2f7e1d, now diverges → Schlieren regressed
-    ReferenceChanged,       // Case passed at d2f7e1d, now diverges → reference changed
-    NewlyTested,            // Case not in certified corpus
-    HistoricalDivergence,   // Case diverged before fix, replayed for diagnostics
-    OutsideCertifiedCorpus  // Case ID not in any certified campaign
-}
-
-public sealed record CertificationProvenance(
-    CertificationStatus Status,
-    string?             CertificateId,
-    string?             CampaignId,
-    string?             CertificationRunId,
-    string?             HistoricalBugId,
-    string?             DivergenceSinceCommit,
-    string?             FixCommitSha);
-```
-
-#### Augmented ComparisonResult
-
-```csharp
-public sealed record ComparisonResult(
-    CaseStatus             Status,
-    IReadOnlyList<FieldDelta> Deltas,
-    string?                Detail,
-    ExecutionAttemptEvidence? AttemptEvidence,
-    CertificationProvenance?  Certification);  // ← NEW
-```
-
-### 3.2 Certification-Aware Comparator
-
-Extend `ConformanceComparator` to accept a `CertifiedBaseline` and produce `CertificationProvenance`:
-
-```csharp
-public static class ConformanceComparator
-{
-    // Existing
-    public static ComparisonResult Compare(ExecutionSnapshot expected, ExecutionSnapshot actual);
-    public static ComparisonResult CompareWithOracle(...);
-
-    // NEW: Certification-aware comparison
-    public static ComparisonResult CompareWithCertification(
-        ExecutionSnapshot expected,
-        ExecutionSnapshot actual,
-        string caseId,
-        CertifiedBaseline baseline,
-        IReadOnlyDictionary<string, ComparisonResult> historicalResults); // from pre-fix runs
+    // Core execution state
+    public JournalTraceDto Trace { get; init; }         // Full execution trace
+    public ExecutionSnapshot SchlierenFinalState { get; init; }
+    public ExecutionSnapshot? ReferenceFinalState { get; init; }  // EELS, if available
+    
+    // Comparison evidence
+    public ComparisonResult Comparison { get; init; }  // Deltas, status
+    public TraceDivergence? FirstDivergence { get; init; }  // First step-level split
+    
+    // Certification context
+    public CertificationProvenance Certification { get; init; }  // Certified? Historical? New?
+    
+    // Navigation helpers
+    public IReadOnlyList<PropagationStep> PropagationPath { get; init; }
+    public DivergenceSnapPoint? SnapPoint { get; init; }
 }
 ```
 
-Logic:
-1. If `caseId` is in a certified campaign:
-   - If `Status == Pass` → `CertifiedEquivalent`
-   - If `Status == Divergence` → `NewDivergence` (Schlieren changed)
-2. If `caseId` matches a historical bug's affected cases:
-   - If diverging AND current commit == fixed commit → error (regression!)
-   - If diverging AND replaying pre-fix → `HistoricalDivergence`
-3. If `caseId` not in any campaign → `OutsideCertifiedCorpus`
-
-### 3.3 Historical Bug Replay Service
-
-```csharp
-namespace Schlieren.Harvest.Diagnostics;
-
-public sealed class HistoricalBugReplayService
-{
-    public async Task<ComparisonResult> ReplayHistoricalDivergence(
-        string bugId,
-        CertifiedBaseline baseline,
-        CancellationToken ct);
-}
-```
-
-This service:
-1. Loads the historical RCA to find affected cases and pre-fix commit
-2. Loads the pre-fix run record to get expected deltas
-3. Optionally re-runs the case (or loads cached result)
-4. Returns `ComparisonResult` with `CertificationProvenance.Status = HistoricalDivergence`
-
-### 3.4 Visualization Contract
-
-The renderer (`ConformanceViewModel`, `ConformanceFailureRow`) receives a `ComparisonResult` with populated `Certification` field. It MUST NOT:
-- Set `CertificationStatus` itself
-- Guess at certification correctness
-- Fabricate provenance
-
-It SHOULD:
-- Display certification status badge (Certified ✓, New Divergence ⚠, Historical 📜, etc.)
-- Link to certificate/run/campaign when present
-- Show historical bug context if applicable
-- Distinguish "Schlieren changed" from "Reference changed"
+The renderer receives ONE bundle. It does not call the EVM, the comparator, or the certification service. It renders what it's given.
 
 ---
 
-## Part 4: Implementation Phases
+## New Models Required
 
-### Phase A: Data Contract (No UI Work)
+### CertificationProvenance (Harvest Layer)
 
-**Goal:** Certification pipeline produces provenance; visualization consumes it.
+Already defined in the first plan. Key statuses:
 
-**Tasks:**
-1. Create `CertificationProvenance.cs` model
-2. Add `CertificationProvenance? Certification` to `ComparisonResult`
-3. Create `CertifiedBaseline.cs` with loader from `harvest/ledger/certificates/`
-4. Create `HistoricalBug.cs` model with loader from RCAs
-5. Add `CompareWithCertification` to `ConformanceComparator`
-6. Update `CampaignRunner` to pass baseline to comparator
-7. Update `CaseOutcome` serialization to include certification field
+| Status | Meaning |
+|---|---|
+| `CertifiedEquivalent` | This case passes at baseline commit — Schlieren matches Ethereum |
+| `NewDivergence` | This case passed at baseline, now diverges — something regressed |
+| `HistoricalDivergence` | This case diverged before fix — replaying for diagnostics |
+| `OutsideCertifiedCorpus` | This case wasn't in the baseline — unknown territory |
 
-**Files to create:**
+### PropagationStep (Visualization Layer)
+
+```csharp
+public sealed record PropagationStep(
+    int StepIndex,
+    string Opcode,
+    string DivergenceType,        // "Stack", "Gas", "Storage", "ControlFlow"
+    string ExpectedState,
+    string ActualState,
+    string ConsequenceDescription);
 ```
-Schlieren.Harvest/Certification/CertifiedBaseline.cs
-Schlieren.Harvest/Comparison/CertificationProvenance.cs
+
+### DivergenceSnapPoint (Visualization Layer)
+
+```csharp
+public sealed record DivergenceSnapPoint(
+    int StepIndex,
+    string Opcode,
+    string SnapKind,              // "OutOfGas", "Revert", "InvalidOpcode", "_STACKUnderflow"
+    string ExpectedOutcome,
+    string ActualOutcome);
+```
+
+---
+
+## The Three Historical Bugs as Diagnostic Fixtures
+
+These are now built-in to Schlieren's test corpus. They represent real execution disagreements with known root causes.
+
+### Bug 1: EIP-161 Empty Account Cleanup
+
+- **What happened:** SELFDESTRUCT to 0-balance beneficiary left ghost accounts
+- **Families:** 15 cases in `test_reentrant_selfdestructing_call`
+- **Fix commit:** `5868d80`
+- **Diagnostic value:** Shows account-existence divergence propagation — downstream CALL fails because account persists when it should be gone
+
+### Bug 2: Type-3/4 Transaction Decoding
+
+- **What happened:** Blob hashes and authorization lists weren't parsed from fixtures
+- **Families:** 3 cases (Transient Storage, Access List)
+- **Fix commit:** `7143dae`
+- **Diagnostic value:** Shows gas-only divergence — transaction-level fee mismatch without execution divergence — different failure signature
+
+### Bug 3: CREATE ReturnData Leak
+
+- **What happened:** Top-level CREATE tx exposed init code output as returnData
+- **Family:** 1 case `test_create_and_destroy_multiple_contracts_same_tx`
+- **Fix commit:** `13fec7b`
+- **Diagnostic value:** Shows return-data buffer contamination — created contract's init code leaks into caller's return data
+
+These three should be **first-class fixtures** in the visualization test corpus. When the visualization is tested, it must be able to render all three correctly.
+
+---
+
+## Implementation Phases (Revised)
+
+### Phase A: Execution Diagnostic Bundle
+
+**Goal:** Create the data contract that flows to the renderer.
+
+1. Define `ExecutionDiagnosticBundle`
+2. Define `PropagationStep` and `DivergenceSnapPoint`
+3. Add builder that assembles bundle from:
+   - Journal trace
+   - Comparison result
+   - Trace divergence
+   - Certification provenance
+
+**Files:**
+```
+Schlieren.Harvest/Diagnostics/ExecutionDiagnosticBundle.cs
+Schlieren.Harvest/Diagnostics/DiagnosticBundleBuilder.cs
+```
+
+### Phase B: Propagation Path Tracer
+
+**Goal:** Given a first divergence, trace its downstream effects.
+
+1. Walk from first divergence step to end of trace
+2. Detect stack corruption propagation (wrong value used by subsequent opcode)
+3. Detect gas propagation (negative gas, early halt)
+4. Detect storage propagation (wrong slot read)
+5. Detect control flow propagation (wrong JUMP target)
+6. Identify snap point where execution becomes unrecoverable
+
+**Files:**
+```
+Schlieren.Core/Execution/PropagationTracer.cs
+```
+
+### Phase C: Renderer Contract
+
+**Goal:** Define what the renderer receives and how it renders.
+
+1. Renderer takes `ExecutionDiagnosticBundle`
+2. Renderers:
+   - `TraceSummaryRenderer` — execution overview, pass/fail, gas summary
+   - `FrameTopologyRenderer` — call tree, depth, frame boundaries
+   - `DivergenceCardRenderer` — first divergence, context, gas delta, subsystem hint
+   - `PropagationRenderer` — cascade visualization, step-by-step propagation
+   - `SnapPointRenderer` — where execution became unrecoverable
+3. Each renderer produces data for the UI layer (Avalonia), not UI elements directly
+
+**Files:**
+```
+Schlieren.Visualization/Rendering/TraceSummaryRenderer.cs
+Schlieren.Visualization/Rendering/DivergenceCardRenderer.cs
+Schlieren.Visualization/Rendering/PropagationRenderer.cs
+etc.
+```
+
+### Phase D: Historical Bug Replay
+
+**Goal:** The three bugs are renderable as diagnostic examples.
+
+1. Create `HistoricalBugFixture` for each bug
+2. Store pre-fix execution traces
+3. `HistoricalBugReplayService` loads trace, produces `ExecutionDiagnosticBundle`
+4. Renderer shows historical divergence with "Fixed in commit X" marker
+
+**Files:**
+```
+Schlieren.Harvest/Diagnostics/HistoricalBugFixture.cs
 Schlieren.Harvest/Diagnostics/HistoricalBugReplayService.cs
+harvest/ledger/bugs/eip-161-empty-account.json (metadata)
+harvest/ledger/bugs/type-3-4-decode.json
+harvest/ledger/bugs/create-returndata.json
 ```
 
-**Files to modify:**
+### Phase E: Visualization Test Suite
+
+**Goal:** Prove the visualization renders correctly.
+
+1. Test: Certified-equivalent execution renders compact trace without divergence card
+2. Test: Divergent execution renders first divergence card with correct gas delta
+3. Test: Propagation path is correctly traced for stack corruption case
+4. Test: Propagation path is correctly traced for gas mismatch case
+5. Test: Snap point is correctly identified for REVERT case
+6. Test: Historical bug replay renders with "Fixed" marker and RCA link
+7. Test: Visualization never shows a status that wasn't provided by the comparison pipeline
+
+**Files:**
 ```
-Schlieren.Harvest/Comparison/ConformanceComparator.cs
-Schlieren.Harvest/Campaigns/CampaignRunner.cs
-Schlieren.Harvest/Domain/Models.cs (ComparisonResult)
-```
-
-**Tests:**
-- Given a certified case ID → comparator returns `CertifiedEquivalent`
-- Given a previously-passing case that now diverges → `NewDivergence`
-- Given a historical bug case replay → `HistoricalDivergence`
-- Given an unknown case → `OutsideCertifiedCorpus`
-
-### Phase B: Historical Bug Fixtures
-
-**Goal:** Replay consensus bugs as diagnostic fixtures without failing the build.
-
-**Tasks:**
-1. Create `HistoricalBugRegistry` with entries for 3 fixed bugs:
-   - EIP-161 empty account cleanup (15 cases)
-   - Type-3/4 transaction decoding (2 cases)
-   - CREATE returnData leak (1 case)
-2. Link each to:
-   - Affected case IDs
-   - Pre-fix commit SHAs
-   - Fix commit SHAs
-   - RCA report paths
-3. Add `ReplayHistoricalDivergence` method
-4. Add CLI command: `schlieren diagnostics replay --bug {bugId}`
-5. Add test: replay produces `HistoricalDivergence`, not `Divergence`
-
-**Files to create:**
-```
-Schlieren.Harvest/Diagnostics/HistoricalBugRegistry.cs
-harvest/ledger/bugs/eip-161-empty-account.json
-harvest/ledger/bugs/type-3-4-tx-decode.json
-harvest/ledger/bugs/create-returndata-leak.json
+Schlieren.Visualization.Tests/RenderingTests.cs
+Schlieren.Visualization.Tests/PropagationTests.cs
+Schlieren.Visualization.Tests/HistoricalBugTests.cs
 ```
 
-### Phase C: Visualization Integration
+### Phase F: Certification Baseline Gate
 
-**Goal:** Render certification provenance in UI.
+**Goal:** CI gate ensures baseline remains 350/350.
 
-**Tasks:**
-1. Update `ConformanceFailureRow` to accept `CertificationProvenance`
-2. Add certification status badge column
-3. Add "View Certificate" link when certified
-4. Add "View Historical Bug" link for historical divergences
-5. Show "Schlieren changed" vs "Reference changed" distinction
-6. Update `ConformanceViewModel` to pass provenance through
-7. Add filter: "Only show new regressions" (exclude CertifiedEquivalent)
+Already covered by existing certification tests. Add visualization-specific gate:
 
-**Files to modify:**
-```
-Schlieren.UI/ViewModels/ConformanceViewModel.cs
-Schlieren.UI/Views/ConformanceView.axaml
-```
-
-### Phase D: Certification Baseline Gate
-
-**Goal:** Fail the visualization test suite if certification baseline is violated.
-
-**Tasks:**
-1. Load `CertifiedBaseline` at app startup
-2. Add CI gate: run all 350 certified cases, verify 350/350 pass
-3. On divergence: emit `NewDivergence` with blocking message
-4. Add test: `Given_a_certified_case_when_Schlieren_diverges_then_status_is_NewDivergence`
-5. Add test: `Given_all_certified_cases_when_all_pass_then_visualization_shows_CertifiedEquivalent`
-
-**Files to create:**
-```
-Schlieren.Harvest.Tests/Certification/CertifiedBaselineGateTests.cs
-```
+1. Load `CertifiedBaseline`
+2. Run all 350 certified cases through DiagnosticBundleBuilder
+3. Assert all produce `CertificationProvenance.Status = CertifiedEquivalent`
+4. On failure: fail CI with "Schlieren regressed from certified baseline"
 
 ---
 
-## Part 5: Acceptance Criteria
+## How This Differs From the First Plan
 
-By the end of Phase D:
-
-1. **Test suite remains green.** No existing tests break.
-2. **Certification baseline preserved.** A CI gate verifies 350/350 daily.
-3. **Certification-equivalent case renders with provenance.** Clicking a passing case shows "Certified equivalent ✓" with campaign/ certificate links.
-4. **New divergence renders first-divergence card.** A case that passed at `d2f7e1d` but now diverges shows warning badge, "Schlieren regressed since d2f7e1d" message, and first delta.
-5. **Historical bug can be replayed.** Running `schlieren diagnostics replay --bug eip-161-empty-account` shows the historical divergence with RCA link, marked as `HistoricalDivergence`, not failing the build.
-6. **Visualization never claims correctness without evidence.** Every status badge comes from a populated `CertificationProvenance` produced by the comparator, never guessed by the renderer.
+| First Plan (Wrong) | Revised Plan (Right) |
+|---|---|
+| "Make certification status visible in diagnostic output" | Certification is background context for execution visualization |
+| "Add status badge to ConformanceFailureRow" | Render execution traces, divesrgence cards, propagation paths |
+| "Conformance view shows pass/fail with certificate link" | Visualization is an execution microscope, not a test results dashboard |
+| "Add certification column to failure list" | The failure list is secondary. The trace viewer is primary. |
 
 ---
 
-## Part 6: Non-Goals (For Later)
+## Acceptance Criteria (Revised)
 
-- Full 14,516 Osaka fixture suite certification
-- Performance benchmarking
-- Real-time streaming visualization
-- Live EVM debugging with breakpoints
-- Automated regression bisection
+By the end of Phase F:
+
+1. **Execution trace is renderable.** Given any fixture, the visualization shows steps, frames, gas, state — not just pass/fail.
+2. **First divergence is visible.** When Schlieren and EELS split, the exact step is shown with context.
+3. **Propagation is traced.** The cascade from first divergence to downstream consequences is visible.
+4. **Snap point is identified.** Where execution became unrecoverable is marked.
+5. **Historical bugs are replayable.** All three consensus bugs render correctly with "Fixed" markers.
+6. **Certification is background.** Certified executions show a "Certified equivalent" badge but don't dominate the view.
+7. **Renderer never guesses.** All status, divergence, and propagation comes from the diagnostic pipeline, not the renderer.
+8. **Baseline gate passes.** CI confirms 350/350 on every run.
 
 ---
 
-## Part 7: Estimated Effort
+## Estimated Effort (Revised)
 
 | Phase | Scope | Estimate |
 |---|---|---|
-| A | Data contract + comparator | 2-3 hours |
-| B | Historical bug fixtures | 1-2 hours |
-| C | Visualization integration | 2-3 hours |
-| D | Certification baseline gate | 1 hour |
-| **Total** | | **6-9 hours** |
+| A | Execution Diagnostic Bundle | 2-3 hours |
+| B | Propagation Path Tracer | 3-4 hours |
+| C | Renderer Contract | 2-3 hours |
+| D | Historical Bug Replay | 2 hours |
+| E | Visualization Test Suite | 2-3 hours |
+| F | Certification Baseline Gate | 1 hour |
+| **Total** | | **12-16 hours** |
+
+Higher than before because we're not adding a badge to a table — we're building the execution visualization layer that the product is for.
 
 ---
 
-## Part 8: Risks
+## What the User Actually Sees
 
-1. **Breaking the certification baseline.** Mitigation: don't modify EVM code during this work. All changes are in Harvest and UI layers.
-2. **Performance regression.** Mitigation: certification provenance is optional. Historical replay is off by default.
-3. **Coupling to specific commit.** Mitigation: baseline is loaded from persisted certificate, not hard-coded. Supports future baselines.
-4. **UI complexity.** Mitigation: start with a single column and badge. Deep linking comes later.
+Not a list of test results. An execution:
 
----
+```
+┌─ Execution ─────────────────────────────────────────────┐
+│ CREATE tx to 0x8fdf... • Gas used: 285,488 (refund: 0)  │
+│ Certified equivalent ✓ • Run: selfdestruct-v1_xxxx      │
+├─────────────────────────────────────────────────────────┤
+│ [Topology tab] [Steps tab] [Gas tree tab] [State tab]  │
+├─────────────────────────────────────────────────────────┤
+│ Frame 0 (root) • 0x081f... • 27 steps • 285,488 gas    │
+│   ├─ Frame 1 (CREATE child) • 0x22d... • 8 steps       │
+│   ├─ Frame 2 (CALL selector=1) • depth 1 • 5 steps      │
+│   └─ Frame 3 (CALL selector=2) • depth 1 • 3 steps      │
+└─────────────────────────────────────────────────────────┘
+```
 
-## Part 9: References
+And when there's a divergence:
 
-- Certificate: `harvest/ledger/certificates/2026-08-28-strategic-campaign-certificate.md`
-- Session rollup: `docs/harvest/certification/2026-08-28-session-rollup.md`
-- RCA EIP-161: `harvest/ledger/reports/2026-08-28-selfdestruct-account-existence-rca.md`
-- ConformanceComparator: `Schlieren.Harvest/Comparison/ConformanceComparator.cs`
-- ConformanceViewModel: `Schlieren.UI/ViewModels/ConformanceViewModel.cs`
+```
+┌─ Divergence Card ───────────────────────────────────────┐
+│ First split at step 14 (PC=0x12, depth=1)               │
+│ Opcode: SSTORE                                          │
+│ Expected gas remaining: 284,200                         │
+│ Actual gas remaining: 281,600                           │
+│ Delta: -2,600 (Schlieren overcharged)                  │
+│                                                         │
+│ Subsystem: EIP-2929 cold storage read (SLOAD pricing)  │
+│ Likely cause: Cold account access cost incorrect        │
+│                                                         │
+│ [View full comparison] [View propagation path]          │
+└─────────────────────────────────────────────────────────┘
+```
+
+This is what Schlieren is for.
