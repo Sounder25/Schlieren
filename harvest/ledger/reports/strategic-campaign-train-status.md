@@ -38,5 +38,5 @@
 
 | Commit | Description |
 |---|---|
+| `8fcd976` | Task 0: record strategic campaign certification intake |
 | `0f12679` | Gate 1: eliminate apparatus failures |
-| — | (Task 0 intake pending) |

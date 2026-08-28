@@ -24,14 +24,21 @@
 ### EELS Oracle
 
 - **Executable:** `ethereum-spec-evm.exe`
-- **Version:** 2.19.0 (Git commit: deec6412e7b264b1a54f40ca0e280e47d312d580)
-- **Executable SHA-256:** `337a69fb156667f6b1b3ca7a34267144eedea4999bd2409ce5d5c9666f345441`
+- **Version:** 2.19.0
 - **Fixture root:** `fixtures/state_tests` (relative to repo root)
+
+#### Provenance Discrepancy
+
+- **Manifest-declared EELS SHA-256:** `c2a25c7f60a104f0cc024748256526a6fe511193bf320c98834dba55ad58bb10`
+- **Intake-reported executable SHA-256:** `337a69fb156667f6b1b3ca7a34267144eedea4999bd2409ce5d5c9666f345441`
+- **Git commit:** unknown
+
+The existing run records carry the manifest-declared identity but did not verify that the executable actually launched had the same digest. Therefore, the Gate 1 runs remain diagnostic evidence and are not certification evidence. Task 1 must validate the configured executable's actual SHA-256 and version against the frozen manifest before executing any case. The affected campaigns must then be rerun.
 
 ## Historical evidence reconciliation
 
 | Campaign | Evidence Commit | State | Pass | Div | FI | HE | Ab | Q | Total |
-|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Storage Lifecycle | `cf20f21` | certified | 50 | 0 | 0 | 0 | 0 | 0 | 50 |
 | Call Semantics | `aa491c9` | completed | 50 | 0 | 0 | 0 | 0 | 0 | 50 |
 | Create Semantics | `aa491c9` | completed | 50 | 0 | 0 | 0 | 0 | 0 | 50 |
