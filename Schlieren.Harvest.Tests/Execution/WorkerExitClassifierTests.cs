@@ -1,4 +1,5 @@
 using Schlieren.Harvest.Execution;
+using Schlieren.Harvest.Domain;
 using Xunit;
 
 namespace Schlieren.Harvest.Tests.Execution;
@@ -113,5 +114,17 @@ public class WorkerExitClassifierTests
     public void Completed_IsNotNonPass()
     {
         Assert.False(WorkerExitClassifier.IsNonPass(WorkerTerminationKind.Completed));
+    }
+
+    [Theory]
+    [InlineData(WorkerTerminationKind.TimedOut, ApparatusFailureKind.WorkerTimeout)]
+    [InlineData(WorkerTerminationKind.Cancelled, ApparatusFailureKind.Cancelled)]
+    [InlineData(WorkerTerminationKind.Crashed, ApparatusFailureKind.WorkerCrash)]
+    [InlineData(WorkerTerminationKind.ProtocolError, ApparatusFailureKind.WorkerProtocol)]
+    public void ToApparatusFailure_MapsTypedWorkerTermination(
+        WorkerTerminationKind termination,
+        ApparatusFailureKind expected)
+    {
+        Assert.Equal(expected, WorkerExitClassifier.ToApparatusFailure(termination));
     }
 }

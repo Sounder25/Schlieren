@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using Schlieren.Harvest.Configuration;
 
 namespace Schlieren.CLI.Commands;
 
@@ -18,13 +19,14 @@ namespace Schlieren.CLI.Commands;
 /// </summary>
 public static class HarvestCommand
 {
-    public static Command Build()
+    public static Command Build(Func<string, string?>? getEnvironmentVariable = null)
     {
+        getEnvironmentVariable ??= Environment.GetEnvironmentVariable;
         var cmd = new Command("harvest", "Harvest certification pipeline commands");
 
         cmd.AddCommand(BuildCalibrateCommand());
         cmd.AddCommand(BuildCatalogCommand());
-        cmd.AddCommand(BuildCampaignCommand());
+        cmd.AddCommand(BuildCampaignCommand(getEnvironmentVariable));
         cmd.AddCommand(BuildCompareCommand());
         cmd.AddCommand(BuildRepairCommand());
         cmd.AddCommand(BuildCertifyCommand());
@@ -143,11 +145,11 @@ public static class HarvestCommand
 
     // ── schlieren harvest campaign ───────────────────────────────────────
 
-    private static Command BuildCampaignCommand()
+    private static Command BuildCampaignCommand(Func<string, string?> getEnvironmentVariable)
     {
         var campaignCmd = new Command("campaign", "Campaign management subcommands");
         campaignCmd.AddCommand(BuildCampaignCreateCommand());
-        campaignCmd.AddCommand(BuildCampaignRunCommand());
+        campaignCmd.AddCommand(BuildCampaignRunCommand(getEnvironmentVariable));
         return campaignCmd;
     }
 
@@ -281,7 +283,7 @@ public static class HarvestCommand
         return cmd;
     }
 
-    private static Command BuildCampaignRunCommand()
+    private static Command BuildCampaignRunCommand(Func<string, string?> getEnvironmentVariable)
     {
         var manifestArg = new Argument<string>(
             "manifest", "Path to the frozen manifest.json");
@@ -295,15 +297,18 @@ public static class HarvestCommand
             manifestArg, ledgerOpt, timeoutOpt
         };
 
-        cmd.SetHandler(async (manifest, ledger, timeout) =>
+        cmd.SetHandler(async context =>
         {
+            var manifest = context.ParseResult.GetValueForArgument(manifestArg);
+            var ledger = context.ParseResult.GetValueForOption(ledgerOpt)!;
+            var timeout = context.ParseResult.GetValueForOption(timeoutOpt);
             try
             {
                 // Load manifest
                 if (!File.Exists(manifest))
                 {
                     Console.Error.WriteLine($"Manifest not found: {manifest}");
-                    Environment.ExitCode = 2;
+                    context.ExitCode = 2;
                     return;
                 }
 
@@ -313,18 +318,18 @@ public static class HarvestCommand
                 if (campaignManifest is null)
                 {
                     Console.Error.WriteLine("Failed to deserialize manifest.");
-                    Environment.ExitCode = 2;
+                    context.ExitCode = 2;
                     return;
                 }
 
                 // Determine catalog root from manifest path
                 // manifest is at: ledger/campaigns/{id}/{hash}/manifest.json
                 // catalog root is EELS_FIXTURES_ROOT
-                var fixturesRoot = Environment.GetEnvironmentVariable("EELS_FIXTURES_ROOT") ?? "";
+                var fixturesRoot = getEnvironmentVariable("EELS_FIXTURES_ROOT") ?? "";
                 if (string.IsNullOrEmpty(fixturesRoot) || !Directory.Exists(fixturesRoot))
                 {
                     Console.Error.WriteLine("EELS_FIXTURES_ROOT environment variable not set or directory missing.");
-                    Environment.ExitCode = 2;
+                    context.ExitCode = 2;
                     return;
                 }
 
@@ -334,6 +339,44 @@ public static class HarvestCommand
                 Console.WriteLine($"Timeout per case: {timeout}s");
                 Console.WriteLine();
 
+                string eelsExePath;
+                try
+                {
+                    eelsExePath = EelsExecutableResolver.Resolve(getEnvironmentVariable);
+                }
+                catch (HarvestConfigurationException ex)
+                {
+                    Console.Error.WriteLine($"{ex.Code}: {ex.Message}");
+                    context.ExitCode = 3;
+                    return;
+                }
+
+                if (campaignManifest.EelsIdentity is null)
+                {
+                    Console.Error.WriteLine(
+                        "HARVEST.EELS_IDENTITY_REQUIRED: Frozen manifest has no EELS identity.");
+                    context.ExitCode = 3;
+                    return;
+                }
+
+                var oracleOpts = new Schlieren.Harvest.Execution.EelsOracleOptions(
+                    ExecutablePath: eelsExePath,
+                    ExpectedVersion: campaignManifest.EelsIdentity.ReportedVersion,
+                    WorkingDirectory: fixturesRoot,
+                    Timeout: TimeSpan.FromSeconds(timeout));
+                var oracle = new Schlieren.Harvest.Execution.EelsProcessOracle(oracleOpts);
+                try
+                {
+                    Schlieren.Harvest.Execution.EelsProcessOracle.ValidateIdentity(
+                        oracle.Identity, campaignManifest.EelsIdentity);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Console.Error.WriteLine($"HARVEST.EELS_IDENTITY_MISMATCH: {ex.Message}");
+                    context.ExitCode = 3;
+                    return;
+                }
+
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
 
                 // Locate worker executable
@@ -341,26 +384,11 @@ public static class HarvestCommand
                 if (workerExe is null)
                 {
                     Console.Error.WriteLine("Schlieren.Harvest.Worker executable not found. Build the worker project first.");
-                    Environment.ExitCode = 3;
+                    context.ExitCode = 3;
                     return;
                 }
                 Console.WriteLine($"Worker: {workerExe}");
 
-                // Create EELS oracle from environment
-                var eelsExePath = Environment.GetEnvironmentVariable("EELS_EXE")
-                    ?? "C:/projects/eels-venv/Scripts/ethereum-spec-evm.exe";
-                if (!File.Exists(eelsExePath))
-                {
-                    Console.Error.WriteLine($"EELS oracle executable not found at {eelsExePath}. Set EELS_EXE or install EELS.");
-                    Environment.ExitCode = 3;
-                    return;
-                }
-                var oracleOpts = new Schlieren.Harvest.Execution.EelsOracleOptions(
-                    ExecutablePath:   eelsExePath,
-                    ExpectedVersion:  "", // skip version check during run (already pinned in manifest)
-                    WorkingDirectory: fixturesRoot,
-                    Timeout:          TimeSpan.FromSeconds(timeout));
-                var oracle = new Schlieren.Harvest.Execution.EelsProcessOracle(oracleOpts);
                 Console.WriteLine($"EELS oracle: {eelsExePath}");
 
                 var worker     = new Schlieren.Harvest.Campaigns.SubprocessCaseWorker(workerExe, oracle, timeout);
@@ -374,14 +402,14 @@ public static class HarvestCommand
 
                 var tool = new Schlieren.Harvest.Domain.ToolIdentity(
                     "schlieren", "1.0.0",
-                    GetGitCommitShort(), // dynamic, not hardcoded
+                    GetGitCommit(),
                     null);
 
                 var runId = await runner.RunAsync(
                     campaignManifest, fixturesRoot,
                     Schlieren.Harvest.Domain.RunKind.Inspection,
                     env, tool,
-                    campaignManifest.EelsIdentity);
+                    oracle.Identity);
 
                 var envelope = await fileLedger.ReadRunAsync(runId);
                 var record = envelope.Payload;
@@ -397,18 +425,18 @@ public static class HarvestCommand
                 Console.WriteLine($"Total: {record.Summary.Total}");
 
                 if (record.State == Schlieren.Harvest.Domain.RunState.Completed)
-                    Environment.ExitCode = 0;
+                    context.ExitCode = 0;
                 else if (record.Summary.DivergenceCount > 0)
-                    Environment.ExitCode = 4;
+                    context.ExitCode = 4;
                 else
-                    Environment.ExitCode = 3;
+                    context.ExitCode = 3;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Campaign run error: {ex.Message}");
-                Environment.ExitCode = 3;
+                context.ExitCode = 3;
             }
-        }, manifestArg, ledgerOpt, timeoutOpt);
+        });
 
         return cmd;
     }
@@ -795,11 +823,11 @@ public static class HarvestCommand
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    private static string? GetGitCommitShort()
+    private static string? GetGitCommit()
     {
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo("git", "rev-parse --short HEAD")
+            var psi = new System.Diagnostics.ProcessStartInfo("git", "rev-parse HEAD")
             {
                 RedirectStandardOutput = true,
                 UseShellExecute = false,

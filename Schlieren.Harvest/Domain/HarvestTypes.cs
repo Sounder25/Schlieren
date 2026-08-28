@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Schlieren.Harvest.Domain;
 
@@ -14,6 +15,31 @@ public enum CaseStatus
     Aborted,
     Quarantined
 }
+
+/// <summary>The apparatus boundary that prevented a valid comparison.</summary>
+public enum ApparatusFailureKind
+{
+    OracleTimeout,
+    OracleExit,
+    OracleProtocol,
+    WorkerTimeout,
+    WorkerCrash,
+    WorkerProtocol,
+    Cancelled
+}
+
+/// <summary>
+/// Typed, content-addressed evidence from one oracle or worker process attempt.
+/// Human-readable diagnostics are supplementary and never determine this classification.
+/// </summary>
+public sealed record ExecutionAttemptEvidence(
+    ApparatusFailureKind? FailureKind,
+    TimeSpan Elapsed,
+    int? ExitCode,
+    string StdoutSha256,
+    string StderrSha256,
+    bool DiagnosticRetentionReduced,
+    string ExecutableSha256);
 
 // ── Discrepancy classification ────────────────────────────────────────────────
 
@@ -97,7 +123,9 @@ public sealed record CaseOutcome(
     IReadOnlyList<FieldDelta> Deltas,
     string           RunId,
     DateTime         CreatedUtc,
-    string?          Detail = null);
+    string?          Detail = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    ExecutionAttemptEvidence? AttemptEvidence = null);
 
 // ── Environment and tool identity ─────────────────────────────────────────────
 

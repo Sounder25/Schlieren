@@ -149,6 +149,33 @@ public class CampaignRunnerTests : IDisposable
         Assert.Equal(1, envelope.Payload.Summary.DivergenceCount);
     }
 
+    [Fact]
+    public async Task RunAsync_PersistsTypedAttemptEvidenceOnNonPassCase()
+    {
+        var manifest = MakeManifest(1);
+        var evidence = new ExecutionAttemptEvidence(
+            ApparatusFailureKind.WorkerTimeout,
+            TimeSpan.FromSeconds(2),
+            null,
+            new string('a', 64),
+            new string('b', 64),
+            true,
+            "worker-sha");
+        var worker = new FakeWorker(_ => new ComparisonResult(
+            CaseStatus.Aborted,
+            Array.Empty<FieldDelta>(),
+            "worker timed out",
+            evidence));
+        var runner = new CampaignRunner(worker, _ledger);
+
+        var runId = await runner.RunAsync(manifest, "/tmp", RunKind.Inspection, Env, Tool);
+        var envelope = await _ledger.ReadRunAsync(runId);
+        var outcome = Assert.Single(envelope.Payload.Outcomes);
+        Assert.Equal(evidence, outcome.AttemptEvidence);
+        var caseEnvelope = await _ledger.ReadCaseAsync(runId, outcome.CaseId);
+        Assert.Equal(evidence, caseEnvelope.Payload.AttemptEvidence);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static ComparisonResult Pass() =>

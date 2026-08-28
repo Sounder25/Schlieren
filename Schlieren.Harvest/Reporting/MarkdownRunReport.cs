@@ -101,19 +101,20 @@ public static class MarkdownRunReport
         {
             sb.AppendLine("## Non-Pass Cases");
             sb.AppendLine();
-            sb.AppendLine($"| Case ID | Status | Deltas | Detail |");
-            sb.AppendLine($"|---|---|---|---|");
+            sb.AppendLine($"| Case ID | Status | Deltas | Apparatus Failure | Detail |");
+            sb.AppendLine($"|---|---|---|---|---|");
             foreach (var c in nonPass)
             {
                 var deltaDesc = c.Deltas.Count > 0
                     ? string.Join(", ", c.Deltas.Select(d => $"{d.Layer}/{d.Kind}"))
                     : "—";
                 var detail = c.Detail ?? "—";
+                var apparatus = c.AttemptEvidence?.FailureKind.ToString() ?? "—";
                 // Truncate long case IDs for readability
                 var caseDisplay = c.CaseId.Length > 60
                     ? "…" + c.CaseId[^55..]
                     : c.CaseId;
-                sb.AppendLine($"| `{caseDisplay}` | {c.Status} | {deltaDesc} | {detail} |");
+                sb.AppendLine($"| `{caseDisplay}` | {c.Status} | {deltaDesc} | {apparatus} | {detail} |");
             }
             sb.AppendLine();
         }

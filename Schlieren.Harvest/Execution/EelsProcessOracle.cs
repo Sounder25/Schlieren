@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Text;
+using Schlieren.Harvest.Campaigns;
+using Schlieren.Harvest.Domain;
 
 namespace Schlieren.Harvest.Execution;
 
-/// <summary>Options for pinning and invoking the EELS executable.</summary>
 public sealed record EelsOracleOptions(
     string ExecutablePath,
     string ExpectedVersion,
@@ -11,113 +13,140 @@ public sealed record EelsOracleOptions(
     TimeSpan Timeout);
 
 /// <summary>
-/// Pins and probes the EELS executable, then runs it against fixture files.
-///
-/// Contracts:
-///   - Rejects a version mismatch before any case execution.
-///   - Invokes: ethereum-spec-evm statetest --json &lt;fixturePath&gt;
-///   - UseShellExecute=false, both streams redirected.
-///   - Kills the process tree on timeout; returns TimedOut=true.
-///   - Records executable SHA-256 and reported version.
-///   - Never throws on process failure — callers classify the result.
+/// Pins and invokes EELS with argument-safe process configuration and typed attempt evidence.
 /// </summary>
 public sealed class EelsProcessOracle : IReferenceOracle
 {
     private readonly EelsOracleOptions _options;
 
     public string ExecutableSha256 { get; }
-    public string ReportedVersion  { get; }
-    public bool   VersionMatches   { get; }
+    public string ReportedVersion { get; }
+    public bool VersionMatches { get; }
 
     public EelsProcessOracle(EelsOracleOptions options)
     {
-        _options = options;
-
-        // Record executable SHA-256
-        try
-        {
-            var bytes = File.ReadAllBytes(options.ExecutablePath);
-            ExecutableSha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        }
-        catch
-        {
-            ExecutableSha256 = "";
-        }
-
-        // Probe reported version
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ExecutableSha256 = ComputeFileSha256(options.ExecutablePath);
         ReportedVersion = ProbeVersion(options.ExecutablePath);
-        VersionMatches  = string.IsNullOrEmpty(options.ExpectedVersion) ||
-                          ReportedVersion.Contains(options.ExpectedVersion, StringComparison.OrdinalIgnoreCase);
+        VersionMatches = string.IsNullOrWhiteSpace(options.ExpectedVersion) ||
+                         ReportedVersion.Contains(options.ExpectedVersion,
+                             StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task<OracleRunResult> RunAsync(string fixturePath, CancellationToken ct = default)
+    public EelsIdentity Identity =>
+        new(ExecutableSha256, ReportedVersion, null);
+
+    public async Task<OracleRunResult> RunAsync(
+        string fixturePath,
+        CancellationToken ct = default)
     {
+        var stopwatch = Stopwatch.StartNew();
         if (!VersionMatches)
         {
-            return new OracleRunResult(
-                Stdout:   "",
-                Stderr:   $"Version mismatch: expected '{_options.ExpectedVersion}', got '{ReportedVersion}'",
-                ExitCode: -1,
-                TimedOut: false);
+            var stderr = $"Version mismatch: expected '{_options.ExpectedVersion}', got '{ReportedVersion}'";
+            return Result("", stderr, -1, false, ApparatusFailureKind.OracleProtocol, stopwatch.Elapsed);
         }
 
-        var psi = new ProcessStartInfo
-        {
-            FileName               = _options.ExecutablePath,
-            Arguments              = BuildArguments(fixturePath, _options),
-            WorkingDirectory       = _options.WorkingDirectory,
-            UseShellExecute        = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            CreateNoWindow         = true,
-        };
-
+        var psi = CreateStartInfo(_options, fixturePath);
         using var process = new Process { StartInfo = psi };
-
-        var stdoutBuilder = new System.Text.StringBuilder();
-        var stderrBuilder = new System.Text.StringBuilder();
-
-        process.OutputDataReceived += (_, e) => { if (e.Data != null) stdoutBuilder.AppendLine(e.Data); };
-        process.ErrorDataReceived  += (_, e) => { if (e.Data != null) stderrBuilder.AppendLine(e.Data); };
 
         try
         {
             process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(_options.Timeout);
-
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(_options.Timeout);
             try
             {
-                await process.WaitForExitAsync(cts.Token);
+                await process.WaitForExitAsync(timeout.Token);
             }
             catch (OperationCanceledException)
             {
-                // Kill process tree on timeout or cancellation
                 TryKillTree(process);
-                return new OracleRunResult(
-                    Stdout:   stdoutBuilder.ToString(),
-                    Stderr:   stderrBuilder.ToString(),
-                    ExitCode: -1,
-                    TimedOut: !ct.IsCancellationRequested);
+                try { await process.WaitForExitAsync(CancellationToken.None); } catch { }
+                var partialStdout = await ReadCompletedAsync(stdoutTask);
+                var partialStderr = await ReadCompletedAsync(stderrTask);
+                var failure = ct.IsCancellationRequested
+                    ? ApparatusFailureKind.Cancelled
+                    : ApparatusFailureKind.OracleTimeout;
+                return Result(partialStdout, partialStderr, -1, !ct.IsCancellationRequested,
+                    failure, stopwatch.Elapsed);
             }
 
-            return new OracleRunResult(
-                Stdout:   stdoutBuilder.ToString(),
-                Stderr:   stderrBuilder.ToString(),
-                ExitCode: process.ExitCode,
-                TimedOut: false);
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            var failureKind = process.ExitCode == 0
+                ? (ApparatusFailureKind?)null
+                : ApparatusFailureKind.OracleExit;
+            return Result(stdout, stderr, process.ExitCode, false,
+                failureKind, stopwatch.Elapsed);
         }
         catch (Exception ex)
         {
-            return new OracleRunResult(
-                Stdout:   "",
-                Stderr:   $"Process launch failed: {ex.Message}",
-                ExitCode: -1,
-                TimedOut: false);
+            return Result("", $"Process launch failed: {ex.Message}", -1, false,
+                ApparatusFailureKind.OracleExit, stopwatch.Elapsed);
         }
+    }
+
+    public static IReadOnlyList<string> BuildArgumentList(string fixturePath) =>
+        ["statetest", "--json", "--noreturndata", "--nostack", "--nomemory", fixturePath];
+
+    /// <summary>
+    /// Compatibility projection for callers that display the command. Process execution
+    /// uses <see cref="BuildArgumentList"/> and never reparses this string.
+    /// </summary>
+    public static string BuildArguments(string fixturePath, EelsOracleOptions options) =>
+        $"statetest --json --noreturndata --nostack --nomemory \"{fixturePath}\"";
+
+    public static void ValidateIdentity(EelsIdentity actual, EelsIdentity pinned)
+    {
+        if (!string.Equals(actual.ExecutableSha256, pinned.ExecutableSha256,
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"EELS SHA-256 mismatch: expected '{pinned.ExecutableSha256}', got '{actual.ExecutableSha256}'.");
+
+        if (string.IsNullOrWhiteSpace(pinned.ReportedVersion) ||
+            !actual.ReportedVersion.Contains(pinned.ReportedVersion,
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"EELS version mismatch: expected '{pinned.ReportedVersion}', got '{actual.ReportedVersion}'.");
+    }
+
+    private static ProcessStartInfo CreateStartInfo(EelsOracleOptions options, string fixturePath)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = options.ExecutablePath,
+            WorkingDirectory = options.WorkingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        foreach (var argument in BuildArgumentList(fixturePath))
+            psi.ArgumentList.Add(argument);
+        return psi;
+    }
+
+    private OracleRunResult Result(
+        string stdout,
+        string stderr,
+        int exitCode,
+        bool timedOut,
+        ApparatusFailureKind? failureKind,
+        TimeSpan elapsed)
+    {
+        var evidence = new ExecutionAttemptEvidence(
+            failureKind,
+            elapsed,
+            exitCode,
+            HashText(stdout),
+            HashText(stderr),
+            DiagnosticRetentionReduced: true,
+            ExecutableSha256);
+        return new OracleRunResult(stdout, stderr, exitCode, timedOut, evidence);
     }
 
     private static string ProbeVersion(string executablePath)
@@ -126,32 +155,36 @@ public sealed class EelsProcessOracle : IReferenceOracle
         {
             var psi = new ProcessStartInfo
             {
-                FileName               = executablePath,
-                Arguments              = "--version",
-                UseShellExecute        = false,
+                FileName = executablePath,
+                UseShellExecute = false,
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                CreateNoWindow         = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
             };
-            using var p = Process.Start(psi);
-            if (p == null) return "";
-            var stdout = p.StandardOutput.ReadToEnd();
-            var stderr = p.StandardError.ReadToEnd();
-            p.WaitForExit(5000);
-            var combined = (stdout + " " + stderr).Trim();
-            return combined;
+            psi.ArgumentList.Add("--version");
+            using var process = Process.Start(psi);
+            if (process is null) return "";
+            var stdout = process.StandardOutput.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(5000)) TryKillTree(process);
+            return (stdout + " " + stderr).Trim();
         }
         catch { return ""; }
     }
 
-    /// <summary>
-    /// Build EELS command-line arguments. Uses --noreturndata --nostack --nomemory
-    /// to suppress expensive per-step trace diagnostics that cause timeouts on
-    /// deep-execution fixtures, while retaining the --json stdout result (pass/stateRoot).
-    /// </summary>
-    public static string BuildArguments(string fixturePath, EelsOracleOptions options)
+    private static string ComputeFileSha256(string path)
     {
-        return $"statetest --json --noreturndata --nostack --nomemory \"{fixturePath}\"";
+        try { return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant(); }
+        catch { return ""; }
+    }
+
+    private static string HashText(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static async Task<string> ReadCompletedAsync(Task<string> task)
+    {
+        try { return await task; }
+        catch { return ""; }
     }
 
     private static void TryKillTree(Process process)

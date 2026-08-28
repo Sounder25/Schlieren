@@ -1,3 +1,5 @@
+using Schlieren.Harvest.Domain;
+
 namespace Schlieren.Harvest.Execution;
 
 /// <summary>
@@ -21,4 +23,5 @@ public sealed record OracleRunResult(
     string Stdout,
     string Stderr,
     int    ExitCode,
-    bool   TimedOut);
+    bool   TimedOut,
+    ExecutionAttemptEvidence? AttemptEvidence = null);

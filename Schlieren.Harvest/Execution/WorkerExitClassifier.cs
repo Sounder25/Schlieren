@@ -1,5 +1,7 @@
 namespace Schlieren.Harvest.Execution;
 
+using Schlieren.Harvest.Domain;
+
 /// <summary>
 /// How a worker child process terminated.
 /// Defined here (in Schlieren.Harvest) so the domain stays self-contained.
@@ -47,4 +49,14 @@ public static class WorkerExitClassifier
     /// </summary>
     public static bool IsNonPass(WorkerTerminationKind kind) =>
         kind != WorkerTerminationKind.Completed;
+
+    public static ApparatusFailureKind ToApparatusFailure(WorkerTerminationKind kind) => kind switch
+    {
+        WorkerTerminationKind.TimedOut => ApparatusFailureKind.WorkerTimeout,
+        WorkerTerminationKind.Cancelled => ApparatusFailureKind.Cancelled,
+        WorkerTerminationKind.Crashed => ApparatusFailureKind.WorkerCrash,
+        WorkerTerminationKind.ProtocolError => ApparatusFailureKind.WorkerProtocol,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind,
+            "Completed execution has no apparatus failure classification.")
+    };
 }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
-using Schlieren.Harvest.Campaigns;
 using Schlieren.Harvest.Comparison;
 using Schlieren.Harvest.Domain;
 using Schlieren.Harvest.Execution;
@@ -9,39 +10,32 @@ using Schlieren.Harvest.Worker;
 
 namespace Schlieren.Harvest.Campaigns;
 
-/// <summary>
-/// Production ICaseWorker that executes each case through real subprocess boundaries:
-///
-///   1. Spawns the EELS oracle process against the fixture to independently confirm
-///      the fixture's expected pass/fail and stateRoot (runtime oracle authority).
-///   2. Builds expected ExecutionSnapshot from the fixture post-state
-///      (field-level ground truth: gas, status, accounts, storage).
-///   3. Spawns <c>Schlieren.Harvest.Worker</c> as a child process to execute Schlieren
-///      through the canonical EVM path (fresh state, no shared mutable state).
-///   4. Cross-validates: if EELS disagrees with fixture's declared outcome → HarnessError.
-///   5. Compares Schlieren's actual output against the expected via ConformanceComparator.
-///
-/// Worker crash, timeout, or protocol error → Aborted (never Pass).
-/// EELS crash or disagreement with fixture → HarnessError (apparatus defect).
-/// </summary>
+/// <summary>Executes the independent EELS oracle and canonical Schlieren worker.</summary>
 public sealed class SubprocessCaseWorker : ICaseWorker
 {
     private readonly string _workerExePath;
+    private readonly string _workerSha256;
     private readonly IReferenceOracle _oracle;
     private readonly int _timeoutMs;
 
-    /// <param name="workerExePath">Absolute path to the Schlieren.Harvest.Worker executable.</param>
-    /// <param name="oracle">EELS process oracle for independent runtime confirmation.</param>
-    /// <param name="timeoutSeconds">Per-case timeout in seconds.</param>
     public SubprocessCaseWorker(string workerExePath, IReferenceOracle oracle, int timeoutSeconds = 120)
     {
         if (!File.Exists(workerExePath))
-            throw new FileNotFoundException(
-                $"Worker executable not found: {workerExePath}", workerExePath);
+            throw new FileNotFoundException($"Worker executable not found: {workerExePath}", workerExePath);
         _workerExePath = workerExePath;
+        _workerSha256 = Convert.ToHexString(
+            SHA256.HashData(File.ReadAllBytes(workerExePath))).ToLowerInvariant();
         _oracle = oracle ?? throw new ArgumentNullException(nameof(oracle));
-        _timeoutMs = timeoutSeconds * 1000;
+        _timeoutMs = checked(timeoutSeconds * 1000);
     }
+
+    public static CaseStatus StatusForApparatusFailure(ApparatusFailureKind failure) => failure switch
+    {
+        ApparatusFailureKind.OracleTimeout or
+        ApparatusFailureKind.OracleExit or
+        ApparatusFailureKind.OracleProtocol => CaseStatus.HarnessError,
+        _ => CaseStatus.Aborted
+    };
 
     public async Task<ComparisonResult> ExecuteCaseAsync(
         ManifestCase manifestCase,
@@ -49,7 +43,6 @@ public sealed class SubprocessCaseWorker : ICaseWorker
         string manifestHash,
         CancellationToken ct = default)
     {
-        // Resolve fixture path
         var fixturePath = Path.IsPathRooted(manifestCase.RelativePath)
             ? manifestCase.RelativePath
             : Path.GetFullPath(Path.Combine(catalogRoot, manifestCase.RelativePath));
@@ -57,7 +50,6 @@ public sealed class SubprocessCaseWorker : ICaseWorker
         if (!File.Exists(fixturePath))
             return ConformanceComparator.Aborted($"Fixture file not found: {fixturePath}");
 
-        // 1. Run EELS oracle independently against the fixture
         OracleRunResult oracleResult;
         try
         {
@@ -66,142 +58,206 @@ public sealed class SubprocessCaseWorker : ICaseWorker
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            return new ComparisonResult(CaseStatus.HarnessError, Array.Empty<FieldDelta>(),
-                $"EELS oracle invocation failed: {ex.Message}");
+            var evidence = Evidence(ApparatusFailureKind.OracleExit, TimeSpan.Zero, null, "", ex.Message, "");
+            return ApparatusFailure(evidence, $"EELS oracle invocation failed: {ex.Message}");
         }
 
-        // EELS nonzero exit or timeout → HarnessError (apparatus cannot confirm fixture)
         if (oracleResult.ExitCode != 0 || oracleResult.TimedOut)
         {
-            return new ComparisonResult(CaseStatus.HarnessError, Array.Empty<FieldDelta>(),
+            var failure = oracleResult.AttemptEvidence?.FailureKind ??
+                (oracleResult.TimedOut
+                    ? ApparatusFailureKind.OracleTimeout
+                    : ApparatusFailureKind.OracleExit);
+            var evidence = EnsureOracleEvidence(oracleResult, failure);
+            return ApparatusFailure(evidence,
                 $"EELS oracle returned exit code {oracleResult.ExitCode}" +
                 (oracleResult.TimedOut ? " (timed out)" : "") +
-                $". Stderr: {oracleResult.Stderr?.Substring(0, Math.Min(200, oracleResult.Stderr?.Length ?? 0))}");
+                $". Stderr: {Truncate(oracleResult.Stderr, 200)}");
         }
 
-        // Parse EELS result to check pass/fail agreement with fixture
-        var eelsResult = EelsOutputParser.Parse(oracleResult.Stdout, oracleResult.ExitCode, oracleResult.Stderr);
+        var eelsResult = EelsOutputParser.Parse(
+            oracleResult.Stdout, oracleResult.ExitCode, oracleResult.Stderr);
         if (!eelsResult.IsSuccess)
         {
-            return new ComparisonResult(CaseStatus.HarnessError, Array.Empty<FieldDelta>(),
-                $"EELS output parse failed: {eelsResult.ParseError}");
+            var evidence = EnsureOracleEvidence(oracleResult, ApparatusFailureKind.OracleProtocol);
+            return ApparatusFailure(evidence, $"EELS output parse failed: {eelsResult.ParseError}");
         }
 
-        // Find the entry matching our case (or first entry)
         var matchingEntry = eelsResult.Cases
-            .FirstOrDefault(e => e.Name == manifestCase.CaseId)
-            ?? eelsResult.Cases.FirstOrDefault();
-
+            .FirstOrDefault(e => string.Equals(e.Name, manifestCase.CaseId, StringComparison.Ordinal));
         if (matchingEntry is null)
         {
-            return new ComparisonResult(CaseStatus.HarnessError, Array.Empty<FieldDelta>(),
-                "EELS produced no entries for this fixture");
+            var evidence = EnsureOracleEvidence(oracleResult, ApparatusFailureKind.OracleProtocol);
+            return ApparatusFailure(evidence,
+                $"EELS produced no exact entry for case '{manifestCase.CaseId}'");
         }
 
-        // 2. Build expected snapshot from fixture post-state (detailed field-level authority)
         var (expectedSnapshot, parseError) = FixtureSnapshotBuilder.Build(
             fixturePath, manifestCase.Fork, manifestCase.CaseId);
-
         if (expectedSnapshot is null)
             return new ComparisonResult(CaseStatus.FixtureInvalid, Array.Empty<FieldDelta>(),
                 $"Cannot build expected snapshot: {parseError}");
 
-        // Cross-validate: EELS pass=False means the oracle could not reproduce the
-        // fixture's expected post-state. This is always an apparatus defect regardless
-        // of whether the tx itself succeeded or failed.
-        // Note: pass=True + isSuccess=False is VALID (a failed tx whose post-state is correct).
         if (!matchingEntry.Pass)
         {
-            return new ComparisonResult(CaseStatus.HarnessError, Array.Empty<FieldDelta>(),
+            var evidence = EnsureOracleEvidence(oracleResult, ApparatusFailureKind.OracleProtocol);
+            return ApparatusFailure(evidence,
                 $"EELS oracle could not confirm fixture post-state: pass={matchingEntry.Pass}, " +
-                $"stateRoot={matchingEntry.StateRoot}. " +
-                "The oracle disagrees with the fixture's expected outcome.");
+                $"stateRoot={matchingEntry.StateRoot}.");
         }
 
-        // 3. Spawn worker subprocess to execute Schlieren
-        ExecutionSnapshot? actualSnapshot;
+        WorkerInvocation worker;
         try
         {
-            actualSnapshot = await SpawnWorkerAsync(
-                manifestCase, fixturePath, manifestHash, ct);
+            worker = await SpawnWorkerAsync(manifestCase, fixturePath, manifestHash, ct);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            return ConformanceComparator.Aborted($"Worker spawn failed: {ex.Message}");
+            var evidence = Evidence(ApparatusFailureKind.WorkerCrash, TimeSpan.Zero, null, "", ex.Message, _workerSha256);
+            return ApparatusFailure(evidence, $"Worker spawn failed: {ex.Message}");
         }
 
-        if (actualSnapshot is null)
-            return ConformanceComparator.Aborted("Worker returned null snapshot (protocol error or crash)");
+        if (worker.Snapshot is null)
+            return ApparatusFailure(worker.Evidence, "Worker did not return a valid execution snapshot");
 
-        // 4. Compare Schlieren output against expected (fixture post-state confirmed by EELS)
-        return ConformanceComparator.Compare(expectedSnapshot, actualSnapshot);
+        return ConformanceComparator.Compare(expectedSnapshot, worker.Snapshot);
     }
 
-    private async Task<ExecutionSnapshot?> SpawnWorkerAsync(
+    private ComparisonResult ApparatusFailure(ExecutionAttemptEvidence evidence, string detail) =>
+        new(StatusForApparatusFailure(evidence.FailureKind
+                ?? throw new InvalidOperationException("Failure evidence requires a failure kind.")),
+            Array.Empty<FieldDelta>(), detail, evidence);
+
+    private async Task<WorkerInvocation> SpawnWorkerAsync(
         ManifestCase manifestCase,
         string fixturePath,
         string manifestHash,
         CancellationToken ct)
     {
+        var stopwatch = Stopwatch.StartNew();
         var execReq = new ExecuteRequest(
-            ManifestHash: manifestHash,
-            CaseId:       manifestCase.CaseId,
-            FixturePath:  fixturePath,
-            SourceSha256: manifestCase.SourceSha256,
-            Fork:         manifestCase.Fork,
-            JournalEnabled: false);
-
+            manifestHash, manifestCase.CaseId, fixturePath,
+            manifestCase.SourceSha256, manifestCase.Fork, JournalEnabled: false);
         var requestPayload = JsonSerializer.Serialize(execReq,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        var workerRequest = JsonSerializer.Serialize(
-            new WorkerRequest("execute", requestPayload),
+        var workerRequest = JsonSerializer.Serialize(new WorkerRequest("execute", requestPayload),
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         var psi = new ProcessStartInfo
         {
-            FileName               = _workerExePath,
-            UseShellExecute        = false,
-            RedirectStandardInput  = true,
+            FileName = _workerExePath,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            CreateNoWindow         = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
         };
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start worker process");
-
         await process.StandardInput.WriteLineAsync(workerRequest);
         process.StandardInput.Close();
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(_timeoutMs);
-
-        string stdout;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(_timeoutMs);
         try
         {
-            stdout = await process.StandardOutput.ReadToEndAsync(cts.Token);
-            await process.WaitForExitAsync(cts.Token);
+            await process.WaitForExitAsync(timeout.Token);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            try { process.Kill(entireProcessTree: true); } catch { }
-            return null;
+            TryKillTree(process);
+            try { await process.WaitForExitAsync(CancellationToken.None); } catch { }
+            var partialStdout = await ReadCompletedAsync(stdoutTask);
+            var partialStderr = await ReadCompletedAsync(stderrTask);
+            var failure = ct.IsCancellationRequested
+                ? ApparatusFailureKind.Cancelled
+                : ApparatusFailureKind.WorkerTimeout;
+            return new WorkerInvocation(null,
+                Evidence(failure, stopwatch.Elapsed, null, partialStdout, partialStderr, _workerSha256));
         }
 
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        var hasOutput = !string.IsNullOrWhiteSpace(stdout);
         var termination = WorkerExitClassifier.Classify(
-            process.ExitCode, !string.IsNullOrWhiteSpace(stdout), timedOut: false, cancelled: false);
+            process.ExitCode, hasOutput, timedOut: false, cancelled: false);
+        if (termination != Schlieren.Harvest.Execution.WorkerTerminationKind.Completed)
+            return new WorkerInvocation(null,
+                Evidence(WorkerExitClassifier.ToApparatusFailure(termination),
+                    stopwatch.Elapsed, process.ExitCode, stdout, stderr, _workerSha256));
 
-        if (termination != Execution.WorkerTerminationKind.Completed)
-            return null;
-
-        var response = JsonSerializer.Deserialize<WorkerResponse>(stdout.Trim(),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        WorkerResponse? response;
+        try
+        {
+            response = JsonSerializer.Deserialize<WorkerResponse>(stdout.Trim(),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            response = null;
+        }
 
         if (response is null || !response.Success || string.IsNullOrEmpty(response.Result))
-            return null;
+            return new WorkerInvocation(null,
+                Evidence(ApparatusFailureKind.WorkerProtocol, stopwatch.Elapsed,
+                    process.ExitCode, stdout, stderr, _workerSha256));
 
-        return JsonSerializer.Deserialize<ExecutionSnapshot>(response.Result,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        ExecutionSnapshot? snapshot;
+        try
+        {
+            snapshot = JsonSerializer.Deserialize<ExecutionSnapshot>(response.Result,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            snapshot = null;
+        }
+
+        var evidence = Evidence(snapshot is null ? ApparatusFailureKind.WorkerProtocol : null,
+            stopwatch.Elapsed, process.ExitCode, stdout, stderr, _workerSha256);
+        return new WorkerInvocation(snapshot, evidence);
     }
+
+    private static ExecutionAttemptEvidence EnsureOracleEvidence(
+        OracleRunResult result,
+        ApparatusFailureKind failure) =>
+        result.AttemptEvidence is null
+            ? Evidence(failure, TimeSpan.Zero, result.ExitCode,
+                result.Stdout, result.Stderr, "")
+            : result.AttemptEvidence with { FailureKind = failure };
+
+    private static ExecutionAttemptEvidence Evidence(
+        ApparatusFailureKind? failure,
+        TimeSpan elapsed,
+        int? exitCode,
+        string stdout,
+        string stderr,
+        string executableSha256) =>
+        new(failure, elapsed, exitCode, Hash(stdout), Hash(stderr),
+            DiagnosticRetentionReduced: true, executableSha256);
+
+    private static string Hash(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max];
+
+    private static async Task<string> ReadCompletedAsync(Task<string> task)
+    {
+        try { return await task; }
+        catch { return ""; }
+    }
+
+    private static void TryKillTree(Process process)
+    {
+        try { process.Kill(entireProcessTree: true); } catch { }
+    }
+
+    private sealed record WorkerInvocation(
+        ExecutionSnapshot? Snapshot,
+        ExecutionAttemptEvidence Evidence);
 }

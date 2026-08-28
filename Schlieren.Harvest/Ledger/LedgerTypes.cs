@@ -34,6 +34,7 @@ public sealed record RunCaseSummary(
 ///
 /// State lifecycle: Staging → (ApparatusFailed | InspectionFailed | Completed) → Certified.
 /// Aborted and Quarantined are case-level statuses, not run-level states.
+/// Case outcomes retain typed process-attempt evidence for apparatus failures.
 /// </summary>
 public sealed record RunRecord(
     string               RunId,

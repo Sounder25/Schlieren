@@ -97,7 +97,8 @@ public sealed class CampaignRunner
                 Deltas:    result.Deltas,
                 RunId:     runId,
                 CreatedUtc: DateTime.UtcNow,
-                Detail:    result.Detail));
+                Detail:    result.Detail,
+                AttemptEvidence: result.AttemptEvidence));
         }
 
         // Compute summary

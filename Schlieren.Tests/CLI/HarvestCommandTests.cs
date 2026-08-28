@@ -21,6 +21,9 @@ public class HarvestCommandTests
 {
     private static Command BuildHarvest() => HarvestCommand.Build();
 
+    private static Command BuildHarvest(Func<string, string?> getEnvironmentVariable) =>
+        HarvestCommand.Build(getEnvironmentVariable);
+
     private static async Task<int> InvokeAsync(string args)
     {
         var cmd = BuildHarvest();
@@ -95,11 +98,63 @@ public class HarvestCommandTests
     }
 
     [Fact]
-    public async Task CampaignRun_AllArgs_Returns0()
+    public async Task CampaignRun_MissingManifest_ReturnsInputError()
     {
         var exit = await InvokeAsync("campaign run /tmp/manifest.json --ledger /tmp/l");
-        Assert.Equal(0, exit);
+        Assert.Equal(2, exit);
     }
+
+    [Fact]
+    public async Task CampaignRun_WithoutEelsExe_RefusesBeforeCreatingRun()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"harvest-cli-{Guid.NewGuid():N}");
+        var fixtures = Path.Combine(root, "fixtures");
+        var ledger = Path.Combine(root, "ledger");
+        Directory.CreateDirectory(fixtures);
+        var manifest = Path.Combine(root, "manifest.json");
+        await File.WriteAllTextAsync(manifest, MinimalManifestJson());
+        try
+        {
+            var command = BuildHarvest(key => key switch
+            {
+                "EELS_FIXTURES_ROOT" => fixtures,
+                "EELS_EXE" => null,
+                _ => null
+            });
+
+            var exit = await command.InvokeAsync(
+                ["campaign", "run", manifest, "--ledger", ledger]);
+
+            Assert.Equal(3, exit);
+            Assert.False(Directory.Exists(Path.Combine(ledger, "runs")));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static string MinimalManifestJson() => """
+        {
+          "schemaVersion":"1",
+          "campaignId":"cli-config-test",
+          "campaignVersion":"1",
+          "familyName":"test",
+          "batchSize":0,
+          "createdUtc":"2026-08-28T00:00:00Z",
+          "selectionPolicyVersion":"test-v1",
+          "eelsIdentity":{
+            "executableSha256":"pinned-sha",
+            "reportedVersion":"2.19.0",
+            "commitSha":null
+          },
+          "fixtureRootSha256":"fixture-root",
+          "requiredComparisonFields":[],
+          "toolVersion":"test",
+          "cases":[],
+          "manifestHash":"manifest-hash"
+        }
+        """;
 
     // ── Test 6: compare requires args ─────────────────────────────────────
 

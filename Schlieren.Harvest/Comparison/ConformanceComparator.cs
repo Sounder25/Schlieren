@@ -8,7 +8,8 @@ namespace Schlieren.Harvest.Comparison;
 public sealed record ComparisonResult(
     CaseStatus             Status,
     IReadOnlyList<FieldDelta> Deltas,
-    string?                Detail = null);
+    string?                Detail = null,
+    ExecutionAttemptEvidence? AttemptEvidence = null);
 
 /// <summary>
 /// Compares an expected (oracle) ExecutionSnapshot against Schlieren's actual
@@ -192,8 +193,10 @@ public static class ConformanceComparator
     /// Factory for Aborted result (timeout / crash / cancellation / host termination).
     /// Only this method may produce Aborted — never the comparison path.
     /// </summary>
-    public static ComparisonResult Aborted(string reason) =>
-        new(CaseStatus.Aborted, Array.Empty<FieldDelta>(), reason);
+    public static ComparisonResult Aborted(
+        string reason,
+        ExecutionAttemptEvidence? evidence = null) =>
+        new(CaseStatus.Aborted, Array.Empty<FieldDelta>(), reason, evidence);
 
     /// <summary>
     /// Factory for Quarantined result. Requires an explicit signed-off evidence string.

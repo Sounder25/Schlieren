@@ -216,4 +216,33 @@ public class CanonicalSerializationTests
         Assert.Equal(outcome.Status, round.Status);
         Assert.Equal(outcome.RunId,  round.RunId);
     }
+
+    [Fact]
+    public void CaseOutcome_WithoutAttemptEvidence_PreservesLegacyCanonicalShape()
+    {
+        var outcome = new CaseOutcome(
+            "legacy-case", CaseStatus.Pass, [], "run-legacy",
+            new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = HarvestJson.Serialize(outcome);
+
+        Assert.DoesNotContain("attemptEvidence", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CaseOutcome_WithAttemptEvidence_RoundTripsTypedEvidence()
+    {
+        var evidence = new ExecutionAttemptEvidence(
+            ApparatusFailureKind.OracleTimeout, TimeSpan.FromSeconds(3), -1,
+            new string('a', 64), new string('b', 64), true, new string('c', 64));
+        var outcome = new CaseOutcome(
+            "failed-case", CaseStatus.HarnessError, [], "run-new",
+            new DateTime(2026, 8, 28, 0, 0, 0, DateTimeKind.Utc),
+            "oracle timed out", evidence);
+
+        var round = HarvestJson.Deserialize<CaseOutcome>(HarvestJson.Serialize(outcome));
+
+        Assert.NotNull(round);
+        Assert.Equal(evidence, round!.AttemptEvidence);
+    }
 }
