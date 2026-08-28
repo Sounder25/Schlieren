@@ -124,10 +124,15 @@ git commit -m "test: record strategic campaign certification intake"
 - Modify: `Schlieren.Harvest/Execution/EelsProcessOracle.cs`
 - Modify: `Schlieren.Harvest/Execution/IReferenceOracle.cs`
 - Modify: `Schlieren.Harvest/Campaigns/SubprocessCaseWorker.cs`
+- Modify: `Schlieren.Harvest/Campaigns/CampaignRunner.cs`
+- Modify: `Schlieren.Harvest/Comparison/ConformanceComparator.cs`
 - Modify: `Schlieren.Harvest/Domain/HarvestTypes.cs`
 - Modify: `Schlieren.Harvest/Ledger/LedgerTypes.cs`
 - Modify: `Schlieren.Harvest/Reporting/MarkdownRunReport.cs`
 - Modify: `Schlieren.Cli/Commands/HarvestCommand.cs`
+- Add: `Schlieren.Harvest.Tests/Execution/EelsProcessOracleTests.cs`
+- Add: `Schlieren.Harvest.Tests/Campaigns/SubprocessCaseWorkerTests.cs`
+- Modify: `Schlieren.Harvest.Tests/Campaigns/CampaignRunnerTests.cs`
 - Modify: `Schlieren.Harvest.Tests/Execution/WorkerExitClassifierTests.cs`
 - Modify: `Schlieren.Tests/CLI/HarvestCommandTests.cs`
 
