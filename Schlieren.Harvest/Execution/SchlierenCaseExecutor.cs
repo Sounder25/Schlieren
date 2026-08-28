@@ -198,20 +198,36 @@ public sealed class SchlierenCaseExecutor
         var maxPriorityFeePerGas = ParseBigHex(GetStr(txEl, "maxPriorityFeePerGas"));
         var nonce    = ParseHexUlong(GetStr(txEl, "nonce"));
         var accessList = GetVariantAccessList(txEl, dataIdx);
+        var maxFeePerBlobGas = ParseBigHex(GetStr(txEl, "maxFeePerBlobGas"));
+        var blobVersionedHashes = GetBlobVersionedHashes(txEl);
+        var authorizationList = GetAuthorizationList(txEl);
 
         // Determine transaction type from fixture fields
+        // Type 4: has authorizationList (EIP-7702)
+        // Type 3: has maxFeePerBlobGas or blobVersionedHashes (EIP-4844)
         // Type 2: has maxFeePerGas / maxPriorityFeePerGas (EIP-1559)
         // Type 1: has accessList (EIP-2930)
         // Type 0: legacy
         byte txType;
         BigInteger effectiveGasPrice;
         BigInteger effectiveMaxFeePerGas;
-        if (maxFeePerGas > BigInteger.Zero)
+        if (authorizationList.Count > 0)
         {
-            // Type-2 (EIP-1559) or type-3 (blob — treat as 2 for state-test purposes)
+            txType = 4;
+            effectiveMaxFeePerGas = maxFeePerGas;
+            effectiveGasPrice = gasPrice > BigInteger.Zero ? gasPrice : maxFeePerGas;
+        }
+        else if (blobVersionedHashes.Count > 0 || maxFeePerBlobGas > BigInteger.Zero)
+        {
+            txType = 3;
+            effectiveMaxFeePerGas = maxFeePerGas;
+            effectiveGasPrice = gasPrice > BigInteger.Zero ? gasPrice : maxFeePerGas;
+        }
+        else if (maxFeePerGas > BigInteger.Zero)
+        {
             txType = 2;
             effectiveMaxFeePerGas = maxFeePerGas;
-            effectiveGasPrice = gasPrice > BigInteger.Zero ? gasPrice : maxFeePerGas; // fallback
+            effectiveGasPrice = gasPrice > BigInteger.Zero ? gasPrice : maxFeePerGas;
         }
         else if (accessList.Count > 0)
         {
@@ -258,6 +274,9 @@ public sealed class SchlierenCaseExecutor
             TxType        = txType,
             Authorization = TransactionAuthorization.Impersonated,
             EnableJournal = journalEnabled,
+            BlobVersionedHashes = blobVersionedHashes,
+            MaxFeePerBlobGas = maxFeePerBlobGas,
+            AuthorizationList = authorizationList,
         };
 
         // ── Execute ──────────────────────────────────────────────────────
@@ -472,5 +491,50 @@ public sealed class SchlierenCaseExecutor
             return ParseBytes(item.GetString());
         }
         return ParseBytes(prop.GetString());
+    }
+
+    private static IReadOnlyList<byte[]> GetBlobVersionedHashes(JsonElement txEl)
+    {
+        if (!txEl.TryGetProperty("blobVersionedHashes", out var prop) ||
+            prop.ValueKind != JsonValueKind.Array)
+            return Array.Empty<byte[]>();
+
+        var hashes = new List<byte[]>();
+        foreach (var item in prop.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String)
+                hashes.Add(ParseBytes(item.GetString()));
+        }
+        return hashes;
+    }
+
+    private static IReadOnlyList<Eip7702Authorization> GetAuthorizationList(JsonElement txEl)
+    {
+        if (!txEl.TryGetProperty("authorizationList", out var prop) ||
+            prop.ValueKind != JsonValueKind.Array)
+            return Array.Empty<Eip7702Authorization>();
+
+        var auths = new List<Eip7702Authorization>();
+        foreach (var item in prop.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            var chainId = ParseHexUlong(GetStr(item, "chainId"));
+            var address = item.TryGetProperty("address", out var addrEl) && addrEl.ValueKind == JsonValueKind.String
+                ? ParseAddress(addrEl.GetString()!) : Address.Zero;
+            var authNonce = ParseHexUlong(GetStr(item, "nonce"));
+            var signer = item.TryGetProperty("signer", out var signerEl) && signerEl.ValueKind == JsonValueKind.String
+                ? ParseAddress(signerEl.GetString()!) : Address.Zero;
+
+            auths.Add(new Eip7702Authorization
+            {
+                ChainId = chainId,
+                DelegateAddress = address,
+                Nonce = authNonce,
+                Signer = signer,
+                IsValid = true, // Fixture-provided auths with 'signer' field are pre-validated
+            });
+        }
+        return auths;
     }
 }
