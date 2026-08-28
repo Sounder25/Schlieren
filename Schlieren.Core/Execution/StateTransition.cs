@@ -720,9 +720,28 @@ public sealed class StateTransition : IStateTransition
             {
                 // Transaction-scoped finalization only. GlobalState.DeleteAccount
                 // removes the account; there is no block-level tombstone. A later
-                // tx in the same block may CREATE2-redeploy (EELS / Yellow Paper).
+                // tx in the same block may CREATE2-redeploy (Yellow Paper metamorphic semantics).
                 foreach (var addr in txOverlay.GetAccountsMarkedForDeletion())
                     state.DeleteAccount(addr);
+
+                // EIP-161 (Spurious Dragon+): remove empty accounts that were touched
+                // during this transaction. An account is empty when nonce=0, balance=0,
+                // and code is empty. SELFDESTRUCT to a non-existent beneficiary with 0
+                // balance creates such ghosts via SetBalance(addr, 0).
+                if (block.Rules.HasEip161EmptyAccountDeletion)
+                {
+                    var snapshot = state.Snapshot();
+                    foreach (var (addr, acct) in snapshot)
+                    {
+                        if (acct.Nonce == 0 &&
+                            acct.Balance == BigInteger.Zero &&
+                            (acct.Code == null || acct.Code.Length == 0) &&
+                            (acct.Storage == null || acct.Storage.Count == 0))
+                        {
+                            state.DeleteAccount(addr);
+                        }
+                    }
+                }
             }
         }
 
