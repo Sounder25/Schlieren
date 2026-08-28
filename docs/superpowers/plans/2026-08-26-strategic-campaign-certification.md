@@ -118,6 +118,9 @@ git commit -m "test: record strategic campaign certification intake"
 
 **Files:**
 
+- Add: `Schlieren.Harvest/Configuration/HarvestConfigurationException.cs`
+- Add: `Schlieren.Harvest/Configuration/EelsExecutableResolver.cs`
+- Add: `Schlieren.Harvest.Tests/Configuration/EelsExecutableResolverTests.cs`
 - Modify: `Schlieren.Harvest/Execution/EelsProcessOracle.cs`
 - Modify: `Schlieren.Harvest/Execution/IReferenceOracle.cs`
 - Modify: `Schlieren.Harvest/Campaigns/SubprocessCaseWorker.cs`
@@ -126,8 +129,6 @@ git commit -m "test: record strategic campaign certification intake"
 - Modify: `Schlieren.Harvest/Reporting/MarkdownRunReport.cs`
 - Modify: `Schlieren.Cli/Commands/HarvestCommand.cs`
 - Modify: `Schlieren.Harvest.Tests/Execution/WorkerExitClassifierTests.cs`
-- Add: `Schlieren.Harvest.Tests/Execution/EelsProcessOracleTests.cs`
-- Add: `Schlieren.Harvest.Tests/Campaigns/SubprocessCaseWorkerTests.cs`
 - Modify: `Schlieren.Tests/CLI/HarvestCommandTests.cs`
 
 - [ ] **Step 1: Write failing configuration and evidence tests**
