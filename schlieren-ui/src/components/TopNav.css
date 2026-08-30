@@ -9,7 +9,7 @@
 
 .nav-brand {
   font-family: var(--font-chrome);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 700;
   letter-spacing: 4.5px;
   color: var(--t-tertiary);
@@ -69,6 +69,21 @@
   gap: 12px;
 }
 
+.nav-opsec-btn {
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--t-tertiary);
+  background: var(--s-panel);
+  border: 1px solid var(--b-hard);
+  border-radius: 3px;
+  padding: 3px 8px;
+}
+.nav-opsec-btn.on {
+  color: var(--sig-agree);
+  border-color: var(--sig-agree);
+}
+
 .nav-fork-select {
   font-size: var(--text-label);
   font-weight: 500;
@@ -106,5 +121,25 @@
 
 .nav-run-btn:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nav-stop-btn {
+  font-size: var(--text-label);
+  font-weight: 600;
+  color: var(--sig-fracture);
+  background: #2A0A0A;
+  padding: 5px 12px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  border: 1px solid #4a1a1a;
+}
+
+.nav-stop-btn:hover:not(:disabled) {
+  background: #3a1010;
+}
+
+.nav-stop-btn:disabled {
+  opacity: 0.35;
   cursor: not-allowed;
 }

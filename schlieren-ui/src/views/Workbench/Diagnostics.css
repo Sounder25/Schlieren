@@ -64,7 +64,7 @@
 .diag-confidence {
   margin-left: auto;
   font-family: var(--font-chrome);
-  font-size: 9px;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.5px;
   padding: 1px 6px;
@@ -170,6 +170,33 @@
 .diag-finding-summary { font-size: var(--text-label); line-height: 1.45; }
 .diag-finding-evidence { color: var(--t-tertiary); overflow-wrap: anywhere; }
 .diag-finding-limitation { color: var(--t-ghost); font-style: italic; line-height: 1.4; }
+
+.diag-export-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.diag-export-btn {
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--t-secondary);
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+.diag-export-btn:hover:not(:disabled) {
+  border-color: var(--b-focus);
+  color: var(--t-primary);
+}
+
+.diag-export-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* ─── Connection ─── */
 .diag-connection {

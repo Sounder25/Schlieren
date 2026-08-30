@@ -39,7 +39,7 @@
 
 .trace-empty-text {
   font-family: var(--font-chrome);
-  font-size: 11px;
+  font-size: var(--text-label);
   color: var(--t-ghost);
   text-align: center;
   max-width: 480px;
@@ -51,7 +51,7 @@
   padding: 2px 7px;
   border: 1px solid currentColor;
   border-radius: 2px;
-  font: 600 9px/1.4 var(--font-data);
+  font: 600 var(--text-micro)/1.4 var(--font-data);
   letter-spacing: .08em;
 }
 

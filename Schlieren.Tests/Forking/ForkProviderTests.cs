@@ -2,6 +2,8 @@ using RichardSzalay.MockHttp;
 using Moq;
 using Schlieren.Core.Forking;
 using Schlieren.Core.Models; // Canonical
+using Schlieren.Core.Primitives;
+using Schlieren.Core.Security;
 using System.Net;
 using System.Text.Json;
 using Xunit;
@@ -16,6 +18,7 @@ public class ForkProviderTests
 
     public ForkProviderTests()
     {
+        OpSecGate.SetLocked(false);
         _mockHttp = new MockHttpMessageHandler();
         var client = _mockHttp.ToHttpClient();
         client.BaseAddress = new Uri("http://localhost:8545");
@@ -50,5 +53,43 @@ public class ForkProviderTests
         Assert.Equal(1UL, block!.Number); // Canonical is ulong
         Assert.Equal("0xabc", block.Hash);
         _mockHttp.VerifyNoOutstandingExpectation();
+    }
+
+    [Fact]
+    public async Task GetCode_WhenOpSecLocked_PublicProvider_Throws()
+    {
+        var mockHttp = new MockHttpMessageHandler();
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("https://eth.llamarpc.com");
+        var provider = new ForkProvider(client, _mockCache.Object);
+        OpSecGate.SetLocked(true);
+        try
+        {
+            await Assert.ThrowsAsync<OpSecViolationException>(
+                () => provider.GetCodeAsync(Address.Zero));
+        }
+        finally
+        {
+            OpSecGate.SetLocked(false);
+        }
+    }
+
+    [Fact]
+    public async Task GetCode_WhenOpSecLocked_LoopbackProvider_IsAllowed()
+    {
+        OpSecGate.SetLocked(true);
+        try
+        {
+            var response = new RpcResponse<string> { Result = "0x6000" };
+            _mockHttp.Expect(HttpMethod.Post, "http://localhost:8545/")
+                .Respond("application/json", JsonSerializer.Serialize(response));
+            var code = await _provider.GetCodeAsync(Address.Zero);
+            Assert.Equal(new byte[] { 0x60, 0x00 }, code);
+            _mockHttp.VerifyNoOutstandingExpectation();
+        }
+        finally
+        {
+            OpSecGate.SetLocked(false);
+        }
     }
 }

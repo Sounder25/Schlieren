@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
-using Schlieren.UI.Services;
 
 namespace Schlieren.Tests.Campaigns;
 

@@ -7,6 +7,6 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Schlieren.UI\Schlieren.UI.csproj" />
+    <ProjectReference Include="..\..\Schlieren.RPC\Schlieren.RPC.csproj" />
   </ItemGroup>
 </Project>

@@ -19,7 +19,7 @@ body {
   background: var(--s-void);
   color: var(--t-primary);
   font-family: var(--font-data);
-  font-size: 12px;
+  font-size: var(--text-chrome);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

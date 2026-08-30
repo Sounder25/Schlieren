@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useAppStore, type ViewId } from './engine/store';
-import { checkConnection } from './engine/rpc';
+import { checkConnection, checkOpSec, executeTrace } from './engine/rpc';
 import { TopNav } from './components/TopNav';
 import { CaseBar } from './components/CaseBar';
 import { StatusBar } from './components/StatusBar';
@@ -34,11 +34,22 @@ export default function App() {
   const activeView = useAppStore((s) => s.activeView);
   const ViewComponent = viewComponents[activeView];
 
-  // Check RPC connection on mount and every 30s
   useEffect(() => {
     checkConnection();
+    void checkOpSec();
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        void executeTrace().catch(() => undefined);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   return (

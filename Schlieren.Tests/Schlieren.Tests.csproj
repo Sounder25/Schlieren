@@ -27,7 +27,6 @@
     <ProjectReference Include="..\Schlieren.Core\Schlieren.Core.csproj" />
     <ProjectReference Include="..\Schlieren.CLI\Schlieren.CLI.csproj" />
     <ProjectReference Include="..\Schlieren.RPC\Schlieren.RPC.csproj" />
-    <ProjectReference Include="..\Schlieren.UI\Schlieren.UI.csproj" />
   </ItemGroup>
 
 </Project>

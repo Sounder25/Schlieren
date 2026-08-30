@@ -66,7 +66,7 @@ export const useHarvestStore = create<HarvestState>((set, get) => ({
   setError: (e) => set({ error: e }),
 }));
 
-/** Fetch bytecode from a public node */
+/** Fetch bytecode through Schlieren RPC so OpSec is the authority. */
 export async function harvest(address: string): Promise<HarvestedContract> {
   const { providerUrl, setIsHarvesting, setError, addContract } = useHarvestStore.getState();
   const addr = address.trim().toLowerCase();
@@ -77,16 +77,8 @@ export async function harvest(address: string): Promise<HarvestedContract> {
   setError(null);
 
   try {
-    const res = await fetch(providerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getCode', params: [addr, 'latest'] }),
-    });
-
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
-
-    const code = json.result as string;
+    const { importCode } = await import('../../engine/rpc');
+    const { code } = await importCode(addr, providerUrl);
     if (!code || code === '0x') throw new Error('No bytecode — EOA or empty address');
 
     const contract: HarvestedContract = {

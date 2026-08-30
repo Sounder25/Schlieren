@@ -152,6 +152,16 @@ export interface RunConfig {
   fork: string;
 }
 
+export const DEFAULT_RUN_CONFIG: RunConfig = {
+  bytecode: '',
+  calldata: '',
+  from: '0x0000000000000000000000000000000000000001',
+  to: '0x00000000000000000000000000000000000000aa',
+  value: '0x0',
+  gasLimit: 10_000_000,
+  fork: 'Osaka',
+};
+
 interface AppState {
   activeView: ViewId;
   setActiveView: (view: ViewId) => void;
@@ -163,33 +173,71 @@ interface AppState {
   setIsRunning: (running: boolean) => void;
   currentStep: number;
   setCurrentStep: (step: number) => void;
+  selectedFrameId: number | null;
+  setSelectedFrameId: (id: number | null) => void;
+  lastError: string | null;
+  setLastError: (error: string | null) => void;
   endpoint: string;
   setEndpoint: (url: string) => void;
   connected: boolean;
   setConnected: (connected: boolean) => void;
+  opSecEnabled: boolean;
+  setOpSecEnabled: (enabled: boolean) => void;
+  loadedFixture: import('./journal-request').LoadedFixture | null;
+  setLoadedFixture: (fixture: import('./journal-request').LoadedFixture | null) => void;
+  applyLoadedFixture: (fixture: import('./journal-request').LoadedFixture) => void;
+  resetWorkbench: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   activeView: 'workbench',
   setActiveView: (activeView) => set({ activeView }),
-  config: {
-    bytecode: '',
-    calldata: '',
-    from: '0x0000000000000000000000000000000000000001',
-    to: '0x00000000000000000000000000000000000000aa',
-    value: '0x0',
-    gasLimit: 10_000_000,
-    fork: 'Osaka',
-  },
+  config: { ...DEFAULT_RUN_CONFIG },
   setConfig: (partial) => set((state) => ({ config: { ...state.config, ...partial } })),
   result: null,
-  setResult: (result) => set({ result, currentStep: 0 }),
+  setResult: (result) => set({ result, currentStep: 0, selectedFrameId: null, lastError: null }),
   isRunning: false,
   setIsRunning: (isRunning) => set({ isRunning }),
   currentStep: 0,
   setCurrentStep: (currentStep) => set({ currentStep }),
+  selectedFrameId: null,
+  setSelectedFrameId: (selectedFrameId) => set({ selectedFrameId }),
+  lastError: null,
+  setLastError: (lastError) => set({ lastError }),
   endpoint: 'http://localhost:8545',
   setEndpoint: (endpoint) => set({ endpoint }),
   connected: false,
   setConnected: (connected) => set({ connected }),
+  opSecEnabled: false,
+  setOpSecEnabled: (opSecEnabled) => set({ opSecEnabled }),
+  loadedFixture: null,
+  setLoadedFixture: (loadedFixture) => set({ loadedFixture }),
+  applyLoadedFixture: (fixture) =>
+    set((state) => ({
+      loadedFixture: fixture,
+      lastError: null,
+      config: {
+        ...state.config,
+        fork: fixture.request.fork,
+        from: fixture.request.transaction.from,
+        to: fixture.request.transaction.to ?? '',
+        calldata: fixture.request.transaction.data,
+        value: fixture.request.transaction.value,
+        gasLimit: Number.parseInt(fixture.request.transaction.gasLimit, 16) || state.config.gasLimit,
+        bytecode: fixture.request.code ?? '',
+      },
+    })),
+  resetWorkbench: () =>
+    set((state) => ({
+      result: null,
+      currentStep: 0,
+      selectedFrameId: null,
+      lastError: null,
+      loadedFixture: null,
+      config: {
+        ...state.config,
+        bytecode: '',
+        calldata: '',
+      },
+    })),
 }));

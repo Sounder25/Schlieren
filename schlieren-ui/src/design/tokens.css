@@ -46,16 +46,16 @@
   --font-chrome: 'Inter', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
 
   /* ─── Type scale (comfortable reading) ─── */
-  --text-display: 22px;
-  --text-section: 14px;
-  --text-body: 13px;
-  --text-label: 11px;
-  --text-annotation: 11px;
-  --text-chrome: 12px;
-  --text-micro: 10px;
+  --text-display: 28px;
+  --text-section: 18px;
+  --text-body: 16px;
+  --text-label: 14px;
+  --text-annotation: 14px;
+  --text-chrome: 15px;
+  --text-micro: 13px;
 
   /* ─── Spacing ─── */
-  --row-h: 26px;
+  --row-h: 32px;
   --gap-xs: 4px;
   --gap-sm: 8px;
   --gap-md: 12px;

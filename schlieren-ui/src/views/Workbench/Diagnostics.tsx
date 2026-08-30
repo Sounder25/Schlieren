@@ -1,4 +1,5 @@
 import { buildSecurityRows, findSecurityFindingStepIndex } from '../../engine/journal-view';
+import { buildAuditReport, buildTraceExport, downloadText } from '../../engine/export';
 import { useAppStore, type ExecutionResult, type JournalSecurityFinding } from '../../engine/store';
 import './Diagnostics.css';
 
@@ -56,8 +57,23 @@ export function SecurityFindings({
 
 export function Diagnostics() {
   const result = useAppStore((s) => s.result);
+  const config = useAppStore((s) => s.config);
   const connected = useAppStore((s) => s.connected);
   const setCurrentStep = useAppStore((s) => s.setCurrentStep);
+
+  const exportTrace = () => {
+    if (!result) return;
+    downloadText(
+      'schlieren_trace.json',
+      JSON.stringify(buildTraceExport(result, config), null, 2),
+      'application/json',
+    );
+  };
+
+  const exportAudit = () => {
+    if (!result) return;
+    downloadText('AUDIT_REPORT.md', buildAuditReport(result, config), 'text/markdown');
+  };
 
   const focusFinding = (finding: JournalSecurityFinding) => {
     if (!result) return;
@@ -141,6 +157,33 @@ export function Diagnostics() {
               Linked evidence from diagnosis → security → oracle.
               Each finding traces back to a specific step, frame, and gas rule.
             </p>
+          </div>
+        </section>
+
+        <section className="diag-section">
+          <header className="diag-section-header">
+            <div className="diag-icon evidence" />
+            <span className="diag-section-title">Export</span>
+          </header>
+          <div className="diag-section-body">
+            <div className="diag-export-row">
+              <button
+                type="button"
+                className="diag-export-btn chrome"
+                onClick={exportTrace}
+                disabled={!result}
+              >
+                EXPORT TRACE
+              </button>
+              <button
+                type="button"
+                className="diag-export-btn chrome"
+                onClick={exportAudit}
+                disabled={!result}
+              >
+                EXPORT AUDIT
+              </button>
+            </div>
           </div>
         </section>
 

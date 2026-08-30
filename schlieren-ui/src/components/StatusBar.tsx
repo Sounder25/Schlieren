@@ -5,6 +5,7 @@ export function StatusBar() {
   const connected = useAppStore((s) => s.connected);
   const result = useAppStore((s) => s.result);
   const config = useAppStore((s) => s.config);
+  const lastError = useAppStore((s) => s.lastError);
 
   return (
     <div className="status-bar">
@@ -13,6 +14,12 @@ export function StatusBar() {
         <span>{connected ? 'Schlieren RPC' : 'Disconnected'}</span>
       </div>
       <div className="status-sep" />
+      {lastError && (
+        <>
+          <span style={{ color: 'var(--sig-fracture)' }}>{lastError}</span>
+          <div className="status-sep" />
+        </>
+      )}
       {result && (
         <>
           <span>

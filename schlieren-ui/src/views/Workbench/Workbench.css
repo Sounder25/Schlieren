@@ -48,7 +48,7 @@
 
 .wb-bytecode-input::placeholder {
   color: var(--t-ghost);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 
 .wb-input-actions {
@@ -58,7 +58,7 @@
 }
 
 .wb-calldata-btn {
-  font-size: 9px;
+  font-size: var(--text-micro);
   font-weight: 600;
   color: var(--t-tertiary);
   background: var(--s-elevated);
@@ -74,8 +74,24 @@
   color: var(--t-secondary);
 }
 
+.wb-reset-btn {
+  font-size: var(--text-micro);
+  font-weight: 600;
+  color: var(--t-tertiary);
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  padding: 5px 10px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.wb-reset-btn:hover {
+  border-color: var(--b-focus);
+  color: var(--t-secondary);
+}
+
 .wb-run-btn {
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 600;
   color: var(--s-void);
   background: var(--t-primary);
@@ -125,7 +141,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 26px;
+  min-height: 34px;
 }
 
 .pane-title {

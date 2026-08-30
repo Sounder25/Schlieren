@@ -24,7 +24,7 @@
   font-weight: 500;
   letter-spacing: 0.3px;
   color: var(--t-tertiary);
-  padding: 4px 12px;
+  padding: 6px 14px;
   border: none;
   background: transparent;
   transition: color var(--duration-fast), background var(--duration-fast);
@@ -86,7 +86,7 @@
 
 .dock-layout .dock-tab .dock-tab-close-btn {
   color: var(--t-ghost);
-  font-size: 12px;
+  font-size: var(--text-chrome);
   transition: color var(--duration-fast);
 }
 
