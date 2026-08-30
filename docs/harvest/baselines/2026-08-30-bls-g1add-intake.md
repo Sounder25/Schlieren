@@ -1,7 +1,7 @@
 # BLS G1ADD Campaign 8 Intake
 
 Date: 2026-08-30
-State: pre-discovery intake
+State: immutable manifest audited; discovery pending
 
 ## Baseline
 
@@ -71,3 +71,27 @@ Cases within a stratum are chosen deterministically across the ordinal-sorted ca
 ## Certification boundary
 
 The first execution is a discovery run. It may identify apparatus failures or Schlieren divergences, but it is not a certificate. Certification requires the same immutable 50-case manifest to reach 50 pass and zero non-pass outcomes under the repository's existing clean-provenance, regression, repair-order, and append-only ledger gates.
+
+## Frozen manifest
+
+- Path: `harvest/ledger/campaigns/precompiles-bls12-g1add-v1/5a91fc4655e21c84330611a809456cf95d436951d1febdcd00519438e426e4a8/manifest.json`
+- Manifest SHA-256: `5a91fc4655e21c84330611a809456cf95d436951d1febdcd00519438e426e4a8`
+- Selection policy: `stratified-v1`
+- Fixture-root SHA-256: `ed5e2dc9d4847fb83f1a820959308044b18a50be78d2d299b5211d85ad33738f`
+- EELS package version: `2.19.0`
+- EELS launcher SHA-256: `ee46923d2cfd47457f6324aeb5c21a5d42e363de2ed8597bbbcb69abcc56ee0f`
+- EELS source commit: `85aa48c742c38a2d5a876f84ebf8082a50273064`
+- EELS source checkout: dirty (`src/ethereum_spec_tools/evm_tools/daemon.py` modified)
+
+Independent audit results:
+
+- manifest hash recomputed from canonical JSON: match;
+- content-addressed directory name: match;
+- ordered cases: 50;
+- unique case IDs: 50;
+- exact stratum/fork allocation: match;
+- missing fixture files: 0;
+- fixture SHA-256 mismatches: 0;
+- cases outside G1ADD or its G1ADD pre-fork activation check: 0.
+
+The dirty EELS checkout is acceptable only for this explicitly labeled discovery run. It blocks certification until provenance is clean under the existing certification rules.
