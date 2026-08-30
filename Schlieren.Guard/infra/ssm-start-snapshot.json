@@ -1,0 +1,11 @@
+{
+  "commands": [
+    "systemctl stop reth",
+    "sed -i 's#/usr/local/bin/reth node --chain mainnet --datadir /data/reth#/usr/local/bin/reth node --chain mainnet --minimal --datadir /data/reth#' /etc/systemd/system/reth.service",
+    "grep ExecStart /etc/systemd/system/reth.service",
+    "systemctl daemon-reload",
+    "nohup reth download --datadir /data/reth --minimal -y --force > /var/log/reth-download.log 2>&1 & echo PID=$!",
+    "sleep 3",
+    "head -n 30 /var/log/reth-download.log || true"
+  ]
+}

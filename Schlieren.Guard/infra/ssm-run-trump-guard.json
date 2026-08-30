@@ -1,0 +1,22 @@
+{
+  "commands": [
+    "set -eu",
+    "export HOME=/root",
+    "export DOTNET_CLI_HOME=/root",
+    "export DOTNET_CLI_TELEMETRY_OPTOUT=1",
+    "export PATH=/usr/share/dotnet:/usr/local/bin:$PATH",
+    "mkdir -p /opt/guard-out",
+    "date -u +%Y-%m-%dT%H:%M:%SZ",
+    "echo PREFLIGHT_BLOCK",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo",
+    "echo GUARD_START",
+    "START=$(date +%s)",
+    "set +e",
+    "/opt/schlieren-guard/Schlieren.CLI guard 0x51439fafd035fe8f5caa97a3fa49686d84d3483e --fork-url http://127.0.0.1:8545 --out /opt/guard-out",
+    "echo GUARD_EXIT:$?",
+    "echo WALL_SECONDS:$(($(date +%s)-START))",
+    "ls -la /opt/guard-out/guard-51439fafd035fe8f5caa97a3fa49686d84d3483e.json",
+    "python3 -c \"import json; d=json.load(open('/opt/guard-out/guard-51439fafd035fe8f5caa97a3fa49686d84d3483e.json')); v=d.get('verdict',{}); print(json.dumps({'pin':d.get('pin'),'token':d.get('token'),'router':d.get('router'),'buyer':d.get('buyer'),'verdict':v,'showExecution':d.get('showExecution'),'workbench':{'method':(d.get('workbench') or {}).get('method'),'causalFrameId':(d.get('workbench') or {}).get('causalFrameId')},'steps':[{'name':s.get('name'),'success':s.get('success'),'error':s.get('error'),'gasUsed':s.get('gasUsed'),'value':s.get('value'),'tokenBefore':s.get('tokenBefore'),'tokenAfter':s.get('tokenAfter'),'ethBefore':s.get('ethBefore'),'ethAfter':s.get('ethAfter')} for s in (d.get('steps') or [])]}, indent=2))\""
+  ]
+}

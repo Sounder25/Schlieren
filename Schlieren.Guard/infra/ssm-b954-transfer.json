@@ -1,0 +1,5 @@
+{
+  "commands": [
+    "python3 - <<'PY'\nimport urllib.request, json\n\nTOKEN = '0xB954562066c71b3E6e7b2ac330B03C74c0Dcd5AE'\n\nurl = f'https://eth.blockscout.com/api/v2/smart-contracts/{TOKEN}'\nresp = json.loads(urllib.request.urlopen(\n    urllib.request.Request(url, headers={'User-Agent':'schlieren/1.0','Accept':'application/json'}),\n    timeout=15).read())\nsrc = resp.get('source_code') or ''\n\n# Print the _transfer function in full\nidx = src.find('function _transfer')\nif idx >= 0:\n    print('=== _transfer function ===')\n    print(src[idx:idx+3000])\nelse:\n    print('_transfer not found — printing last 5000 chars')\n    print(src[-5000:])\nPY"
+  ]
+}

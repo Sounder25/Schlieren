@@ -1,0 +1,27 @@
+{
+  "commands": [
+    "set -eu",
+    "export HOME=/root",
+    "export DOTNET_CLI_HOME=/root",
+    "export DOTNET_CLI_TELEMETRY_OPTOUT=1",
+    "export PATH=/usr/share/dotnet:/usr/local/bin:$PATH",
+    "mkdir -p /opt/guard-out",
+    "echo PREFLIGHT_CHAINID",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}'",
+    "echo",
+    "echo PREFLIGHT_BLOCK",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo",
+    "echo PREFLIGHT_SYNCING",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_syncing\",\"params\":[]}'",
+    "echo",
+    "echo PREFLIGHT_ROUTER",
+    "curl -s -m 15 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getCode\",\"params\":[\"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\",\"latest\"]}' | python3 -c \"import sys,json; c=(json.load(sys.stdin).get('result') or ''); print('router_code_chars', len(c), 'prefix', c[:20])\"",
+    "echo GUARD_START",
+    "set +e",
+    "/opt/schlieren-guard/Schlieren.CLI guard 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --fork-url http://127.0.0.1:8545 --out /opt/guard-out",
+    "echo GUARD_EXIT:$?",
+    "ls -la /opt/guard-out",
+    "head -c 6000 /opt/guard-out/guard-A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48.json"
+  ]
+}

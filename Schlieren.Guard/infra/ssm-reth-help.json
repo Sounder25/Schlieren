@@ -1,0 +1,7 @@
+{
+  "commands": [
+    "reth download --help 2>&1 | head -80",
+    "echo ---",
+    "reth node --help 2>&1 | grep -iE 'full|minimal|snapshot|download' | head -40"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "commands": [
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}'",
+    "echo",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_syncing\",\"params\":[]}'",
+    "echo",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getBlockByNumber\",\"params\":[\"finalized\",false]}' | python3 -c \"import sys,json; d=json.load(sys.stdin); r=d.get('result') or {}; print('finalized', r.get('number'), r.get('hash'))\"",
+    "curl -s -m 15 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getCode\",\"params\":[\"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\",\"latest\"]}' | python3 -c \"import sys,json; c=(json.load(sys.stdin).get('result') or ''); print('router_code_chars', len(c), 'prefix', c[:20])\"",
+    "ss -lntp | grep 8545"
+  ]
+}

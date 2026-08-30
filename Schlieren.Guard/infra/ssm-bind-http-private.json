@@ -1,0 +1,11 @@
+{
+  "commands": [
+    "sed -i 's/--http.addr 127.0.0.1/--http.addr 0.0.0.0/' /etc/systemd/system/reth.service",
+    "grep ExecStart /etc/systemd/system/reth.service",
+    "systemctl daemon-reload",
+    "systemctl restart reth",
+    "sleep 8",
+    "systemctl is-active reth",
+    "ss -lntp | grep 8545 || netstat -lntp | grep 8545 || true"
+  ]
+}

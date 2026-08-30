@@ -1,0 +1,10 @@
+{
+  "commands": [
+    "ps -p 1762 -o pid,etime,cmd || echo DOWNLOAD_NOT_RUNNING",
+    "pgrep -af 'reth download' || true",
+    "tail -n 25 /var/log/reth-download.log",
+    "echo ---DISK---",
+    "du -sh /data/reth 2>/dev/null || true",
+    "df -h /"
+  ]
+}

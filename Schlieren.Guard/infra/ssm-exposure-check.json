@@ -1,0 +1,7 @@
+{
+  "commands": [
+    "ss -lntp | grep -E ':8545|:8551|:8546|:5052|:9000|:30303' || true",
+    "grep ExecStart /etc/systemd/system/reth.service",
+    "grep ExecStart /etc/systemd/system/lighthouse.service"
+  ]
+}

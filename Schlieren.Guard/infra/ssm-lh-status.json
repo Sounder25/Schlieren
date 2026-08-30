@@ -1,0 +1,9 @@
+{
+  "commands": [
+    "systemctl is-active reth lighthouse",
+    "journalctl -u lighthouse -n 15 --no-pager",
+    "echo ---RPC---",
+    "curl -s -m 8 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo"
+  ]
+}

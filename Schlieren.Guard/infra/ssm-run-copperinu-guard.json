@@ -1,0 +1,25 @@
+{
+  "commands": [
+    "set -eu",
+    "export HOME=/root",
+    "export DOTNET_CLI_HOME=/root",
+    "export DOTNET_CLI_TELEMETRY_OPTOUT=1",
+    "export PATH=/usr/share/dotnet:/usr/local/bin:$PATH",
+    "mkdir -p /opt/guard-out",
+    "date -u +%Y-%m-%dT%H:%M:%SZ",
+    "echo PREFLIGHT_CHAINID",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}'",
+    "echo",
+    "echo PREFLIGHT_BLOCK",
+    "curl -s -m 10 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo",
+    "echo GUARD_START",
+    "START=$(date +%s)",
+    "set +e",
+    "/opt/schlieren-guard/Schlieren.CLI guard 0xf69EBe4353d00912763b9e7BE3aEE4f00509c2CC --fork-url http://127.0.0.1:8545 --out /opt/guard-out",
+    "echo GUARD_EXIT:$?",
+    "echo WALL_SECONDS:$(($(date +%s)-START))",
+    "ls -la /opt/guard-out/guard-f69EBe4353d00912763b9e7BE3aEE4f00509c2CC.json",
+    "python3 -c \"import json; d=json.load(open('/opt/guard-out/guard-f69EBe4353d00912763b9e7BE3aEE4f00509c2CC.json')); v=d.get('verdict',{}); print('KIND', v.get('kind')); print('HEAD', v.get('headline')); print('DETAIL', v.get('detail')); print('LOSS', v.get('effectiveLossPercent')); print('HP', v.get('looksLikeHoneypot')); print('CAUSE_ID', v.get('causalFrameId')); print('CAUSE_CONTRACT', v.get('causalContract')); print('CAUSE_DEPTH', v.get('causalDepth')); print('PIN', d.get('pin')); print('TOKEN', d.get('token')); print('ROUTER', d.get('router')); print('BUYER', d.get('buyer')); print('SHOW', d.get('showExecution')); wb=d.get('workbench') or {}; print('WB_METHOD', wb.get('method')); print('WB_FRAME', wb.get('causalFrameId'));\\n[print('STEP', s.get('name'), s.get('success'), 'gas', s.get('gasUsed'), 'err', s.get('error'), 'tok', s.get('tokenBefore'), '->', s.get('tokenAfter'), 'eth', s.get('ethBefore'), '->', s.get('ethAfter')) for s in (d.get('steps') or [])]\""
+  ]
+}

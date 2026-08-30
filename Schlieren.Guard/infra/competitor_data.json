@@ -1,0 +1,316 @@
+{
+  "honeypot_is": {
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 106631459.10930264
+    },
+    "0x514910771af9ca656af840dff83e8264ecf986ca": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 10937712.48373832
+    },
+    "0x6982508145454ce325ddbe47a25d4ec3d2311933": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 27219669.9439182
+    },
+    "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 2775584.5718388576
+    },
+    "0xcf0c122c6b73ff809c693db761e7baebe62b6a2e": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0.3,
+      "sellTax": 0.3,
+      "simOk": true,
+      "liq": 7396489.843098738
+    },
+    "0xf69ebe4353d00912763b9e7be3aee4f00509c2cc": {
+      "isHoneypot": true,
+      "reason": "execution reverted: \"revert: TransferHelper: TRANSFER_FROM_FAILED\"",
+      "buyTax": 0,
+      "sellTax": 100,
+      "simOk": true,
+      "liq": 6195.1003763662175
+    },
+    "0x8b3192f5eebd8579568a2ed41e6feb402f93f73f": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 1.99,
+      "sellTax": 1.9,
+      "simOk": true,
+      "liq": 11801.797289270778
+    },
+    "0xc40af1e4fecfa05ce6bab79dcd8b373d2e436c4e": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 1.99,
+      "sellTax": 1.66,
+      "simOk": true,
+      "liq": 91956.9093359431
+    },
+    "0x2d1643a5d14fb221521767f2405efbbe4d4603fd": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 3.1,
+      "sellTax": 3.19,
+      "simOk": true,
+      "liq": 3429.0153599400132
+    },
+    "0x15874d65e649880c2614e7a480cb7c9a55787ff6": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 5.95,
+      "simOk": true,
+      "liq": 64860.952585007246
+    },
+    "0x761d38e5ddf6ccf6cf7c55759d5210750b5d60f3": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 5582641.6484430805
+    },
+    "0x3b991130eae3cca364406d718da22fa1c3e7c256": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 665534.8590718724
+    },
+    "0xf280b16ef293d8e534e370794ef26bf312694126": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 1640200.3431281522
+    },
+    "0xe0f63a424a4439cbe457d80e4f4b51ad25b2c56c": {
+      "isHoneypot": false,
+      "reason": null,
+      "buyTax": 0,
+      "sellTax": 0,
+      "simOk": true,
+      "liq": 13269638.625887243
+    }
+  },
+  "goplus": {
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+      "is_honeypot": "0",
+      "buy_tax": "0",
+      "sell_tax": "0",
+      "is_open_source": "1",
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0x514910771af9ca656af840dff83e8264ecf986ca": {
+      "is_honeypot": "0",
+      "buy_tax": "0",
+      "sell_tax": "0",
+      "is_open_source": "1",
+      "owner": "",
+      "transfer_pausable": "0",
+      "is_blacklisted": "0",
+      "slippage_modifiable": "0",
+      "can_take_back_ownership": "0"
+    },
+    "0x6982508145454ce325ddbe47a25d4ec3d2311933": {
+      "is_honeypot": "0",
+      "buy_tax": "0",
+      "sell_tax": "0",
+      "is_open_source": "1",
+      "owner": "0x0000000000",
+      "transfer_pausable": "1",
+      "is_blacklisted": "1",
+      "slippage_modifiable": "0",
+      "can_take_back_ownership": "0"
+    },
+    "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": {
+      "is_honeypot": "0",
+      "buy_tax": "0",
+      "sell_tax": "0",
+      "is_open_source": "1",
+      "owner": "",
+      "transfer_pausable": "0",
+      "is_blacklisted": "0",
+      "slippage_modifiable": "0",
+      "can_take_back_ownership": "0"
+    },
+    "0xcf0c122c6b73ff809c693db761e7baebe62b6a2e": {
+      "is_honeypot": "0",
+      "buy_tax": "0.0029",
+      "sell_tax": "0.003",
+      "is_open_source": "1",
+      "owner": "0x0000000000",
+      "transfer_pausable": "0",
+      "is_blacklisted": "0",
+      "slippage_modifiable": "0",
+      "can_take_back_ownership": "0"
+    },
+    "0xf69ebe4353d00912763b9e7be3aee4f00509c2cc": {
+      "is_honeypot": null,
+      "buy_tax": null,
+      "sell_tax": null,
+      "is_open_source": null,
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0x8b3192f5eebd8579568a2ed41e6feb402f93f73f": {
+      "is_honeypot": "0",
+      "buy_tax": "0.0199",
+      "sell_tax": "0.019",
+      "is_open_source": "1",
+      "owner": "0x0000000000",
+      "transfer_pausable": "0",
+      "is_blacklisted": "0",
+      "slippage_modifiable": "0",
+      "can_take_back_ownership": "0"
+    },
+    "0xc40af1e4fecfa05ce6bab79dcd8b373d2e436c4e": {
+      "is_honeypot": "0",
+      "buy_tax": "0.0199",
+      "sell_tax": "0.0166",
+      "is_open_source": "1",
+      "owner": "0x0000000000",
+      "transfer_pausable": "0",
+      "is_blacklisted": "0",
+      "slippage_modifiable": "0",
+      "can_take_back_ownership": "0"
+    },
+    "0x2d1643a5d14fb221521767f2405efbbe4d4603fd": {
+      "is_honeypot": null,
+      "buy_tax": null,
+      "sell_tax": null,
+      "is_open_source": null,
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0x15874d65e649880c2614e7a480cb7c9a55787ff6": {
+      "is_honeypot": null,
+      "buy_tax": "0",
+      "sell_tax": "0.0595",
+      "is_open_source": "1",
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0x761d38e5ddf6ccf6cf7c55759d5210750b5d60f3": {
+      "is_honeypot": null,
+      "buy_tax": null,
+      "sell_tax": null,
+      "is_open_source": null,
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0x3b991130eae3cca364406d718da22fa1c3e7c256": {
+      "is_honeypot": null,
+      "buy_tax": null,
+      "sell_tax": null,
+      "is_open_source": null,
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0xf280b16ef293d8e534e370794ef26bf312694126": {
+      "is_honeypot": null,
+      "buy_tax": null,
+      "sell_tax": null,
+      "is_open_source": null,
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    },
+    "0xe0f63a424a4439cbe457d80e4f4b51ad25b2c56c": {
+      "is_honeypot": null,
+      "buy_tax": null,
+      "sell_tax": null,
+      "is_open_source": null,
+      "owner": "",
+      "transfer_pausable": null,
+      "is_blacklisted": null,
+      "slippage_modifiable": null,
+      "can_take_back_ownership": null
+    }
+  },
+  "tokensniffer": {
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x514910771af9ca656af840dff83e8264ecf986ca": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x6982508145454ce325ddbe47a25d4ec3d2311933": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0xcf0c122c6b73ff809c693db761e7baebe62b6a2e": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0xf69ebe4353d00912763b9e7be3aee4f00509c2cc": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x8b3192f5eebd8579568a2ed41e6feb402f93f73f": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0xc40af1e4fecfa05ce6bab79dcd8b373d2e436c4e": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x2d1643a5d14fb221521767f2405efbbe4d4603fd": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x15874d65e649880c2614e7a480cb7c9a55787ff6": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x761d38e5ddf6ccf6cf7c55759d5210750b5d60f3": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0x3b991130eae3cca364406d718da22fa1c3e7c256": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0xf280b16ef293d8e534e370794ef26bf312694126": {
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    "0xe0f63a424a4439cbe457d80e4f4b51ad25b2c56c": {
+      "error": "HTTP Error 401: Unauthorized"
+    }
+  }
+}

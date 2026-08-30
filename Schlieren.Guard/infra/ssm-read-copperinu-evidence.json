@@ -1,0 +1,5 @@
+{
+  "commands": [
+    "python3 -c \"import json; d=json.load(open('/opt/guard-out/guard-f69EBe4353d00912763b9e7BE3aEE4f00509c2CC.json')); v=d.get('verdict',{}); print(json.dumps({'pin':d.get('pin'),'token':d.get('token'),'router':d.get('router'),'buyer':d.get('buyer'),'verdict':v,'showExecution':d.get('showExecution'),'workbench':{'method':(d.get('workbench') or {}).get('method'),'causalFrameId':(d.get('workbench') or {}).get('causalFrameId')},'steps':[{'name':s.get('name'),'success':s.get('success'),'error':s.get('error'),'gasUsed':s.get('gasUsed'),'value':s.get('value'),'tokenBefore':s.get('tokenBefore'),'tokenAfter':s.get('tokenAfter'),'ethBefore':s.get('ethBefore'),'ethAfter':s.get('ethAfter')} for s in (d.get('steps') or [])]}, indent=2))\""
+  ]
+}

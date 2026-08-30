@@ -1,0 +1,11 @@
+{
+  "commands": [
+    "sed -i 's#https://beaconstate.info#https://mainnet-checkpoint-sync.attestant.io#' /etc/systemd/system/lighthouse.service",
+    "grep ExecStart /etc/systemd/system/lighthouse.service",
+    "systemctl daemon-reload",
+    "systemctl restart lighthouse",
+    "sleep 8",
+    "systemctl is-active lighthouse",
+    "journalctl -u lighthouse -n 25 --no-pager"
+  ]
+}

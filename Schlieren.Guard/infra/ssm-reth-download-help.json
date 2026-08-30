@@ -1,0 +1,9 @@
+{
+  "commands": [
+    "df -h /",
+    "du -sh /data/reth /data/lighthouse 2>/dev/null || true",
+    "reth download --help",
+    "echo ---LIST---",
+    "reth download --list 2>&1 | head -40"
+  ]
+}

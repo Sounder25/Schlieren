@@ -1,0 +1,14 @@
+{
+  "commands": [
+    "set -eu",
+    "export DEBIAN_FRONTEND=noninteractive",
+    "if ! command -v dotnet >/dev/null 2>&1; then curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh; bash /tmp/dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet; ln -sfn /usr/share/dotnet/dotnet /usr/local/bin/dotnet; fi",
+    "dotnet --info",
+    "rm -rf /opt/schlieren",
+    "git clone --branch feature/schlieren-guard --depth 1 https://github.com/Sounder25/Schlieren.git /opt/schlieren",
+    "cd /opt/schlieren && git rev-parse --short HEAD && git branch --show-current",
+    "cd /opt/schlieren && dotnet publish Schlieren.CLI/Schlieren.CLI.csproj -c Release -o /opt/schlieren-guard",
+    "ls -la /opt/schlieren-guard",
+    "/opt/schlieren-guard/Schlieren.CLI --help"
+  ]
+}

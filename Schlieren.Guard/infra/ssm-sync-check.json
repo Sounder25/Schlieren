@@ -1,0 +1,17 @@
+{
+  "commands": [
+    "systemctl is-active reth lighthouse || true",
+    "echo ---RETH---",
+    "journalctl -u reth -n 30 --no-pager || true",
+    "echo ---LH---",
+    "journalctl -u lighthouse -n 30 --no-pager || true",
+    "echo ---RPC---",
+    "curl -s -m 8 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_syncing\",\"params\":[]}' || echo RPC_FAIL",
+    "echo",
+    "curl -s -m 8 -X POST http://127.0.0.1:8545 -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}' || true",
+    "echo",
+    "curl -s -m 8 http://127.0.0.1:5052/eth/v1/node/syncing || true",
+    "echo",
+    "df -h /"
+  ]
+}

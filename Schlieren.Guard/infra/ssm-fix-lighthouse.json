@@ -1,0 +1,11 @@
+{
+  "commands": [
+    "sed -i 's/ --disable-deposit-contract-sync//' /etc/systemd/system/lighthouse.service",
+    "grep ExecStart /etc/systemd/system/lighthouse.service",
+    "systemctl daemon-reload",
+    "systemctl restart lighthouse",
+    "sleep 5",
+    "systemctl is-active lighthouse",
+    "journalctl -u lighthouse -n 20 --no-pager"
+  ]
+}

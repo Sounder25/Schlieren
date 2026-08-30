@@ -1,0 +1,5 @@
+{
+  "commands": [
+    "python3 - <<'PY'\nimport json, urllib.request\n\nTOKEN = '0x0dde6f6e345bfd23f3f419f0dfe04e93143b44fb'\n\ntry:\n    url = f'https://eth.blockscout.com/api/v2/smart-contracts/{TOKEN}'\n    req = urllib.request.Request(url, headers={'User-Agent':'schlieren/1.0','Accept':'application/json'})\n    resp = json.loads(urllib.request.urlopen(req, timeout=20).read())\n    src = resp.get('source_code') or ''\n    print('SOURCE (full):' )\n    # Print just the main contract section — skip OpenZeppelin boilerplate\n    # Find the custom contract\n    idx = src.rfind('contract ')\n    if idx >= 0:\n        print(src[idx:])\n    else:\n        # Print last 8000 chars which will have the main contract\n        print(src[-8000:])\nexcept Exception as e:\n    print('ERR:', e)\nPY"
+  ]
+}

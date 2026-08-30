@@ -1,0 +1,20 @@
+{
+  "commands": [
+    "set -eu",
+    "export HOME=/root DOTNET_CLI_HOME=/root DOTNET_CLI_TELEMETRY_OPTOUT=1",
+    "export PATH=/usr/share/dotnet:/usr/local/bin:$PATH",
+    "mkdir -p /opt/guard-out",
+    "echo '=== GUARD COMPETITIVE BENCHMARK ==='; date -u",
+    "TOKENS='0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 0x514910771af9ca656af840dff83e8264ecf986ca 0x6982508145454ce325ddbe47a25d4ec3d2311933 0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce 0xcf0c122c6b73ff809c693db761e7baebe62b6a2e 0xf69EBe4353d00912763b9e7BE3aEE4f00509c2CC 0x8b3192f5eebd8579568a2ed41e6feb402f93f73f 0xc40af1e4fecfa05ce6bab79dcd8b373d2e436c4e 0x2d1643a5d14fb221521767f2405efbbe4d4603fd 0x15874d65e649880c2614e7a480cb7c9a55787ff6 0x761d38e5ddf6ccf6cf7c55759d5210750b5d60f3 0x3b991130eaE3CcA364406D718DA22FA1C3E7C256 0xf280B16EF293D8e534e370794ef26bF312694126 0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C'",
+    "set +e",
+    "for TOKEN in $TOKENS; do",
+    "  echo \"--- GUARD: $TOKEN ---\"",
+    "  START=$(date +%s)",
+    "  /opt/schlieren-guard/Schlieren.CLI guard $TOKEN --fork-url http://127.0.0.1:8545 --out /opt/guard-out",
+    "  echo \"GUARD_EXIT:$?  WALL:$(($(date +%s)-START))s\"",
+    "done",
+    "echo '=== ALL DONE ==='; date -u",
+    "echo '=== SUMMARY ==='",
+    "python3 -c \"\nimport json, os, glob\nfor f in sorted(glob.glob('/opt/guard-out/guard-*.json')):\n    try:\n        d = json.load(open(f))\n        v = d.get('verdict',{})\n        tok = d.get('token','')\n        addr = tok[-10:] if len(tok)>10 else tok\n        print(f'{addr}  {v.get(\\\"kind\\\",\\\"?\\\"):20s}  loss={v.get(\\\"effectiveLossPercent\\\",\\\"\\\")!s:8s}  hp={v.get(\\\"looksLikeHoneypot\\\")}  {v.get(\\\"headline\\\",\\\"\\\")}')\n    except:\n        pass\n\""
+  ]
+}
