@@ -21,7 +21,9 @@ public enum CertificationRefusalReason
     DirtyRepository,
     MissingSuiteGate,
     MissingEelsIdentity,
-    UnverifiedContentHash
+    UnverifiedContentHash,
+    DirtyEelsCheckout,
+    MissingEelsProvenance
 }
 
 /// <summary>One specific refusal with context.</summary>
@@ -77,7 +79,8 @@ public sealed class CertificationService
         bool repositoryClean,
         bool hasOpenRepairOrders,
         bool hasRegressions,
-        int expectedCaseCount = 50)
+        int expectedCaseCount = 50,
+        Configuration.EelsSemanticIdentity? eelsProvenance = null)
     {
         var refusals = new List<CertificationRefusal>();
 
@@ -132,6 +135,15 @@ public sealed class CertificationService
         if (run.EelsOracle is null)
             refusals.Add(new(CertificationRefusalReason.MissingEelsIdentity,
                 "Run lacks EELS oracle identity — required for certification."));
+
+        if (eelsProvenance is null)
+            refusals.Add(new(CertificationRefusalReason.MissingEelsProvenance,
+                "Run lacks EELS semantic provenance — required for v2 certification."));
+        else if (!eelsProvenance.IsCleanCheckout)
+            refusals.Add(new(CertificationRefusalReason.DirtyEelsCheckout,
+                "EELS execution-specs checkout has uncommitted changes. "
+                + "Certification requires a clean checkout so the source commit "
+                + "fully identifies the oracle code."));
 
         if (string.IsNullOrWhiteSpace(runContentHash))
             refusals.Add(new(CertificationRefusalReason.UnverifiedContentHash,

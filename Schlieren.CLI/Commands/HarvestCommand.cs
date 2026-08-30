@@ -163,8 +163,8 @@ public static class HarvestCommand
             "--fixtures", "Path to EELS fixture root") { IsRequired = true };
         var eelsOpt = new Option<string>(
             "--eels", "Path to the EELS executable") { IsRequired = true };
-        var eelsVersionOpt = new Option<string>(
-            "--eels-version", "Expected EELS version string") { IsRequired = true };
+        var eelsVersionOpt = new Option<string?>(
+            "--eels-version", "EELS version override (v1 compat; auto-detected from probe if omitted)");
         var ledgerOpt = new Option<string>(
             "--ledger", "Path to the harvest ledger root") { IsRequired = true };
 
@@ -207,36 +207,33 @@ public static class HarvestCommand
                     return;
                 }
 
-                // Compute EELS executable SHA-256
-                string eelsSha256;
-                using (var sha = System.Security.Cryptography.SHA256.Create())
-                using (var stream = File.OpenRead(eels))
-                    eelsSha256 = Convert.ToHexString(sha.ComputeHash(stream)).ToLowerInvariant();
-
-                // Get EELS commit from the specs repo if available
-                string? eelsCommit = null;
-                var specsRoot = Environment.GetEnvironmentVariable("EELS_SPECS_ROOT");
-                if (!string.IsNullOrEmpty(specsRoot) && Directory.Exists(specsRoot))
+                // Probe EELS semantic provenance
+                var specsRoot = Environment.GetEnvironmentVariable("EELS_SPECS_ROOT") ?? "";
+                if (string.IsNullOrEmpty(specsRoot) || !Directory.Exists(specsRoot))
                 {
-                    try
-                    {
-                        var psi = new System.Diagnostics.ProcessStartInfo("git", "rev-parse HEAD")
-                        { RedirectStandardOutput = true, UseShellExecute = false, WorkingDirectory = specsRoot };
-                        using var proc = System.Diagnostics.Process.Start(psi);
-                        if (proc is not null)
-                        {
-                            eelsCommit = proc.StandardOutput.ReadToEnd().Trim();
-                            proc.WaitForExit(5000);
-                            if (string.IsNullOrEmpty(eelsCommit)) eelsCommit = null;
-                        }
-                    }
-                    catch { /* not fatal */ }
+                    Console.Error.WriteLine("EELS_SPECS_ROOT environment variable not set or directory missing.");
+                    Console.Error.WriteLine("Set EELS_SPECS_ROOT to the execution-specs repo root for full provenance.");
+                    Environment.ExitCode = 2;
+                    return;
                 }
 
+                Console.WriteLine("Probing EELS semantic provenance...");
+                var eelsProvenance = Schlieren.Harvest.Configuration.EelsProvenanceProbe.Probe(eels, specsRoot);
+                Console.WriteLine($"  Package: {eelsProvenance.PackageName} {eelsProvenance.PackageVersion}");
+                Console.WriteLine($"  Source commit: {eelsProvenance.SourceCommit[..12]}...");
+                Console.WriteLine($"  Python: {eelsProvenance.PythonVersion}");
+                Console.WriteLine($"  Source tree SHA-256: {eelsProvenance.SourceTreeSha256[..16]}...");
+                Console.WriteLine($"  uv.lock SHA-256: {(eelsProvenance.UvLockSha256.Length > 0 ? eelsProvenance.UvLockSha256[..16] + "..." : "(not found)")}");
+                Console.WriteLine($"  pyproject.toml SHA-256: {(eelsProvenance.PyprojectTomlSha256.Length > 0 ? eelsProvenance.PyprojectTomlSha256[..16] + "..." : "(not found)")}");
+                Console.WriteLine($"  Clean checkout: {eelsProvenance.IsCleanCheckout}");
+                if (!eelsProvenance.IsCleanCheckout)
+                    Console.WriteLine("  WARNING: EELS checkout is dirty — this manifest will NOT be certifiable.");
+                // Use probed version if --eels-version not explicitly provided
+                var resolvedVersion = eelsVersion ?? eelsProvenance.PackageVersion;
                 var eelsIdentity = new Schlieren.Harvest.Campaigns.EelsIdentity(
-                    ExecutableSha256: eelsSha256,
-                    ReportedVersion:  eelsVersion,
-                    CommitSha:        eelsCommit);
+                    ExecutableSha256: eelsProvenance.LauncherSha256,
+                    ReportedVersion:  resolvedVersion,
+                    CommitSha:        eelsProvenance.SourceCommit);
 
                 // Compute fixture root SHA-256 (hash of sorted admitted file paths + their hashes)
                 Console.WriteLine("Computing fixture root identity...");
@@ -260,7 +257,9 @@ public static class HarvestCommand
                 var manifest = Schlieren.Harvest.Campaigns.CampaignManifest.Freeze(
                     result.Cases!, $"{policy.FamilyName}-v{policy.FamilyVersion}", DateTime.UtcNow,
                     eelsIdentity: eelsIdentity,
-                    fixtureRootSha256: fixtureRootSha256);
+                    fixtureRootSha256: fixtureRootSha256,
+                    familyName: policy.FamilyName,
+                    eelsProvenance: eelsProvenance);
 
                 // 4. Persist to ledger
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);

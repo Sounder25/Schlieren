@@ -33,5 +33,6 @@
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.2.0" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.2.0" />
     <PackageVersion Include="Avalonia.Diagnostics" Version="11.2.0" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.85" />
   </ItemGroup>
 </Project>

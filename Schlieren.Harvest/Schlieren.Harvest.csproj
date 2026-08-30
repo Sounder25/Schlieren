@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Schlieren.Harvest.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Schlieren.Core\Schlieren.Core.csproj" />
   </ItemGroup>
 
