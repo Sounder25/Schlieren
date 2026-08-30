@@ -1,7 +1,10 @@
 using System.CommandLine;
 using System.CommandLine.IO;
 using System.CommandLine.Parsing;
+using System.Text.Json;
 using Schlieren.CLI.Commands;
+using Schlieren.Harvest.Campaigns;
+using Schlieren.Harvest.Serialization;
 
 namespace Schlieren.Tests.CLI;
 
@@ -87,6 +90,92 @@ public class HarvestCommandTests
             "campaign create storage-lifecycle --count 50 --fixtures /f --eels /e --eels-version v1 --ledger /l");
         Assert.Equal(0, exit);
     }
+
+    [Fact]
+    public async Task CampaignCreate_G1Add_StoresSelectedFamilyAndPolicyInManifest()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"harvest-create-{Guid.NewGuid():N}");
+        var fixtures = Path.Combine(root, "fixtures", "bls12_g1add");
+        var ledger = Path.Combine(root, "ledger");
+        var eels = Path.Combine(root, "ethereum-spec-evm.exe");
+        Directory.CreateDirectory(fixtures);
+        await File.WriteAllTextAsync(eels, "test oracle identity");
+        await File.WriteAllTextAsync(
+            Path.Combine(fixtures, "campaign.json"),
+            BuildG1AddFixtureJson());
+
+        try
+        {
+            var exit = await BuildHarvest().InvokeAsync(
+            [
+                "campaign", "create", "precompiles-bls12-g1add",
+                "--count", "50",
+                "--fixtures", Path.Combine(root, "fixtures"),
+                "--eels", eels,
+                "--eels-version", "2.19.0",
+                "--ledger", ledger,
+            ]);
+
+            Assert.Equal(0, exit);
+            var manifestPath = Assert.Single(Directory.GetFiles(
+                Path.Combine(ledger, "campaigns", "precompiles-bls12-g1add-v1"),
+                "manifest.json",
+                SearchOption.AllDirectories));
+            var manifest = HarvestJson.Deserialize<CampaignManifest>(
+                await File.ReadAllTextAsync(manifestPath));
+            Assert.NotNull(manifest);
+            Assert.Equal("precompiles-bls12-g1add", manifest.FamilyName);
+            Assert.Equal("stratified-v1", manifest.SelectionPolicyVersion);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static string BuildG1AddFixtureJson()
+    {
+        var cases = new Dictionary<string, object?>();
+        AddCases(cases, "test_bls12_g1add.py::test_valid", "Prague", 7);
+        AddCases(cases, "test_bls12_g1add.py::test_valid", "Osaka", 8);
+        AddCases(cases, "test_bls12_g1add.py::test_invalid", "Prague", 9);
+        AddCases(cases, "test_bls12_g1add.py::test_invalid", "Osaka", 9);
+        AddCases(cases, "test_bls12_g1add.py::test_call_types", "Prague", 6);
+        AddCases(cases, "test_bls12_g1add.py::test_call_types", "Osaka", 6);
+        AddCases(cases, "test_bls12_g1add.py::test_gas", "Prague", 2);
+        AddCases(cases, "test_bls12_g1add.py::test_gas", "Osaka", 2);
+        cases[
+            "test_bls12_precompiles_before_fork.py::test_precompile_before_fork" +
+            "[fork_Cancun-state_test--G1ADD]"] = FixtureCase("Cancun");
+        return JsonSerializer.Serialize(cases);
+    }
+
+    private static void AddCases(
+        IDictionary<string, object?> destination,
+        string testName,
+        string fork,
+        int count)
+    {
+        for (var i = 0; i < count; i++)
+            destination[$"{testName}[fork_{fork}-state_test-vector_{i:D3}]"] = FixtureCase(fork);
+    }
+
+    private static object FixtureCase(string fork) => new
+    {
+        _info = new Dictionary<string, string> { ["fixture-format"] = "state_test" },
+        pre = new Dictionary<string, object>(),
+        post = new Dictionary<string, object>
+        {
+            [fork] = new[]
+            {
+                new
+                {
+                    state = new Dictionary<string, object>(),
+                    receipt = new { status = "0x1", cumulativeGasUsed = "0x5208" },
+                }
+            }
+        }
+    };
 
     // ── Test 5: campaign run requires args ────────────────────────────────
 

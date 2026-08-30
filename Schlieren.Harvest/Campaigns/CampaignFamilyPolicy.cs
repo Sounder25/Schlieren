@@ -41,6 +41,7 @@ public sealed record CampaignFamilyPolicy(
     /// The greedy set-cover maximises the breadth of distinct keywords covered.
     /// </summary>
     IReadOnlyList<string> ScoreDimensions,
+    string SelectionPolicyVersion = CampaignManifest.CurrentSelectionPolicyVersion,
     /// <summary>
     /// Optional exact quotas for focused campaigns. Families without strata
     /// retain the original greedy set-cover behavior.
@@ -122,6 +123,37 @@ public sealed record CampaignFamilyPolicy(
             "basefee", "priority", "maxfee", "intrinsic", "type_1", "type_2"
         });
 
+    // ── Wave 2: focused precompile campaigns ─────────────────────────────
+
+    /// <summary>Campaign 8: EIP-2537 BLS12-381 G1ADD validation.</summary>
+    public static readonly CampaignFamilyPolicy PrecompilesBls12G1Add = new(
+        "precompiles-bls12-g1add", "1",
+        "EIP-2537 BLS12-381 G1ADD valid inputs, invalid encodings, call types, gas, and activation",
+        PathFilters: ["bls12_g1add", "bls12_precompiles_before_fork"],
+        ScoreDimensions: [],
+        SelectionPolicyVersion: "stratified-v1",
+        SelectionStrata:
+        [
+            new("valid-prague", 7,
+                ["test_bls12_g1add.py::test_valid[", "fork_Prague"], []),
+            new("valid-osaka", 8,
+                ["test_bls12_g1add.py::test_valid[", "fork_Osaka"], []),
+            new("invalid-prague", 9,
+                ["test_bls12_g1add.py::test_invalid[", "fork_Prague"], []),
+            new("invalid-osaka", 9,
+                ["test_bls12_g1add.py::test_invalid[", "fork_Osaka"], []),
+            new("call-types-prague", 6,
+                ["test_bls12_g1add.py::test_call_types[", "fork_Prague"], []),
+            new("call-types-osaka", 6,
+                ["test_bls12_g1add.py::test_call_types[", "fork_Osaka"], []),
+            new("gas-prague", 2,
+                ["test_bls12_g1add.py::test_gas[", "fork_Prague"], []),
+            new("gas-osaka", 2,
+                ["test_bls12_g1add.py::test_gas[", "fork_Osaka"], []),
+            new("before-fork-g1add", 1,
+                ["test_bls12_precompiles_before_fork.py::test_precompile_before_fork[", "fork_Cancun", "G1ADD"], [])
+        ]);
+
     // ── Lookup ─────────────────────────────────────────────────────────────
 
     private static readonly IReadOnlyDictionary<string, CampaignFamilyPolicy> _all =
@@ -134,6 +166,7 @@ public sealed record CampaignFamilyPolicy(
             ["selfdestruct"]             = SelfDestruct,
             ["transient-storage"]        = TransientStorage,
             ["access-list-fee-market"]   = AccessListFeeMarket,
+            ["precompiles-bls12-g1add"] = PrecompilesBls12G1Add,
         };
 
     /// <summary>

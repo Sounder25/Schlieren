@@ -177,6 +177,25 @@ public class CampaignSelectorTests
     }
 
     [Fact]
+    public void Manifest_NonStorageCampaign_RecordsExplicitFamilyAndSelectionPolicy()
+    {
+        var admitted = AdmitSamples("valid_published_berlin.json");
+        var selected = new CampaignSelector().TrySelect(admitted, requestedCount: 1);
+        Assert.True(selected.IsSuccess);
+
+        var manifest = CampaignManifest.Freeze(
+            selected.Cases!,
+            campaignId: "precompiles-bls12-g1add-v1",
+            createdUtc: new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),
+            familyName: "precompiles-bls12-g1add",
+            selectionPolicyVersion: "stratified-v1",
+            allowNullIdentity: true);
+
+        Assert.Equal("precompiles-bls12-g1add", manifest.FamilyName);
+        Assert.Equal("stratified-v1", manifest.SelectionPolicyVersion);
+    }
+
+    [Fact]
     public void Manifest_CaseOrder_MatchesSelectorOutput()
     {
         var admitted = AdmitSamples(
