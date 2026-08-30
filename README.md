@@ -1,6 +1,6 @@
 # Schlieren — .NET 8 Ethereum Execution & Verification Engine
 
-Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specification-verification platform built on .NET 8. It ships a complete EVM interpreter, a typed frame-aware execution journal, a React inspection workbench, and an automated conformance harness against the official Ethereum Python execution specification (EELS). The Avalonia client remains available on its frozen legacy RPC contracts.
+Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specification-verification platform built on .NET 8. It ships a complete EVM interpreter, a typed frame-aware execution journal, a React inspection workbench, and an automated conformance harness against the official Ethereum Python execution specification (EELS). The Avalonia client is frozen in-repo and is no longer part of the solution.
 
 **Status:** 100% EELS conformance across every fork from Frontier through Osaka (tag `schlieren-eels-100`).
 
@@ -13,8 +13,8 @@ Schlieren is a full-stack Ethereum execution engine, EVM debugger, and specifica
 | `Schlieren.Core` | EVM interpreter, state transitions, opcodes, precompiles, access tracker, fork rules, causal diagnosis engine |
 | `Schlieren.RPC` | Ethereum JSON-RPC server (`eth_call`, `eth_sendRawTransaction`, `debug_traceTransaction`) |
 | `Schlieren.CLI` | Command-line host and batch runner |
-| `Schlieren.UI` | Avalonia .NET 8 desktop IDE — Workbench, Conformance view, Call Topology |
-| `Schlieren.Tests` | Unit and integration test suite (369 tests, 369 pass) |
+| `Schlieren.UI` | Frozen Avalonia desktop IDE (source kept, not in `Schlieren.sln`) |
+| `Schlieren.Tests` | Unit and integration test suite |
 | `Schlieren.EELS.Tests` | EELS conformance harness + automated failure diagnosis |
 | `schlieren-ui` | Primary React workbench for journal-native frame, gas, state, and EELS inspection |
 
@@ -85,21 +85,15 @@ The primary UI makes one `schlieren_traceJournal` request per execution. Optiona
 See [`docs/rpc/schlieren_traceJournal.md`](docs/rpc/schlieren_traceJournal.md) for the complete request and gas semantics.
 See [`docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md`](docs/architecture/DETERMINISTIC_EXECUTION_INTELLIGENCE.md) for the journal evidence model and verification boundary, and [`docs/security/JOURNAL_SECURITY_EVIDENCE.md`](docs/security/JOURNAL_SECURITY_EVIDENCE.md) for the security proof contract.
 
-## Legacy Avalonia IDE (`Schlieren.UI`)
+## Frozen Avalonia IDE (`Schlieren.UI`)
 
-- **Workbench** — Load any EELS state-test fixture or live prestate JSON, execute step-by-step with full stack/memory/storage inspection, and diff expected vs actual state
-- **Conformance View** — Run and filter fork-specific EELS sweep suites; failures link directly into the Workbench
-- **Call Topology Graph** — Visual inter-contract call tree with gas attribution
-- **Causal Diagnosis Engine** — Automatically classifies EELS failures by gas rule (e.g. `EXP.BYTE_COST`, `CALL.NEW_ACCOUNT`, `TX.CREATE_SURCHARGE`) and links to `GAS_FORMULAS.md`
-- **Gas Inspector** — Inline opcode gas badges showing exact costs and warm/cold access state
-- **Hard Fork Selector** — Switch Frontier through Osaka; all fork-dependent rules apply immediately
-- **Keyboard Shortcuts** — `F10` step forward, `F11` step back, `Space` toggle auto-play, `Ctrl+O` open fixture
+Feature retirement is complete. `Schlieren.UI` remains on disk as a historical reference and is **not** in `Schlieren.sln`. Product UI is `schlieren-ui`. Internal Harvest/Certify stays in `Schlieren.Harvest`; it is not a customer feature.
 
-`debug_inspect` and `debug_traceCall` keep their existing JSON shapes for Avalonia compatibility. Journal-native clients should use `schlieren_traceJournal`.
+`debug_inspect` and `debug_traceCall` keep their existing JSON shapes. Journal-native clients should use `schlieren_traceJournal`.
 
 ### One canonical execution path
 
-`StateTransition.ApplyTransactionAsync` is the only transaction evaluator. Diagnostic callers enable the typed journal on that same run; journal events then drive the React trace, the legacy `debug_inspect` gas-tree projection, Avalonia gas views, and audit totals. Schlieren does not re-execute transactions or reconstruct gas from flat trace steps for diagnosis.
+`StateTransition.ApplyTransactionAsync` is the only transaction evaluator. Diagnostic callers enable the typed journal on that same run; journal events then drive the React trace, the legacy `debug_inspect` gas-tree projection, and audit totals. Schlieren does not re-execute transactions or reconstruct gas from flat trace steps for diagnosis.
 
 Prospective intrinsic calculations always receive the selected block's fork rules explicitly. Retrospective views read the intrinsic charge and settlement recorded by canonical execution, preventing a UI or RPC helper from silently applying a different fork schedule.
 
