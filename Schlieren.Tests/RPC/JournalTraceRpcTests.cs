@@ -156,6 +156,26 @@ public sealed class JournalTraceRpcTests
             result.GetProperty("frameTree"), critical.GetProperty("id").GetString()!));
     }
 
+    [Fact]
+    public async Task StateTestArrayFields_AreRejectedAsInvalidParams()
+    {
+        var (_, router) = BuildFixture();
+        var response = await router.ProcessRequest("""
+            {"jsonrpc":"2.0","id":12,"method":"schlieren_traceJournal","params":[{
+              "transaction":{
+                "to":"0x00000000000000000000000000000000000000aa",
+                "data":["0x"],
+                "gasLimit":["0x186a0"],
+                "value":["0x0"]
+              }
+            }]}
+            """);
+
+        using var document = JsonDocument.Parse(response);
+        Assert.Equal(-32602, document.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+        Assert.Contains("array", document.RootElement.GetProperty("error").GetProperty("message").GetString());
+    }
+
     private static bool FrameTreeContainsFinding(JsonElement node, string id)
     {
         if (node.GetProperty("securityFindingIds").EnumerateArray()

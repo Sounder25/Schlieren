@@ -1208,38 +1208,41 @@ public sealed class EthHandlers
         BlockContext blockContext;
         try
         {
-            var current = _chainState.CurrentBlock;
-            blockContext = new BlockContext
-            {
-                ChainId = _chainState.ChainId,
-                Number = current.Number,
-                Timestamp = current.Timestamp,
-                GasLimit = current.GasLimit,
-                Difficulty = current.Difficulty,
-                BaseFeePerGas = current.BaseFeePerGas,
-                Coinbase = string.IsNullOrEmpty(current.Miner)
-                    ? Address.Zero
-                    : Address.FromHex(current.Miner),
-                Rules = ForkRulesFactory.For(request.Fork)
-            };
+            blockContext = BuildJournalBlockContext(request);
         }
         catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException)
         {
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, $"Invalid fork '{request.Fork}'");
         }
 
-        var executionState = new StateOverlay(_globalState);
+        // Isolated overlay. Pre-state never writes _globalState. commit:false discards the run.
+        IGlobalState parent = request.PreState.Count > 0 ? new GlobalState() : _globalState;
+        var executionState = new StateOverlay(parent);
+        ApplyJournalPreState(executionState, request);
         if (request.Code is not null)
-            executionState.SetCode(request.To, request.Code);
+        {
+            if (request.To is null)
+                throw new RpcException(JsonRpcErrorCodes.InvalidParams, "'to' is required when 'code' is present");
+            executionState.SetCode(request.To.Value, request.Code);
+        }
+
+        var fees = JournalTraceRequestParser.ResolveFees(request);
         var transaction = new Transaction
         {
             From = request.From,
             To = request.To,
             GasLimit = request.Gas,
-            GasPrice = request.GasPrice,
+            GasPrice = fees.GasPrice,
+            MaxFeePerGas = fees.MaxFee,
+            MaxPriorityFeePerGas = fees.MaxPriority,
+            MaxFeePerBlobGas = fees.MaxBlobFee,
             Value = request.Value,
             Data = request.Data,
-            Nonce = request.Nonce ?? await _globalState.GetNonceAsync(request.From, ct),
+            TxType = request.TxType,
+            AccessList = request.AccessList,
+            AuthorizationList = request.AuthorizationList,
+            BlobVersionedHashes = request.BlobVersionedHashes,
+            Nonce = request.Nonce ?? await executionState.GetNonceAsync(request.From, ct),
             Authorization = TransactionAuthorization.Simulation,
             EnableTracing = false,
             EnableJournal = true
@@ -1257,6 +1260,38 @@ public sealed class EthHandlers
                 request.DisableStack,
                 request.DisableMemory,
                 request.DisableStorage));
+    }
+
+    private BlockContext BuildJournalBlockContext(JournalTraceRequest request)
+    {
+        var current = _chainState.CurrentBlock;
+        var over = request.Block;
+        return new BlockContext
+        {
+            ChainId = over?.ChainId ?? _chainState.ChainId,
+            Number = over?.Number ?? current.Number,
+            Timestamp = over?.Timestamp ?? current.Timestamp,
+            GasLimit = over?.GasLimit ?? current.GasLimit,
+            Difficulty = over?.PrevRandao ?? current.Difficulty,
+            BaseFeePerGas = over?.BaseFee ?? current.BaseFeePerGas,
+            ExcessBlobGas = over?.ExcessBlobGas ?? 0,
+            Coinbase = over?.Coinbase ?? (string.IsNullOrEmpty(current.Miner)
+                ? Address.Zero
+                : Address.FromHex(current.Miner)),
+            Rules = ForkRulesFactory.For(request.Fork)
+        };
+    }
+
+    private static void ApplyJournalPreState(StateOverlay overlay, JournalTraceRequest request)
+    {
+        foreach (var account in request.PreState)
+        {
+            overlay.SetNonce(account.Address, account.Nonce);
+            overlay.SetBalance(account.Address, account.Balance);
+            overlay.SetCode(account.Address, account.Code);
+            foreach (var (key, value) in account.Storage)
+                overlay.SetStorageAt(account.Address, key, value);
+        }
     }
 
     public async Task<object> HandleDebugWhyNot(object[] parameters, CancellationToken ct = default)
