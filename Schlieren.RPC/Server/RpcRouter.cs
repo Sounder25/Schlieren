@@ -14,6 +14,8 @@ namespace Schlieren.RPC.Server;
 public sealed class RpcRouter : IJsonRpcRouter
 {
     private readonly EthHandlers _ethHandlers;
+    private readonly ConformanceHandlers _conformanceHandlers;
+    private readonly OpSecHandlers _opSecHandlers;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<RpcRouter>? _logger;
     private readonly IReadOnlyList<string> _registeredMethods;
@@ -21,6 +23,8 @@ public sealed class RpcRouter : IJsonRpcRouter
     public RpcRouter(EthHandlers ethHandlers, ILogger<RpcRouter>? logger = null)
     {
         _ethHandlers = ethHandlers;
+        _conformanceHandlers = new ConformanceHandlers();
+        _opSecHandlers = new OpSecHandlers();
         _logger = logger;
         
         // Do not use WhenWritingNull globally: eth JSON-RPC requires "result": null for
@@ -67,7 +71,15 @@ public sealed class RpcRouter : IJsonRpcRouter
             "debug_traceBlockByHash",
             "debug_inspect",
             "debug_whyNot",
-            "schlieren_traceJournal"
+            "schlieren_traceJournal",
+            "schlieren_conformancePrepare",
+            "schlieren_conformanceStart",
+            "schlieren_conformancePoll",
+            "schlieren_conformanceCancel",
+            "schlieren_conformanceReadFixture",
+            "schlieren_opsecStatus",
+            "schlieren_opsecSet",
+            "schlieren_importCode"
         }.AsReadOnly();
     }
 
@@ -118,6 +130,10 @@ public sealed class RpcRouter : IJsonRpcRouter
         {
             _logger?.LogInformation("RPC error: {ErrorCode} - {Message}", ex.ErrorCode, ex.Message);
             return CreateErrorResponse(requestId, ex.ErrorCode, ex.Message);
+        }
+        catch (Schlieren.Core.Security.OpSecViolationException ex)
+        {
+            return CreateErrorResponse(requestId, JsonRpcErrorCodes.OpSecViolation, ex.Message);
         }
         catch (Exception ex)
         {
@@ -181,6 +197,14 @@ public sealed class RpcRouter : IJsonRpcRouter
             "debug_inspect" => await _ethHandlers.HandleDebugInspect(parameters, ct),
             "debug_whyNot" => await _ethHandlers.HandleDebugWhyNot(parameters, ct),
             "schlieren_traceJournal" => await _ethHandlers.HandleTraceJournal(parameters, ct),
+            "schlieren_conformancePrepare" => _conformanceHandlers.HandlePrepare(parameters),
+            "schlieren_conformanceStart" => _conformanceHandlers.HandleStart(parameters),
+            "schlieren_conformancePoll" => _conformanceHandlers.HandlePoll(parameters),
+            "schlieren_conformanceCancel" => _conformanceHandlers.HandleCancel(parameters),
+            "schlieren_conformanceReadFixture" => _conformanceHandlers.HandleReadFixture(parameters),
+            "schlieren_opsecStatus" => _opSecHandlers.HandleStatus(),
+            "schlieren_opsecSet" => _opSecHandlers.HandleSet(parameters),
+            "schlieren_importCode" => await _opSecHandlers.HandleImportCode(parameters, ct),
             
             // Method not found
             _ => throw new RpcException(JsonRpcErrorCodes.MethodNotFound, $"Method not found: {method}")

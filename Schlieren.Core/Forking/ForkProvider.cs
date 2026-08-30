@@ -4,6 +4,7 @@ using Polly;
 using Polly.Retry;
 using Schlieren.Core.Models;
 using Schlieren.Core.Primitives;
+using Schlieren.Core.Security;
 
 namespace Schlieren.Core.Forking;
 
@@ -100,6 +101,7 @@ public class ForkProvider : IForkProvider
 
     private async Task<T?> ExecuteRequestAsync<T>(object payload, CancellationToken ct)
     {
+        OpSecGate.AssertRemoteAllowed("fork_rpc", _client.BaseAddress?.ToString());
         var response = await _retryPolicy.ExecuteAsync(async (token) =>
         {
             var res = await _client.PostAsJsonAsync("", payload, token);
