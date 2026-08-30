@@ -46,6 +46,7 @@ public sealed class AdjudicatorTests
             ethBefore,
             ethAfter,
             0,
-            success ? 1 : 0);
+            success ? 1 : 0,
+            Array.Empty<GuardAccountSnapshot>());
     }
 }

@@ -152,6 +152,14 @@ export interface RunConfig {
   fork: string;
 }
 
+export interface GuardReplay {
+  method: string;
+  causalFrameId: number | null;
+  headline: string;
+  detail: string;
+  params: Record<string, unknown>[];
+}
+
 interface AppState {
   activeView: ViewId;
   setActiveView: (view: ViewId) => void;
@@ -167,6 +175,8 @@ interface AppState {
   setEndpoint: (url: string) => void;
   connected: boolean;
   setConnected: (connected: boolean) => void;
+  guardReplay: GuardReplay | null;
+  setGuardReplay: (replay: GuardReplay | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -192,4 +202,6 @@ export const useAppStore = create<AppState>((set) => ({
   setEndpoint: (endpoint) => set({ endpoint }),
   connected: false,
   setConnected: (connected) => set({ connected }),
+  guardReplay: null,
+  setGuardReplay: (guardReplay) => set({ guardReplay }),
 }));

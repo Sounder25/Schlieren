@@ -1,5 +1,5 @@
 import { parseJournalTrace } from './journal';
-import { useAppStore, type ExecutionResult } from './store';
+import { useAppStore, type ExecutionResult, type RunConfig } from './store';
 
 async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
   const { endpoint } = useAppStore.getState();
@@ -15,27 +15,10 @@ async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
 }
 
 export async function executeTrace(): Promise<ExecutionResult> {
-  const { config, setIsRunning, setResult } = useAppStore.getState();
+  const { config, guardReplay, setIsRunning, setResult } = useAppStore.getState();
   setIsRunning(true);
   try {
-    const request: Record<string, unknown> = {
-      from: config.from,
-      to: config.to,
-      gas: `0x${config.gasLimit.toString(16)}`,
-      value: config.value || '0x0',
-      data: config.calldata
-        ? (config.calldata.startsWith('0x') ? config.calldata : `0x${config.calldata}`)
-        : '0x',
-      fork: config.fork,
-      disableStack: false,
-      disableMemory: false,
-      disableStorage: false,
-    };
-    if (config.bytecode) {
-      request.code = config.bytecode.startsWith('0x')
-        ? config.bytecode
-        : `0x${config.bytecode}`;
-    }
+    const request = guardReplay?.params[0] ?? buildFlatRequest(config);
 
     const journal = parseJournalTrace(await rpcCall('schlieren_traceJournal', [request]));
     const result: ExecutionResult = {
@@ -50,6 +33,28 @@ export async function executeTrace(): Promise<ExecutionResult> {
   } finally {
     setIsRunning(false);
   }
+}
+
+function buildFlatRequest(config: RunConfig): Record<string, unknown> {
+  const request: Record<string, unknown> = {
+    from: config.from,
+    to: config.to,
+    gas: `0x${config.gasLimit.toString(16)}`,
+    value: config.value || '0x0',
+    data: config.calldata
+      ? (config.calldata.startsWith('0x') ? config.calldata : `0x${config.calldata}`)
+      : '0x',
+    fork: config.fork,
+    disableStack: false,
+    disableMemory: false,
+    disableStorage: false,
+  };
+  if (config.bytecode) {
+    request.code = config.bytecode.startsWith('0x')
+      ? config.bytecode
+      : `0x${config.bytecode}`;
+  }
+  return request;
 }
 
 export async function checkConnection(): Promise<boolean> {

@@ -57,6 +57,7 @@ export function SecurityFindings({
 export function Diagnostics() {
   const result = useAppStore((s) => s.result);
   const connected = useAppStore((s) => s.connected);
+  const guardReplay = useAppStore((s) => s.guardReplay);
   const setCurrentStep = useAppStore((s) => s.setCurrentStep);
 
   const focusFinding = (finding: JournalSecurityFinding) => {
@@ -80,11 +81,20 @@ export function Diagnostics() {
             )}
           </header>
           <div className="diag-section-body">
+            {guardReplay && (
+              <div className="diag-card fracture">
+                <span className="diag-headline">{guardReplay.headline}</span>
+                <span className="diag-detail">
+                  {guardReplay.detail}
+                  {guardReplay.causalFrameId != null ? ` Frame ${guardReplay.causalFrameId}.` : ''}
+                </span>
+              </div>
+            )}
             {!result ? (
               <p className="diag-idle-note">
-                Execute bytecode to generate causal analysis.
-                The diagnosis engine classifies failures by gas rule,
-                EIP subsystem, and oracle agreement.
+                {guardReplay
+                  ? 'Execute to replay the Guard causal transaction through schlieren_traceJournal.'
+                  : 'Execute bytecode to generate causal analysis. The diagnosis engine classifies failures by gas rule, EIP subsystem, and oracle agreement.'}
               </p>
             ) : result.success ? (
               <div className="diag-card ok">

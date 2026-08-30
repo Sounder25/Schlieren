@@ -27,7 +27,12 @@ public sealed class QualificationTests
         Assert.False(report.Verdict.LooksLikeHoneypot);
         Assert.NotNull(report.Verdict.CausalFrame);
         Assert.Equal(Token, report.Verdict.CausalFrame!.Contract);
-        Assert.Contains("Show execution", WorkbenchEvidence.WriteBundle(report));
+        var bundle = WorkbenchEvidence.WriteBundle(report);
+        Assert.Contains("Show execution", bundle);
+        Assert.Contains("\"kind\": \"schlieren-guard-evidence\"", bundle);
+        Assert.Contains("\"method\": \"schlieren_traceJournal\"", bundle);
+        Assert.Contains("\"preState\"", bundle);
+        Assert.Contains(Token.ToString(), bundle);
     }
 
     [Fact]

@@ -16,7 +16,8 @@ public sealed record ScenarioStep(
     BigInteger BuyerEthBefore,
     BigInteger BuyerEthAfter,
     BigInteger TokenBalanceBefore,
-    BigInteger TokenBalanceAfter)
+    BigInteger TokenBalanceAfter,
+    IReadOnlyList<GuardAccountSnapshot> PreState)
 {
     public bool Succeeded => Result.IsSuccess;
     public ExecutionJournal? Journal => Result.Journal;
@@ -113,6 +114,7 @@ public sealed class ScenarioSession
             ? await ReadTokenBalanceAsync(token, ct)
             : BigInteger.Zero;
 
+        var preState = GuardPreState.Capture(Overlay);
         var nonce = await Overlay.GetNonceAsync(Buyer, ct);
         var tx = new Transaction
         {
@@ -136,7 +138,8 @@ public sealed class ScenarioSession
             ? await ReadTokenBalanceAsync(token2, ct)
             : BigInteger.Zero;
 
-        var step = new ScenarioStep(name, tx, block, result, ethBefore, ethAfter, tokenBefore, tokenAfter);
+        var step = new ScenarioStep(
+            name, tx, block, result, ethBefore, ethAfter, tokenBefore, tokenAfter, preState);
         ((List<ScenarioStep>)Steps).Add(step);
         return step;
     }

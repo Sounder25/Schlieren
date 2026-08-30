@@ -4,6 +4,7 @@ import type { LayoutData, TabData } from 'rc-dock';
 import 'rc-dock/dist/rc-dock-dark.css';
 import { useAppStore } from '../../engine/store';
 import { executeTrace } from '../../engine/rpc';
+import { loadGuardEvidence } from '../../engine/guard-evidence';
 import { Disassembly } from './Disassembly';
 import { MachineState } from './MachineState';
 import { TracePanel } from './TracePanel';
@@ -105,7 +106,10 @@ export function Workbench() {
   const config = useAppStore((s) => s.config);
   const setConfig = useAppStore((s) => s.setConfig);
   const isRunning = useAppStore((s) => s.isRunning);
+  const guardReplay = useAppStore((s) => s.guardReplay);
+  const setGuardReplay = useAppStore((s) => s.setGuardReplay);
   const dockRef = useRef<DockLayout>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const savedLayout = useRef<LayoutData | null>(loadSavedLayout());
 
   const handleLayoutChange = useCallback((newLayout: LayoutData) => {
@@ -126,6 +130,17 @@ export function Workbench() {
     }
   };
 
+  const handleFile = async (file: File) => {
+    const text = await file.text();
+    try {
+      const loaded = loadGuardEvidence(text);
+      setGuardReplay(loaded.replay);
+      setConfig(loaded.config);
+    } catch (err) {
+      console.error('Guard evidence load failed:', err);
+    }
+  };
+
   return (
     <div className="workbench">
       {/* Input bar */}
@@ -136,12 +151,33 @@ export function Workbench() {
           type="text"
           placeholder="Paste hex bytecode (0x optional) — Ctrl+Enter to execute"
           value={config.bytecode}
-          onChange={(e) => setConfig({ bytecode: e.target.value })}
+          onChange={(e) => {
+            setGuardReplay(null);
+            setConfig({ bytecode: e.target.value });
+          }}
           onKeyDown={handleKeyDown}
           spellCheck={false}
           autoComplete="off"
         />
         <div className="wb-input-actions">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFile(file);
+              e.target.value = '';
+            }}
+          />
+          <button
+            className="wb-calldata-btn chrome"
+            title="Open Guard evidence JSON"
+            onClick={() => fileRef.current?.click()}
+          >
+            EVIDENCE
+          </button>
           <button
             className="wb-calldata-btn chrome"
             title="Configure transaction parameters"
@@ -151,7 +187,7 @@ export function Workbench() {
           <button
             className="wb-run-btn chrome"
             onClick={handleRun}
-            disabled={isRunning || !config.bytecode}
+            disabled={isRunning || (!config.bytecode && !guardReplay)}
           >
             {isRunning ? (
               <span className="run-spinner">⟳</span>

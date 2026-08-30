@@ -57,6 +57,7 @@ public static class WorkbenchEvidence
             showExecution = causal is null
                 ? "Open the matching step journal in Workbench."
                 : $"Show execution → Workbench exact causal frame {causal.FrameId} at {causal.Contract}.",
+            workbench = BuildReplay(report),
             steps = report.Steps.Select(step => new
             {
                 name = step.Name,
@@ -74,6 +75,62 @@ public static class WorkbenchEvidence
             }).ToArray()
         };
         return JsonSerializer.Serialize(dto, JsonOptions);
+    }
+
+    public static ScenarioStep? CausalStep(GuardReport report)
+    {
+        if (report.Verdict.Kind == GuardOutcomeKind.SellDelayed)
+            return report.Steps.FirstOrDefault(s => s.Name == "sell") ?? report.Steps.LastOrDefault();
+        return report.Steps.LastOrDefault(s => !s.Succeeded) ?? report.Steps.LastOrDefault();
+    }
+
+    private static object? BuildReplay(GuardReport report)
+    {
+        var step = CausalStep(report);
+        if (step is null)
+            return null;
+
+        var tx = step.Transaction;
+        return new Dictionary<string, object?>
+        {
+            ["method"] = "schlieren_traceJournal",
+            ["causalFrameId"] = report.Verdict.CausalFrame?.FrameId,
+            ["headline"] = report.Verdict.Headline,
+            ["detail"] = report.Verdict.ToPlainLanguage(),
+            ["params"] = new object[]
+            {
+                new
+                {
+                    fork = report.Pin.ForkName,
+                    transaction = new
+                    {
+                        from = tx.From.ToString(),
+                        to = tx.To?.ToString(),
+                        nonce = Abi.Qty(tx.Nonce),
+                        gasLimit = Abi.Qty(tx.GasLimit),
+                        gasPrice = Abi.Qty(tx.GasPrice),
+                        value = Abi.Qty(tx.Value),
+                        data = Abi.ToHex(tx.Data)
+                    },
+                    preState = GuardPreState.ToJson(step.PreState),
+                    blockContext = new
+                    {
+                        chainId = Abi.Qty(step.Block.ChainId),
+                        number = Abi.Qty(step.Block.Number),
+                        timestamp = Abi.Qty(step.Block.Timestamp),
+                        gasLimit = Abi.Qty(step.Block.GasLimit),
+                        baseFee = Abi.Qty(step.Block.BaseFeePerGas),
+                        coinbase = step.Block.Coinbase.ToString()
+                    },
+                    options = new
+                    {
+                        disableStack = false,
+                        disableMemory = false,
+                        disableStorage = false
+                    }
+                }
+            }
+        };
     }
 
     private static object DescribeEvent(ExecutionJournalEvent entry) => entry switch

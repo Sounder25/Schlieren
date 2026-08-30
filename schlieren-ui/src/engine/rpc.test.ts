@@ -26,6 +26,7 @@ describe('executeTrace', () => {
         fork: 'Osaka',
       },
       result: null,
+      guardReplay: null,
     });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
