@@ -83,7 +83,9 @@ public sealed record CampaignManifest(
         string campaignVersion = "1",
         EelsIdentity? eelsIdentity = null,
         string? fixtureRootSha256 = null,
-        bool allowNullIdentity = false)
+        bool allowNullIdentity = false,
+        string familyName = CurrentFamilyName,
+        string selectionPolicyVersion = CurrentSelectionPolicyVersion)
     {
         if (eelsIdentity is null && !allowNullIdentity)
             throw new InvalidOperationException(
@@ -102,10 +104,10 @@ public sealed record CampaignManifest(
             SchemaVersion:           CurrentSchemaVersion,
             CampaignId:              campaignId,
             CampaignVersion:         campaignVersion,
-            FamilyName:              CurrentFamilyName,
+            FamilyName:              familyName,
             BatchSize:               manifestCases.Count,
             CreatedUtc:              createdUtc,
-            SelectionPolicyVersion:  CurrentSelectionPolicyVersion,
+            SelectionPolicyVersion:  selectionPolicyVersion,
             EelsIdentity:            eelsIdentity,
             FixtureRootSha256:       fixtureRootSha256,
             RequiredComparisonFields: StorageLifecycleComparisonFields,

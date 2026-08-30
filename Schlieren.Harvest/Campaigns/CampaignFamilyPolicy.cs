@@ -1,6 +1,17 @@
 namespace Schlieren.Harvest.Campaigns;
 
 /// <summary>
+/// One mandatory quota within a campaign family. A case belongs to the stratum
+/// when its path or case ID contains every required keyword and none of the
+/// excluded keywords.
+/// </summary>
+public sealed record CampaignSelectionStratum(
+    string Name,
+    int Count,
+    IReadOnlyList<string> RequiredKeywords,
+    IReadOnlyList<string> ExcludedKeywords);
+
+/// <summary>
 /// Describes the selection policy for a named campaign family.
 ///
 /// Each family defines:
@@ -29,7 +40,13 @@ public sealed record CampaignFamilyPolicy(
     /// Scoring dimensions: each is a keyword that may appear in the fixture path/CaseId.
     /// The greedy set-cover maximises the breadth of distinct keywords covered.
     /// </summary>
-    IReadOnlyList<string> ScoreDimensions)
+    IReadOnlyList<string> ScoreDimensions,
+    string SelectionPolicyVersion = CampaignManifest.CurrentSelectionPolicyVersion,
+    /// <summary>
+    /// Optional exact quotas for focused campaigns. Families without strata
+    /// retain the original greedy set-cover behavior.
+    /// </summary>
+    IReadOnlyList<CampaignSelectionStratum>? SelectionStrata = null)
 {
     // ── Known campaign families ────────────────────────────────────────────
 
@@ -106,6 +123,37 @@ public sealed record CampaignFamilyPolicy(
             "basefee", "priority", "maxfee", "intrinsic", "type_1", "type_2"
         });
 
+    // ── Wave 2: focused precompile campaigns ─────────────────────────────
+
+    /// <summary>Campaign 8: EIP-2537 BLS12-381 G1ADD validation.</summary>
+    public static readonly CampaignFamilyPolicy PrecompilesBls12G1Add = new(
+        "precompiles-bls12-g1add", "1",
+        "EIP-2537 BLS12-381 G1ADD valid inputs, invalid encodings, call types, gas, and activation",
+        PathFilters: ["bls12_g1add", "bls12_precompiles_before_fork"],
+        ScoreDimensions: [],
+        SelectionPolicyVersion: "stratified-v1",
+        SelectionStrata:
+        [
+            new("valid-prague", 7,
+                ["test_bls12_g1add.py::test_valid[", "fork_Prague"], []),
+            new("valid-osaka", 8,
+                ["test_bls12_g1add.py::test_valid[", "fork_Osaka"], []),
+            new("invalid-prague", 9,
+                ["test_bls12_g1add.py::test_invalid[", "fork_Prague"], []),
+            new("invalid-osaka", 9,
+                ["test_bls12_g1add.py::test_invalid[", "fork_Osaka"], []),
+            new("call-types-prague", 6,
+                ["test_bls12_g1add.py::test_call_types[", "fork_Prague"], []),
+            new("call-types-osaka", 6,
+                ["test_bls12_g1add.py::test_call_types[", "fork_Osaka"], []),
+            new("gas-prague", 2,
+                ["test_bls12_g1add.py::test_gas[", "fork_Prague"], []),
+            new("gas-osaka", 2,
+                ["test_bls12_g1add.py::test_gas[", "fork_Osaka"], []),
+            new("before-fork-g1add", 1,
+                ["test_bls12_precompiles_before_fork.py::test_precompile_before_fork[", "fork_Cancun", "G1ADD"], [])
+        ]);
+
     // ── Lookup ─────────────────────────────────────────────────────────────
 
     private static readonly IReadOnlyDictionary<string, CampaignFamilyPolicy> _all =
@@ -118,6 +166,7 @@ public sealed record CampaignFamilyPolicy(
             ["selfdestruct"]             = SelfDestruct,
             ["transient-storage"]        = TransientStorage,
             ["access-list-fee-market"]   = AccessListFeeMarket,
+            ["precompiles-bls12-g1add"] = PrecompilesBls12G1Add,
         };
 
     /// <summary>
@@ -149,6 +198,9 @@ public sealed record CampaignFamilyPolicy(
                     c.RelativePath.Contains(f, StringComparison.OrdinalIgnoreCase) ||
                     c.CaseId.Contains(f, StringComparison.OrdinalIgnoreCase)))
               .ToList();
+
+        if (SelectionStrata is { Count: > 0 })
+            return TrySelectStratified(eligible, count);
 
         if (eligible.Count < count)
             return new SelectionResult(
@@ -182,6 +234,89 @@ public sealed record CampaignFamilyPolicy(
 
         return new SelectionResult(IsSuccess: true, Cases: selected, InsufficientReport: null);
     }
+
+    private SelectionResult TrySelectStratified(
+        IReadOnlyList<Fixtures.FixtureCaseMetadata> eligible,
+        int requestedCount)
+    {
+        var strata = SelectionStrata
+            ?? throw new InvalidOperationException("Stratified selection requires configured strata.");
+        var quotaTotal = strata.Sum(stratum => stratum.Count);
+        if (quotaTotal != requestedCount)
+        {
+            return Insufficient(
+                requestedCount,
+                quotaTotal,
+                $"Campaign '{FamilyName}' strata require {quotaTotal} cases, not the requested {requestedCount}.");
+        }
+
+        var selected = new List<Fixtures.FixtureCaseMetadata>(requestedCount);
+        var selectedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var stratum in strata)
+        {
+            var candidates = eligible
+                .Where(candidate =>
+                    stratum.RequiredKeywords.All(keyword => CaseContains(candidate, keyword)) &&
+                    stratum.ExcludedKeywords.All(keyword => !CaseContains(candidate, keyword)) &&
+                    !selectedIds.Contains(candidate.CaseId))
+                .OrderBy(candidate => candidate.CaseId, StringComparer.Ordinal)
+                .ToList();
+
+            if (candidates.Count < stratum.Count)
+            {
+                return Insufficient(
+                    stratum.Count,
+                    candidates.Count,
+                    $"Stratum '{stratum.Name}' has {candidates.Count} eligible cases; " +
+                    $"its fixed quota is {stratum.Count}. Do not borrow from another stratum.");
+            }
+
+            foreach (var candidate in SelectEvenly(candidates, stratum.Count))
+            {
+                if (!selectedIds.Add(candidate.CaseId))
+                {
+                    return Insufficient(
+                        stratum.Count,
+                        candidates.Count,
+                        $"Stratum '{stratum.Name}' overlaps a previously selected case: {candidate.CaseId}.");
+                }
+
+                selected.Add(candidate);
+            }
+        }
+
+        return new SelectionResult(IsSuccess: true, Cases: selected, InsufficientReport: null);
+    }
+
+    private static IEnumerable<Fixtures.FixtureCaseMetadata> SelectEvenly(
+        IReadOnlyList<Fixtures.FixtureCaseMetadata> candidates,
+        int count)
+    {
+        if (count == 0)
+            yield break;
+
+        if (count == 1)
+        {
+            yield return candidates[0];
+            yield break;
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            var index = i * (candidates.Count - 1) / (count - 1);
+            yield return candidates[index];
+        }
+    }
+
+    private static SelectionResult Insufficient(int requested, int available, string reason) =>
+        new(
+            IsSuccess: false,
+            Cases: null,
+            InsufficientReport: new InsufficientCoverageReport(
+                RequestedCount: requested,
+                AvailableCount: available,
+                Reason: reason));
 
     private int ScoreCase(Fixtures.FixtureCaseMetadata c, HashSet<string> covered) =>
         ScoreDimensions.Count(d => !covered.Contains(d) && CaseContains(c, d));

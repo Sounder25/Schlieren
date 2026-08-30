@@ -260,7 +260,9 @@ public static class HarvestCommand
                 var manifest = Schlieren.Harvest.Campaigns.CampaignManifest.Freeze(
                     result.Cases!, $"{policy.FamilyName}-v{policy.FamilyVersion}", DateTime.UtcNow,
                     eelsIdentity: eelsIdentity,
-                    fixtureRootSha256: fixtureRootSha256);
+                    fixtureRootSha256: fixtureRootSha256,
+                    familyName: policy.FamilyName,
+                    selectionPolicyVersion: policy.SelectionPolicyVersion);
 
                 // 4. Persist to ledger
                 var fileLedger = new Schlieren.Harvest.Ledger.FileRunLedger(ledger);
