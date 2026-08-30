@@ -1,6 +1,17 @@
 namespace Schlieren.Harvest.Campaigns;
 
 /// <summary>
+/// One mandatory quota within a campaign family. A case belongs to the stratum
+/// when its path or case ID contains every required keyword and none of the
+/// excluded keywords.
+/// </summary>
+public sealed record CampaignSelectionStratum(
+    string Name,
+    int Count,
+    IReadOnlyList<string> RequiredKeywords,
+    IReadOnlyList<string> ExcludedKeywords);
+
+/// <summary>
 /// Describes the selection policy for a named campaign family.
 ///
 /// Each family defines:
@@ -29,7 +40,12 @@ public sealed record CampaignFamilyPolicy(
     /// Scoring dimensions: each is a keyword that may appear in the fixture path/CaseId.
     /// The greedy set-cover maximises the breadth of distinct keywords covered.
     /// </summary>
-    IReadOnlyList<string> ScoreDimensions)
+    IReadOnlyList<string> ScoreDimensions,
+    /// <summary>
+    /// Optional exact quotas for focused campaigns. Families without strata
+    /// retain the original greedy set-cover behavior.
+    /// </summary>
+    IReadOnlyList<CampaignSelectionStratum>? SelectionStrata = null)
 {
     // ── Known campaign families ────────────────────────────────────────────
 
@@ -150,6 +166,9 @@ public sealed record CampaignFamilyPolicy(
                     c.CaseId.Contains(f, StringComparison.OrdinalIgnoreCase)))
               .ToList();
 
+        if (SelectionStrata is { Count: > 0 })
+            return TrySelectStratified(eligible, count);
+
         if (eligible.Count < count)
             return new SelectionResult(
                 IsSuccess: false, Cases: null,
@@ -182,6 +201,89 @@ public sealed record CampaignFamilyPolicy(
 
         return new SelectionResult(IsSuccess: true, Cases: selected, InsufficientReport: null);
     }
+
+    private SelectionResult TrySelectStratified(
+        IReadOnlyList<Fixtures.FixtureCaseMetadata> eligible,
+        int requestedCount)
+    {
+        var strata = SelectionStrata
+            ?? throw new InvalidOperationException("Stratified selection requires configured strata.");
+        var quotaTotal = strata.Sum(stratum => stratum.Count);
+        if (quotaTotal != requestedCount)
+        {
+            return Insufficient(
+                requestedCount,
+                quotaTotal,
+                $"Campaign '{FamilyName}' strata require {quotaTotal} cases, not the requested {requestedCount}.");
+        }
+
+        var selected = new List<Fixtures.FixtureCaseMetadata>(requestedCount);
+        var selectedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var stratum in strata)
+        {
+            var candidates = eligible
+                .Where(candidate =>
+                    stratum.RequiredKeywords.All(keyword => CaseContains(candidate, keyword)) &&
+                    stratum.ExcludedKeywords.All(keyword => !CaseContains(candidate, keyword)) &&
+                    !selectedIds.Contains(candidate.CaseId))
+                .OrderBy(candidate => candidate.CaseId, StringComparer.Ordinal)
+                .ToList();
+
+            if (candidates.Count < stratum.Count)
+            {
+                return Insufficient(
+                    stratum.Count,
+                    candidates.Count,
+                    $"Stratum '{stratum.Name}' has {candidates.Count} eligible cases; " +
+                    $"its fixed quota is {stratum.Count}. Do not borrow from another stratum.");
+            }
+
+            foreach (var candidate in SelectEvenly(candidates, stratum.Count))
+            {
+                if (!selectedIds.Add(candidate.CaseId))
+                {
+                    return Insufficient(
+                        stratum.Count,
+                        candidates.Count,
+                        $"Stratum '{stratum.Name}' overlaps a previously selected case: {candidate.CaseId}.");
+                }
+
+                selected.Add(candidate);
+            }
+        }
+
+        return new SelectionResult(IsSuccess: true, Cases: selected, InsufficientReport: null);
+    }
+
+    private static IEnumerable<Fixtures.FixtureCaseMetadata> SelectEvenly(
+        IReadOnlyList<Fixtures.FixtureCaseMetadata> candidates,
+        int count)
+    {
+        if (count == 0)
+            yield break;
+
+        if (count == 1)
+        {
+            yield return candidates[0];
+            yield break;
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            var index = i * (candidates.Count - 1) / (count - 1);
+            yield return candidates[index];
+        }
+    }
+
+    private static SelectionResult Insufficient(int requested, int available, string reason) =>
+        new(
+            IsSuccess: false,
+            Cases: null,
+            InsufficientReport: new InsufficientCoverageReport(
+                RequestedCount: requested,
+                AvailableCount: available,
+                Reason: reason));
 
     private int ScoreCase(Fixtures.FixtureCaseMetadata c, HashSet<string> covered) =>
         ScoreDimensions.Count(d => !covered.Contains(d) && CaseContains(c, d));
