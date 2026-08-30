@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Schlieren.Core\Schlieren.Core.csproj" />
+    <ProjectReference Include="..\Schlieren.Guard\Schlieren.Guard.csproj" />
     <ProjectReference Include="..\Schlieren.Harvest\Schlieren.Harvest.csproj" />
     <ProjectReference Include="..\Schlieren.RPC\Schlieren.RPC.csproj" />
   </ItemGroup>

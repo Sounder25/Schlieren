@@ -30,6 +30,13 @@ public class ForkProvider : IForkProvider
         return ParseUlong(response);
     }
 
+    public async Task<ulong> GetChainIdAsync(CancellationToken ct = default)
+    {
+        var request = CreateRequest("eth_chainId", Array.Empty<object>());
+        var response = await ExecuteRequestAsync<string>(request, ct);
+        return ParseUlong(response);
+    }
+
     public async Task<Block?> GetBlockByNumberAsync(ulong number, CancellationToken ct = default)
     {
         if (_cache.TryGetBlock(number, out var cached)) 

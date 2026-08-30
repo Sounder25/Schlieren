@@ -37,6 +37,12 @@ public class ForkBlockDto
     [JsonPropertyName("gasLimit")]
     public string? GasLimit { get; set; }
 
+    [JsonPropertyName("baseFeePerGas")]
+    public string? BaseFeePerGas { get; set; }
+
+    [JsonPropertyName("miner")]
+    public string? Miner { get; set; }
+
     public Block ToCanonical()
     {
         return new Block
@@ -46,7 +52,9 @@ public class ForkBlockDto
             ParentHash = ParentHash ?? string.Empty,
             Timestamp = ParseUlong(Timestamp),
             Difficulty = ParseBigInt(Difficulty),
-            GasLimit = ParseUlong(GasLimit)
+            GasLimit = ParseUlong(GasLimit),
+            BaseFeePerGas = ParseUlong(BaseFeePerGas),
+            Miner = Miner ?? string.Empty
         };
     }
 

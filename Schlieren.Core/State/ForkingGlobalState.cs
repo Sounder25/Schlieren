@@ -11,6 +11,7 @@ public sealed class ForkingGlobalState : IGlobalState
     private readonly IForkProvider? _forkProvider;
     private readonly ulong? _forkBlockNumber;
     private readonly ConcurrentDictionary<Address, bool> _fetchedAccounts = new();
+    private readonly ConcurrentDictionary<(Address, BigInteger), byte> _knownStorage = new();
     private readonly ConcurrentDictionary<(Address, BigInteger), Task<BigInteger>> _pendingStorageFetches = new();
     private readonly ConcurrentDictionary<Address, Task> _pendingAccountFetches = new();
 
@@ -60,9 +61,12 @@ public sealed class ForkingGlobalState : IGlobalState
     public async ValueTask<BigInteger> GetStorageAtAsync(Address address, BigInteger key, CancellationToken ct = default)
     {
         await EnsureAccountFetchedAsync(address, ct);
-        
-        var localValue = await _localState.GetStorageAtAsync(address, key, ct);
-        if (localValue != BigInteger.Zero) return localValue;
+
+        // Local explicit writes (including SSTORE of zero) must win over remote
+        // state. Treating local zero as "unfetched" re-materializes the pinned
+        // remote slot and undoes scenario overlay mutations.
+        if (_knownStorage.ContainsKey((address, key)))
+            return await _localState.GetStorageAtAsync(address, key, ct);
 
         if (_forkProvider != null)
         {
@@ -70,7 +74,7 @@ public sealed class ForkingGlobalState : IGlobalState
             return await fetchTask;
         }
 
-        return localValue;
+        return await _localState.GetStorageAtAsync(address, key, ct);
     }
 
     public async ValueTask<IReadOnlyCollection<BigInteger>> GetStorageKeysAsync(Address address, CancellationToken ct = default)
@@ -116,9 +120,8 @@ public sealed class ForkingGlobalState : IGlobalState
 
             var remoteValue = await _forkProvider!.GetStorageAtAsync(address, key, _forkBlockNumber, timeoutCts.Token);
             if (remoteValue != BigInteger.Zero)
-            {
                 _localState.SetStorageAt(address, key, remoteValue);
-            }
+            _knownStorage.TryAdd((address, key), 1);
             return remoteValue;
         }
         catch
@@ -135,6 +138,7 @@ public sealed class ForkingGlobalState : IGlobalState
     public void SetStorageAt(Address address, BigInteger key, BigInteger value)
     {
         MarkAsFetched(address);
+        _knownStorage.TryAdd((address, key), 1);
         _localState.SetStorageAt(address, key, value);
     }
 
@@ -142,6 +146,7 @@ public sealed class ForkingGlobalState : IGlobalState
     {
         _localState.Reset();
         _fetchedAccounts.Clear();
+        _knownStorage.Clear();
         _pendingAccountFetches.Clear();
         _pendingStorageFetches.Clear();
     }
@@ -220,6 +225,7 @@ public sealed class ForkingGlobalState : IGlobalState
         _localState.RestoreSnapshot(snapshot);
         // Also clear the fetch-tracking so re-reads after restore go to the restored state.
         _fetchedAccounts.Clear();
+        _knownStorage.Clear();
         _pendingAccountFetches.Clear();
         _pendingStorageFetches.Clear();
     }
