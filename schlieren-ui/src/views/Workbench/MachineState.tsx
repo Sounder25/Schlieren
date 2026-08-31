@@ -228,7 +228,7 @@ export function MachineState() {
                 <header className="state-header">
                   <span className="state-title">Memory</span>
                   <span className="state-meta">
-                    {Math.ceil(step.memory.length / 2)} bytes
+                    {step.memory.length * 32} bytes ({step.memory.length} {step.memory.length === 1 ? 'word' : 'words'})
                   </span>
                 </header>
                 <div className="state-body">

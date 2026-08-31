@@ -143,10 +143,37 @@ export function Diagnostics() {
             <span className="diag-section-title">Oracle Comparison</span>
           </header>
           <div className="diag-section-body">
-            <p className="diag-idle-note">
-              Differential analysis against EELS and REVM oracles.
-              Fractures appear here when gas accounting diverges.
-            </p>
+            {result ? (
+              <div className="diag-oracle-lines">
+                <div className="diag-oracle-row">
+                  <span className="diag-oracle-key">Conservation</span>
+                  <span className={`diag-oracle-val ${result.conservation.isConserved ? 'agree' : 'fracture'}`}>
+                    {result.conservation.isConserved ? '✓ conserved' : `✗ delta ${result.conservation.delta}`}
+                  </span>
+                </div>
+                <div className="diag-oracle-row">
+                  <span className="diag-oracle-key">Derived gas</span>
+                  <span className="diag-oracle-val">{result.conservation.derivedGas.toLocaleString()}</span>
+                </div>
+                <div className="diag-oracle-row">
+                  <span className="diag-oracle-key">Settled gas</span>
+                  <span className="diag-oracle-val">{result.conservation.settledGas.toLocaleString()}</span>
+                </div>
+                <div className="diag-oracle-row">
+                  <span className="diag-oracle-key">Steps traced</span>
+                  <span className="diag-oracle-val">{result.steps.length}</span>
+                </div>
+                <div className="diag-oracle-row">
+                  <span className="diag-oracle-key">Frames</span>
+                  <span className="diag-oracle-val">{result.frames.length}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="diag-idle-note">
+                Differential analysis against EELS and REVM oracles.
+                Fractures appear here when gas accounting diverges.
+              </p>
+            )}
           </div>
         </section>
 
@@ -157,10 +184,41 @@ export function Diagnostics() {
             <span className="diag-section-title">Evidence Chain</span>
           </header>
           <div className="diag-section-body">
-            <p className="diag-idle-note">
-              Linked evidence from diagnosis → security → oracle.
-              Each finding traces back to a specific step, frame, and gas rule.
-            </p>
+            {result && !result.success ? (() => {
+              const faultStep = result.steps[result.steps.length - 1];
+              const storageWrites = result.stateEffects.filter(e => e.kind === 'storageWrite');
+              const chain: string[] = [];
+              // Build causal chain from what we know
+              result.steps.forEach(s => {
+                if (s.op === 'SSTORE') chain.push(`SSTORE @ PC 0x${s.pc.toString(16).padStart(2,'0')} — storage write attempted`);
+              });
+              if (faultStep) {
+                chain.push(`${faultStep.op} @ PC 0x${faultStep.pc.toString(16).padStart(2,'0')} — fault raised`);
+                chain.push(`${result.error} — exceptional halt`);
+                chain.push(`Remaining gas burned (${result.gasUsed.toLocaleString()} total)`);
+              }
+              if (storageWrites.length > 0) {
+                chain.push(`${storageWrites.length} storage write${storageWrites.length !== 1 ? 's' : ''} rolled back`);
+              }
+              return (
+                <ol className="diag-evidence-chain">
+                  {chain.map((line, i) => (
+                    <li key={i} className="diag-evidence-item">{line}</li>
+                  ))}
+                </ol>
+              );
+            })() : result?.success ? (
+              <p className="diag-idle-note">
+                Execution succeeded — {result.steps.length} steps, {result.gasUsed.toLocaleString()} gas.
+                {result.stateEffects.filter(e => e.kind === 'storageWrite').length > 0 &&
+                  ` ${result.stateEffects.filter(e => e.kind === 'storageWrite').length} storage writes committed.`}
+              </p>
+            ) : (
+              <p className="diag-idle-note">
+                Linked evidence from diagnosis → security → oracle.
+                Each finding traces back to a specific step, frame, and gas rule.
+              </p>
+            )}
           </div>
         </section>
 
