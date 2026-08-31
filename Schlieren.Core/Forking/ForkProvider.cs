@@ -24,6 +24,13 @@ public class ForkProvider : IForkProvider
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
     }
 
+    public async Task<ulong> GetChainIdAsync(CancellationToken ct = default)
+    {
+        var request = CreateRequest("eth_chainId", Array.Empty<object>());
+        var response = await ExecuteRequestAsync<string>(request, ct);
+        return ParseUlong(response);
+    }
+
     public async Task<ulong> GetLatestBlockNumberAsync(CancellationToken ct = default)
     {
         var request = CreateRequest("eth_blockNumber", Array.Empty<object>());

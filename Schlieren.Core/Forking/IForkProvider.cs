@@ -6,6 +6,7 @@ namespace Schlieren.Core.Forking;
 
 public interface IForkProvider
 {
+    Task<ulong> GetChainIdAsync(CancellationToken ct = default);
     Task<ulong> GetLatestBlockNumberAsync(CancellationToken ct = default);
     Task<Block?> GetBlockByNumberAsync(ulong number, CancellationToken ct = default);
     Task<Block?> GetBlockByHashAsync(string hash, CancellationToken ct = default);

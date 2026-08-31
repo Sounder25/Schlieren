@@ -11,6 +11,7 @@ public static class ServiceCollectionExtensions
     {
         // Register RPC handlers
         services.TryAddSingleton<EthHandlers>();
+        services.TryAddSingleton<GuardHandlers>();
         
         // Register the router
         services.TryAddSingleton<RpcRouter>();

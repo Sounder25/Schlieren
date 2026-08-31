@@ -61,3 +61,6 @@ tools/*.txt
 
 # Harvest ledger staging (transient write-ahead state)
 harvest/ledger/staging/
+
+# Guard demo - compiled CLI publish output (rebuild with: dotnet publish Schlieren.CLI)
+demo/cli-publish/

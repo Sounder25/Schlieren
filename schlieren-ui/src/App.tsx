@@ -10,6 +10,7 @@ import { Interference } from './views/Interference/Interference';
 import { Flow } from './views/Flow/Flow';
 import { Conformance } from './views/Conformance/Conformance';
 import { Harvest } from './views/Harvest/Harvest';
+import { Guard } from './views/Guard/Guard';
 import './design/tokens.css';
 import './design/global.css';
 import './design/ambient.css';
@@ -22,6 +23,7 @@ const viewComponents: Record<ViewId, React.FC> = {
   flow: Flow,
   conformance: Conformance,
   harvest: Harvest,
+  guard: Guard,
 };
 
 const viewVariants: Variants = {

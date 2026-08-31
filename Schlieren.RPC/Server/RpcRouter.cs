@@ -2,6 +2,7 @@ using Schlieren.RPC.Handlers;
 using Schlieren.RPC.Models;
 using System.Linq;
 using System.Text.Json;
+using System.Net.Http;
 using Schlieren.RPC;
 using Microsoft.Extensions.Logging;
 
@@ -16,15 +17,17 @@ public sealed class RpcRouter : IJsonRpcRouter
     private readonly EthHandlers _ethHandlers;
     private readonly ConformanceHandlers _conformanceHandlers;
     private readonly OpSecHandlers _opSecHandlers;
+    private readonly GuardHandlers _guardHandlers;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<RpcRouter>? _logger;
     private readonly IReadOnlyList<string> _registeredMethods;
 
-    public RpcRouter(EthHandlers ethHandlers, ILogger<RpcRouter>? logger = null)
+    public RpcRouter(EthHandlers ethHandlers, ILogger<RpcRouter>? logger = null, GuardHandlers? guardHandlers = null)
     {
         _ethHandlers = ethHandlers;
         _conformanceHandlers = new ConformanceHandlers();
         _opSecHandlers = new OpSecHandlers();
+        _guardHandlers = guardHandlers ?? new GuardHandlers(new DefaultHttpClientFactory());
         _logger = logger;
         
         // Do not use WhenWritingNull globally: eth JSON-RPC requires "result": null for
@@ -79,7 +82,8 @@ public sealed class RpcRouter : IJsonRpcRouter
             "schlieren_conformanceReadFixture",
             "schlieren_opsecStatus",
             "schlieren_opsecSet",
-            "schlieren_importCode"
+            "schlieren_importCode",
+            "schlieren_guard"
         }.AsReadOnly();
     }
 
@@ -205,6 +209,7 @@ public sealed class RpcRouter : IJsonRpcRouter
             "schlieren_opsecStatus" => _opSecHandlers.HandleStatus(),
             "schlieren_opsecSet" => _opSecHandlers.HandleSet(parameters),
             "schlieren_importCode" => await _opSecHandlers.HandleImportCode(parameters, ct),
+            "schlieren_guard" => await _guardHandlers.HandleGuard(parameters, ct),
             
             // Method not found
             _ => throw new RpcException(JsonRpcErrorCodes.MethodNotFound, $"Method not found: {method}")
@@ -263,4 +268,10 @@ public sealed class RpcRouter : IJsonRpcRouter
 
         return JsonSerializer.Serialize(response, _jsonOptions);
     }
+}
+
+/// <summary>Minimal IHttpClientFactory for contexts where DI is not available (e.g. unit tests).</summary>
+internal sealed class DefaultHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new();
 }

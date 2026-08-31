@@ -31,6 +31,7 @@ class Program
         root.AddCommand(BuildTestCommand());
         root.AddCommand(BuildTraceCommand());
         root.AddCommand(HarvestCommand.Build());
+        root.AddCommand(GuardCommand.Build());
 
         // Default: no subcommand → show help
         root.SetHandler(() =>

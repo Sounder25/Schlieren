@@ -10,6 +10,7 @@ const views: { id: ViewId; label: string }[] = [
   { id: 'flow', label: 'Flow' },
   { id: 'conformance', label: 'Conformance' },
   { id: 'harvest', label: 'Harvest' },
+  { id: 'guard', label: 'Guard' },
 ];
 
 export function TopNav() {

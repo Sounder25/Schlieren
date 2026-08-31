@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ViewId = 'workbench' | 'interference' | 'flow' | 'conformance' | 'harvest';
+export type ViewId = 'workbench' | 'interference' | 'flow' | 'conformance' | 'harvest' | 'guard';
 
 export interface JournalEvent {
   kind: string;
@@ -142,6 +142,66 @@ export interface ExecutionResult extends JournalTraceResponse {
   error?: string;
 }
 
+// ─── Guard types ──────────────────────────────────────────────────────────────
+
+export type GuardOutcomeKind =
+  | 'SellSuccessful'
+  | 'SellBlocked'
+  | 'SellDelayed'
+  | 'BuyFailed'
+  | 'Inconclusive';
+
+export interface GuardVerdict {
+  kind: GuardOutcomeKind;
+  headline: string;
+  detail: string;
+  effectiveLossPercent: number | null;
+  looksLikeHoneypot: boolean;
+  causalFrameId: number | null;
+  causalContract: string | null;
+  causalDepth: number | null;
+}
+
+export interface GuardStepSummary {
+  name: string;
+  success: boolean;
+  error: string | null;
+  gasUsed: number;
+  tokenBefore: string;
+  tokenAfter: string;
+  ethBefore: string;
+  ethAfter: string;
+}
+
+export interface GuardPin {
+  chainId: number;
+  blockNumber: number;
+  blockHash: string;
+  timestamp: number;
+  fork: string;
+}
+
+export interface GuardWorkbenchReplay {
+  method: string;
+  causalFrameId: number | null;
+  headline: string;
+  detail: string;
+  params: unknown[];
+}
+
+export interface GuardReport {
+  kind: 'schlieren-guard-evidence';
+  version: number;
+  pin: GuardPin;
+  token: string;
+  router: string;
+  buyer: string;
+  verdict: GuardVerdict;
+  showExecution: string;
+  workbench: GuardWorkbenchReplay | null;
+  steps: GuardStepSummary[];
+}
+
 export interface RunConfig {
   bytecode: string;
   calldata: string;
@@ -187,6 +247,13 @@ interface AppState {
   setLoadedFixture: (fixture: import('./journal-request').LoadedFixture | null) => void;
   applyLoadedFixture: (fixture: import('./journal-request').LoadedFixture) => void;
   resetWorkbench: () => void;
+  // Guard
+  guardReport: GuardReport | null;
+  setGuardReport: (report: GuardReport | null) => void;
+  guardError: string | null;
+  setGuardError: (error: string | null) => void;
+  guardRunning: boolean;
+  setGuardRunning: (running: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -240,4 +307,10 @@ export const useAppStore = create<AppState>((set) => ({
         calldata: '',
       },
     })),
+  guardReport: null,
+  setGuardReport: (guardReport) => set({ guardReport }),
+  guardError: null,
+  setGuardError: (guardError) => set({ guardError }),
+  guardRunning: false,
+  setGuardRunning: (guardRunning) => set({ guardRunning }),
 }));
