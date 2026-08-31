@@ -142,6 +142,36 @@ export interface ExecutionResult extends JournalTraceResponse {
   error?: string;
 }
 
+// ─── Execution status classification ──────────────────────────────────────────
+// SUCCESS   — normal STOP/RETURN
+// REVERT    — explicit EVM REVERT (0xFD)
+// FAULT     — exceptional halt (StackUnderflow, OOG, InvalidOpcode, etc.)
+
+const EXCEPTIONAL_HALT_ERRORS = new Set([
+  'StackUnderflow', 'StackOverflow', 'OutOfGas', 'InvalidOpcode',
+  'BadJumpDestination', 'InvalidMemoryAccess', 'StaticModeViolation',
+  'InternalError',
+]);
+
+export type ExecutionStatus = 'SUCCESS' | 'REVERT' | 'FAULT';
+
+export function executionStatus(result: { success: boolean; error?: string | null }): ExecutionStatus {
+  if (result.success) return 'SUCCESS';
+  if (result.error && EXCEPTIONAL_HALT_ERRORS.has(result.error)) return 'FAULT';
+  return 'REVERT';
+}
+
+// Human-readable label: "FAULT · STACK UNDERFLOW", "REVERT", "SUCCESS"
+export function executionStatusLabel(result: { success: boolean; error?: string | null }): string {
+  const status = executionStatus(result);
+  if (status === 'FAULT' && result.error) {
+    // CamelCase → UPPER SPACE: "StackUnderflow" → "STACK UNDERFLOW"
+    const detail = result.error.replace(/([A-Z])/g, ' $1').trim().toUpperCase();
+    return `FAULT · ${detail}`;
+  }
+  return status;
+}
+
 // ─── Guard types ──────────────────────────────────────────────────────────────
 
 export type GuardOutcomeKind =
@@ -262,7 +292,16 @@ export const useAppStore = create<AppState>((set) => ({
   config: { ...DEFAULT_RUN_CONFIG },
   setConfig: (partial) => set((state) => ({ config: { ...state.config, ...partial } })),
   result: null,
-  setResult: (result) => set({ result, currentStep: 0, selectedFrameId: null, lastError: null }),
+  setResult: (result) => set({
+    result,
+    // On failure, open on the faulting instruction (last step) so the user sees
+    // the causal instruction immediately rather than having to navigate to it.
+    currentStep: result && !result.success && result.steps.length > 0
+      ? result.steps.length - 1
+      : 0,
+    selectedFrameId: null,
+    lastError: null,
+  }),
   isRunning: false,
   setIsRunning: (isRunning) => set({ isRunning }),
   currentStep: 0,

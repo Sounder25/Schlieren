@@ -1,6 +1,6 @@
 import { buildSecurityRows, findSecurityFindingStepIndex } from '../../engine/journal-view';
 import { buildAuditReport, buildTraceExport, downloadText } from '../../engine/export';
-import { useAppStore, type ExecutionResult, type JournalSecurityFinding } from '../../engine/store';
+import { useAppStore, type ExecutionResult, type JournalSecurityFinding, executionStatusLabel, executionStatus } from '../../engine/store';
 import './Diagnostics.css';
 
 export function SecurityFindings({
@@ -112,9 +112,13 @@ export function Diagnostics() {
               </div>
             ) : (
               <div className="diag-card fracture">
-                <span className="diag-headline">Execution halted — REVERT</span>
+                <span className="diag-headline">Execution halted — {executionStatusLabel(result)}</span>
                 <span className="diag-detail">
-                  {result.error || 'Reverted without reason string. Inspect trace for the halt point.'}
+                  {result.error && executionStatus(result) === 'REVERT'
+                    ? result.error
+                    : result.error
+                      ? `${result.error} — all remaining gas burned`
+                      : 'Inspect trace for the halt point.'}
                 </span>
               </div>
             )}

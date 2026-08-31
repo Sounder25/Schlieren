@@ -1,4 +1,4 @@
-import { useAppStore } from '../engine/store';
+import { useAppStore, executionStatusLabel } from '../engine/store';
 import './StatusBar.css';
 
 export function StatusBar() {
@@ -24,7 +24,7 @@ export function StatusBar() {
         <>
           <span>
             {result.steps.length.toLocaleString()} steps · {' '}
-            {result.success ? 'SUCCESS' : 'REVERT'} · {' '}
+            {executionStatusLabel(result)} · {' '}
             {result.gasUsed.toLocaleString()} gas
           </span>
           <div className="status-sep" />

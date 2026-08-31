@@ -65,6 +65,18 @@
   color: var(--sig-fracture);
 }
 
+/* FAULT (exceptional halt) — amber/orange, distinct from REVERT red */
+.case-oracle-badge.fault {
+  background: rgba(200, 120, 40, 0.12);
+  border: 1px solid rgba(200, 120, 40, 0.35);
+  color: #C87828;
+}
+
+.oracle-dot.fault {
+  background: #C87828;
+  animation: fracture-pulse 2s ease-in-out infinite;
+}
+
 .oracle-dot {
   width: 5px;
   height: 5px;
