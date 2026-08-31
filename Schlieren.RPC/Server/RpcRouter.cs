@@ -97,6 +97,8 @@ public sealed class RpcRouter : IJsonRpcRouter
     /// </summary>
     public async Task<string> ProcessRequest(string requestBody, CancellationToken ct = default)
     {
+        System.Console.Error.WriteLine($"[RpcRouter] ProcessRequest body_len={requestBody?.Length} method_preview={requestBody?.Substring(0, Math.Min(200, requestBody?.Length ?? 0))}");
+        _logger?.LogInformation("[RpcRouter] ProcessRequest called, body len={Len}", requestBody?.Length);
         JsonRpcRequest? request = null;
         object? requestId = null;
 
@@ -151,6 +153,7 @@ public sealed class RpcRouter : IJsonRpcRouter
     /// </summary>
     private async Task<object?> RouteToHandler(string method, object[] parameters, CancellationToken ct)
     {
+        _logger?.LogInformation("[RpcRouter] Dispatching method: '{Method}' (len={Len})", method, method?.Length);
         return method switch
         {
             "eth_chainId" => _ethHandlers.HandleChainId(),

@@ -99,7 +99,7 @@ function ReportPanel({
       {/* Headline */}
       <div className="guard-report-header">
         <VerdictBadge kind={v.kind} />
-        {v.effectiveLossPercent !== null && (
+        {v.effectiveLossPercent != null && v.effectiveLossPercent !== undefined && (
           <span className="guard-loss-pct">
             {v.effectiveLossPercent.toFixed(2)}% round-trip loss
           </span>

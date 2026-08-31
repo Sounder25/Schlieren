@@ -271,7 +271,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedFrameId: (selectedFrameId) => set({ selectedFrameId }),
   lastError: null,
   setLastError: (lastError) => set({ lastError }),
-  endpoint: 'http://localhost:8545',
+  endpoint: '/rpc',
   setEndpoint: (endpoint) => set({ endpoint }),
   connected: false,
   setConnected: (connected) => set({ connected }),

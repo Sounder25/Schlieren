@@ -60,8 +60,13 @@ public sealed class GuardHandlers
 
         if (string.IsNullOrWhiteSpace(tokenHex))
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing required field: token");
-        if (string.IsNullOrWhiteSpace(rpcUrl))
-            throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing required field: rpc");
+        if (string.IsNullOrWhiteSpace(rpcUrl) || rpcUrl == "/rpc" || rpcUrl == "http://localhost:8545")
+            rpcUrl = "http://localhost:18545"; // Default: use the local tunneled Reth node
+
+        // Normalize: add http:// if no scheme present
+        if (!rpcUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !rpcUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            rpcUrl = "http://" + rpcUrl;
 
         Address token;
         try { token = Address.FromHex(tokenHex); }
