@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "uname -a",
+    "which dotnet && dotnet --version || echo 'No .NET runtime'",
+    "ls -la /opt/schlieren* 2>/dev/null || echo 'No schlieren dirs'",
+    "curl -sf http://127.0.0.1:8545 -X POST -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}' | head -1 || echo 'Reth not responding on 8545'"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "commands": [
+    "set -e",
+    "echo '=== Stopping any existing WSProxy service ==='",
+    "sudo systemctl stop schlieren-wsproxy 2>/dev/null || true",
+    "",
+    "echo '=== Creating installation directory ==='",
+    "sudo mkdir -p /opt/schlieren-wsproxy",
+    "sudo chown ubuntu:ubuntu /opt/schlieren-wsproxy",
+    "",
+    "echo '=== Checking .NET runtime ==='",
+    "dotnet --version || echo 'dotnet not found'",
+    "",
+    "echo '=== Installation complete ==='"
+  ]
+}

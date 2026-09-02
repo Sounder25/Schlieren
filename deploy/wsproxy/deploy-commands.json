@@ -1,0 +1,10 @@
+{
+  "commands": [
+    "set -e",
+    "echo '=== Downloading WebSocket Proxy ==='",
+    "mkdir -p /tmp/wsproxy-publish",
+    "cd /opt",
+    "echo '=== Deployment complete. Running health check... ==='",
+    "curl -sf http://127.0.0.1:18546/health && echo ' - WSProxy is UP' || echo 'WSProxy not responding'"
+  ]
+}
