@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "echo 'SSH status:'",
+    "systemctl is-active sshd || echo 'sshd not active'",
+    "netstat -tlnp 2>/dev/null | grep :22 || ss -tlnp | grep :22",
+    "cat /etc/ssh/sshd_config | grep -E '^(Port|PermitRootLogin|PasswordAuthentication)' || true"
+  ]
+}

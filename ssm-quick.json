@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "set -e",
+    "curl -s -m 5 -X POST http://127.0.0.1:8545 -H content-type:application/json -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo",
+    "systemctl is-active reth || echo 'reth inactive'"
+  ]
+}
