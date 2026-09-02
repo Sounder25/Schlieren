@@ -1,0 +1,23 @@
+{
+  "commands": [
+    "set -e",
+    "echo '=== LATEST EVIDENCE TIMING ==='",
+    "python3 -c \"",
+    "import json, os, sys",
+    "files = sorted([f for f in os.listdir('/opt/guard-out') if f.endswith('.json')], key=lambda x: os.path.getmtime(os.path.join('/opt/guard-out', x)), reverse=True)[:3]",
+    "for f in files:",
+    "    path = f'/opt/guard-out/{f}'",
+    "    d = json.load(open(path))",
+    "    v = d.get('verdict', {})",
+    "    print(f'\\n{f}:')",
+    "    print(f'  kind: {v.get(\\\"kind\\\")}')",
+    "    print(f'  effectiveLoss: {v.get(\\\"effectiveLossPercent\\\")}%')",
+    "    if v.get('causalFrameId'): print(f'  causalFrame: {v.get(\\\"causalFrameId\\\")}')",
+    "    if v.get('causalContract'): print(f'  causalContract: {v.get(\\\"causalContract\\\")}')",
+    "    steps = d.get('steps', [])",
+    "    print(f'  steps: {len(steps)}')",
+    "    for s in steps:",
+    "        if s.get('name'): print(f'    - {s[\\\"name\\\"]} (ok={s.get(\\\"success\\\")}, gas={s.get(\\\"gasUsed\\\")})')",
+    "\""
+  ]
+}

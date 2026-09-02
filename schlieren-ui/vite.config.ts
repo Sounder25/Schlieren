@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/rpc': {
-        target: 'http://localhost:8545',
+        target: 'http://localhost:18545',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rpc/, ''),
       },

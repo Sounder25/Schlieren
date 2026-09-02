@@ -1,0 +1,75 @@
+{
+  "campaign_id": "guard-performance-campaign-2026-09-02",
+  "campaign_branch": "perf/guard-latency-characterization",
+  "base_branch": "feature/schlieren-guard",
+  "timestamp_utc": "2026-09-02T10:30:00Z",
+  "repository": {
+    "remote": "git@github.com:soundersolutions/schlieren.git",
+    "worktree_path": "C:\\projects\\Schlieren\\.worktrees\\schlieren-guard",
+    "commit": "3767b93fb597385f1c27933a3c32c13bc91579bd",
+    "branch": "perf/guard-latency-characterization",
+    "dirty_files": [
+      "schlieren-ui/vite.config.ts"
+    ],
+    "untracked_files": [
+      "artifacts/",
+      "ssm-check.json",
+      "ssm-timing.json"
+    ]
+  },
+  "build": {
+    "dotnet_version": "8.0.x",
+    "configuration": "Release",
+    "publish_command": "dotnet publish Schlieren.CLI/Schlieren.CLI.csproj -c Release -o /opt/schlieren-guard",
+    "cli_binary": "/opt/schlieren-guard/Schlieren.CLI",
+    "cli_last_rebuild": "2026-09-02T03:39:00Z"
+  },
+  "aws": {
+    "account_alias": "schlieren-prod",
+    "region": "us-east-1",
+    "availability_zone": "us-east-1a",
+    "instance_id": "i-000aa2178570bbfab",
+    "instance_type": "t3.xlarge",
+    "vcpu": 4,
+    "memory_gb": 16,
+    "ebs_volume_type": "gp3",
+    "ebs_volume_size_gb": 100,
+    "vpc_id": "vpc-schlieren",
+    "subnet_id": "subnet-us-east-1a-private",
+    "ssh_public_access": false,
+    "ssm_access": true
+  },
+  "reth": {
+    "service_name": "reth",
+    "http_rpc": "http://127.0.0.1:8545",
+    "ws_rpc": "ws://127.0.0.1:8546",
+    "engine_api": "http://127.0.0.1:8551",
+    "sync_status": "synced",
+    "block_at_start": "0x18b0904",
+    "block_number_at_start": 25982724,
+    "peer_count": "unknown",
+    "public_rpc": false
+  },
+  "guard_headless": {
+    "cli_path": "/opt/schlieren-guard/Schlieren.CLI",
+    "rpc_method": "schlieren_guard",
+    "default_rpc_target": "http://127.0.0.1:8545",
+    "hardfork_default": "Osaka",
+    "timeout_seconds": 30
+  },
+  "alb": {
+    "domain": "schlieren.soundersolution.com",
+    "protocol": "HTTPS",
+    "target_group": "schlieren-reth",
+    "health_check_path": "/",
+    "idle_timeout_seconds": 60,
+    "waf_enabled": "unknown",
+    "http2_enabled": "unknown"
+  },
+  "clock": {
+    "local_os": "Windows 10",
+    "local_timezone": "America/Chicago",
+    "local_clock_sync": "assumed NTP",
+    "ec2_clock_sync": "assumed chrony"
+  }
+}

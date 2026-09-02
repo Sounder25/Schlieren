@@ -1,0 +1,148 @@
+{
+  "manifest_id": "guard-perf-v1",
+  "campaign_id": "guard-performance-campaign-2026-09-02",
+  "chain_id": 1,
+  "created_utc": "2026-09-02T10:35:00Z",
+  "description": "12 frozen cases for controlled Guard performance measurement",
+  "random_seed": 42,
+  "cases": [
+    {
+      "case_id": "USDC",
+      "label": "Known liquid stablecoin",
+      "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "0.1-2.0%",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "LOW_LIQ_TOKEN",
+      "label": "Low-liquidity ERC-20",
+      "token": "0x51439fafd035fe8f5caa97a3fa49686d84d3483e",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "0.5-5.0%",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-51439fafd035fe8f5caa97a3fa49686d84d3483e.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "FEE_ON_TRANSFER",
+      "label": "Fee-on-transfer token",
+      "token": "0xcf0c122c6b73ff809c693db761e7baebe62b6a2e",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "1.0-10.0%",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-cf0c122c6b73ff809c693db761e7baebe62b6a2e.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "HIGH_TAX_TOKEN",
+      "label": "High-tax token",
+      "token": "0x6877fb5021232F1b80Df6CCFDD22c4C932E8Bf94",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "0.01-1.0%",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-6877fb5021232F1b80Df6CCFDD22c4C932E8Bf94.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "SELL_BLOCKED_HONEYPOT",
+      "label": "Known sell-blocked honeypot",
+      "token": "0xf69EBe4353d00912763b9e7BE3aEE4f00509c2CC",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellBlocked",
+      "expected_loss_range": "N/A",
+      "expected_feature_profile": "P5_STANDARD pass with causal frame",
+      "source_evidence": "/opt/guard-out/guard-f69EBe4353d00912763b9e7BE3aEE4f00509c2CC.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "PROXY_TOKEN",
+      "label": "Proxy/delegated implementation token",
+      "token": "0x15874d65e649880c2614e7a480cb7c9a55787ff6",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "0.5-5.0%",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-15874d65e649880c2614e7a480cb7c9a55787ff6.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "MULTI_POOL_CANDIDATE",
+      "label": "Token with multiple candidate pools",
+      "token": "0x2d1643a5d14fb221521767f2405efbbe4d4603fd",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "unknown",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-2d1643a5d14fb221521767f2405efbbe4d4603fd.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "STORAGE_HEAVY",
+      "label": "Token requiring nontrivial storage access",
+      "token": "0x8b3192f5eebd8579568a2ed41e6feb402f93f73f",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "unknown",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-8b3192f5eebd8579568a2ed41e6feb402f93f73f.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "METADATA_ABNORMAL",
+      "label": "Token with missing or abnormal metadata",
+      "token": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "unknown",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "NEWLY_DEPLOYED",
+      "label": "Previously demonstrated newly deployed token",
+      "token": "0xE0f63A424a4439cBE457D80E4f4b51aD25b2c56C",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "unknown",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-E0f63A424a4439cBE457D80E4f4b51aD25b2c56C.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "DIAGNOSTIC_HEAVY",
+      "label": "Complex token for full diagnostic test",
+      "token": "0xc40af1e4fecfa05ce6bab79dcd8b373d2e436c4e",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "unknown",
+      "expected_feature_profile": "P7_DIAGNOSTIC pass",
+      "source_evidence": "/opt/guard-out/guard-c40af1e4fecfa05ce6bab79dcd8b373d2e436c4e.json",
+      "run_count": 1
+    },
+    {
+      "case_id": "STABLE_CONTROL",
+      "label": "Known stable control case from prior evidence",
+      "token": "0xf280B16EF293D8e534e370794ef26bF312694126",
+      "pool_router": "UniswapV2Router02",
+      "expected_outcome": "SellSuccessful",
+      "expected_loss_range": "stable",
+      "expected_feature_profile": "P5_STANDARD pass",
+      "source_evidence": "/opt/guard-out/guard-f280B16EF293D8e534e370794ef26bF312694126.json",
+      "run_count": 1
+    }
+  ],
+  "notes": [
+    "Cases drawn from existing /opt/guard-out/ evidence files",
+    "Block numbers not frozen — live-tip tests will be separate",
+    "Simulation addresses are deterministic unfunded actors",
+    "No real transactions broadcast during campaign"
+  ]
+}

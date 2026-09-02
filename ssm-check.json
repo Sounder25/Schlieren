@@ -1,0 +1,12 @@
+{
+  "commands": [
+    "set -e",
+    "cd /opt/schlieren-guard && ls -la",
+    "echo ---GUARD-OUT---",
+    "ls -la /opt/guard-out/ 2>/dev/null || echo no evidence yet",
+    "echo ---RETH-STATUS---",
+    "curl -s -m 5 -X POST http://127.0.0.1:8545 -H content-type:application/json -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}'",
+    "echo ---LATEST-EVIDENCE---",
+    "ls -t /opt/guard-out/*.json 2>/dev/null | head -3 || echo none"
+  ]
+}
