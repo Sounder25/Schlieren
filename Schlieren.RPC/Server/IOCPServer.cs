@@ -173,6 +173,12 @@ namespace Schlieren.RPC.Server
                     var httpRequest = Encoding.UTF8.GetString(rawBytes.GetBuffer(), 0, (int)rawBytes.Length);
                     var (method, body) = ParseHttpRequest(httpRequest, headerEndIndex);
 
+                    if (method == "OPTIONS")
+                    {
+                        await SendHttpResponse(clientSocket, 200, "{}");
+                        return;
+                    }
+
                     if (method != "POST")
                     {
                         await SendErrorResponse(clientSocket, 405, "Method Not Allowed");
@@ -267,6 +273,9 @@ namespace Schlieren.RPC.Server
             response.AppendLine("Content-Type: application/json");
             response.AppendLine($"Content-Length: {bodyBytes.Length}");
             response.AppendLine("Connection: close");
+            response.AppendLine("Access-Control-Allow-Origin: *");
+            response.AppendLine("Access-Control-Allow-Methods: POST, OPTIONS");
+            response.AppendLine("Access-Control-Allow-Headers: Content-Type");
             response.AppendLine();
 
             var headerBytes = Encoding.UTF8.GetBytes(response.ToString());

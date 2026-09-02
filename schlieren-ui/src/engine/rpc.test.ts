@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeTrace } from './rpc';
+import { loadFixture } from './fixture-adapter';
+import { cancelTrace, executeTrace, importCode, setOpSec } from './rpc';
 import { useAppStore } from './store';
 
 const journalResult = {
@@ -26,7 +27,7 @@ describe('executeTrace', () => {
         fork: 'Osaka',
       },
       result: null,
-      guardReplay: null,
+      loadedFixture: null,
     });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -53,5 +54,88 @@ describe('executeTrace', () => {
     expect(result.securityFindings).toEqual([]);
     expect(result.conservation.isConserved).toBe(true);
     expect(useAppStore.getState().result).toEqual(result);
+  });
+
+  it('cancels an in-flight journal request', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      });
+    }));
+
+    const pending = executeTrace();
+    expect(cancelTrace()).toBe(true);
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(useAppStore.getState().isRunning).toBe(false);
+    expect(useAppStore.getState().lastError).toBe('Run cancelled');
+  });
+
+  it('uses LoadedFixture.request as the exclusive execution source', async () => {
+    const loaded = loadFixture(`{
+      "case": {
+        "env": {},
+        "pre": { "0x00000000000000000000000000000000000000aa": { "nonce": "0x00", "balance": "0x01", "code": "0x00", "storage": {} } },
+        "transaction": {
+          "sender": "0x0000000000000000000000000000000000000001",
+          "to": "0x00000000000000000000000000000000000000aa",
+          "gasLimit": ["0x186a0"],
+          "value": ["0x00"],
+          "data": ["0x"],
+          "secretKey": "0x01"
+        },
+        "post": { "Osaka": [{ "indexes": { "data": 0, "gas": 0, "value": 0 }, "state": {} }] }
+      }
+    }`);
+    useAppStore.getState().applyLoadedFixture(loaded);
+    await executeTrace();
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
+    expect(body.params[0].transaction.to).toBe('0x00000000000000000000000000000000000000aa');
+    expect(body.params[0].preState).toHaveLength(1);
+    expect(body.params[0].preState[0].code).toBe('0x00');
+    expect(body.params[0].expected).toBeUndefined();
+    expect(body.params[0].from).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('secretKey');
+    expect(useAppStore.getState().loadedFixture?.expected).toBeDefined();
+  });
+});
+
+describe('OpSec RPC authority', () => {
+  beforeEach(() => {
+    useAppStore.setState({ opSecEnabled: false });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ jsonrpc: '2.0', id: 1, result: { enabled: true } }),
+    }));
+  });
+
+  it('setOpSec asks the RPC process, not a local flag', async () => {
+    await setOpSec(true);
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.method).toBe('schlieren_opsecSet');
+    expect(body.params).toEqual([{ enabled: true }]);
+    expect(useAppStore.getState().opSecEnabled).toBe(true);
+  });
+
+  it('importCode goes through schlieren_importCode', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { address: '0x0000000000000000000000000000000000000001', code: '0x6000' },
+      }),
+    }));
+    const result = await importCode(
+      '0x0000000000000000000000000000000000000001',
+      'https://eth.llamarpc.com',
+    );
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.method).toBe('schlieren_importCode');
+    expect(body.params[0].provider).toBe('https://eth.llamarpc.com');
+    expect(result.code).toBe('0x6000');
   });
 });

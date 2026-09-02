@@ -1,0 +1,231 @@
+{
+  "copperinu": {
+    "source": "honeypot.is",
+    "timestamp": "2026-08-30",
+    "token": "0xf69ebe4353d00912763b9e7be3aee4f00509c2cc",
+    "raw": {
+      "token": {
+        "name": "COPPER INU",
+        "symbol": "COPPERINU",
+        "decimals": 18,
+        "address": "0xf69EBe4353d00912763b9e7BE3aEE4f00509c2CC",
+        "totalHolders": 19
+      },
+      "withToken": {
+        "name": "Wrapped Ether",
+        "symbol": "WETH",
+        "decimals": 18,
+        "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "totalHolders": 3319757
+      },
+      "summary": {
+        "risk": "honeypot",
+        "riskLevel": 100,
+        "flags": []
+      },
+      "simulationSuccess": true,
+      "honeypotResult": {
+        "isHoneypot": true,
+        "honeypotReason": "execution reverted: TransferHelper: TRANSFER_FROM_FAILED"
+      },
+      "simulationResult": {
+        "buyTax": 0,
+        "sellTax": 100,
+        "transferTax": 0,
+        "buyGas": "0",
+        "sellGas": "0"
+      },
+      "flags": [],
+      "contractCode": {
+        "openSource": true,
+        "rootOpenSource": true,
+        "isProxy": false,
+        "hasProxyCalls": false
+      },
+      "chain": {
+        "id": "1",
+        "name": "Ethereum",
+        "shortName": "eth",
+        "currency": "ETH"
+      },
+      "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+      "pair": {
+        "pair": {
+          "name": "Uniswap V2: WETH-COPPERIN",
+          "address": "0x905101a7493B309F1349F8F21C46EBA958e65dea",
+          "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "token1": "0xf69EBe4353d00912763b9e7BE3aEE4f00509c2CC",
+          "type": "UniswapV2"
+        },
+        "chainId": "1",
+        "reserves0": "1260673401619459291",
+        "reserves1": "200651095236504390249600",
+        "liquidity": 6195.1003763662175,
+        "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+        "createdAtTimestamp": "1788029423",
+        "creationTxHash": "0xd9002d06ce8d75765cdf8308510206f50aee53cc834e3dbdd82946d7c309fe2b"
+      },
+      "pairAddress": "0x905101a7493B309F1349F8F21C46EBA958e65dea"
+    },
+    "summary": {
+      "isHoneypot": true,
+      "risk": "honeypot",
+      "riskLevel": 100,
+      "buyTax": 0,
+      "sellTax": 100,
+      "reason": "execution reverted: TransferHelper: TRANSFER_FROM_FAILED"
+    }
+  },
+  "pepe": {
+    "source": "honeypot.is",
+    "timestamp": "2026-08-30",
+    "token": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+    "raw": {
+      "token": {
+        "name": "Pepe",
+        "symbol": "PEPE",
+        "decimals": 18,
+        "address": "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
+        "totalHolders": 579419
+      },
+      "withToken": {
+        "name": "Wrapped Ether",
+        "symbol": "WETH",
+        "decimals": 18,
+        "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "totalHolders": 3319757
+      },
+      "summary": {
+        "risk": "low",
+        "riskLevel": 1,
+        "flags": []
+      },
+      "simulationSuccess": true,
+      "honeypotResult": {
+        "isHoneypot": false
+      },
+      "simulationResult": {
+        "buyTax": 0,
+        "sellTax": 0,
+        "transferTax": 0,
+        "buyGas": "151216",
+        "sellGas": "105214"
+      },
+      "flags": [],
+      "contractCode": {
+        "openSource": true,
+        "rootOpenSource": true,
+        "isProxy": false,
+        "hasProxyCalls": false
+      },
+      "chain": {
+        "id": "1",
+        "name": "Ethereum",
+        "shortName": "eth",
+        "currency": "ETH"
+      },
+      "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+      "pair": {
+        "pair": {
+          "name": "Uniswap V2: PEPE-WETH",
+          "address": "0xA43fe16908251ee70EF74718545e4FE6C5cCEc9f",
+          "token0": "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
+          "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "type": "UniswapV2"
+        },
+        "chainId": "1",
+        "reserves0": "3866144007333082825607427090660",
+        "reserves1": "5492537785572389283337",
+        "liquidity": 26394719.880835254,
+        "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+        "createdAtTimestamp": "1681492871",
+        "creationTxHash": "0x273894b35d8c30d32e1ffa22ee6aa320cc9f55f2adbba0583594ed47c031f6f6"
+      },
+      "pairAddress": "0xA43fe16908251ee70EF74718545e4FE6C5cCEc9f"
+    },
+    "summary": {
+      "isHoneypot": false,
+      "risk": "low",
+      "riskLevel": 1,
+      "buyTax": 0,
+      "sellTax": 0,
+      "reason": null
+    }
+  },
+  "dcat": {
+    "source": "honeypot.is",
+    "timestamp": "2026-08-30",
+    "token": "0x2d1643a5d14fb221521767f2405efbbe4d4603fd",
+    "raw": {
+      "token": {
+        "name": "DIAMOND CAT",
+        "symbol": "DCAT",
+        "decimals": 18,
+        "address": "0x2d1643a5d14Fb221521767F2405efbBe4D4603fD",
+        "totalHolders": 123
+      },
+      "withToken": {
+        "name": "Wrapped Ether",
+        "symbol": "WETH",
+        "decimals": 18,
+        "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "totalHolders": 3319757
+      },
+      "summary": {
+        "risk": "low",
+        "riskLevel": 1,
+        "flags": []
+      },
+      "simulationSuccess": true,
+      "honeypotResult": {
+        "isHoneypot": false
+      },
+      "simulationResult": {
+        "buyTax": 3.1,
+        "sellTax": 3.19,
+        "transferTax": 0,
+        "buyGas": "275766",
+        "sellGas": "389391"
+      },
+      "flags": [],
+      "contractCode": {
+        "openSource": true,
+        "rootOpenSource": true,
+        "isProxy": false,
+        "hasProxyCalls": false
+      },
+      "chain": {
+        "id": "1",
+        "name": "Ethereum",
+        "shortName": "eth",
+        "currency": "ETH"
+      },
+      "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+      "pair": {
+        "pair": {
+          "name": "Uniswap V2: DCAT-WETH",
+          "address": "0x923e778f00eA93944e3199652bB5Bd5a56F86629",
+          "token0": "0x2d1643a5d14Fb221521767F2405efbBe4D4603fD",
+          "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "type": "UniswapV2"
+        },
+        "chainId": "1",
+        "reserves0": "146517573251473484537180521",
+        "reserves1": "761373447228473222",
+        "liquidity": 3697.336052024078,
+        "router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+        "createdAtTimestamp": "1787966783",
+        "creationTxHash": "0xab2dcb1a7d4fa7fd161cc1671f2ef6b8412064a3d7604132947ac51629546212"
+      },
+      "pairAddress": "0x923e778f00eA93944e3199652bB5Bd5a56F86629"
+    },
+    "summary": {
+      "isHoneypot": false,
+      "risk": "low",
+      "riskLevel": 1,
+      "buyTax": 3.1,
+      "sellTax": 3.19,
+      "reason": null
+    }
+  }
+}

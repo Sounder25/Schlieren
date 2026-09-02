@@ -1,25 +1,7 @@
 import { useCallback } from 'react';
 import { useAppStore } from '../../engine/store';
+import { FORKS } from '../../engine/forks';
 import './TxDrawer.css';
-
-// ─── Fork list ────────────────────────────────────────────────────────────────
-
-const FORKS = [
-  'Frontier',
-  'Homestead',
-  'Tangerine',
-  'Spurious',
-  'Byzantium',
-  'Constantinople',
-  'Istanbul',
-  'Berlin',
-  'London',
-  'Paris',
-  'Shanghai',
-  'Cancun',
-  'Prague',
-  'Osaka',
-] as const;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 

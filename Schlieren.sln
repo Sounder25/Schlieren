@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.CLI", "Schlieren.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.Tests", "Schlieren.Tests\Schlieren.Tests.csproj", "{B2636AD4-2A5A-45CC-B85D-F795637AC41A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.UI", "Schlieren.UI\Schlieren.UI.csproj", "{F73B745F-3F91-4E9B-B402-74312EADF1B9}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.EELS.Tests", "Schlieren.EELS.Tests\Schlieren.EELS.Tests.csproj", "{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schlieren.Harvest", "Schlieren.Harvest\Schlieren.Harvest.csproj", "{C7A24813-D88C-4424-8CC2-88ED41C6411C}"
@@ -50,10 +48,6 @@ Global
 		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2636AD4-2A5A-45CC-B85D-F795637AC41A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F73B745F-3F91-4E9B-B402-74312EADF1B9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C3B474A1-6EE5-4F23-AB5F-9E72DE5C2A10}.Release|Any CPU.ActiveCfg = Release|Any CPU

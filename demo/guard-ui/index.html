@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schlieren Guard — Pre-Trade Execution Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void:    #060607;
+  --chassis: #0B0C0D;
+  --panel:   #111214;
+  --raised:  #181A1D;
+  --elevated:#1F2225;
+  --inset:   #090A0B;
+  --b-hard:  #2A2D32;
+  --b-subtle:#1E2125;
+  --b-focus: #3A3E44;
+  --t-pri:   #E4E0DC;
+  --t-sec:   #A0A8B4;
+  --t-ter:   #6A7280;
+  --t-ghost: #454B54;
+  --flow:    #5B8EC9;
+  --agree:   #5A8A6C;
+  --fracture:#C43A52;
+  --halt:    #B85A32;
+  --state:   #C8943C;
+  --diag:    #B89B4A;
+  --font-d:  'JetBrains Mono','IBM Plex Mono',monospace;
+  --font-c:  'Inter',system-ui,sans-serif;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{min-height:100vh;background:var(--void);color:var(--t-pri);font-family:var(--font-d);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{border:none;background:none;cursor:pointer;font:inherit;color:inherit}
+input,select{border:none;background:none;font:inherit;color:inherit}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--b-hard);border-radius:3px}
+:focus-visible{outline:1px solid var(--flow);outline-offset:2px}
+
+/* ── NAV ── */
+.nav{height:48px;background:var(--chassis);border-bottom:1px solid var(--b-subtle);display:flex;align-items:center;padding:0 32px;gap:16px;position:sticky;top:0;z-index:100}
+.nav-wordmark{font-size:11px;font-weight:600;letter-spacing:.18em;color:var(--t-pri)}
+.nav-product{font-size:11px;font-weight:600;letter-spacing:.18em;color:var(--t-ter)}
+.nav-divider{width:1px;height:18px;background:var(--b-hard)}
+.nav-slogan{font-family:var(--font-c);font-size:12px;color:var(--t-ter);margin-left:4px;letter-spacing:0}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.nav-cta{font-family:var(--font-c);font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--flow);padding:6px 14px;border:1px solid color-mix(in srgb,var(--flow) 35%,transparent);border-radius:3px;transition:opacity 120ms}
+.nav-cta:hover{opacity:.75}
+
+/* ── SCREENS ── */
+.screen{display:none}
+.screen.active{display:block}
+
+/* ═════════════════════════════════
+   LANDING
+═════════════════════════════════ */
+#s-landing{min-height:calc(100vh - 48px);display:flex;align-items:center;justify-content:center;padding:40px 24px 80px}
+.landing-wrap{width:100%;max-width:520px;display:flex;flex-direction:column;gap:36px}
+
+.lh{display:flex;flex-direction:column;gap:10px}
+.lh-eyebrow{font-family:var(--font-c);font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--t-ter);text-transform:uppercase}
+.lh-title{font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1.2;color:var(--t-pri)}
+.lh-sub{font-family:var(--font-c);font-size:14px;color:var(--t-sec);line-height:1.65}
+
+.l-divider{height:1px;background:var(--b-subtle)}
+
+.input-area{display:flex;flex-direction:column;gap:10px}
+.input-row{display:flex;gap:8px}
+.net-select{height:38px;background:var(--raised);border:1px solid var(--b-hard);color:var(--t-sec);font-family:var(--font-d);font-size:11px;padding:0 10px 0 10px;border-radius:3px;cursor:pointer;flex-shrink:0;width:106px;appearance:none;outline:none;transition:border-color 120ms}
+.net-select:focus{border-color:var(--b-focus)}
+.addr-input{flex:1;height:38px;background:var(--raised);border:1px solid var(--b-hard);color:var(--t-pri);font-family:var(--font-d);font-size:11px;padding:0 12px;border-radius:3px;outline:none;transition:border-color 120ms}
+.addr-input:focus{border-color:var(--b-focus)}
+.addr-input::placeholder{color:var(--t-ghost)}
+.run-btn{height:42px;width:100%;background:var(--elevated);border:1px solid var(--b-hard);color:var(--t-pri);font-family:var(--font-c);font-size:12px;font-weight:700;letter-spacing:.1em;border-radius:3px;transition:background 120ms,border-color 120ms}
+.run-btn:hover{background:var(--raised);border-color:var(--b-focus)}
+
+.demo-cases{display:flex;flex-direction:column;gap:8px}
+.demo-cases-label{font-family:var(--font-c);font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--t-ghost);text-transform:uppercase;margin-bottom:2px}
+.case-pills{display:flex;flex-wrap:wrap;gap:6px}
+.case-pill{height:26px;padding:0 12px;background:var(--raised);border:1px solid var(--b-hard);border-radius:3px;font-family:var(--font-d);font-size:10px;color:var(--t-sec);cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:border-color 120ms,color 120ms}
+.case-pill:hover{border-color:var(--b-focus);color:var(--t-pri)}
+.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dot-ok{background:var(--agree)}
+.dot-block{background:var(--fracture)}
+.dot-new{background:var(--flow);animation:newpulse 2s ease-in-out infinite}
+@keyframes newpulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.l-footer{font-family:var(--font-c);font-size:11px;color:var(--t-ghost);text-align:center;line-height:1.6}
+
+/* ═════════════════════════════════
+   ANALYZING
+═════════════════════════════════ */
+#s-analyzing{min-height:calc(100vh - 48px);display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.analyzing-wrap{width:100%;max-width:480px;display:flex;flex-direction:column;gap:28px;align-items:center}
+.a-token{font-size:11px;color:var(--t-ter);text-align:center;word-break:break-all}
+.pipeline{width:100%;background:var(--panel);border:1px solid var(--b-subtle);border-radius:4px;overflow:hidden}
+.p-step{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--b-subtle);transition:background 180ms}
+.p-step:last-child{border-bottom:none}
+.p-step.s-done{background:color-mix(in srgb,var(--agree) 6%,var(--panel))}
+.p-step.s-active{background:color-mix(in srgb,var(--flow) 8%,var(--panel))}
+.p-icon{width:26px;height:26px;border-radius:50%;border:1px solid var(--b-hard);background:var(--raised);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--t-ghost);flex-shrink:0;transition:all 180ms}
+.p-step.s-done .p-icon{border-color:var(--agree);color:var(--agree);background:color-mix(in srgb,var(--agree) 14%,var(--raised))}
+.p-step.s-active .p-icon{border-color:var(--flow);background:color-mix(in srgb,var(--flow) 14%,var(--raised))}
+.p-body{flex:1}
+.p-name{font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--t-sec)}
+.p-step.s-done .p-name{color:var(--agree)}
+.p-step.s-active .p-name{color:var(--t-pri)}
+.p-detail{font-size:10px;color:var(--t-ghost);margin-top:2px}
+.p-step.s-active .p-detail{color:var(--t-ter)}
+.p-status{font-size:10px}
+.ps-wait{color:var(--t-ghost)}
+.ps-run{color:var(--flow);animation:pls 1s ease-in-out infinite}
+.ps-done{color:var(--agree)}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.3}}
+.a-status{font-family:var(--font-c);font-size:12px;color:var(--t-ter);text-align:center}
+
+/* ═════════════════════════════════
+   RESULT
+═════════════════════════════════ */
+#s-result{min-height:calc(100vh - 48px)}
+.result-grid{display:grid;grid-template-columns:1fr 340px;min-height:calc(100vh - 48px)}
+.result-main{padding:32px 40px;border-right:1px solid var(--b-subtle);display:flex;flex-direction:column;gap:24px}
+.result-sidebar{padding:24px 22px;display:flex;flex-direction:column;gap:20px;overflow-y:auto}
+
+/* token header */
+.rth{display:flex;flex-direction:column;gap:5px}
+.rth-label{font-family:var(--font-c);font-size:10px;font-weight:600;letter-spacing:.12em;color:var(--t-ghost);text-transform:uppercase}
+.rth-addr{font-size:12px;color:var(--flow)}
+.rth-meta{font-family:var(--font-c);font-size:11px;color:var(--t-ter)}
+
+/* execution flow */
+.exec-flow{display:flex;flex-direction:column;gap:0;background:var(--panel);border:1px solid var(--b-subtle);border-radius:4px;overflow:hidden}
+.ef-row{display:grid;grid-template-columns:80px 1fr 120px 80px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--b-subtle);gap:12px}
+.ef-row:last-child{border-bottom:none}
+.ef-row.ef-header{padding:8px 18px;background:var(--chassis)}
+.ef-label{font-family:var(--font-c);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--t-ghost);text-transform:uppercase}
+.ef-step-name{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--t-sec)}
+.ef-step-name.ok{color:var(--t-pri)}
+.ef-verdict{font-size:12px;font-weight:700;letter-spacing:.04em}
+.v-ok{color:var(--agree)}
+.v-fail{color:var(--fracture)}
+.ef-delta{font-size:11px;color:var(--t-ter);text-align:right}
+.ef-gas{font-size:10px;color:var(--t-ghost);text-align:right}
+.ef-arrow-row{padding:8px 18px;display:flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--flow) 4%,var(--panel));border-bottom:1px solid var(--b-subtle)}
+.ef-arrow-label{font-family:var(--font-c);font-size:10px;color:var(--t-ter)}
+.ef-arrow-val{font-family:var(--font-d);font-size:11px;color:var(--t-pri)}
+
+/* verdict card */
+.verdict-card{border-radius:4px;padding:18px 22px;border:1px solid;display:flex;flex-direction:column;gap:8px}
+.vc-ok{background:color-mix(in srgb,var(--agree) 7%,var(--panel));border-color:color-mix(in srgb,var(--agree) 28%,transparent)}
+.vc-blocked{background:color-mix(in srgb,var(--fracture) 7%,var(--panel));border-color:color-mix(in srgb,var(--fracture) 28%,transparent)}
+.vc-headline{font-size:14px;font-weight:600;letter-spacing:.06em}
+.vc-ok .vc-headline{color:var(--agree)}
+.vc-blocked .vc-headline{color:var(--fracture)}
+.vc-detail{font-family:var(--font-c);font-size:12px;color:var(--t-sec);line-height:1.6}
+
+/* causal section */
+.causal-wrap{display:flex;flex-direction:column;gap:8px}
+.causal-label{font-family:var(--font-c);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--t-ghost);text-transform:uppercase}
+.causal-card{background:var(--panel);border:1px solid color-mix(in srgb,var(--fracture) 22%,var(--b-subtle));border-radius:4px;padding:14px 18px;display:flex;flex-direction:column;gap:5px}
+.cr{display:flex;gap:10px;align-items:baseline}
+.cr-k{font-size:10px;color:var(--t-ghost);width:64px;flex-shrink:0}
+.cr-v{font-size:10px;color:var(--t-pri);word-break:break-all}
+.cr-v.addr{color:var(--flow)}
+.cr-v.revert{color:var(--fracture);font-weight:600}
+.cr-v.fn{color:var(--state)}
+
+.evidence-btn{align-self:flex-start;height:32px;padding:0 14px;background:var(--elevated);border:1px solid var(--b-hard);border-radius:3px;font-family:var(--font-c);font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--t-sec);cursor:pointer;transition:border-color 120ms,color 120ms;display:flex;align-items:center;gap:6px}
+.evidence-btn:hover{border-color:var(--flow);color:var(--flow)}
+
+.r-disclaimer{font-family:var(--font-c);font-size:11px;color:var(--t-ghost);line-height:1.6;border-top:1px solid var(--b-subtle);padding-top:14px}
+
+/* sidebar sections */
+.sb-section{display:flex;flex-direction:column;gap:8px}
+.sb-title{font-family:var(--font-c);font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--t-ghost);text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid var(--b-subtle)}
+.sb-metric{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sb-metric-label{font-size:10px;color:var(--t-ter)}
+.sb-metric-val{font-size:11px;color:var(--t-pri);font-weight:500}
+.sb-metric-val.loss-ok{color:var(--t-sec)}
+.sb-metric-val.loss-bad{color:var(--fracture)}
+.sb-metric-val.ok-green{color:var(--agree)}
+.sb-steps{display:flex;flex-direction:column;gap:3px}
+.sb-step{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:3px;background:var(--raised);border:1px solid var(--b-subtle)}
+.sb-step.fail{border-color:color-mix(in srgb,var(--fracture) 25%,transparent);background:color-mix(in srgb,var(--fracture) 5%,var(--raised))}
+.sb-step-mark{font-size:10px;font-weight:700;width:12px}
+.mark-ok{color:var(--agree)}
+.mark-fail{color:var(--fracture)}
+.sb-step-name{font-size:10px;font-weight:600;letter-spacing:.04em;color:var(--t-sec);text-transform:uppercase;width:58px}
+.sb-step-gas{font-size:9px;color:var(--t-ghost);margin-left:auto}
+
+.pin-row{display:flex;gap:8px;align-items:baseline}
+.pin-k{font-size:9px;color:var(--t-ghost);width:46px;flex-shrink:0}
+.pin-v{font-size:9px;color:var(--t-ter);word-break:break-all}
+
+.back-btn{width:100%;height:32px;border-radius:3px;background:var(--elevated);border:1px solid var(--b-hard);font-family:var(--font-c);font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--t-sec);cursor:pointer;transition:border-color 120ms,color 120ms;margin-top:auto}
+.back-btn:hover{border-color:var(--b-focus);color:var(--t-pri)}
+
+/* evidence drawer */
+.evidence-drawer{display:none;background:var(--panel);border:1px solid var(--b-subtle);border-radius:4px;overflow:hidden}
+.evidence-drawer.open{display:flex;flex-direction:column}
+.ed-header{padding:10px 18px;background:var(--chassis);border-bottom:1px solid var(--b-hard);display:flex;align-items:center;gap:10px}
+.ed-title{font-family:var(--font-c);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--t-ter);text-transform:uppercase}
+.ed-tag{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--t-ghost);border:1px solid var(--b-subtle);padding:2px 6px;border-radius:2px;text-transform:uppercase;margin-left:auto}
+.ed-body{padding:14px 18px;display:flex;flex-direction:column;gap:4px}
+.ed-row{display:flex;gap:10px;align-items:baseline}
+.ed-k{font-size:10px;color:var(--t-ghost);width:120px;flex-shrink:0}
+.ed-v{font-size:10px;color:var(--t-sec);word-break:break-all}
+.ed-v.mono{font-family:var(--font-d);color:var(--t-ter);font-size:9px}
+.ed-v.revert{color:var(--fracture)}
+.ed-v.addr{color:var(--flow)}
+.ed-divider{height:1px;background:var(--b-subtle);margin:8px 0}
+
+/* new token badge */
+.age-badge{display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--flow) 10%,var(--panel));border:1px solid color-mix(in srgb,var(--flow) 30%,transparent);border-radius:3px;padding:4px 10px;font-size:11px;color:var(--flow);font-weight:600;letter-spacing:.04em}
+.age-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--flow);animation:newpulse 1.5s ease-in-out infinite}
+
+@media(max-width:768px){.result-grid{grid-template-columns:1fr}.result-sidebar{border-top:1px solid var(--b-subtle)}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <span class="nav-wordmark">SCHLIEREN</span>
+  <div class="nav-divider"></div>
+  <span class="nav-product">GUARD</span>
+  <span class="nav-slogan">— Guard buys and sells before you do.</span>
+  <div class="nav-right">
+    <a class="nav-cta" href="mailto:guard@schlieren.xyz?subject=Founding Design Partner">Design Partner →</a>
+  </div>
+</nav>
+
+<!-- ═══════ LANDING ═══════ -->
+<div id="s-landing" class="screen active">
+  <div class="landing-wrap">
+    <div class="lh">
+      <div class="lh-eyebrow">Schlieren Guard</div>
+      <div class="lh-title">Guard buys and sells<br>before you do,<br>so you know what to expect.</div>
+      <div class="lh-sub">
+        Guard executes the complete BUY → SELL path against pinned Ethereum state before you commit capital. Real execution. Real measured outcome. Schlieren causal evidence on every failure.
+      </div>
+    </div>
+
+    <div class="l-divider"></div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <select class="net-select" id="net-select">
+          <option>Ethereum</option>
+          <option disabled>Base (soon)</option>
+          <option disabled>Arbitrum (soon)</option>
+        </select>
+        <input class="addr-input" id="addr-input" type="text"
+          placeholder="Token contract  0x..."
+          autocomplete="off" spellcheck="false" />
+      </div>
+      <button class="run-btn" onclick="handleRun()">RUN GUARD</button>
+    </div>
+
+    <div class="demo-cases">
+      <div class="demo-cases-label">Demo cases — real execution results</div>
+      <div class="case-pills">
+        <button class="case-pill" onclick="loadCase('pepe')">
+          <span class="dot dot-ok"></span>PEPE — Normal round trip
+        </button>
+        <button class="case-pill" onclick="loadCase('dcat')">
+          <span class="dot dot-block"></span>DCAT — Honeypot.is: low risk. Guard: SELL BLOCKED.
+        </button>
+        <button class="case-pill" onclick="loadCase('copper')">
+          <span class="dot dot-block"></span>CopperInu — Sell blocked
+        </button>
+        <button class="case-pill" id="pill-new" onclick="loadCase('new')">
+          <span class="dot dot-new"></span>New token — live case
+        </button>
+      </div>
+    </div>
+
+    <div class="l-footer">
+      Every result shown is produced by real Schlieren execution against pinned Ethereum state at the indicated block.<br>
+      Results reflect state at execution time, not a guarantee of future tradeability.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ANALYZING ═══════ -->
+<div id="s-analyzing" class="screen">
+  <div class="analyzing-wrap">
+    <div class="a-token" id="a-token">—</div>
+
+    <div class="pipeline">
+      <div class="p-step" id="p-pin">
+        <div class="p-icon">1</div>
+        <div class="p-body">
+          <div class="p-name">PIN BLOCK STATE</div>
+          <div class="p-detail">Freezing Ethereum state at latest finalized block</div>
+        </div>
+        <div class="p-status ps-wait" id="ps-pin">—</div>
+      </div>
+      <div class="p-step" id="p-buy">
+        <div class="p-icon">2</div>
+        <div class="p-body">
+          <div class="p-name">EXECUTE BUY</div>
+          <div class="p-detail">Router02 swapExactETHForTokensSupportingFeeOnTransfer</div>
+        </div>
+        <div class="p-status ps-wait" id="ps-buy">—</div>
+      </div>
+      <div class="p-step" id="p-approve">
+        <div class="p-icon">3</div>
+        <div class="p-body">
+          <div class="p-name">APPROVE ROUTER</div>
+          <div class="p-detail">ERC-20 approve(Router02, tokenBalance)</div>
+        </div>
+        <div class="p-status ps-wait" id="ps-approve">—</div>
+      </div>
+      <div class="p-step" id="p-sell">
+        <div class="p-icon">4</div>
+        <div class="p-body">
+          <div class="p-name">EXECUTE SELL</div>
+          <div class="p-detail">Router02 swapExactTokensForETHSupportingFeeOnTransfer</div>
+        </div>
+        <div class="p-status ps-wait" id="ps-sell">—</div>
+      </div>
+      <div class="p-step" id="p-adj">
+        <div class="p-icon">5</div>
+        <div class="p-body">
+          <div class="p-name">ADJUDICATE</div>
+          <div class="p-detail">Measure outcome, locate causal frame, emit verdict</div>
+        </div>
+        <div class="p-status ps-wait" id="ps-adj">—</div>
+      </div>
+    </div>
+
+    <div class="a-status" id="a-status">Connecting to Schlieren execution engine…</div>
+  </div>
+</div>
+
+<!-- ═══════ RESULT ═══════ -->
+<div id="s-result" class="screen">
+  <div class="result-grid">
+
+    <!-- MAIN -->
+    <div class="result-main">
+      <div class="rth">
+        <div class="rth-label">Token — Execution Against State</div>
+        <div class="rth-addr" id="r-addr">—</div>
+        <div class="rth-meta" id="r-meta">—</div>
+      </div>
+
+      <!-- age badge (new token only) -->
+      <div id="r-age-badge" style="display:none">
+        <div class="age-badge">
+          <span class="age-badge-dot"></span>
+          <span id="r-age-text">Token age —</span>
+          &nbsp;·&nbsp;
+          <span id="r-age-block">Block —</span>
+        </div>
+      </div>
+
+      <!-- execution flow table -->
+      <div class="exec-flow">
+        <div class="ef-row ef-header">
+          <div class="ef-label">Step</div>
+          <div class="ef-label">Action</div>
+          <div class="ef-label" style="text-align:right">Result</div>
+          <div class="ef-label" style="text-align:right">Gas</div>
+        </div>
+        <div class="ef-arrow-row">
+          <span class="ef-arrow-label">TEST AMOUNT →</span>
+          <span class="ef-arrow-val" id="r-test-amount">2.0 ETH</span>
+        </div>
+        <div class="ef-row" id="r-row-buy">
+          <div class="ef-step-name ok">BUY</div>
+          <div style="font-size:10px;color:var(--t-ter)">swapExactETHForTokens…</div>
+          <div class="ef-verdict v-ok" id="r-buy-v">EXECUTED</div>
+          <div class="ef-gas" id="r-buy-gas">—</div>
+        </div>
+        <div class="ef-row" id="r-row-approve">
+          <div class="ef-step-name ok">APPROVE</div>
+          <div style="font-size:10px;color:var(--t-ter)">ERC-20 approve(Router02)</div>
+          <div class="ef-verdict v-ok" id="r-approve-v">EXECUTED</div>
+          <div class="ef-gas" id="r-approve-gas">—</div>
+        </div>
+        <div class="ef-row" id="r-row-sell">
+          <div class="ef-step-name ok" id="r-sell-label">SELL</div>
+          <div style="font-size:10px;color:var(--t-ter)">swapExactTokensForETH…</div>
+          <div class="ef-verdict" id="r-sell-v">—</div>
+          <div class="ef-gas" id="r-sell-gas">—</div>
+        </div>
+      </div>
+
+      <!-- verdict -->
+      <div class="verdict-card" id="r-verdict-card">
+        <div class="vc-headline" id="r-verdict-hl">—</div>
+        <div class="vc-detail" id="r-verdict-detail">—</div>
+      </div>
+
+      <!-- causal frame (failure only) -->
+      <div class="causal-wrap" id="r-causal-wrap" style="display:none">
+        <div class="causal-label">Causal Execution Frame — Schlieren Evidence</div>
+        <div class="causal-card" id="r-causal-card"></div>
+        <button class="evidence-btn" onclick="toggleEvidence()">
+          <span>⬡</span>
+          <span id="evidence-btn-text">VIEW EXECUTION EVIDENCE</span>
+        </button>
+        <div class="evidence-drawer" id="r-evidence-drawer"></div>
+      </div>
+
+      <div class="r-disclaimer">
+        Execution against state at block <span id="r-block-inline">—</span>.
+        Schlieren executed a deterministic BUY→SELL scenario using a synthetic buyer address against pinned Ethereum state.
+        No capital was committed on-chain. Results reflect this state, trade size, and route.
+        Future tradeability can change.
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="result-sidebar">
+      <div class="sb-section">
+        <div class="sb-title">Round Trip</div>
+        <div id="r-economics">—</div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-title">Steps</div>
+        <div class="sb-steps" id="r-steps">—</div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-title">State Pin</div>
+        <div id="r-pin">—</div>
+      </div>
+
+      <button class="back-btn" onclick="goBack()">← CHECK ANOTHER TOKEN</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════ DATA ═══════ -->
+<script>
+// ─── Real evidence from actual Schlieren execution ─────────────────────────
+// Generated by: dotnet run -- guard <token> --fork-url https://ethereum.publicnode.com --hardfork Osaka
+// Evidence files preserved in demo/evidence/
+
+const CASES = {
+  pepe: {
+    _meta: { caseId: 'case-a-normal', description: 'PEPE — normal round trip' },
+    kind: 'SellSuccessful',
+    token: '0x6982508145454ce325ddbe47a25d4ec3d2311933',
+    tokenName: 'PEPE',
+    network: 'Ethereum',
+    router: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+    buyer: '0x67da5a687f35087f3ea7dc613305a706ef80252c',
+    pin: { block: 25872402, blockHash: '0x80a72ae5fb87343f2f887ac60828a381399b3a550849502f8a64050567e04032', timestamp: 1788144851, fork: 'Osaka', chainId: 1 },
+    verdict: { headline: 'SELL SUCCESSFUL', detail: 'Buy and sell both committed. Measured round-trip loss 1.08%. Both the buy and sell executed cleanly through the Uniswap V2 Router02 path at this trade size and state.' },
+    effectiveLossPercent: 1.08,
+    startEth: 2.0,
+    recoveredEth: 1.9784,
+    steps: [
+      { name: 'buy',     ok: true,  gas: 128772 },
+      { name: 'approve', ok: true,  gas: 46421  },
+      { name: 'sell',    ok: true,  gas: 110975 },
+    ],
+    causal: null,
+    evidence: {
+      'Token': '0x6982508145454ce325ddbe47a25d4ec3d2311933',
+      'Chain': 'Ethereum (1)',
+      'Block': '25,872,402',
+      'Block hash': '0x80a72ae5fb87343f2f887ac60828a381399b3a550849502f8a64050567e04032',
+      'Timestamp': '2026-08-30 (Unix 1788144851)',
+      'Fork': 'Osaka',
+      'Router': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+      'Test amount': '2.0 ETH',
+      'BUY result': 'PASS — gas 128,772',
+      'APPROVE result': 'PASS — gas 46,421',
+      'SELL result': 'PASS — gas 110,975',
+      'Round-trip loss': '1.08%',
+      'Engine': 'Schlieren Guard v1 / Osaka fork',
+      'Evidence file': 'demo/evidence/case-a-normal/guard-6982...json',
+    },
+  },
+
+  dcat: {
+    _meta: { caseId: 'case-b-abnormal', description: 'DCAT — sell blocked, causal frame 4' },
+    kind: 'SellBlocked',
+    token: '0x2d1643a5d14fb221521767f2405efbbe4d4603fd',
+    tokenName: 'DCAT',
+    network: 'Ethereum',
+    router: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+    buyer: '0x679c3a64ba7147bc0e8f6288a10f8de83e3fcb1b',
+    pin: { block: 25872405, blockHash: '0xc4baeb6711bf0ba7c9c31abce1dfdb6382ee80be498027978209c6ee35fc9bc8', timestamp: 1788144887, fork: 'Osaka', chainId: 1 },
+    verdict: { headline: 'SELL BLOCKED', detail: 'Buy committed and the same-wallet sell reverted. Guard executed buy → approve → sell against pinned state. Token.transferFrom() reverted during the Router02 swap. Note: Honeypot.is rates this token as "low risk" with a 3.19% sell tax. Guard\'s actual execution found the sell reverts — a different result from the simulation-based score.' },
+    effectiveLossPercent: null,
+    startEth: 2.0,
+    recoveredEth: 0,
+    steps: [
+      { name: 'buy',     ok: true,  gas: 270394 },
+      { name: 'approve', ok: true,  gas: 46389  },
+      { name: 'sell',    ok: false, gas: 68000  },
+    ],
+    causal: {
+      frameId: 4,
+      depth: 3,
+      contract: '0x2d1643a5d14fb221521767f2405efbbe4d4603fd',
+      callType: 'CALL',
+      fn: 'transferFrom(address,address,uint256)',
+      revert: 'TransferHelper: TRANSFER_FROM_FAILED',
+    },
+    evidence: {
+      'Token': '0x2d1643a5d14fb221521767f2405efbbe4d4603fd',
+      'Chain': 'Ethereum (1)',
+      'Block': '25,872,405',
+      'Block hash': '0xc4baeb6711bf0ba7c9c31abce1dfdb6382ee80be498027978209c6ee35fc9bc8',
+      'Timestamp': '2026-08-30 (Unix 1788144887)',
+      'Fork': 'Osaka',
+      'Router': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+      'Test amount': '2.0 ETH',
+      'BUY result': 'PASS — gas 270,394',
+      'APPROVE result': 'PASS — gas 46,389',
+      'SELL result': 'REVERT — gas 68,000',
+      'Causal frame': '#4 (depth 3)',
+      'Causal contract': '0x2d1643a5d14fb221521767f2405efbbe4d4603fd',
+      'Revert': 'TransferHelper: TRANSFER_FROM_FAILED',
+      'Revert hex': '0x08c379a0...TRANSFER_FROM_FAILED',
+      'Honeypot.is result': 'isHoneypot=false  /  risk=low  /  sellTax=3.19%',
+      'Guard result': 'SELL BLOCKED — sell reverted at causal frame #4',
+      'Engine': 'Schlieren Guard v1 / Osaka fork',
+    },
+  },
+
+  copper: {
+    _meta: { caseId: 'case-c-hostile', description: 'CopperInu — sell blocked, causal frame 2' },
+    kind: 'SellBlocked',
+    token: '0xf69ebe4353d00912763b9e7be3aee4f00509c2cc',
+    tokenName: 'CopperInu',
+    network: 'Ethereum',
+    router: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+    buyer: '0x679c3a64ba7147bc0e8f6288a10f8de83e3fcb1b',
+    pin: { block: 25872399, blockHash: '0xff9910c5310c04c0cbd10684a6c1e4779f4fb84e89a2d57d39f16fee73fbc06b', timestamp: 1788144851, fork: 'Osaka', chainId: 1 },
+    verdict: { headline: 'SELL BLOCKED', detail: 'Buy committed and tokens were received. The same-wallet sell reverted at the token transfer step. Guard identifies the causal frame: the token contract itself reverted during transferFrom(). Recovery of the initial ETH is not possible through the Uniswap V2 path at this state.' },
+    effectiveLossPercent: null,
+    startEth: 2.0,
+    recoveredEth: 0,
+    steps: [
+      { name: 'buy',     ok: true,  gas: 121296 },
+      { name: 'approve', ok: true,  gas: 46192  },
+      { name: 'sell',    ok: false, gas: 65000  },
+    ],
+    causal: {
+      frameId: 2,
+      depth: 1,
+      contract: '0xf69eBe4353d00912763B9e7BE3aEE4f00509c2CC',
+      callType: 'CALL',
+      fn: 'transferFrom(address,address,uint256)',
+      revert: 'TransferHelper: TRANSFER_FROM_FAILED',
+    },
+    evidence: {
+      'Token': '0xf69eBe4353d00912763B9e7BE3aEE4f00509c2CC',
+      'Chain': 'Ethereum (1)',
+      'Block': '25,872,399',
+      'Block hash': '0xff9910c5310c04c0cbd10684a6c1e4779f4fb84e89a2d57d39f16fee73fbc06b',
+      'Timestamp': '2026-08-30 (Unix 1788144851)',
+      'Fork': 'Osaka',
+      'Router': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+      'Test amount': '2.0 ETH',
+      'BUY result': 'PASS — gas 121,296',
+      'APPROVE result': 'PASS — gas 46,192',
+      'SELL result': 'REVERT — gas ~65,000',
+      'Causal frame': '#2 (depth 1)',
+      'Causal contract': '0xf69eBe4353d00912763B9e7BE3aEE4f00509c2CC',
+      'Revert': 'TransferHelper: TRANSFER_FROM_FAILED',
+      'Revert hex': '0x08c379a0...5452414e5346455246524f4d5f4641494c4544',
+      'Engine': 'Schlieren Guard v1 / Osaka fork',
+      'Evidence file': 'demo/evidence/case-c-hostile/guard-f69ebe...json',
+    },
+  },
+
+  new: {
+    _meta: { caseId: 'case-d-new-token', description: 'Phoenix — brand new token, ~9 minutes old at scan time' },
+    kind: 'SellSuccessful',
+    token: '0x5be4ea5d45ec78f4ca34c69a2c714145c4538955',
+    tokenName: 'Phoenix',
+    network: 'Ethereum',
+    router: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+    buyer: '0x67756fb9ca5ebc85cdcb00bca986231ddb235b50',
+    age: '~9 minutes',
+    poolCreated: '2026-08-31T02:54:35Z',
+    pin: { block: 25872450, blockHash: '0x1ee29fb443ef1b906a6cb672b131d30f1694f2ae8b189443a227981c399a283d', timestamp: 1788145439, fork: 'Osaka', chainId: 1 },
+    verdict: { headline: 'SELL SUCCESSFUL', detail: 'Buy and sell both committed. Measured round-trip loss 1.14%. This token launched approximately 9 minutes before this Guard scan. Both execution legs completed against current Ethereum state. No prior Guard catalog entry was required.' },
+    effectiveLossPercent: 1.14,
+    startEth: 2.0,
+    recoveredEth: 1.9994,
+    steps: [
+      { name: 'buy',     ok: true, gas: 151264 },
+      { name: 'approve', ok: true, gas: 46277  },
+      { name: 'sell',    ok: true, gas: 125157 },
+    ],
+    causal: null,
+    evidence: {
+      'Token': '0x5be4ea5d45ec78f4ca34c69a2c714145c4538955',
+      'Token name': 'Phoenix',
+      'Pool created': '2026-08-31T02:54:35Z (~9 min before scan)',
+      'Chain': 'Ethereum (1)',
+      'Block': '25,872,450',
+      'Block hash': '0x1ee29fb443ef1b906a6cb672b131d30f1694f2ae8b189443a227981c399a283d',
+      'Timestamp': 'Unix 1788145439',
+      'Fork': 'Osaka',
+      'Router': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D (Uniswap V2)',
+      'Test amount': '2.0 ETH',
+      'BUY result': 'PASS — gas 151,264',
+      'APPROVE result': 'PASS — gas 46,277',
+      'SELL result': 'PASS — gas 125,157',
+      'Round-trip loss': '1.14%',
+      'GoPlus at scan time': 'Not in database',
+      'Pool source': 'GeckoTerminal new_pools ETH (uniswap_v2)',
+      'Engine': 'Schlieren Guard v1 / Osaka fork',
+      'Evidence file': 'demo/evidence/case-d-new-token/guard-5be4ea...json',
+    },
+  },
+};
+
+// ─── Address map for direct entry ─────────────────────────────────────────
+const ADDR_MAP = {
+  '0x6982508145454ce325ddbe47a25d4ec3d2311933': 'pepe',
+  '0x2d1643a5d14fb221521767f2405efbbe4d4603fd': 'dcat',
+  '0xf69ebe4353d00912763b9e7be3aee4f00509c2cc': 'copper',
+  '0x5be4ea5d45ec78f4ca34c69a2c714145c4538955': 'new',
+};
+
+// ─── State ─────────────────────────────────────────────────────────────────
+let currentCase = null;
+let evidenceOpen = false;
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+}
+
+function goBack() {
+  show('landing');
+  document.getElementById('addr-input').value = '';
+  evidenceOpen = false;
+}
+
+function handleRun() {
+  const addr = document.getElementById('addr-input').value.trim().toLowerCase();
+  if (!addr) return;
+  const key = ADDR_MAP[addr];
+  if (key && CASES[key]) { loadCase(key); return; }
+  // Unknown address: show analyzing then inconclusive after a beat
+  loadCaseWithAddress(addr);
+}
+
+function loadCaseWithAddress(addr) {
+  document.getElementById('a-token').textContent = addr;
+  document.getElementById('a-status').textContent = 'Looking up pool…';
+  show('analyzing');
+  resetPipeline();
+  // Animate then show "no V2 pool found" result after a short delay
+  animatePipeline([
+    { step: 'pin',     dur: 400 },
+    { step: 'buy',     dur: 600, failAt: true },
+  ], () => {
+    setTimeout(() => renderInconclusiveResult(addr), 400);
+  });
+}
+
+function loadCase(key) {
+  if (!CASES[key]) {
+    alert('Case D (new token) will be added on recording day.');
+    return;
+  }
+  const c = CASES[key];
+  document.getElementById('addr-input').value = c.token;
+  document.getElementById('a-token').textContent = c.token;
+  show('analyzing');
+  resetPipeline();
+
+  const isFail = c.kind === 'SellBlocked';
+  const steps = [
+    { step: 'pin',     dur: 380  },
+    { step: 'buy',     dur: 820  },
+    { step: 'approve', dur: 520  },
+    { step: 'sell',    dur: 900, failEnd: isFail },
+    { step: 'adj',     dur: 480  },
+  ];
+
+  animatePipeline(steps, () => {
+    setTimeout(() => renderResult(key), 400);
+  });
+}
+
+function resetPipeline() {
+  ['pin','buy','approve','sell','adj'].forEach((s, i) => {
+    const el = document.getElementById('p-' + s);
+    el.className = 'p-step';
+    el.querySelector('.p-icon').textContent = i + 1;
+    const st = document.getElementById('ps-' + s);
+    st.textContent = '—';
+    st.className = 'p-status ps-wait';
+  });
+}
+
+function animatePipeline(steps, onDone) {
+  let offset = 0;
+  steps.forEach(({ step, dur, failAt, failEnd }) => {
+    const startAt = offset;
+    offset += dur;
+
+    setTimeout(() => {
+      const el = document.getElementById('p-' + step);
+      el.classList.add('s-active');
+      const st = document.getElementById('ps-' + step);
+      st.textContent = '●';
+      st.className = 'p-status ps-run';
+
+      const labels = { pin:'Pinning block state…', buy:'Executing BUY via Router02…', approve:'Sending ERC-20 approve…', sell:'Executing SELL via Router02…', adj:'Adjudicating outcome…' };
+      document.getElementById('a-status').textContent = labels[step] || '…';
+    }, startAt);
+
+    setTimeout(() => {
+      const el = document.getElementById('p-' + step);
+      el.classList.remove('s-active');
+      if (!failAt && !failEnd) el.classList.add('s-done');
+      const icon = el.querySelector('.p-icon');
+      if (!failAt && !failEnd) icon.textContent = '✓';
+      const st = document.getElementById('ps-' + step);
+      if (failAt) { st.textContent = 'BLOCKED'; st.className = 'p-status ps-run'; st.style.color = 'var(--fracture)'; }
+      else if (failEnd) { st.textContent = 'REVERT'; st.className = 'p-status'; st.style.color = 'var(--fracture)'; icon.textContent = '✕'; icon.style.color = 'var(--fracture)'; }
+      else { st.textContent = 'DONE'; st.className = 'p-status ps-done'; }
+    }, startAt + dur * 0.82);
+  });
+
+  setTimeout(onDone, offset);
+}
+
+// ─── Render ─────────────────────────────────────────────────────────────────
+function renderResult(key) {
+  const c = CASES[key];
+  currentCase = c;
+  evidenceOpen = false;
+
+  document.getElementById('r-addr').textContent = c.token;
+  document.getElementById('r-meta').textContent = `${c.tokenName}  ·  ${c.network}  ·  Uniswap V2  ·  Router02`;
+  document.getElementById('r-test-amount').textContent = `${c.startEth} ETH`;
+  document.getElementById('r-block-inline').textContent = c.pin.block.toLocaleString();
+
+  // Age badge (new token only)
+  const ageBadge = document.getElementById('r-age-badge');
+  if (c.age) {
+    ageBadge.style.display = 'block';
+    document.getElementById('r-age-text').textContent = `TOKEN AGE: ${c.age}`;
+    document.getElementById('r-age-block').textContent = `Block ${c.pin.block.toLocaleString()}`;
+  } else {
+    ageBadge.style.display = 'none';
+  }
+
+  // Buy row
+  const buyStep = c.steps.find(s => s.name === 'buy');
+  document.getElementById('r-buy-v').textContent = buyStep?.ok ? 'EXECUTED' : 'REVERTED';
+  document.getElementById('r-buy-v').className = `ef-verdict ${buyStep?.ok ? 'v-ok' : 'v-fail'}`;
+  document.getElementById('r-buy-gas').textContent = buyStep ? buyStep.gas.toLocaleString() + ' gas' : '—';
+
+  // Approve row
+  const appStep = c.steps.find(s => s.name === 'approve');
+  document.getElementById('r-approve-v').textContent = appStep?.ok ? 'EXECUTED' : 'REVERTED';
+  document.getElementById('r-approve-v').className = `ef-verdict ${appStep?.ok ? 'v-ok' : 'v-fail'}`;
+  document.getElementById('r-approve-gas').textContent = appStep ? appStep.gas.toLocaleString() + ' gas' : '—';
+
+  // Sell row
+  const sellStep = c.steps.find(s => s.name === 'sell');
+  const sellOk = sellStep?.ok ?? false;
+  document.getElementById('r-sell-v').textContent = sellOk ? 'EXECUTED' : 'REVERTED';
+  document.getElementById('r-sell-v').className = `ef-verdict ${sellOk ? 'v-ok' : 'v-fail'}`;
+  document.getElementById('r-sell-gas').textContent = sellStep ? sellStep.gas.toLocaleString() + ' gas' : '—';
+
+  // Verdict card
+  const vc = document.getElementById('r-verdict-card');
+  vc.className = `verdict-card ${c.kind === 'SellSuccessful' ? 'vc-ok' : 'vc-blocked'}`;
+  document.getElementById('r-verdict-hl').textContent = c.verdict.headline;
+  document.getElementById('r-verdict-detail').textContent = c.verdict.detail;
+
+  // Causal frame
+  const cw = document.getElementById('r-causal-wrap');
+  if (c.causal) {
+    cw.style.display = 'flex';
+    document.getElementById('r-causal-card').innerHTML = `
+      <div class="cr"><span class="cr-k">Frame</span><span class="cr-v">#${c.causal.frameId}  ·  depth ${c.causal.depth}</span></div>
+      <div class="cr"><span class="cr-k">Contract</span><span class="cr-v addr">${c.causal.contract}</span></div>
+      <div class="cr"><span class="cr-k">Call type</span><span class="cr-v">${c.causal.callType}</span></div>
+      <div class="cr"><span class="cr-k">Function</span><span class="cr-v fn">${c.causal.fn}</span></div>
+      <div class="cr"><span class="cr-k">Revert</span><span class="cr-v revert">${c.causal.revert}</span></div>
+    `;
+  } else {
+    cw.style.display = 'none';
+  }
+
+  // Economics
+  document.getElementById('r-economics').innerHTML = (() => {
+    const rows = [];
+    rows.push(m('Start', `${c.startEth} ETH`, ''));
+    rows.push(m('Recovered', c.kind === 'SellSuccessful' ? `${c.recoveredEth} ETH` : '0 ETH', c.kind !== 'SellSuccessful' ? 'loss-bad' : ''));
+    if (c.effectiveLossPercent !== null) {
+      const pct = c.effectiveLossPercent;
+      rows.push(m('Round-trip loss', `${pct}%`, pct > 5 ? 'loss-bad' : 'loss-ok'));
+    } else {
+      rows.push(m('Round-trip loss', 'N/A (blocked)', 'loss-bad'));
+    }
+    rows.push(m('Sell result', c.kind === 'SellSuccessful' ? 'PASS' : 'BLOCKED', c.kind === 'SellSuccessful' ? 'ok-green' : 'loss-bad'));
+    return rows.join('');
+  })();
+
+  // Steps
+  document.getElementById('r-steps').innerHTML = c.steps.map(s => `
+    <div class="sb-step ${s.ok ? '' : 'fail'}">
+      <span class="sb-step-mark ${s.ok ? 'mark-ok' : 'mark-fail'}">${s.ok ? '✓' : '✕'}</span>
+      <span class="sb-step-name">${s.name.toUpperCase()}</span>
+      <span class="sb-step-gas">${s.gas.toLocaleString()} gas</span>
+    </div>
+  `).join('');
+
+  // Pin
+  document.getElementById('r-pin').innerHTML = `
+    <div class="pin-row"><span class="pin-k">Block</span><span class="pin-v">${c.pin.block.toLocaleString()}</span></div>
+    <div class="pin-row"><span class="pin-k">Hash</span><span class="pin-v">${c.pin.blockHash.slice(0,22)}…</span></div>
+    <div class="pin-row"><span class="pin-k">Fork</span><span class="pin-v">${c.pin.fork}</span></div>
+    <div class="pin-row"><span class="pin-k">Chain</span><span class="pin-v">Ethereum (${c.pin.chainId})</span></div>
+    <div class="pin-row"><span class="pin-k">Engine</span><span class="pin-v">Schlieren Guard / EELS 1350/1350</span></div>
+  `;
+
+  // Evidence drawer
+  if (c.evidence) {
+    document.getElementById('r-evidence-drawer').innerHTML = `
+      <div class="ed-header">
+        <span class="ed-title">Execution Evidence</span>
+        <span class="ed-tag">Schlieren</span>
+      </div>
+      <div class="ed-body">
+        ${Object.entries(c.evidence).map(([k, v]) => `
+          <div class="ed-row">
+            <span class="ed-k">${k}</span>
+            <span class="ed-v ${k.includes('hash') || k.includes('contract') || k.includes('Token') || k.includes('Router') || k.includes('file') ? 'mono' : ''} ${k.includes('SELL') && v.includes('REVERT') ? 'revert' : ''}">${v}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  show('result');
+}
+
+function renderInconclusiveResult(addr) {
+  // Show a clean "no pool found" state
+  currentCase = {
+    token: addr, tokenName: 'Unknown', network: 'Ethereum',
+    kind: 'Inconclusive', verdict: { headline: 'INCONCLUSIVE — no Uniswap V2 pool found',
+      detail: 'Guard was unable to identify a Uniswap V2 WETH pool for this token. The Guard scenario requires a supported liquidity path. This token may trade on Uniswap V3 or another exchange not yet supported.' },
+    startEth: 2.0, recoveredEth: 0, effectiveLossPercent: null,
+    steps: [],
+    causal: null, evidence: null,
+    pin: { block: '—', blockHash: '—', fork: 'Osaka', chainId: 1 },
+  };
+  // simplified render
+  document.getElementById('r-addr').textContent = addr;
+  document.getElementById('r-meta').textContent = 'Ethereum  ·  Uniswap V2';
+  document.getElementById('r-age-badge').style.display = 'none';
+  document.getElementById('r-test-amount').textContent = '2.0 ETH';
+  document.getElementById('r-block-inline').textContent = '—';
+  document.getElementById('r-buy-v').textContent = '—';
+  document.getElementById('r-approve-v').textContent = '—';
+  document.getElementById('r-sell-v').textContent = '—';
+  const vc = document.getElementById('r-verdict-card');
+  vc.className = 'verdict-card vc-blocked';
+  document.getElementById('r-verdict-hl').textContent = 'INCONCLUSIVE';
+  document.getElementById('r-verdict-detail').textContent = currentCase.verdict.detail;
+  document.getElementById('r-causal-wrap').style.display = 'none';
+  document.getElementById('r-economics').innerHTML = m('Result', 'No V2 pool', 'loss-bad');
+  document.getElementById('r-steps').innerHTML = '';
+  document.getElementById('r-pin').innerHTML = '';
+  show('result');
+}
+
+function m(label, value, cls) {
+  return `<div class="sb-metric"><span class="sb-metric-label">${label}</span><span class="sb-metric-val ${cls}">${value}</span></div>`;
+}
+
+function toggleEvidence() {
+  evidenceOpen = !evidenceOpen;
+  const drawer = document.getElementById('r-evidence-drawer');
+  const btn = document.getElementById('evidence-btn-text');
+  if (evidenceOpen) {
+    drawer.classList.add('open');
+    btn.textContent = 'HIDE EXECUTION EVIDENCE';
+  } else {
+    drawer.classList.remove('open');
+    btn.textContent = 'VIEW EXECUTION EVIDENCE';
+  }
+}
+
+// Enter key
+document.getElementById('addr-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleRun();
+});
+
+// ─── Pill management ──────────────────────────────────────────────────────
+// All four cases are loaded
+</script>
+</body>
+</html>

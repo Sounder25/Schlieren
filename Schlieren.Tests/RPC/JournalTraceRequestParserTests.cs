@@ -40,6 +40,38 @@ public sealed class JournalTraceRequestParserTests
     }
 
     [Fact]
+    public void Nested_ZeroAddressTo_IsMessageCallNotCreate()
+    {
+        var request = Parse("""
+            {
+              "transaction": {
+                "from": "0x0000000000000000000000000000000000000001",
+                "to": "0x0000000000000000000000000000000000000000",
+                "data": "0x00"
+              }
+            }
+            """);
+        Assert.Equal(Address.Zero, request.To);
+    }
+
+    [Theory]
+    [InlineData("0x")]
+    [InlineData("0x0")]
+    public void Nested_ShortFormTo_IsCreate(string to)
+    {
+        var request = Parse("""
+            {
+              "transaction": {
+                "from": "0x0000000000000000000000000000000000000001",
+                "to": "{TO}",
+                "data": "0x00"
+              }
+            }
+            """.Replace("{TO}", to));
+        Assert.Null(request.To);
+    }
+
+    [Fact]
     public void Nested_NullTo_IsCreate()
     {
         var request = Parse("""

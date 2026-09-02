@@ -106,6 +106,20 @@ public sealed record CampaignFamilyPolicy(
             "basefee", "priority", "maxfee", "intrinsic", "type_1", "type_2"
         });
 
+    // ── Wave 2: Precompile + Gas campaigns ────────────────────────────────
+
+    /// <summary>Campaign 8: BLS12-381 precompiles (EIP-2537, Prague).</summary>
+    public static readonly CampaignFamilyPolicy PrecompilesBls12 = new(
+        "precompiles-bls12", "1",
+        "EIP-2537 BLS12-381 precompiles: G1/G2 add, mul, MSM, pairing, map-to-curve",
+        PathFilters: new[] { "eip2537", "bls12" },
+        ScoreDimensions: new[] {
+            "g1add", "g1mul", "g1msm", "g2add", "g2mul", "g2msm",
+            "pairing", "map_fp_to_g1", "map_fp2_to_g2",
+            "valid", "invalid", "gas", "call_types", "isogeny",
+            "variable_length", "before_fork", "zero_length", "multi_inf"
+        });
+
     // ── Lookup ─────────────────────────────────────────────────────────────
 
     private static readonly IReadOnlyDictionary<string, CampaignFamilyPolicy> _all =
@@ -118,6 +132,7 @@ public sealed record CampaignFamilyPolicy(
             ["selfdestruct"]             = SelfDestruct,
             ["transient-storage"]        = TransientStorage,
             ["access-list-fee-market"]   = AccessListFeeMarket,
+            ["precompiles-bls12"]        = PrecompilesBls12,
         };
 
     /// <summary>

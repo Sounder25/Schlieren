@@ -23,7 +23,7 @@
 
 .interference-title {
   font-family: var(--font-chrome);
-  font-size: 14px;
+  font-size: var(--text-section);
   font-weight: 600;
   color: var(--t-secondary);
   letter-spacing: 1px;
@@ -31,14 +31,14 @@
 
 .interference-description {
   font-family: var(--font-chrome);
-  font-size: 12px;
+  font-size: var(--text-chrome);
   color: var(--t-tertiary);
   line-height: 1.7;
 }
 
 .interference-note {
   font-family: var(--font-chrome);
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--t-ghost);
   padding: 4px 10px;
   border: 1px solid var(--b-hard);

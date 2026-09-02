@@ -1,4 +1,4 @@
-import { useAppStore } from '../engine/store';
+import { useAppStore, executionStatusLabel, executionStatus } from '../engine/store';
 import './CaseBar.css';
 
 export function CaseBar() {
@@ -29,18 +29,25 @@ export function CaseBar() {
       </div>
       <div className="case-separator" />
       <div className="case-field">
-        <span className="case-label">GAS</span>
+        <span className="case-label">STEP GAS</span>
         <span className="case-value">
-          {result ? `${result.gasUsed.toLocaleString()} used` : '—'}
+          {step ? `${step.gasBefore.toLocaleString()} → ${step.gasAfter.toLocaleString()} (−${step.gasCost})` : '—'}
+        </span>
+      </div>
+      <div className="case-separator" />
+      <div className="case-field">
+        <span className="case-label">TX GAS</span>
+        <span className="case-value">
+          {result ? `${result.gasUsed.toLocaleString()} total` : '—'}
         </span>
       </div>
 
       {result && (
         <>
           <div className="case-separator" />
-          <div className={`case-oracle-badge ${result.success ? 'agree' : 'fracture'}`}>
-            <div className={`oracle-dot ${result.success ? 'agree' : 'fracture'}`} />
-            <span>{result.success ? 'SUCCESS' : 'REVERT'}</span>
+          <div className={`case-oracle-badge ${result.success ? 'agree' : executionStatus(result).toLowerCase()}`}>
+            <div className={`oracle-dot ${result.success ? 'agree' : executionStatus(result).toLowerCase()}`} />
+            <span>{executionStatusLabel(result)}</span>
           </div>
         </>
       )}

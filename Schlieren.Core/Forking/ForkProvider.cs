@@ -4,6 +4,7 @@ using Polly;
 using Polly.Retry;
 using Schlieren.Core.Models;
 using Schlieren.Core.Primitives;
+using Schlieren.Core.Security;
 
 namespace Schlieren.Core.Forking;
 
@@ -21,6 +22,13 @@ public class ForkProvider : IForkProvider
             .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
             .Or<HttpRequestException>()
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+    }
+
+    public async Task<ulong> GetChainIdAsync(CancellationToken ct = default)
+    {
+        var request = CreateRequest("eth_chainId", Array.Empty<object>());
+        var response = await ExecuteRequestAsync<string>(request, ct);
+        return ParseUlong(response);
     }
 
     public async Task<ulong> GetLatestBlockNumberAsync(CancellationToken ct = default)
@@ -107,6 +115,7 @@ public class ForkProvider : IForkProvider
 
     private async Task<T?> ExecuteRequestAsync<T>(object payload, CancellationToken ct)
     {
+        OpSecGate.AssertRemoteAllowed("fork_rpc", _client.BaseAddress?.ToString());
         var response = await _retryPolicy.ExecuteAsync(async (token) =>
         {
             var res = await _client.PostAsJsonAsync("", payload, token);

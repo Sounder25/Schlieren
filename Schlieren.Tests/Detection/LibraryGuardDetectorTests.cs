@@ -1,6 +1,5 @@
 using Schlieren.Core.Detection;
 using Schlieren.Core.Execution;
-using UiLibraryGuard = Schlieren.UI.Services.LibraryGuardDetector;
 
 namespace Schlieren.Tests.Detection;
 
@@ -36,19 +35,6 @@ public class LibraryGuardDetectorTests
         Assert.NotNull(result);
         Assert.Equal(LibraryAddress, result!.EmbeddedConstant);
         Assert.NotEqual(LeftoverTop, result.EmbeddedConstant);
-    }
-
-    [Fact]
-    public void UiAnalyze_Push32FirstOpcode_StillDetectsGuard()
-    {
-        var trace = BuildLibraryGuardTrace(
-            push32PreStack: new List<string>(),
-            postPushStack: new List<string> { LibraryAddress });
-
-        var finding = UiLibraryGuard.Analyze(trace);
-
-        Assert.NotNull(finding);
-        Assert.Contains("library", finding!.Title, StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<ExecutionTraceStep> BuildLibraryGuardTrace(

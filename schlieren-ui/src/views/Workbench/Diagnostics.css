@@ -64,7 +64,7 @@
 .diag-confidence {
   margin-left: auto;
   font-family: var(--font-chrome);
-  font-size: 9px;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.5px;
   padding: 1px 6px;
@@ -171,6 +171,33 @@
 .diag-finding-evidence { color: var(--t-tertiary); overflow-wrap: anywhere; }
 .diag-finding-limitation { color: var(--t-ghost); font-style: italic; line-height: 1.4; }
 
+.diag-export-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.diag-export-btn {
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--t-secondary);
+  background: var(--s-elevated);
+  border: 1px solid var(--b-hard);
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+.diag-export-btn:hover:not(:disabled) {
+  border-color: var(--b-focus);
+  color: var(--t-primary);
+}
+
+.diag-export-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ─── Connection ─── */
 .diag-connection {
   margin-top: auto;
@@ -196,3 +223,16 @@
   font-size: var(--text-micro);
   color: var(--t-ghost);
 }
+
+/* Oracle comparison table */
+.diag-oracle-lines { padding: 8px 12px; display: grid; gap: 1px; }
+.diag-oracle-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--b-subtle); font: var(--text-micro) var(--font-data); }
+.diag-oracle-row:last-child { border-bottom: none; }
+.diag-oracle-key { color: var(--t-tertiary); }
+.diag-oracle-val { color: var(--t-secondary); }
+.diag-oracle-val.agree { color: var(--sig-agree); }
+.diag-oracle-val.fracture { color: var(--sig-fracture); }
+
+/* Evidence chain list */
+.diag-evidence-chain { margin: 0; padding: 8px 12px 8px 28px; display: grid; gap: 4px; list-style: decimal; }
+.diag-evidence-item { font: var(--text-micro) var(--font-data); color: var(--t-secondary); padding: 3px 0; line-height: 1.5; }

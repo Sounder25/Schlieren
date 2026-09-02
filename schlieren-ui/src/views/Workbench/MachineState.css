@@ -26,7 +26,7 @@
   height: 200px;
   color: var(--t-ghost);
   font-family: var(--font-chrome);
-  font-size: 11px;
+  font-size: var(--text-label);
 }
 
 /* ─── Step Controls ─── */
@@ -39,15 +39,15 @@
 }
 
 .step-btn {
-  width: 28px;
-  height: 24px;
+  width: 34px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--s-elevated);
   border: 1px solid var(--b-hard);
   border-radius: 3px;
-  font-size: 9px;
+  font-size: var(--text-micro);
   color: var(--t-secondary);
   transition: 
     background var(--duration-fast) var(--ease-out),
@@ -80,7 +80,7 @@
 }
 
 .step-progress-label {
-  font-size: 9px;
+  font-size: var(--text-micro);
   color: var(--t-ghost);
   text-align: center;
   letter-spacing: 0.5px;
@@ -156,7 +156,7 @@
 
 .state-meta {
   font-family: var(--font-chrome);
-  font-size: 9px;
+  font-size: var(--text-micro);
   color: var(--t-ghost);
 }
 
@@ -167,7 +167,7 @@
 
 .state-empty-note {
   color: var(--t-ghost);
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-style: italic;
 }
 
@@ -217,7 +217,7 @@
   align-items: baseline;
   padding: 2px 4px;
   border-radius: 2px;
-  font-size: 11px;
+  font-size: var(--text-label);
 }
 
 .stack-entry.new {
@@ -228,7 +228,7 @@
   width: 14px;
   text-align: right;
   color: var(--t-ghost);
-  font-size: 9px;
+  font-size: var(--text-micro);
   flex-shrink: 0;
 }
 
@@ -253,18 +253,18 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-label);
 }
 
 .storage-slot {
   color: var(--sig-state);
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 500;
 }
 
 .storage-arrow {
   color: var(--t-ghost);
-  font-size: 9px;
+  font-size: var(--text-micro);
 }
 
 .storage-val {
@@ -273,7 +273,7 @@
 
 /* ─── Memory ─── */
 .memory-hex {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--sig-memory);
   word-break: break-all;
   line-height: 1.6;
@@ -288,7 +288,7 @@
 /* ─── Result badge ─── */
 .result-badge {
   font-family: var(--font-chrome);
-  font-size: 9px;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.5px;
   padding: 1px 6px;
@@ -308,5 +308,5 @@
 .return-data {
   color: var(--sig-agree);
   word-break: break-all;
-  font-size: 10px;
+  font-size: var(--text-micro);
 }

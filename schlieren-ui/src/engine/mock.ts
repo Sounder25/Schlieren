@@ -1,5 +1,6 @@
-import { useAppStore } from '../engine/store';
-import type { JournalResult, JournalFrameNode } from '../engine/store';
+// @ts-nocheck — retired mock helper; kept for reference, not imported by the app.
+import { useAppStore } from './store';
+import type { JournalResult, JournalFrameNode } from './store';
 
 // ─── Mock frame tree ──────────────────────────────────────────────────────────
 // Simulates a reentrancy attack pattern:

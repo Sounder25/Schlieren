@@ -1,12 +1,16 @@
 import { parseJournalTrace } from './journal';
-import { useAppStore, type ExecutionResult, type RunConfig } from './store';
+import { useAppStore, type ExecutionResult } from './store';
 
-async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
+let inflight: AbortController | null = null;
+let runGeneration = 0;
+
+async function rpcCall(method: string, params: unknown[], signal?: AbortSignal): Promise<unknown> {
   const { endpoint } = useAppStore.getState();
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }),
+    signal,
   });
   if (!response.ok) throw new Error(`RPC HTTP ${response.status}: ${response.statusText}`);
   const json = await response.json();
@@ -14,13 +18,28 @@ async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
   return json.result;
 }
 
-export async function executeTrace(): Promise<ExecutionResult> {
-  const { config, guardReplay, setIsRunning, setResult } = useAppStore.getState();
-  setIsRunning(true);
-  try {
-    const request = guardReplay?.params[0] ?? buildFlatRequest(config);
+export function cancelTrace(): boolean {
+  if (!inflight) return false;
+  inflight.abort();
+  inflight = null;
+  return true;
+}
 
-    const journal = parseJournalTrace(await rpcCall('schlieren_traceJournal', [request]));
+export async function executeTrace(): Promise<ExecutionResult> {
+  const generation = ++runGeneration;
+  inflight?.abort();
+  const controller = new AbortController();
+  inflight = controller;
+
+  const { config, loadedFixture, setIsRunning, setResult, setLastError } = useAppStore.getState();
+  setIsRunning(true);
+  setLastError(null);
+  try {
+    const request = loadedFixture
+      ? loadedFixture.request
+      : flatRequestFromConfig(config);
+
+    const journal = parseJournalTrace(await rpcCall('schlieren_traceJournal', [request], controller.signal));
     const result: ExecutionResult = {
       ...journal,
       success: journal.execution.success,
@@ -30,12 +49,22 @@ export async function executeTrace(): Promise<ExecutionResult> {
     };
     setResult(result);
     return result;
+  } catch (err) {
+    const aborted = controller.signal.aborted || (err instanceof DOMException && err.name === 'AbortError');
+    if (aborted) {
+      if (generation === runGeneration) setLastError('Run cancelled');
+      throw err instanceof Error ? err : new DOMException('Aborted', 'AbortError');
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    setLastError(message);
+    throw err;
   } finally {
-    setIsRunning(false);
+    if (inflight === controller) inflight = null;
+    if (generation === runGeneration) setIsRunning(false);
   }
 }
 
-function buildFlatRequest(config: RunConfig): Record<string, unknown> {
+function flatRequestFromConfig(config: ReturnType<typeof useAppStore.getState>['config']) {
   const request: Record<string, unknown> = {
     from: config.from,
     to: config.to,
@@ -55,6 +84,26 @@ function buildFlatRequest(config: RunConfig): Record<string, unknown> {
       : `0x${config.bytecode}`;
   }
   return request;
+}
+
+export async function setOpSec(enabled: boolean): Promise<boolean> {
+  const result = await rpcCall('schlieren_opsecSet', [{ enabled }]) as { enabled: boolean };
+  useAppStore.getState().setOpSecEnabled(result.enabled);
+  return result.enabled;
+}
+
+export async function checkOpSec(): Promise<boolean> {
+  try {
+    const result = await rpcCall('schlieren_opsecStatus', []) as { enabled: boolean };
+    useAppStore.getState().setOpSecEnabled(result.enabled);
+    return result.enabled;
+  } catch {
+    return false;
+  }
+}
+
+export async function importCode(address: string, provider: string): Promise<{ address: string; code: string }> {
+  return rpcCall('schlieren_importCode', [{ address, provider }]) as Promise<{ address: string; code: string }>;
 }
 
 export async function checkConnection(): Promise<boolean> {

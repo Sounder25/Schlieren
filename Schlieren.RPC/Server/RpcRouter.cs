@@ -2,6 +2,7 @@ using Schlieren.RPC.Handlers;
 using Schlieren.RPC.Models;
 using System.Linq;
 using System.Text.Json;
+using System.Net.Http;
 using Schlieren.RPC;
 using Microsoft.Extensions.Logging;
 
@@ -14,13 +15,19 @@ namespace Schlieren.RPC.Server;
 public sealed class RpcRouter : IJsonRpcRouter
 {
     private readonly EthHandlers _ethHandlers;
+    private readonly ConformanceHandlers _conformanceHandlers;
+    private readonly OpSecHandlers _opSecHandlers;
+    private readonly GuardHandlers _guardHandlers;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<RpcRouter>? _logger;
     private readonly IReadOnlyList<string> _registeredMethods;
 
-    public RpcRouter(EthHandlers ethHandlers, ILogger<RpcRouter>? logger = null)
+    public RpcRouter(EthHandlers ethHandlers, ILogger<RpcRouter>? logger = null, GuardHandlers? guardHandlers = null)
     {
         _ethHandlers = ethHandlers;
+        _conformanceHandlers = new ConformanceHandlers();
+        _opSecHandlers = new OpSecHandlers();
+        _guardHandlers = guardHandlers ?? new GuardHandlers(new DefaultHttpClientFactory());
         _logger = logger;
         
         // Do not use WhenWritingNull globally: eth JSON-RPC requires "result": null for
@@ -67,7 +74,16 @@ public sealed class RpcRouter : IJsonRpcRouter
             "debug_traceBlockByHash",
             "debug_inspect",
             "debug_whyNot",
-            "schlieren_traceJournal"
+            "schlieren_traceJournal",
+            "schlieren_conformancePrepare",
+            "schlieren_conformanceStart",
+            "schlieren_conformancePoll",
+            "schlieren_conformanceCancel",
+            "schlieren_conformanceReadFixture",
+            "schlieren_opsecStatus",
+            "schlieren_opsecSet",
+            "schlieren_importCode",
+            "schlieren_guard"
         }.AsReadOnly();
     }
 
@@ -81,6 +97,8 @@ public sealed class RpcRouter : IJsonRpcRouter
     /// </summary>
     public async Task<string> ProcessRequest(string requestBody, CancellationToken ct = default)
     {
+        System.Console.Error.WriteLine($"[RpcRouter] ProcessRequest body_len={requestBody?.Length} method_preview={requestBody?.Substring(0, Math.Min(200, requestBody?.Length ?? 0))}");
+        _logger?.LogInformation("[RpcRouter] ProcessRequest called, body len={Len}", requestBody?.Length);
         JsonRpcRequest? request = null;
         object? requestId = null;
 
@@ -119,6 +137,10 @@ public sealed class RpcRouter : IJsonRpcRouter
             _logger?.LogInformation("RPC error: {ErrorCode} - {Message}", ex.ErrorCode, ex.Message);
             return CreateErrorResponse(requestId, ex.ErrorCode, ex.Message);
         }
+        catch (Schlieren.Core.Security.OpSecViolationException ex)
+        {
+            return CreateErrorResponse(requestId, JsonRpcErrorCodes.OpSecViolation, ex.Message);
+        }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Unhandled exception in RPC request processing");
@@ -131,6 +153,7 @@ public sealed class RpcRouter : IJsonRpcRouter
     /// </summary>
     private async Task<object?> RouteToHandler(string method, object[] parameters, CancellationToken ct)
     {
+        _logger?.LogInformation("[RpcRouter] Dispatching method: '{Method}' (len={Len})", method, method?.Length);
         return method switch
         {
             "eth_chainId" => _ethHandlers.HandleChainId(),
@@ -181,6 +204,15 @@ public sealed class RpcRouter : IJsonRpcRouter
             "debug_inspect" => await _ethHandlers.HandleDebugInspect(parameters, ct),
             "debug_whyNot" => await _ethHandlers.HandleDebugWhyNot(parameters, ct),
             "schlieren_traceJournal" => await _ethHandlers.HandleTraceJournal(parameters, ct),
+            "schlieren_conformancePrepare" => _conformanceHandlers.HandlePrepare(parameters),
+            "schlieren_conformanceStart" => _conformanceHandlers.HandleStart(parameters),
+            "schlieren_conformancePoll" => _conformanceHandlers.HandlePoll(parameters),
+            "schlieren_conformanceCancel" => _conformanceHandlers.HandleCancel(parameters),
+            "schlieren_conformanceReadFixture" => _conformanceHandlers.HandleReadFixture(parameters),
+            "schlieren_opsecStatus" => _opSecHandlers.HandleStatus(),
+            "schlieren_opsecSet" => _opSecHandlers.HandleSet(parameters),
+            "schlieren_importCode" => await _opSecHandlers.HandleImportCode(parameters, ct),
+            "schlieren_guard" => await _guardHandlers.HandleGuard(parameters, ct),
             
             // Method not found
             _ => throw new RpcException(JsonRpcErrorCodes.MethodNotFound, $"Method not found: {method}")
@@ -239,4 +271,10 @@ public sealed class RpcRouter : IJsonRpcRouter
 
         return JsonSerializer.Serialize(response, _jsonOptions);
     }
+}
+
+/// <summary>Minimal IHttpClientFactory for contexts where DI is not available (e.g. unit tests).</summary>
+internal sealed class DefaultHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new();
 }

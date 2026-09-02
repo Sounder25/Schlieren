@@ -9,8 +9,12 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddSchlierenRpc(this IServiceCollection services)
     {
+        // Register IHttpClientFactory (needed by GuardHandlers)
+        services.AddHttpClient();
+        
         // Register RPC handlers
         services.TryAddSingleton<EthHandlers>();
+        services.TryAddSingleton<GuardHandlers>();
         
         // Register the router
         services.TryAddSingleton<RpcRouter>();

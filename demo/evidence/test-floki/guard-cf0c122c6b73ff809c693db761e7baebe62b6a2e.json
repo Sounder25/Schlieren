@@ -1,0 +1,23 @@
+{
+  "kind": "schlieren-guard-evidence",
+  "version": 1,
+  "pin": {
+    "chainId": 1,
+    "blockNumber": 25872401,
+    "blockHash": "0x965d934058204788839abd2c859b8559f46bc43eecbe19939d8f9b586ddb6bda",
+    "timestamp": 1788144839,
+    "fork": "Osaka",
+    "scenarioVersion": 1
+  },
+  "token": "0xcf0c122c6b73ff809c693db761e7baebe62b6a2e",
+  "router": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+  "buyer": "0x67bdc34d4973163718ee83fe7167e610964d0ff4",
+  "verdict": {
+    "kind": "Inconclusive",
+    "headline": "INCONCLUSIVE \u2014 no Uniswap V2 pool",
+    "detail": "Factory.getPair returned the zero address for WETH and USDC. No Router02 path was executed.",
+    "looksLikeHoneypot": false
+  },
+  "showExecution": "Open the matching step journal in Workbench.",
+  "steps": []
+}

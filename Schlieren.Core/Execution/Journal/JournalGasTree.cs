@@ -164,6 +164,19 @@ public static class JournalGasTree
             RefundCounterChangedEvent e => ($"Refund counter {e.Delta:+#;-#;0}", e.Semantics),
             EffectiveGasRefundedEvent e => ("Effective gas refund", e.Semantics),
             TransactionSettledEvent => ("Transaction settled", GasSemantics.Observation),
+            FrameStateCheckpointEvent => ("State checkpoint (rollback point saved)", GasSemantics.Observation),
+            FrameStateResolvedEvent e => (e.Resolution switch
+            {
+                FrameStateResolution.Commit   => "State committed to overlay",
+                FrameStateResolution.Rollback => "State rolled back — execution reverted",
+                _ => $"State resolved: {e.Resolution}"
+            }, GasSemantics.Observation),
+            TransactionPersistenceEvent e => (e.Outcome switch
+            {
+                TransactionPersistenceOutcome.CommittedToState   => "Transaction committed to chain",
+                TransactionPersistenceOutcome.SimulationDiscarded => "Simulation discarded — no state change",
+                _ => $"Transaction outcome: {e.Outcome}"
+            }, GasSemantics.Observation),
             _ => (entry.GetType().Name, GasSemantics.Observation)
         };
         var node = new JournalGasNode(

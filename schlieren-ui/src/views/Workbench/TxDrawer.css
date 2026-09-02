@@ -85,14 +85,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 3px;
   color: var(--t-ghost);
-  font-size: 11px;
+  font-size: var(--text-label);
   line-height: 1;
   cursor: pointer;
   transition: color var(--duration-fast), border-color var(--duration-fast),
@@ -172,14 +172,14 @@
 
 .tx-input {
   font-family: var(--font-data);
-  font-size: 11px;
+  font-size: var(--text-label);
   line-height: 1;
   color: var(--t-primary);
   background: var(--s-inset);
   border: 1px solid var(--b-subtle);
   border-radius: 3px;
   padding: 0 8px;
-  height: 26px;
+  height: 34px;
   outline: none;
   transition: border-color var(--duration-fast), background var(--duration-fast);
   width: 100%;
@@ -240,13 +240,13 @@
 
 .tx-select {
   font-family: var(--font-data);
-  font-size: 11px;
+  font-size: var(--text-label);
   color: var(--t-primary);
   background: var(--s-inset);
   border: 1px solid var(--b-subtle);
   border-radius: 3px;
   padding: 0 28px 0 8px;
-  height: 26px;
+  height: 34px;
   outline: none;
   appearance: none;
   -webkit-appearance: none;
@@ -273,7 +273,7 @@
 .tx-select-arrow {
   position: absolute;
   right: 8px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--t-ghost);
   pointer-events: none;
   line-height: 1;

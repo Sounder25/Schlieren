@@ -1,23 +1,24 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import DockLayout from 'rc-dock';
 import type { LayoutData, TabData } from 'rc-dock';
 import 'rc-dock/dist/rc-dock-dark.css';
 import { useAppStore } from '../../engine/store';
 import { executeTrace } from '../../engine/rpc';
-import { loadGuardEvidence } from '../../engine/guard-evidence';
+import { loadFixture } from '../../engine/fixture-adapter';
 import { Disassembly } from './Disassembly';
 import { MachineState } from './MachineState';
 import { TracePanel } from './TracePanel';
 import { Diagnostics } from './Diagnostics';
+import { FrameTree } from './FrameTree';
+import { TxDrawer } from './TxDrawer';
 import './Workbench.css';
-
-// ─── Panel definitions ───────────────────────────────────────────────────────
 
 const panels: Record<string, { title: string; component: React.FC }> = {
   disassembly: { title: 'Disassembly', component: Disassembly },
   'machine-state': { title: 'Machine State', component: MachineState },
   trace: { title: 'Trace Field', component: TracePanel },
   diagnostics: { title: 'Diagnostics', component: Diagnostics },
+  'frame-tree': { title: 'Frame Chain', component: FrameTree },
 };
 
 function loadTab(tab: TabData): TabData {
@@ -43,20 +44,17 @@ function createTab(id: string): TabData {
   };
 }
 
-// ─── Layout persistence ──────────────────────────────────────────────────────
-
-const LAYOUT_STORAGE_KEY = 'schlieren-dock-layout';
+const LAYOUT_STORAGE_KEY = 'schlieren-dock-layout-v2';
 
 function saveLayout(layout: LayoutData) {
   try {
-    // rc-dock layouts contain React elements in tabs — strip content before saving
     const serializable = JSON.stringify(layout, (key, value) => {
       if (key === 'content' || key === 'title') return undefined;
       return value;
     });
     localStorage.setItem(LAYOUT_STORAGE_KEY, serializable);
   } catch {
-    // Silently fail — layout save is best-effort
+    // layout save is best-effort
   }
 }
 
@@ -70,14 +68,11 @@ function loadSavedLayout(): LayoutData | null {
   }
 }
 
-// ─── Default layout ──────────────────────────────────────────────────────────
-
 const defaultLayout: LayoutData = {
   dockbox: {
     mode: 'horizontal',
     children: [
       {
-        // Left column: Disassembly on top, Trace + Machine State as tabs below
         mode: 'vertical',
         size: 650,
         children: [
@@ -87,12 +82,11 @@ const defaultLayout: LayoutData = {
           },
           {
             size: 250,
-            tabs: [createTab('trace'), createTab('machine-state')],
+            tabs: [createTab('trace'), createTab('machine-state'), createTab('frame-tree')],
           },
         ],
       },
       {
-        // Right column: Diagnostics full height
         size: 340,
         tabs: [createTab('diagnostics')],
       },
@@ -100,17 +94,18 @@ const defaultLayout: LayoutData = {
   },
 };
 
-// ─── Workbench ───────────────────────────────────────────────────────────────
-
 export function Workbench() {
   const config = useAppStore((s) => s.config);
   const setConfig = useAppStore((s) => s.setConfig);
   const isRunning = useAppStore((s) => s.isRunning);
-  const guardReplay = useAppStore((s) => s.guardReplay);
-  const setGuardReplay = useAppStore((s) => s.setGuardReplay);
+  const resetWorkbench = useAppStore((s) => s.resetWorkbench);
+  const applyLoadedFixture = useAppStore((s) => s.applyLoadedFixture);
+  const loadedFixture = useAppStore((s) => s.loadedFixture);
+  const setLastError = useAppStore((s) => s.setLastError);
   const dockRef = useRef<DockLayout>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const savedLayout = useRef<LayoutData | null>(loadSavedLayout());
+  const [txOpen, setTxOpen] = useState(false);
 
   const handleLayoutChange = useCallback((newLayout: LayoutData) => {
     saveLayout(newLayout);
@@ -119,8 +114,8 @@ export function Workbench() {
   const handleRun = async () => {
     try {
       await executeTrace();
-    } catch (err) {
-      console.error('Execution failed:', err);
+    } catch {
+      /* lastError is set in executeTrace */
     }
   };
 
@@ -131,19 +126,20 @@ export function Workbench() {
   };
 
   const handleFile = async (file: File) => {
-    const text = await file.text();
+    if (file.size > 10 * 1024 * 1024) {
+      setLastError('File exceeds 10 MB limit.');
+      return;
+    }
     try {
-      const loaded = loadGuardEvidence(text);
-      setGuardReplay(loaded.replay);
-      setConfig(loaded.config);
+      const text = await file.text();
+      applyLoadedFixture(loadFixture(text, { path: file.name, preferredFork: config.fork }));
     } catch (err) {
-      console.error('Guard evidence load failed:', err);
+      setLastError(err instanceof Error ? err.message : String(err));
     }
   };
 
   return (
     <div className="workbench">
-      {/* Input bar */}
       <div className="wb-input-bar">
         <span className="wb-input-label">BYTECODE</span>
         <input
@@ -151,10 +147,7 @@ export function Workbench() {
           type="text"
           placeholder="Paste hex bytecode (0x optional) — Ctrl+Enter to execute"
           value={config.bytecode}
-          onChange={(e) => {
-            setGuardReplay(null);
-            setConfig({ bytecode: e.target.value });
-          }}
+          onChange={(e) => setConfig({ bytecode: e.target.value })}
           onKeyDown={handleKeyDown}
           spellCheck={false}
           autoComplete="off"
@@ -163,31 +156,39 @@ export function Workbench() {
           <input
             ref={fileRef}
             type="file"
-            accept=".json"
+            accept=".json,.hex,.txt,.bin"
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void handleFile(file);
               e.target.value = '';
+              if (file) void handleFile(file);
             }}
           />
           <button
             className="wb-calldata-btn chrome"
-            title="Open Guard evidence JSON"
+            title="Load state-test, pre-state, or hex"
             onClick={() => fileRef.current?.click()}
           >
-            EVIDENCE
+            LOAD
           </button>
           <button
             className="wb-calldata-btn chrome"
             title="Configure transaction parameters"
+            onClick={() => setTxOpen(true)}
           >
             TX
           </button>
           <button
+            className="wb-reset-btn chrome"
+            title="Reset workbench (keep fork and addresses)"
+            onClick={resetWorkbench}
+          >
+            RESET
+          </button>
+          <button
             className="wb-run-btn chrome"
             onClick={handleRun}
-            disabled={isRunning || (!config.bytecode && !guardReplay)}
+            disabled={isRunning || (!config.bytecode && !loadedFixture)}
           >
             {isRunning ? (
               <span className="run-spinner">⟳</span>
@@ -198,7 +199,6 @@ export function Workbench() {
         </div>
       </div>
 
-      {/* Dockable workspace */}
       <div className="wb-dock-container">
         <DockLayout
           ref={dockRef}
@@ -208,6 +208,8 @@ export function Workbench() {
           style={{ position: 'absolute', inset: 0 }}
         />
       </div>
+
+      <TxDrawer open={txOpen} onClose={() => setTxOpen(false)} />
     </div>
   );
 }

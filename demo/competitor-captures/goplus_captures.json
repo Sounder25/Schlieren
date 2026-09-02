@@ -1,0 +1,32 @@
+{
+  "copperinu": {
+    "source": "GoPlus",
+    "token": "0xf69ebe4353d00912763b9e7be3aee4f00509c2cc",
+    "is_honeypot": null,
+    "buy_tax": null,
+    "sell_tax": null,
+    "is_blacklisted": null,
+    "owner_change_balance": null,
+    "can_take_back_ownership": null
+  },
+  "pepe": {
+    "source": "GoPlus",
+    "token": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+    "is_honeypot": "0",
+    "buy_tax": "0",
+    "sell_tax": "0",
+    "is_blacklisted": "1",
+    "owner_change_balance": "0",
+    "can_take_back_ownership": "0"
+  },
+  "dcat": {
+    "source": "GoPlus",
+    "token": "0x2d1643a5d14fb221521767f2405efbbe4d4603fd",
+    "is_honeypot": null,
+    "buy_tax": null,
+    "sell_tax": null,
+    "is_blacklisted": null,
+    "owner_change_balance": null,
+    "can_take_back_ownership": null
+  }
+}
