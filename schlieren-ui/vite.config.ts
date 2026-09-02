@@ -7,9 +7,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/rpc': {
-        target: 'http://localhost:8545',
+        target: 'https://schlieren.soundersolution.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rpc/, ''),
+        ws: false,
       },
     },
   },

@@ -64,3 +64,40 @@ harvest/ledger/staging/
 
 # Guard demo - compiled CLI publish output (rebuild with: dotnet publish Schlieren.CLI)
 demo/cli-publish/
+
+# Demo scratch - build scripts, intermediate audio/frames, build artifacts
+demo/build_demo_v*.py
+demo/__pycache__/
+demo/audio.aac
+demo/audio.wav
+demo/audio.mp3
+demo/check_audio.mp3
+demo/audio_stereo.mp3
+demo/audio/
+demo/audio_cleaned/
+demo/frame_*.jpg
+demo/analysis-frames/
+demo/crop_check/
+demo/cut-clips/
+demo/pitch-frames/
+demo/review-frames/
+demo/timing-frames/
+demo/build_tmp/
+demo/build_v*/
+demo/workbench_closing_bg.png
+
+# Demo video outputs - large binaries, keep final artifacts out of git
+# (Keep Guard_Demo_v9.mp4 as the final; ignore working copies and zips)
+demo/Guard_Demo_v9 - Copy.mp4
+demo/Guard_Demo_v9 - Copy.zip
+demo/Guard_Demo.mp4
+
+# Root-level demo videos (recording sessions)
+Recording *.mp4
+
+# Raw video/still footage (large source assets)
+demo/Video and stills I got/
+
+# Dev tunnel/startup scripts (local machine specific)
+start.ps1
+tunnel.ps1

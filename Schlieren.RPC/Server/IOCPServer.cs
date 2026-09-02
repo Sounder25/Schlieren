@@ -187,7 +187,7 @@ namespace Schlieren.RPC.Server
 
                     // SECTION: Process JSON-RPC request
                     using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-                    requestCts.CancelAfter(TimeSpan.FromSeconds(30)); // 30 second request timeout
+                    requestCts.CancelAfter(TimeSpan.FromSeconds(120)); // 120 second request timeout
 
                     var jsonResponse = await _router.ProcessRequest(body, requestCts.Token);
 

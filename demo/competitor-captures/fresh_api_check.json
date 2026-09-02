@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-08-31T10:28:46.949526",
+  "tokens": {
+    "phoenix": "0x5be4ea5d45ec78f4ca34c69a2c714145c4538955",
+    "dcat": "0x2d1643a5d14fb221521767f2405efbbe4d4603fd"
+  },
+  "results": {
+    "goplus_phoenix": {
+      "error": 404,
+      "message": "{\"timestamp\":\"2026-08-31T15:28:45.686+00:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"\",\"path\":\"/api/v1/token_security/1/0x5be4ea5d45ec78f4ca34c69a2c714145c4538955\"}"
+    },
+    "goplus_dcat": {
+      "error": 404,
+      "message": "{\"timestamp\":\"2026-08-31T15:28:46.765+00:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"\",\"path\":\"/api/v1/token_security/1/0x2d1643a5d14fb221521767f2405efbbe4d4603fd\"}"
+    }
+  }
+}
