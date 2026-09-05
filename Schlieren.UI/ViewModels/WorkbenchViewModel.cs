@@ -1198,6 +1198,23 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     public async Task GenerateAuditReportAsync(string savePath)
     {
+        ulong? lastStepGasRemaining = null;
+        var lastStepGas = _currentTrace.LastOrDefault()?.Gas;
+        if (!string.IsNullOrWhiteSpace(lastStepGas))
+        {
+            var hex = lastStepGas.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? lastStepGas[2..]
+                : lastStepGas;
+            if (ulong.TryParse(
+                    hex,
+                    System.Globalization.NumberStyles.HexNumber,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var parsedGas))
+            {
+                lastStepGasRemaining = parsedGas;
+            }
+        }
+
         await AuditReportExporter.GenerateReportAsync(
             CurrentFileTitle,
             SelectedFork,
@@ -1210,7 +1227,8 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             Instructions,
             savePath,
             executionSuccess: LastRunSuccess,
-            executionError: string.IsNullOrWhiteSpace(ErrorText) ? null : ErrorText);
+            executionError: string.IsNullOrWhiteSpace(ErrorText) ? null : ErrorText,
+            lastStepGasRemaining: lastStepGasRemaining);
 
         StatusMessage = $"Wrote audit report: {Path.GetFileName(savePath)}";
     }
