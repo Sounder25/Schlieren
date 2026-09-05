@@ -43,7 +43,7 @@ public static class AuditReportExporter
         sb.AppendLine();
         sb.AppendLine("*.NET 8 Ethereum Execution & Verification Engine*");
         sb.AppendLine();
-        sb.AppendLine("Precise � Verifiable � Traceable � Conformant");
+        sb.AppendLine("Precise · Verifiable · Traceable · Conformant");
         sb.AppendLine();
         sb.AppendLine($"- **Target File / Context** : `{activeFileTitle}`");
         sb.AppendLine($"- **EVM Hard Fork**        : `{selectedFork}`");
@@ -80,7 +80,10 @@ public static class AuditReportExporter
         sb.AppendLine();
         if (findingList.Count == 0)
         {
-            sb.AppendLine("? **No security vulnerabilities or proxy storage collisions detected.**");
+            var findingsNote = executionSuccess
+                ? "✅ **No security vulnerabilities or proxy storage collisions detected.**"
+                : "✅ **No findings on executed path.** Analysis reflects instructions executed prior to the halt.";
+            sb.AppendLine(findingsNote);
         }
         else
         {
@@ -152,6 +155,7 @@ public static class AuditReportExporter
         // Top Gas-Consuming Steps
         var instrList = instructions.ToList();
         var topGasSteps = instrList
+            .Where(i => i.GasCost >= 0)
             .OrderByDescending(i => i.GasCost)
             .Take(10)
             .ToList();
@@ -191,18 +195,18 @@ public static class AuditReportExporter
 
         if (!executionSuccess)
         {
-            sb.AppendLine($"- ? **Execution failed: {executionError ?? "unknown error"}**. No security findings can be inferred from an incomplete execution.");
+            sb.AppendLine($"- ❌ **Execution failed: {executionError ?? "unknown error"}**. No security findings can be inferred from an incomplete execution.");
             hasRecommendations = true;
         }
 
         if (findingList.Any(f => f.Description.Contains("REENTRANCY", StringComparison.OrdinalIgnoreCase)))
         {
-            sb.AppendLine("- ?? **Reentrancy Mitigation**: Apply the Checks-Effects-Interactions (CEI) pattern or use OpenZeppelin `ReentrancyGuard` (`nonReentrant` modifier) before making external state calls.");
+            sb.AppendLine("- 🔴 **Reentrancy Mitigation**: Apply the Checks-Effects-Interactions (CEI) pattern or use OpenZeppelin `ReentrancyGuard` (`nonReentrant` modifier) before making external state calls.");
             hasRecommendations = true;
         }
         if (findingList.Any(f => f.Description.Contains("STORAGE COLLISION", StringComparison.OrdinalIgnoreCase)))
         {
-            sb.AppendLine("- ?? **Storage Layout Safety**: Ensure ERC-1967 storage slots or explicit random slot offsets (`keccak256(...) - 1`) are used for proxy implementation variables.");
+            sb.AppendLine("- ⚠️ **Storage Layout Safety**: Ensure ERC-1967 storage slots or explicit random slot offsets (`keccak256(...) - 1`) are used for proxy implementation variables.");
             hasRecommendations = true;
         }
 
@@ -212,13 +216,13 @@ public static class AuditReportExporter
 
         if (hasStorageOps)
         {
-            sb.AppendLine("- ? **Gas Optimization**: Storage operations detected. Check COLD storage access opcodes (`SLOAD`/`SSTORE`) and consider pre-warming targets via EIP-2930 access lists.");
+            sb.AppendLine("- ⚡ **Gas Optimization**: Storage operations detected. Check COLD storage access opcodes (`SLOAD`/`SSTORE`) and consider pre-warming targets via EIP-2930 access lists.");
             hasRecommendations = true;
         }
 
         if (!hasRecommendations)
         {
-            sb.AppendLine("- ? **No specific recommendations.** No security findings detected.");
+            sb.AppendLine("- ✅ **No specific recommendations.** No security findings detected.");
         }
 
         sb.AppendLine();

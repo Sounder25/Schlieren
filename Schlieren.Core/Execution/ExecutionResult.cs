@@ -1,5 +1,6 @@
 using Schlieren.Core.Models;
 using Schlieren.Core.Execution.Journal;
+using System.Numerics;
 using System.Text.Json.Serialization;
 
 namespace Schlieren.Core.Execution;
@@ -35,6 +36,14 @@ public readonly record struct ExecutionResult
     public ExecutionJournal? Journal { get; init; }
     [JsonIgnore]
     internal long? JournalFrameId { get; init; }
+
+    /// <summary>Post-execution stack snapshot (top-first). Null when tracing is off.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<BigInteger>? FinalStack { get; init; }
+
+    /// <summary>Post-execution memory snapshot. Null when tracing is off.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string>? FinalMemory { get; init; }
 
     private ExecutionResult(bool success, EvmError error, ulong gasUsed, byte[] returnData, List<TransactionLog>? logs = null, List<ExecutionTraceStep>? traceSteps = null, long gasRefundCounter = 0)
     {

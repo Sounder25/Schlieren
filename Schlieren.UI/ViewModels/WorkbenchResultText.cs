@@ -64,7 +64,7 @@ public static class WorkbenchResultText
         if (emptyReturn)
         {
             return ("PASS",
-                "Transaction succeeded with no return data. If you expected output, scrub to the last step and check STORAGE.");
+                "Transaction succeeded with no return data. Inspect the final machine state for stack, memory, or storage effects.");
         }
 
         return ("PASS",

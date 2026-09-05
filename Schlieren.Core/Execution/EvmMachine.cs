@@ -57,7 +57,9 @@ namespace Schlieren.Core.Execution
                         EvmError.InvalidOpcode,
                         context.GasLimit) with
                     {
-                        TraceSteps = context.TraceSteps
+                        TraceSteps = context.TraceSteps,
+                        FinalStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null,
+                        FinalMemory = context.CaptureTrace ? context.Memory.SnapshotWordsHex() : null
                     };
                 }
 
@@ -122,7 +124,9 @@ namespace Schlieren.Core.Execution
                         return execResult with
                         {
                             GasUsed = failureGasUsed,
-                            TraceSteps = context.TraceSteps
+                            TraceSteps = context.TraceSteps,
+                        FinalStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null,
+                        FinalMemory = context.CaptureTrace ? context.Memory.SnapshotWordsHex() : null
                         };
                     }
 
@@ -157,7 +161,9 @@ namespace Schlieren.Core.Execution
                         haltError,
                         context.GasLimit) with
                     {
-                        TraceSteps = context.TraceSteps
+                        TraceSteps = context.TraceSteps,
+                        FinalStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null,
+                        FinalMemory = context.CaptureTrace ? context.Memory.SnapshotWordsHex() : null
                     };
                 }
                 catch (OperationCanceledException)
@@ -189,7 +195,12 @@ namespace Schlieren.Core.Execution
             }
 
             // Successfully executed to the end of the code — preserve any RETURN data and gas refund counter
-            return ExecutionResult.Success(context.GasUsed, returnData: lastReturnData, logs: context.Logs, traceSteps: context.TraceSteps) with { GasRefundCounter = context.GasRefundCounter };
+            return ExecutionResult.Success(context.GasUsed, returnData: lastReturnData, logs: context.Logs, traceSteps: context.TraceSteps) with
+            {
+                GasRefundCounter = context.GasRefundCounter,
+                FinalStack = context.CaptureTrace ? context.Stack.SnapshotTopFirst() : null,
+                FinalMemory = context.CaptureTrace ? context.Memory.SnapshotWordsHex() : null
+            };
         }
 
         private static bool TryMapProtocolHalt(Exception ex, out EvmError error)

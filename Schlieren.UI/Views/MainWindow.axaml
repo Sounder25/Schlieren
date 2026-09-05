@@ -763,7 +763,7 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                  <TextBlock Text="No findings"
+                  <TextBlock Text="{Binding EmptyFindingsText}"
                              IsVisible="{Binding !HasSecurityFindings}"
                              FontFamily="Inter, Segoe UI, sans-serif"
                              FontSize="12" Foreground="#454B54"/>

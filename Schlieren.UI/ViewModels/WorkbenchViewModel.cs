@@ -46,6 +46,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     public ObservableCollection<GasNodeViewModel> GasTreeNodes { get; } = new();
     public ObservableCollection<SecurityFindingViewModel> SecurityFindings { get; } = new();
     public bool HasSecurityFindings => SecurityFindings.Count > 0;
+    public string EmptyFindingsText => LastRunSuccess
+        ? "No findings detected"
+        : "No findings on executed path";
     public ObservableCollection<DiagnosticFinding> Diagnostics { get; } = new();
     public ObservableCollection<string> EventLogRows { get; } = new();
     public ObservableCollection<string> AccountStateRows { get; } = new();
@@ -132,6 +135,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _diagnosisText = "(no trace — run bytecode first)";
     
     private InspectResult? _lastInspectResult;
+    private ExecutionResult? _lastExecutionResult;
     [ObservableProperty] private bool _isCallFramePinned;
     private IReadOnlyDictionary<string, IReadOnlyList<string>> _postStorage =
         new Dictionary<string, IReadOnlyList<string>>();
@@ -231,6 +235,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     private void OnSecurityFindingsChanged(object? sender, NotifyCollectionChangedEventArgs args)
         => OnPropertyChanged(nameof(HasSecurityFindings));
+
+    partial void OnLastRunSuccessChanged(bool value)
+        => OnPropertyChanged(nameof(EmptyFindingsText));
 
     private void OnSkinChanged(Branding.UiSkin _)
         => OnPropertyChanged(nameof(WatermarkOpacity));
@@ -1270,6 +1277,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             .OfType<TransactionSettledEvent>()
             .LastOrDefault()?.ChargedGas ?? result.GasUsed;
         _currentTrace = result.TraceSteps ?? new List<ExecutionTraceStep>();
+        _lastExecutionResult = result;
         HasTrace = _currentTrace.Count > 0;
 
         Instructions.Clear();
@@ -1299,18 +1307,38 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             ResultBannerColor = "#FF4500";
         }
 
+        // Static disassembly of full bytecode, overlaid with trace gas costs
+        var rawBytes = Services.BytecodeDisassembler.ParseHex(BytecodeInput);
+        var disasm = Services.BytecodeDisassembler.Disassemble(rawBytes);
+        // Build a lookup from PC → trace step for gas/callType overlay
+        var traceByPc = new Dictionary<int, (int Gas, string CallType, int StepIndex)>();
         for (var i = 0; i < _currentTrace.Count; i++)
         {
             var step = _currentTrace[i];
-            var gas = ParseGasCost(step.GasCost);
-            var desc = BytecodeExecutionService.DescribeOpcode(step.Op);
-            Instructions.Add(new InstructionViewModel(
-                i,
-                step.Pc.ToString("X4"),
-                step.Op,
-                gas,
-                step.CallType?.ToString() ?? $"D{step.Depth}",
-                desc));
+            traceByPc[step.Pc] = (ParseGasCost(step.GasCost), step.CallType?.ToString() ?? $"D{step.Depth}", i);
+        }
+        foreach (var op in disasm)
+        {
+            if (traceByPc.TryGetValue(op.Pc, out var traced))
+            {
+                Instructions.Add(new InstructionViewModel(
+                    traced.StepIndex,
+                    op.Pc.ToString("X4"),
+                    op.Name,
+                    traced.Gas,
+                    traced.CallType,
+                    op.Description));
+            }
+            else
+            {
+                Instructions.Add(new InstructionViewModel(
+                    -1,
+                    op.Pc.ToString("X4"),
+                    op.Name,
+                    -1,
+                    "—",
+                    op.Description));
+            }
         }
 
         if (result.Logs is { Count: > 0 })
@@ -1428,6 +1456,17 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StackRows.Clear();
         for (var i = step.Stack.Count - 1; i >= 0; i--)
             StackRows.Add($"[{i}] {step.Stack[i]}");
+
+        // At last step: append final post-execution state if available
+        if (value == _currentTrace.Count - 1 && _lastExecutionResult is { } er)
+        {
+            if (er.FinalStack is { Count: > 0 } fs)
+            {
+                StackRows.Add("── FINAL STATE ──");
+                for (var i = fs.Count - 1; i >= 0; i--)
+                    StackRows.Add($"[{i}] 0x{fs[i]:x}");
+            }
+        }
 
         MemoryRows.Clear();
         foreach (var row in step.Memory)
@@ -1568,9 +1607,16 @@ public partial class InstructionViewModel : ObservableObject
 
     [ObservableProperty] private bool _isActive;
 
-    public string DisplayText => string.IsNullOrEmpty(Description)
-        ? $"0x{PC}  {Opcode}  ({GasCost})"
-        : $"0x{PC}  {Opcode}  ({GasCost})  {Description}";
+    public string DisplayText
+    {
+        get
+        {
+            var gasStr = GasCost >= 0 ? GasCost.ToString() : "—";
+            return string.IsNullOrEmpty(Description)
+                ? $"0x{PC}  {Opcode}  ({gasStr})"
+                : $"0x{PC}  {Opcode}  ({gasStr})  {Description}";
+        }
+    }
 
     public InstructionViewModel(int stepIndex, string pc, string opcode, int gasCost, string callType, string description = "")
     {
