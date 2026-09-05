@@ -282,6 +282,8 @@ interface AppState {
   setGuardReport: (report: GuardReport | null) => void;
   guardError: string | null;
   setGuardError: (error: string | null) => void;
+  guardElapsedMs: number | null;
+  setGuardElapsedMs: (ms: number | null) => void;
   guardRunning: boolean;
   setGuardRunning: (running: boolean) => void;
 }
@@ -352,4 +354,6 @@ export const useAppStore = create<AppState>((set) => ({
   setGuardError: (guardError) => set({ guardError }),
   guardRunning: false,
   setGuardRunning: (guardRunning) => set({ guardRunning }),
+  guardElapsedMs: null,
+  setGuardElapsedMs: (guardElapsedMs) => set({ guardElapsedMs }),
 }));

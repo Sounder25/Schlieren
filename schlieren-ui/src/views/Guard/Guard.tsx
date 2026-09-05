@@ -149,6 +149,7 @@ export function Guard() {
   const guardReport = useAppStore((s) => s.guardReport);
   const guardError = useAppStore((s) => s.guardError);
   const guardRunning = useAppStore((s) => s.guardRunning);
+  const guardElapsedMs = useAppStore((s) => s.guardElapsedMs);
   const setGuardReport = useAppStore((s) => s.setGuardReport);
   const setGuardError = useAppStore((s) => s.setGuardError);
   const setActiveView = useAppStore((s) => s.setActiveView);
@@ -342,6 +343,12 @@ export function Guard() {
 
         {guardReport && !guardRunning && (
           <div className="guard-report-scroll">
+            {guardElapsedMs !== null && (
+              <div className="guard-timing-bar">
+                <span className="guard-timing-label">⏱ completed in</span>
+                <span className="guard-timing-value">{guardElapsedMs.toLocaleString()} ms</span>
+              </div>
+            )}
             <ReportPanel
               report={guardReport}
               onOpenWorkbench={handleOpenWorkbench}

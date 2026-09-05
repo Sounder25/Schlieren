@@ -493,3 +493,28 @@
   color: var(--t-tertiary);
   margin-left: auto;
 }
+
+.guard-timing-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: var(--surface-raised, rgba(255,255,255,0.04));
+  border-radius: 4px;
+  border-left: 2px solid var(--sig-ok, #4ade80);
+}
+
+.guard-timing-label {
+  font-family: var(--font-data);
+  font-size: var(--text-micro);
+  color: var(--t-tertiary);
+}
+
+.guard-timing-value {
+  font-family: var(--font-data);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  color: var(--t-primary, #e2e8f0);
+  letter-spacing: 0.04em;
+}

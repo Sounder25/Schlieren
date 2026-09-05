@@ -61,7 +61,7 @@ public sealed class GuardHandlers
         if (string.IsNullOrWhiteSpace(tokenHex))
             throw new RpcException(JsonRpcErrorCodes.InvalidParams, "Missing required field: token");
         if (string.IsNullOrWhiteSpace(rpcUrl) || rpcUrl == "/rpc")
-            rpcUrl = "http://localhost:8545"; // Default: use the tunneled Reth node (SSM port-forward)
+            rpcUrl = "https://schlieren.soundersolution.com"; // Default: ALB → EC2 Reth
 
         // Normalize: add http:// if no scheme present
         if (!rpcUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
@@ -75,7 +75,7 @@ public sealed class GuardHandlers
         // Build a one-off ForkProvider pointed at the caller-supplied RPC endpoint.
         var client = _httpClientFactory.CreateClient();
         client.BaseAddress = new Uri(rpcUrl);
-        client.Timeout = TimeSpan.FromSeconds(30);
+        client.Timeout = TimeSpan.FromSeconds(120);
 
         var cache = new BlockCache();
         var forkProvider = new ForkProvider(client, cache);
