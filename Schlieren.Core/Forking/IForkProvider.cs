@@ -9,6 +9,8 @@ public interface IForkProvider
     Task<ulong> GetChainIdAsync(CancellationToken ct = default);
     Task<ulong> GetLatestBlockNumberAsync(CancellationToken ct = default);
     Task<Block?> GetBlockByNumberAsync(ulong number, CancellationToken ct = default);
+    /// <summary>Fetches the latest block in a single RPC call (eth_getBlockByNumber "latest").</summary>
+    Task<Block?> GetLatestBlockAsync(CancellationToken ct = default);
     Task<Block?> GetBlockByHashAsync(string hash, CancellationToken ct = default);
     Task<BigInteger> GetBalanceAsync(Address address, ulong? blockNumber = null, CancellationToken ct = default);
     Task<ulong> GetTransactionCountAsync(Address address, ulong? blockNumber = null, CancellationToken ct = default);

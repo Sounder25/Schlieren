@@ -53,6 +53,18 @@ public class ForkProvider : IForkProvider
         return block;
     }
 
+    public async Task<Block?> GetLatestBlockAsync(CancellationToken ct = default)
+    {
+        var request = CreateRequest("eth_getBlockByNumber", new object[] { "latest", false });
+        var response = await ExecuteRequestAsync<ForkBlockDto>(request, ct);
+        var block = response?.ToCanonical();
+
+        if (block != null)
+            _cache.CacheBlock(block);
+
+        return block;
+    }
+
     public async Task<Block?> GetBlockByHashAsync(string hash, CancellationToken ct = default)
     {
         var request = CreateRequest("eth_getBlockByHash", new object[] { hash, false });

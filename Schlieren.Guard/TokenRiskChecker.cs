@@ -30,9 +30,8 @@ public sealed class TokenRiskChecker
         session.FundBuyer(2 * WeiPerEth);
         var spend = buyWei ?? WeiPerEth / 20; // 0.05 ETH
 
-        var weth = await session.CallAddressAsync(UniswapV2.Router02, UniswapV2.WethCall(), ct);
-        if (weth.Equals(Address.Zero))
-            weth = UniswapV2.Weth;
+        // WETH address is a permanent constant on mainnet — no RPC needed.
+        var weth = UniswapV2.Weth;
 
         var pair = await session.CallAddressAsync(
             UniswapV2.Factory, UniswapV2.GetPair(token, weth), ct);

@@ -61,11 +61,22 @@ public sealed class ScenarioSession
         IStateTransition? pipeline = null,
         CancellationToken ct = default)
     {
-        var chainId = await fork.GetChainIdAsync(ct);
-        var number = blockNumber ?? await fork.GetLatestBlockNumberAsync(ct);
-        var block = await fork.GetBlockByNumberAsync(number, ct)
-            ?? throw new InvalidOperationException($"Fork provider returned no block {number}.");
+        // Fire chainId and the block fetch in parallel — they don't depend on each other.
+        // If a specific block number was requested use GetBlockByNumberAsync, otherwise
+        // use GetLatestBlockAsync which collapses eth_blockNumber + eth_getBlockByNumber
+        // into a single "latest" call.
+        var chainIdTask = fork.GetChainIdAsync(ct);
+        var blockTask   = blockNumber.HasValue
+            ? fork.GetBlockByNumberAsync(blockNumber.Value, ct)
+            : fork.GetLatestBlockAsync(ct);
 
+        await Task.WhenAll(chainIdTask, blockTask);
+
+        var chainId = chainIdTask.Result;
+        var block   = blockTask.Result
+            ?? throw new InvalidOperationException($"Fork provider returned no block.");
+
+        var number  = block.Number;
         var overlay = new ForkingGlobalState(new GlobalState(), fork, number);
         return new ScenarioSession(
             PinnedBase.FromBlock(chainId, block, forkName),
