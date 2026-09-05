@@ -129,7 +129,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _accountsText = "(empty)";
     [ObservableProperty] private string _logsText = "(empty)";
     [ObservableProperty] private string _gasText = "(empty)";
-    [ObservableProperty] private string _diagnosisText = "(no diagnosis — run with mismatches)";
+    [ObservableProperty] private string _diagnosisText = "(no trace — run bytecode first)";
     
     private InspectResult? _lastInspectResult;
     [ObservableProperty] private bool _isCallFramePinned;
@@ -993,7 +993,7 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StatusMessage = "Workbench reset";
         StackText = MemoryText = AccountsText = LogsText = GasText = "(empty)";
         StorageText = "(empty — scrub to last step after RUN)";
-        DiagnosisText = "(no diagnosis — run with mismatches)";
+        DiagnosisText = "(no trace — run bytecode first)";
         _lastInspectResult = null;
         IsCallFramePinned = false;
         RefreshResultExplain();
@@ -1105,7 +1105,16 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
         else
         {
-            DiagnosisText = "(no diagnosis — run with mismatches)";
+            if (!LastRunSuccess && !string.IsNullOrWhiteSpace(ErrorText))
+            {
+                DiagnosisText = $"Execution halted: {ErrorText}";
+            }
+            else
+            {
+                DiagnosisText = HasTrace
+                    ? "(no causal diagnosis — load a fixture with expected post-state to enable differential analysis)"
+                    : "(no trace — run bytecode first)";
+            }
         }
     }
 
@@ -1427,6 +1436,13 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
         StorageRows.Clear();
         foreach (var kvp in step.Storage)
             StorageRows.Add($"slot {kvp.Key} = {kvp.Value}");
+
+        if (!LastRunSuccess &&
+            ErrorText?.StartsWith("Revert", StringComparison.OrdinalIgnoreCase) == true &&
+            StorageRows.Count > 0)
+        {
+            StorageRows.Add("⚠ REVERTED — mutations above were rolled back");
+        }
 
         ComputeEelsSpecCitation(step);
         UpdateActiveLineForStep(value);
