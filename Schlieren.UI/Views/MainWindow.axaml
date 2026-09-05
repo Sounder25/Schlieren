@@ -182,14 +182,14 @@
       </MenuItem>
       <MenuItem Header="_Help" FontSize="12" FontFamily="Inter, Segoe UI, sans-serif">
         <MenuItem Header="Keyboard Shortcuts">
-          <MenuItem Header="F5  — Run bytecode"              IsEnabled="False"/>
-          <MenuItem Header="F10 — Step forward"              IsEnabled="False"/>
-          <MenuItem Header="F11 — Step back"                 IsEnabled="False"/>
-          <MenuItem Header="Space — Play / Pause"            IsEnabled="False"/>
-          <MenuItem Header="Home / End — Jump to start/end"  IsEnabled="False"/>
-          <MenuItem Header="Ctrl+1/2/3 — Switch views"       IsEnabled="False"/>
-          <MenuItem Header="Ctrl+O — Open file"              IsEnabled="False"/>
-          <MenuItem Header="Ctrl+Shift+R — Reset workbench"  IsEnabled="False"/>
+          <MenuItem Header="F5  - Run bytecode"              IsEnabled="False"/>
+          <MenuItem Header="F10 - Step forward"              IsEnabled="False"/>
+          <MenuItem Header="F11 - Step back"                 IsEnabled="False"/>
+          <MenuItem Header="Space - Play / Pause"            IsEnabled="False"/>
+          <MenuItem Header="Home / End - Jump to start/end"  IsEnabled="False"/>
+          <MenuItem Header="Ctrl+1/2/3 - Switch views"       IsEnabled="False"/>
+          <MenuItem Header="Ctrl+O - Open file"              IsEnabled="False"/>
+          <MenuItem Header="Ctrl+Shift+R - Reset workbench"  IsEnabled="False"/>
         </MenuItem>
         <Separator/>
         <MenuItem Header="About Schlieren" Click="OnAboutClick"/>
@@ -261,7 +261,7 @@
                   FontSize="11" Padding="8,4" CornerRadius="3"
                   Command="{Binding ToggleOpSecCommand}"/>
 
-          <Button Content="LOAD FIXTURE…"
+          <Button Content="LOAD FIXTURE."
                   Background="#111214" Foreground="#6A7280"
                   FontFamily="Inter, Segoe UI, sans-serif"
                   FontSize="11" FontWeight="SemiBold"
@@ -298,28 +298,28 @@
           <TextBlock Classes="label" Text="TARGET"/>
           <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
                      FontSize="13" Foreground="#A0A8B4"
-                     Text="{Binding TxTo, FallbackValue='—'}"/>
+                     Text="{Binding TxTo, FallbackValue='-'}"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="6">
           <TextBlock Classes="label" Text="FORK"/>
           <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
                      FontSize="13" FontWeight="Medium" Foreground="#E4E0DC"
-                     Text="{Binding SelectedFork, FallbackValue='—'}"/>
+                     Text="{Binding SelectedFork, FallbackValue='-'}"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="6">
           <TextBlock Classes="label" Text="STEP"/>
           <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
                      FontSize="13" FontWeight="Medium" Foreground="#E4E0DC"
-                     Text="{Binding StepProgress, FallbackValue='—'}"/>
+                     Text="{Binding StepProgress, FallbackValue='-'}"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="6">
           <TextBlock Classes="label" Text="GAS"/>
           <TextBlock FontFamily="JetBrains Mono, Consolas, monospace"
                      FontSize="13" Foreground="#A0A8B4"
-                     Text="{Binding GasText, FallbackValue='—'}"/>
+                     Text="{Binding GasText, FallbackValue='-'}"/>
         </StackPanel>
 
       </StackPanel>
@@ -338,7 +338,7 @@
 
         <TextBox Grid.Column="1"
                  Text="{Binding BytecodeInput}"
-                 Watermark="Paste hex bytecode (0x optional)  ·  or use Load Fixture…"
+                 Watermark="Paste hex bytecode (0x optional)  �  or use Load Fixture."
                  Background="#090A0B" Foreground="#E4E0DC"
                  BorderBrush="#2A2D32" BorderThickness="1"
                  FontFamily="JetBrains Mono, Consolas, monospace"
@@ -386,7 +386,7 @@
     <!-- SLOT 4: Workspace -->
     <Grid Grid.Row="4" ColumnDefinitions="*,4,300" Name="WorkspaceGrid">
 
-      <!-- LEFT: view switcher — Workbench / Conformance / Harvest -->
+      <!-- LEFT: view switcher - Workbench / Conformance / Harvest -->
       <Grid Grid.Column="0" Name="MainViewArea">
 
         <!-- WORKBENCH VIEW -->
@@ -470,10 +470,10 @@
 
                     <!-- Step controls -->
                     <Grid ColumnDefinitions="*,*,*,*,*">
-                      <Button Grid.Column="0" Content="|◀" Height="24" FontSize="12"
+                      <Button Grid.Column="0" Content="|?" Height="24" FontSize="12"
                               Command="{Binding JumpToStartCommand}"
                               Background="#181A1D" Foreground="#5B8EC9"/>
-                      <Button Grid.Column="1" Content="◀"  Height="24" FontSize="12"
+                      <Button Grid.Column="1" Content="?"  Height="24" FontSize="12"
                               Command="{Binding StepBackCommand}"
                               Background="#181A1D" Foreground="#5B8EC9"/>
                       <Button Grid.Column="2"
@@ -481,10 +481,10 @@
                               Height="24" FontSize="12"
                               Command="{Binding ToggleAutoPlayCommand}"
                               Background="#1F2225" Foreground="#E4E0DC"/>
-                      <Button Grid.Column="3" Content="▶"  Height="24" FontSize="12"
+                      <Button Grid.Column="3" Content="?"  Height="24" FontSize="12"
                               Command="{Binding StepForwardCommand}"
                               Background="#181A1D" Foreground="#5B8EC9"/>
-                      <Button Grid.Column="4" Content="▶|" Height="24" FontSize="12"
+                      <Button Grid.Column="4" Content="?|" Height="24" FontSize="12"
                               Command="{Binding JumpToEndCommand}"
                               Background="#181A1D" Foreground="#5B8EC9"/>
                     </Grid>
@@ -608,40 +608,58 @@
                            Text="{Binding CurrentStepDetail}"/>
               </StackPanel>
             </Border>
-            <ScrollViewer Grid.Row="1">
-              <Grid ColumnDefinitions="*,*,*" Margin="8,6">
-                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                  <TextBlock Classes="pane-title" Text="STACK" Margin="0,0,0,6"/>
-                  <ItemsControl ItemsSource="{Binding StackRows}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="x:String">
-                        <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,1"/>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-                <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                  <TextBlock Classes="pane-title" Text="MEMORY" Margin="0,0,0,6"/>
-                  <ItemsControl ItemsSource="{Binding MemoryRows}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="x:String">
-                        <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,1"/>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                  <TextBlock Classes="pane-title" Text="STORAGE" Margin="0,0,0,6"/>
-                  <ItemsControl ItemsSource="{Binding StorageRows}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="x:String">
-                        <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,1"/>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </Grid>
-            </ScrollViewer>
+            <Grid Grid.Row="1" ColumnDefinitions="*,4,*,4,*">
+              <Border Grid.Column="0" Background="#090A0B" BorderBrush="#1E2125" BorderThickness="0,1,0,0">
+                <Grid RowDefinitions="22,*">
+                  <Border Grid.Row="0" Background="#111214" BorderBrush="#2A2D32" BorderThickness="0,0,0,1" Padding="10,0">
+                    <TextBlock Text="STACK" FontFamily="Inter, Segoe UI, sans-serif" FontSize="9" FontWeight="Bold" LetterSpacing="1.8" Foreground="#5B8EC9" VerticalAlignment="Center"/>
+                  </Border>
+                  <ScrollViewer Grid.Row="1">
+                    <ItemsControl ItemsSource="{Binding StackRows}" Margin="10,4">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,2"/>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Grid>
+              </Border>
+              <Border Grid.Column="1" Background="#1E2125"/>
+              <Border Grid.Column="2" Background="#090A0B" BorderBrush="#1E2125" BorderThickness="0,1,0,0">
+                <Grid RowDefinitions="22,*">
+                  <Border Grid.Row="0" Background="#111214" BorderBrush="#2A2D32" BorderThickness="0,0,0,1" Padding="10,0">
+                    <TextBlock Text="MEMORY" FontFamily="Inter, Segoe UI, sans-serif" FontSize="9" FontWeight="Bold" LetterSpacing="1.8" Foreground="#4BA89A" VerticalAlignment="Center"/>
+                  </Border>
+                  <ScrollViewer Grid.Row="1">
+                    <ItemsControl ItemsSource="{Binding MemoryRows}" Margin="10,4">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,2"/>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Grid>
+              </Border>
+              <Border Grid.Column="3" Background="#1E2125"/>
+              <Border Grid.Column="4" Background="#090A0B" BorderBrush="#1E2125" BorderThickness="0,1,0,0">
+                <Grid RowDefinitions="22,*">
+                  <Border Grid.Row="0" Background="#111214" BorderBrush="#2A2D32" BorderThickness="0,0,0,1" Padding="10,0">
+                    <TextBlock Text="STORAGE" FontFamily="Inter, Segoe UI, sans-serif" FontSize="9" FontWeight="Bold" LetterSpacing="1.8" Foreground="#C8943C" VerticalAlignment="Center"/>
+                  </Border>
+                  <ScrollViewer Grid.Row="1">
+                    <ItemsControl ItemsSource="{Binding StorageRows}" Margin="10,4">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <TextBlock Text="{Binding}" Classes="data" FontSize="11" Padding="0,2"/>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Grid>
+              </Border>
+            </Grid>
           </Grid>
         </Grid>
 
@@ -808,7 +826,7 @@
                    VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"/>
         <TextBlock Grid.Column="1"
-                   Text="Schlieren 1.0 · .NET 8"
+                   Text="Schlieren 1.0 � .NET 8"
                    FontFamily="Inter, Segoe UI, sans-serif"
                    FontSize="10" Foreground="#2A2D32"
                    VerticalAlignment="Center"/>

@@ -1208,7 +1208,9 @@ public partial class WorkbenchViewModel : ObservableObject, IDisposable
             SecurityFindings,
             Diagnostics,
             Instructions,
-            savePath);
+            savePath,
+            executionSuccess: LastRunSuccess,
+            executionError: string.IsNullOrWhiteSpace(ErrorText) ? null : ErrorText);
 
         StatusMessage = $"Wrote audit report: {Path.GetFileName(savePath)}";
     }

@@ -23,7 +23,9 @@ public static class AuditReportExporter
         IEnumerable<SecurityFindingViewModel> findings,
         IEnumerable<DiagnosticFinding> diagnostics,
         IEnumerable<InstructionViewModel> instructions,
-        string savePath)
+        string savePath,
+        bool executionSuccess = true,
+        string? executionError = null)
     {
         var sb = new StringBuilder();
 
@@ -39,8 +41,21 @@ public static class AuditReportExporter
         sb.AppendLine($"- **Base Fee**             : `{baseFeeGwei} Gwei`");
         sb.AppendLine($"- **Total Execution Steps**: `{totalSteps}`");
         sb.AppendLine($"- **Total Gas Used**       : `{totalGasUsed:N0}`");
+        sb.AppendLine($"- **Execution Result**     : `{(executionSuccess ? "SUCCESS" : $"FAILED — {executionError ?? "unknown error"}")}`");
         sb.AppendLine($"- **Report Generated**     : `{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC`");
         sb.AppendLine();
+
+        // Execution failure banner — must appear before security findings
+        if (!executionSuccess)
+        {
+            sb.AppendLine("## ❌ Execution Failure");
+            sb.AppendLine();
+            sb.AppendLine($"**EXECUTION FAILED: {executionError ?? "unknown error"}**");
+            sb.AppendLine();
+            sb.AppendLine("The EVM halted exceptionally before completing. All remaining gas was burned.");
+            sb.AppendLine("Security analysis below reflects instructions executed prior to the halt.");
+            sb.AppendLine();
+        }
 
         // Security Findings
         var findingList = findings.ToList();
@@ -48,7 +63,7 @@ public static class AuditReportExporter
         sb.AppendLine();
         if (findingList.Count == 0)
         {
-            sb.AppendLine("✅ **No critical security vulnerabilities or proxy storage collisions detected.**");
+            sb.AppendLine("✅ **No security vulnerabilities or proxy storage collisions detected.**");
         }
         else
         {
@@ -139,14 +154,32 @@ public static class AuditReportExporter
                 sb.AppendLine($"| `0x{step.PC}` | `{step.Opcode}` | `{step.GasCost:N0}` | `{step.CallType}` |");
             }
         }
+
+        // Exceptional halt gas burn
+        if (!executionSuccess && totalGasUsed > 0)
+        {
+            var opcodeGasUsed = (ulong)instrList.Sum(i => (long)i.GasCost);
+            var exceptionalBurn = totalGasUsed > opcodeGasUsed ? totalGasUsed - opcodeGasUsed : 0;
+            if (exceptionalBurn > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"**Exceptional halt gas burn: {exceptionalBurn:N0}** *(all remaining gas burned on `{executionError}` — not attributable to any single opcode)*");
+            }
+        }
         sb.AppendLine();
 
         // Recommendation Summary
         sb.AppendLine("## Auditor Recommendations");
         sb.AppendLine();
-        
+
         bool hasRecommendations = false;
-        
+
+        if (!executionSuccess)
+        {
+            sb.AppendLine($"- ❌ **Execution failed: {executionError ?? "unknown error"}**. No security findings can be inferred from an incomplete execution.");
+            hasRecommendations = true;
+        }
+
         if (findingList.Any(f => f.Description.Contains("REENTRANCY", StringComparison.OrdinalIgnoreCase)))
         {
             sb.AppendLine("- 🔴 **Reentrancy Mitigation**: Apply the Checks-Effects-Interactions (CEI) pattern or use OpenZeppelin `ReentrancyGuard` (`nonReentrant` modifier) before making external state calls.");
@@ -157,23 +190,23 @@ public static class AuditReportExporter
             sb.AppendLine("- ⚠️ **Storage Layout Safety**: Ensure ERC-1967 storage slots or explicit random slot offsets (`keccak256(...) - 1`) are used for proxy implementation variables.");
             hasRecommendations = true;
         }
-        
+
         // Only recommend storage optimization if SLOAD/SSTORE actually occurred
-        var hasStorageOps = instrList.Any(i => 
-            i.Opcode.Equals("SLOAD", StringComparison.OrdinalIgnoreCase) || 
+        var hasStorageOps = instrList.Any(i =>
+            i.Opcode.Equals("SLOAD", StringComparison.OrdinalIgnoreCase) ||
             i.Opcode.Equals("SSTORE", StringComparison.OrdinalIgnoreCase));
-        
+
         if (hasStorageOps)
         {
             sb.AppendLine("- ⚡ **Gas Optimization**: Storage operations detected. Check COLD storage access opcodes (`SLOAD`/`SSTORE`) and consider pre-warming targets via EIP-2930 access lists.");
             hasRecommendations = true;
         }
-        
+
         if (!hasRecommendations)
         {
-            sb.AppendLine("- ✅ **No specific recommendations**. Execution completed without detectable anti-patterns.");
+            sb.AppendLine("- ✅ **No specific recommendations.** No security findings detected.");
         }
-        
+
         sb.AppendLine();
 
         var reportContent = sb.ToString();
@@ -182,9 +215,7 @@ public static class AuditReportExporter
     }
 
     /// <summary>
-    /// Escapes a value for safe placement inside a Markdown table cell. A raw '|' is parsed
-    /// as a column boundary and a raw newline breaks the row entirely — both occur in normal
-    /// finding text (e.g. "Target: X | re-entry step Y"), not just adversarial input.
+    /// Escapes a value for safe placement inside a Markdown table cell.
     /// </summary>
     private static string EscapeMarkdownCell(string? value)
     {
